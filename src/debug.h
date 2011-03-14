@@ -6,7 +6,7 @@
 #define CRP(call) ({                            \
   GT_STATUS __st = (call);                      \
   if (__st != GT_OK)                            \
-    fprintf (stderr, "%s:%d: %s => %04X\n",     \
+    osPrintSync ("%s:%d: %s => %04X\n",         \
              __FILE__, __LINE__, #call, __st);  \
   __st;                                         \
     })
@@ -14,7 +14,7 @@
 #include <stdio.h>
 #define CRP(call) ({                            \
   GT_STATUS __st = (call);                      \
-  fprintf (stderr, "%s:%d: %s => %04X\n",       \
+  osPrintSync ("%s:%d: %s => %04X\n",           \
            __FILE__, __LINE__, #call, __st);    \
   __st;                                         \
     })

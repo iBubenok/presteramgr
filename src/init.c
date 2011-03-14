@@ -1210,8 +1210,10 @@ start (void)
 
   fprintf (stderr, "\n\n");
   init_cpss ();
-}
 
+  fprintf (stderr, "start handling events\n");
+  CRP (cpss_bind_events ());
+}
 
 int
 start_cpss (int argc, char **argv)

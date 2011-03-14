@@ -1,5 +1,5 @@
 sbin_PROGRAMS = presteramgr
-presteramgr_SOURCES = main.c init.c presteramgr.h debug.h
+presteramgr_SOURCES = main.c init.c cpss-event.c presteramgr.h debug.h utils.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 AM_CPPFLAGS = -I@cpss@/cpss/common/h \
