@@ -1,4 +1,9 @@
-#include <cpssdefs.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif /* HAVE_CONFIG_H */
+
+#include <presteramgr.h>
+#include <debug.h>
 
 #include <gtOs/gtGenTypes.h>
 #include <gtOs/gtOsInit.h>
@@ -43,12 +48,6 @@
 #include <cpss/dxCh/dxChxGen/policer/cpssDxChPolicer.h>
 
 /* Trunk library. */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
-
-#include <debug.h>
-
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
 
 /* OS binding function prototypes. */
@@ -87,6 +86,7 @@
     return __rc;                                                        \
     })
 
+extern GT_STATUS extDrvUartInit (void);
 
 static GT_STATUS
 cpssGetDefaultOsBindFuncs (OUT CPSS_OS_FUNC_BIND_STC *osFuncBindPtr)
@@ -1030,16 +1030,16 @@ after_phase2 (void)
 static GT_STATUS
 after_init (void)
 {
-    GT_U32  i;
-    GT_U8   devNum;
+    /* GT_U32  i; */
+    /* GT_U8   devNum; */
     GT_STATUS rc;
     GT_U8 port;
-    GT_U8   localDevNum = 0;
-    GT_U8   localPortNum;
-    GT_U16  marvell_1540PhyId = 0x141;
-    GT_U16  localPhyId = 0;
-    GT_TASK netPortsForceLinkUpTid;         /* Task Id */
-    GT_U32 regAddr;
+    /* GT_U8   localDevNum = 0; */
+    /* GT_U8   localPortNum; */
+    /* GT_U16  marvell_1540PhyId = 0x141; */
+    /* GT_U16  localPhyId = 0; */
+    /* GT_TASK netPortsForceLinkUpTid;         /\* Task Id *\/ */
+    /* GT_U32 regAddr; */
 
     /* set ports 24-27 to SGMII mode */
     for (port = 24; port < 28; port++) {
@@ -1148,6 +1148,7 @@ init_cpss (void)
 
   osFatalErrorInit (NULL);
   osMemInit (2048 * 1024, GT_TRUE);
+  extDrvUartInit ();
 
   osMemSet (&ph1_info, 0, sizeof (ph1_info));
 
@@ -1200,8 +1201,8 @@ init_cpss (void)
 }
 
 
-static void
-start (void)
+void
+cpss_start (void)
 {
   if (osWrapperOpen (NULL) != GT_OK) {
     fprintf (stderr, "osWrapper initialization failure!\n");
@@ -1212,15 +1213,5 @@ start (void)
   init_cpss ();
 
   fprintf (stderr, "start handling events\n");
-  CRP (cpss_bind_events ());
+  event_enter_loop ();
 }
-
-int
-start_cpss (int argc, char **argv)
-{
-  if (osStartEngine (argc, (const char **) argv, "cpsstest", start) != GT_OK)
-    return 1;
-
-  return 0;
-}
-
