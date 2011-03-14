@@ -1,5 +1,7 @@
+#include <presteramgr.h>
+
 int
 main (int argc, char **argv)
 {
-  return 0;
+  return start_cpss (argc, argv);
 }
