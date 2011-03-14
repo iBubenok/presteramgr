@@ -47,7 +47,8 @@ am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
 am_presteramgr_OBJECTS = main.$(OBJEXT)
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS)
-presteramgr_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a
+presteramgr_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a \
+	@cpss@/compilation_root/cpssLinuxBind.a
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -146,7 +147,9 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c
-presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a
+presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
+	@cpss@/compilation_root/cpssLinuxBind.a
+
 AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h
