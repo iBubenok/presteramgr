@@ -60,7 +60,7 @@ event_enter_loop (void)
       osPrintSync ("dev %d port %2d link %s\n",
                    dev, edata, link ? "up" : "down");
     }
-    if (rc != GT_OK)
+    if (rc != GT_NO_MORE)
       exit (1);
   }
 }
