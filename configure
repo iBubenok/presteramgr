@@ -561,7 +561,7 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
-cpss_path
+cpss
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
 CCDEPMODE
@@ -643,6 +643,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
+with_cpss
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1270,6 +1271,11 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-cpss=PATH        specify the CPSS location
 
 Some influential environment variables:
   CC          C compiler command
@@ -3241,6 +3247,16 @@ fi
 
 
 
+
+# Check whether --with-cpss was given.
+if test "${with_cpss+set}" = set; then :
+  withval=$with_cpss; cpss=`readlink -f $withval`
+else
+  as_fn_error $? "you must specify the CPSS location" "$LINENO" 5
+fi
+
+
+
 # Checks for libraries.
 
 # Checks for header files.
@@ -3248,9 +3264,6 @@ fi
 # Checks for typedefs, structures, and compiler characteristics.
 
 # Checks for library functions.
-
-cpss_path=`readlink -f /home/obelozeorov/projects/cpss/cpss`
-
 
 ac_config_files="$ac_config_files Makefile src/Makefile"
 

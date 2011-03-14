@@ -47,7 +47,7 @@ am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
 am_presteramgr_OBJECTS = main.$(OBJEXT)
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS)
-presteramgr_DEPENDENCIES = @cpss_path@/compilation_root/cpssDrvLib.a
+presteramgr_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -115,7 +115,7 @@ am__untar = @am__untar@
 bindir = @bindir@
 build_alias = @build_alias@
 builddir = @builddir@
-cpss_path = @cpss_path@
+cpss = @cpss@
 datadir = @datadir@
 datarootdir = @datarootdir@
 docdir = @docdir@
@@ -146,7 +146,11 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c
-presteramgr_LDADD = @cpss_path@/compilation_root/cpssDrvLib.a
+presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a
+AM_CPPFLAGS = -I@cpss@/cpss/common/h \
+	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
+	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h
+
 all: all-am
 
 .SUFFIXES:
@@ -160,9 +164,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu src/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/Makefile
+	  $(AUTOMAKE) --gnu src/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \

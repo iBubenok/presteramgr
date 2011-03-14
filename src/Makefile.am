@@ -1,3 +1,6 @@
 sbin_PROGRAMS = presteramgr
 presteramgr_SOURCES = main.c
-presteramgr_LDADD = @cpss_path@/compilation_root/cpssDrvLib.a
+presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a
+AM_CPPFLAGS = -I@cpss@/cpss/common/h \
+	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
+	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h
