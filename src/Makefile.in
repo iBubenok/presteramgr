@@ -146,7 +146,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-presteramgr_SOURCES = main.c init.c presteramgr.h
+presteramgr_SOURCES = main.c init.c presteramgr.h debug.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 

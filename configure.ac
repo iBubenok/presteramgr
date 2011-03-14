@@ -16,6 +16,21 @@ AC_ARG_WITH([cpss],
   [AC_MSG_ERROR([you must specify the CPSS location])])
 AC_SUBST([cpss])
 
+AC_ARG_ENABLE([cpss-rprint],
+  [AS_HELP_STRING([--enable-cpss-rprint],
+                  [configure the CRP macro behavior:
+                    0, no : do not print CPSS call results
+                    1, yes: print non-OK CPSS call results (default)
+                    2, all: print all CPSS call results])],
+  [],
+  [enable_cpss_rprint=1])
+case $enable_cpss_rprint in
+  0 | no)  AC_DEFINE([CPSS_RPRINT], [0], [CPSS result printing level]);;
+  1 | yes) AC_DEFINE([CPSS_RPRINT], [1], [CPSS result printing level]);;
+  2 | all) AC_DEFINE([CPSS_RPRINT], [2], [CPSS result printing level]);;
+  *)       AC_MSG_ERROR([invalid --enable-cpss-rprint argument]);;
+esac
+
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 

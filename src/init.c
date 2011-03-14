@@ -43,6 +43,12 @@
 #include <cpss/dxCh/dxChxGen/policer/cpssDxChPolicer.h>
 
 /* Trunk library. */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif /* HAVE_CONFIG_H */
+
+#include <debug.h>
+
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
 
 /* OS binding function prototypes. */
@@ -76,12 +82,10 @@
 #define RX_BUFF_ALIGN_DEF       1
 
 #define RCC(rc, name) ({                                                \
-  GT_STATUS __rc = (rc);                                                \
-  if (__rc != GT_OK) {                                                  \
-    fprintf (stderr, "%s:%d: " #name ": %04X\n",                        \
-             __FILE__, __LINE__, __rc);                                 \
+  GT_STATUS __rc = CRP (rc);                                            \
+  if (__rc != GT_OK)                                                    \
     return __rc;                                                        \
-  }})
+    })
 
 
 static GT_STATUS
