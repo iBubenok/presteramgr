@@ -2,8 +2,6 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <cpssdefs.h>
-
 #include <cpss/extServices/cpssExtServices.h>
 
 /* OS binding function prototypes. */
@@ -32,6 +30,7 @@
 
 #include <presteramgr.h>
 #include <debug.h>
+
 
 static GT_STATUS
 cpssGetDefaultOsBindFuncs (OUT CPSS_OS_FUNC_BIND_STC *osFuncBindPtr)

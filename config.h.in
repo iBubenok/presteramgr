@@ -1,5 +1,7 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+#include <cpssdefs.h>
+
 /* CPSS result printing level */
 #undef CPSS_RPRINT
 
