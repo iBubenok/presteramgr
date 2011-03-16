@@ -22,4 +22,10 @@
 #define CRP(call) call
 #endif /* CPSS_RPRINT */
 
+#define CRPR(call) ({                           \
+  GT_STATUS __st = CRP (call);                  \
+  if (__st != GT_OK)                            \
+    return __st;                                \
+    })
+
 #endif /* __DEBUG_H__ */

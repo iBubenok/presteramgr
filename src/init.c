@@ -5,12 +5,10 @@
 #include <presteramgr.h>
 #include <debug.h>
 
-#include <gtOs/gtGenTypes.h>
 #include <gtOs/gtOsInit.h>
 #include <gtOs/gtOsGen.h>
 #include <gtOs/gtOsExc.h>
 
-#include <cpss/extServices/cpssExtServices.h>
 #include <cpss/generic/init/cpssInit.h>
 
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -24,7 +22,6 @@
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortBufMg.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
-#include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 
 /* Bridge library. */
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
@@ -1044,24 +1041,18 @@ after_init (void)
     /* set ports 24-27 to SGMII mode */
     for (port = 24; port < 28; port++) {
       printf ("*** configure GE port %02d => SGMII mode\n", port);
-      RCC ((rc = cpssDxChPortInterfaceModeSet (0, port, CPSS_PORT_INTERFACE_MODE_SGMII_E)),
-           cpssDxChPortInterfaceModeSet);
-      RCC ((rc = cpssDxChPortSpeedSet (0, port, CPSS_PORT_SPEED_1000_E)),
-           cpssDxChPortSpeedSet);
-      RCC ((rc = cpssDxChPortSerdesPowerStatusSet (0, port, CPSS_PORT_DIRECTION_BOTH_E,
-                                                   0x1, GT_TRUE)),
-           cpssDxChPortSerdesPowerStatusSet);
-      RCC ((rc = cpssDxChPortInbandAutoNegEnableSet (0, port, GT_TRUE)),
-           cpssDxChPortInbandAutoNegEnableSet);
+      rc = port_set_sgmii_mode (0, port);
+      if (rc != GT_OK)
+        return rc;
     }
 
-    for (port = 0; port < 24;port++) {
-      if (!PRV_CPSS_PHY_PORT_IS_EXIST_MAC (0, port))
-        continue;
-      RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, port, 0x0, 0xB000)),
-           cpssDxChPhyPortSmiRegisterWrite);
-      osTimerWkAfter (1000);
-    }
+    /* for (port = 0; port < 24;port++) { */
+    /*   if (!PRV_CPSS_PHY_PORT_IS_EXIST_MAC (0, port)) */
+    /*     continue; */
+    /*   RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, port, 0x0, 0xB000)), */
+    /*        cpssDxChPhyPortSmiRegisterWrite); */
+    /* } */
+    /* osTimerWkAfter (100); */
 
 /*     for (port = 0; port < 24;port++) { */
 /*       if (!PRV_CPSS_PHY_PORT_IS_EXIST_MAC (0, port)) */

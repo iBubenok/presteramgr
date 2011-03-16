@@ -3,15 +3,23 @@
 
 #include <cpssdefs.h>
 
+#include <cpss/extServices/os/gtOs/gtGenTypes.h>
+
 /*
  * init.c
  */
-void cpss_start (void);
+extern void cpss_start (void);
 
 /*
  * event.c
  */
-void event_enter_loop (void);
+extern void event_enter_loop (void);
+
+/*
+ * port.c
+ */
+
+extern GT_STATUS port_set_sgmii_mode (GT_U8, GT_U8);
 
 extern int osPrintSync (const char *, ...);
 
