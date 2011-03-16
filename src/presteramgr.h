@@ -21,6 +21,11 @@ extern void event_enter_loop (void);
 
 extern GT_STATUS port_set_sgmii_mode (GT_U8, GT_U8);
 
+/*
+ * extsvc.c
+ */
+extern GT_STATUS extsvc_bind (void);
+
 extern int osPrintSync (const char *, ...);
 
 #endif /* __PRESTERAMGR_H__ */
