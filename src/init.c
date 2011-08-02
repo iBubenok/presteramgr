@@ -11,6 +11,8 @@
 
 #include <cpss/generic/init/cpssInit.h>
 
+#include <cpss/generic/cscd/cpssGenCscd.h>
+
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 #include <cpss/dxCh/dxChxGen/config/private/prvCpssDxChInfo.h>
 
@@ -131,13 +133,13 @@ post_phase_1 (void)
   CPSS_DXCH_IMPLEMENT_WA_ENT wa [CPSS_DXCH_IMPLEMENT_WA_LAST_E];
   GT_U32 wa_info [CPSS_DXCH_IMPLEMENT_WA_LAST_E];
 
-  wa [0] = CPSS_DXCH_IMPLEMENT_WA_SDMA_PKTS_FROM_CPU_STACK_E;
+  /* wa [0] = CPSS_DXCH_IMPLEMENT_WA_SDMA_PKTS_FROM_CPU_STACK_E; */
+  /* wa_info [0] = 0; */
+
+  wa [0] = CPSS_DXCH_IMPLEMENT_WA_FDB_AU_FIFO_E;
   wa_info [0] = 0;
 
-  wa [1] = CPSS_DXCH_IMPLEMENT_WA_FDB_AU_FIFO_E;
-  wa_info [1] = 0;
-
-  rc = cpssDxChHwPpImplementWaInit (0, 2, wa, wa_info);
+  rc = cpssDxChHwPpImplementWaInit (0, 1, wa, wa_info);
   RCC (rc, cpssDxChHwPpImplementWaInit);
 
   return GT_OK;
@@ -155,37 +157,6 @@ phase2_init (void)
   osMemSet (&info, 0, sizeof (info));
 
   info.newDevNum = 0;
-
-  cpssDxChHwTxDescSizeGet (CPSS_98DX2122_CNS, &tx_desc_size);
-  info.netIfCfg.txDescBlockSize = tx_desc_size * TX_DESC_NUM_DEF;
-  info.netIfCfg.txDescBlock = osCacheDmaMalloc (info.netIfCfg.txDescBlockSize);
-  if (!info.netIfCfg.txDescBlock) {
-    fprintf (stderr, "failed to allocate TX desc memory\n");
-    return GT_OUT_OF_CPU_MEM;
-  }
-  osMemSet (info.netIfCfg.txDescBlock, 0, info.netIfCfg.txDescBlockSize);
-
-  cpssDxChHwRxDescSizeGet (CPSS_98DX2122_CNS, &rx_desc_size);
-  info.netIfCfg.rxDescBlockSize = rx_desc_size * RX_DESC_NUM_DEF;
-  info.netIfCfg.rxDescBlock = osCacheDmaMalloc (info.netIfCfg.rxDescBlockSize);
-  if (!info.netIfCfg.rxDescBlock) {
-    fprintf (stderr, "failed to allocate RX desc memory\n");
-    return GT_OUT_OF_CPU_MEM;
-  }
-  osMemSet (info.netIfCfg.rxDescBlock, 0, info.netIfCfg.rxDescBlockSize);
-
-  info.netIfCfg.rxBufInfo.allocMethod = CPSS_RX_BUFF_STATIC_ALLOC_E;
-  osMemCpy (info.netIfCfg.rxBufInfo.bufferPercentage, buf_per, sizeof (buf_per));
-  info.netIfCfg.rxBufInfo.rxBufSize = RX_BUFF_SIZE_DEF;
-  info.netIfCfg.rxBufInfo.headerOffset = 0;
-  info.netIfCfg.rxBufInfo.buffersInCachedMem = GT_FALSE;
-  info.netIfCfg.rxBufInfo.buffData.staticAlloc.rxBufBlockSize = RX_BUFF_SIZE_DEF * RX_DESC_NUM_DEF;
-  info.netIfCfg.rxBufInfo.buffData.staticAlloc.rxBufBlockPtr =
-    osCacheDmaMalloc (RX_BUFF_SIZE_DEF * RX_DESC_NUM_DEF + RX_BUFF_ALIGN_DEF);
-  if (!info.netIfCfg.rxBufInfo.buffData.staticAlloc.rxBufBlockPtr) {
-    fprintf (stderr, "failed to allocate RX buff memory\n");
-    return GT_OUT_OF_CPU_MEM;
-  }
 
   cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
   info.auqCfg.auDescBlockSize = au_desc_size * AU_DESC_NUM_DEF;
@@ -426,9 +397,36 @@ static GT_STATUS
 netif_lib_init (void)
 {
   GT_STATUS rc;
+  CPSS_DXCH_NETIF_MII_INIT_STC init;
 
-  RCC ((rc = cpssDxChNetIfInit (0)),
-       cpssDxChNetIfInit);
+  init.numOfTxDesc = 1000;
+  init.txInternalBufBlockSize = 16000;
+  init.txInternalBufBlockPtr = cpssOsCacheDmaMalloc (init.txInternalBufBlockSize);
+  if (init.txInternalBufBlockPtr == NULL) {
+    fprintf (stderr, "failed to allocate TX buffers\n");
+    return GT_FAIL;
+  }
+
+  init.bufferPercentage[0] = 13;
+  init.bufferPercentage[1] = 13;
+  init.bufferPercentage[2] = 13;
+  init.bufferPercentage[3] = 13;
+  init.bufferPercentage[4] = 12;
+  init.bufferPercentage[5] = 12;
+  init.bufferPercentage[6] = 12;
+  init.bufferPercentage[7] = 12;
+
+  init.rxBufSize = 1536;
+  init.headerOffset = 0;
+  init.rxBufBlockSize = 307200;
+  init.rxBufBlockPtr = cpssOsCacheDmaMalloc (init.rxBufBlockSize);
+  if (init.rxBufBlockPtr == NULL) {
+    fprintf (stderr, "failed to allocate RX buffers\n");
+    return GT_FAIL;
+  }
+
+  RCC ((rc = cpssDxChNetIfMiiInit (0, &init)),
+       cpssDxChNetIfMiiInit);
 
   return GT_OK;
 }
@@ -725,6 +723,9 @@ after_phase2 (void)
   GT_STATUS rc;
   GT_U8 portNum;
 
+  RCC ((rc = cpssDxChCscdDsaSrcDevFilterSet (0, GT_FALSE)),
+       cpssDxChCscdDsaSrcDevFilterSet);
+
   /* configure PHY SMI Auto Poll ports number */
   /* configure SMI0 to 16 ports and SMI1 to 8 ports */
   RCC ((rc = cpssDxChPhyAutoPollNumOfPortsSet (0,
@@ -803,96 +804,80 @@ after_phase2 (void)
 }
 
 static GT_STATUS
+linux_ip_setup (GT_U8 dev)
+{
+  GT_STATUS rc;
+  CPSS_MAC_ENTRY_EXT_STC mac;
+#define CHECK(a) do {                                               \
+    rc = (a);                                                       \
+    printf ("*** " #a ": %04X\n", rc);                              \
+    if (rc != GT_OK)                                                \
+      return rc;                                                    \
+  } while (0)
+
+  CHECK (cpssDxChBrgVlanBridgingModeSet (dev, CPSS_BRG_MODE_802_1D_E));
+  /* CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)); */
+  /* CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)); */
+  /* CHECK (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet (0, 13, 0)); */
+  CHECK (cpssDxChBrgVlanIpCntlToCpuSet (dev, 1, CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E));
+  CHECK (cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+  CHECK (cpssDxChBrgGenArpTrapEnable (dev, 13, GT_TRUE));
+
+  memset (&mac, 0, sizeof (mac));
+  mac.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  mac.key.key.macVlan.vlanId = 1;
+  mac.key.key.macVlan.macAddr.arEther[0] = 0x00;
+  mac.key.key.macVlan.macAddr.arEther[1] = 0x01;
+  mac.key.key.macVlan.macAddr.arEther[2] = 0x02;
+  mac.key.key.macVlan.macAddr.arEther[3] = 0x03;
+  mac.key.key.macVlan.macAddr.arEther[4] = 0x04;
+  mac.key.key.macVlan.macAddr.arEther[5] = 0x50;
+  mac.dstInterface.type = CPSS_INTERFACE_PORT_E;
+  mac.dstInterface.devPort.devNum = 0;
+  mac.dstInterface.devPort.portNum = 63;
+  mac.isStatic = GT_TRUE;
+  mac.daCommand = CPSS_MAC_TABLE_CNTL_E;
+  mac.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+  CHECK (cpssDxChBrgFdbMacEntrySet (dev, &mac));
+
+#undef CHECK
+  return rc;
+}
+
+static GT_STATUS
 after_init (void)
 {
-    /* GT_U32  i; */
-    /* GT_U8   devNum; */
-    GT_STATUS rc;
-    GT_U8 port;
-    /* GT_U8   localDevNum = 0; */
-    /* GT_U8   localPortNum; */
-    /* GT_U16  marvell_1540PhyId = 0x141; */
-    /* GT_U16  localPhyId = 0; */
-    /* GT_TASK netPortsForceLinkUpTid;         /\* Task Id *\/ */
-    /* GT_U32 regAddr; */
+  GT_STATUS rc;
+  GT_U8 port;
 
-    /* set ports 24-27 to SGMII mode */
-    for (port = 24; port < 28; port++) {
-      printf ("*** configure GE port %02d => SGMII mode\n", port);
-      rc = port_set_sgmii_mode (0, port);
-      if (rc != GT_OK)
-        return rc;
-    }
+  /* set ports 24-27 to SGMII mode */
+  for (port = 24; port < 28; port++) {
+    printf ("*** configure GE port %02d => SGMII mode\n", port);
+    rc = port_set_sgmii_mode (0, port);
+    if (rc != GT_OK)
+      return rc;
+  }
 
-    /* for (port = 0; port < 24;port++) { */
-    /*   if (!PRV_CPSS_PHY_PORT_IS_EXIST_MAC (0, port)) */
-    /*     continue; */
-    /*   RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, port, 0x0, 0xB000)), */
-    /*        cpssDxChPhyPortSmiRegisterWrite); */
-    /* } */
-    /* osTimerWkAfter (100); */
+  for (port = 0; port < 28; ++port) {
+    rc = cpssDxChPortEnableSet (0, port, GT_TRUE);
+    if (rc != GT_OK)
+      return rc;
+  }
+  RCC ((rc = cpssDxChCscdPortTypeSet (0, 63,  CPSS_CSCD_PORT_DSA_MODE_EXTEND_E)),
+       cpssDxChCscdPortTypeSet);
+  if (rc != GT_OK)
+    return rc;
+  rc = cpssDxChPortEnableSet (0, 63, GT_TRUE);
+  if (rc != GT_OK)
+    return rc;
 
-/*     for (port = 0; port < 24;port++) { */
-/*       if (!PRV_CPSS_PHY_PORT_IS_EXIST_MAC (0, port)) */
-/*         continue; */
-/*       RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, port, 0x16, 0x4a04)), */
-/*            cpssDxChPhyPortSmiRegisterWrite); */
-/*     } */
+  rc = cpssDxChCfgDevEnable (0, GT_TRUE);
+  if (rc != GT_OK)
+    return rc;
 
-/*     for (port = 0; port < 24;port++) { */
-/*       if( !PRV_CPSS_PHY_PORT_IS_EXIST_MAC(devNum, port) ) */
-/*         continue; */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x16, 0xFD); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x11, 0x2299); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x16, 0xFF); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x18, 0x3000); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x17, 0x2001); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*       rc = cpssDxChPhyPortSmiRegisterWrite(devNum, port, 0x16, 0x0); */
-/*       CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChPhyPortSmiRegisterWrite", rc); */
-/*       if( rc != GT_OK ) */
-/*         { */
-/*           return rc; */
-/*         } */
-/*     } */
-/* } */
+  rc = linux_ip_setup (0);
 
-
-/* #ifndef ASIC_SIMULATION */
-/*     return osTaskCreate("forceLinkUp",              /\* Task Name      *\/ */
-/*                           250,                      /\* Task Priority  *\/ */
-/*                           _8KB,                     /\* Stack Size     *\/ */
-/*                           netPortsForceLinkUp,      /\* Starting Point *\/ */
-/*                           (GT_VOID*)boardRevId_U32, /\* Arguments list *\/ */
-/*                           &netPortsForceLinkUpTid); /\* task ID        *\/ */
-
-/* #else */
-
-return GT_OK;
+  return rc;
 }
 
 static GT_STATUS
@@ -901,6 +886,10 @@ init_cpss (void)
   GT_STATUS rc;
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
   CPSS_PP_DEVICE_TYPE dev_type;
+
+  rc = extDrvEthRawSocketModeSet (GT_TRUE);
+  if (rc != GT_OK)
+    return rc;
 
   CRPR (extsvc_bind ());
   rc = cpssPpInit ();
