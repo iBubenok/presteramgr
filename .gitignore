@@ -8,3 +8,6 @@ Makefile
 .deps
 /stamp-h1
 /initrd
+/initrd.cpio.gz
+/uInitrd
+
