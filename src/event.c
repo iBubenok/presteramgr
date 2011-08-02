@@ -25,14 +25,6 @@
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
-  CPSS_PP_RX_BUFFER_QUEUE0_E,
-  CPSS_PP_RX_BUFFER_QUEUE1_E,
-  CPSS_PP_RX_BUFFER_QUEUE2_E,
-  CPSS_PP_RX_BUFFER_QUEUE3_E,
-  CPSS_PP_RX_BUFFER_QUEUE4_E,
-  CPSS_PP_RX_BUFFER_QUEUE5_E,
-  CPSS_PP_RX_BUFFER_QUEUE6_E,
-  CPSS_PP_RX_BUFFER_QUEUE7_E
 };
 #define EVENT_NUM ARRAY_SIZE (events)
 
@@ -73,21 +65,6 @@ event_enter_loop (void)
   int i;
   GT_32 key;
 
-  for (i = 0; i < 28; ++i)
-    CRP (cpssDxChPortEnableSet (0, i, GT_TRUE));
-  CRP (cpssDxChPortEnableSet (0, 63, GT_TRUE));
-  CRP (cpssDxChCfgDevEnable (0, GT_TRUE));
-
-  for (i = 0; i < 8; ++i) {
-    rc = CRP (cpssDxChNetIfSdmaRxQueueEnable (0, i, GT_TRUE));
-    if (rc != GT_OK)
-      exit (1);
-  }
-
-  rc = CRP (cpssDxChBrgGenBpduTrapEnableSet (0, GT_TRUE));
-  if (rc != GT_OK)
-    exit (1);
-
   key = intr_lock ();
 
   rc = CRP (cpssEventBind (events, EVENT_NUM, &event_handle));
@@ -108,37 +85,6 @@ event_enter_loop (void)
                                CPSS_UNI_EV_BITMAP_SIZE_CNS));
     if (rc != GT_OK)
       exit (1);
-
-    for (i = 0; i < CPSS_UNI_EV_BITMAP_SIZE_CNS; ++i)
-      osPrintSync ("%08X ", ebmp [i]);
-    osPrintSync ("\n");
-
-    for (i = 0; i < 8; ++i) {
-      if (eventp (CPSS_PP_RX_BUFFER_QUEUE0_E + i, ebmp)) {
-        while ((rc = cpssEventRecv (event_handle,
-                                    CPSS_PP_RX_BUFFER_QUEUE0_E + i,
-                                    &edata, &dev)) == GT_OK) {
-#define NBUFS 100
-          static GT_U8 *bufs [NBUFS];
-          static GT_U32 lens [NBUFS];
-          GT_U32 nbufs;
-          CPSS_DXCH_NET_RX_PARAMS_STC rxp;
-
-          osPrintSync ("doing rx: dev %d, ext %d\n", dev, edata);
-
-          rc = CRP (cpssDxChNetIfSdmaRxPacketGet (dev, i, &nbufs, bufs, lens, &rxp));
-          if (rc == GT_NO_MORE)
-            break;
-          if (rc != GT_OK)
-            exit (1);
-
-          rc = CRP (cpssDxChNetIfRxBufFree (dev, i, bufs, nbufs));
-          osPrintSync ("rx buffers freed\n");
-        }
-        if (rc != GT_NO_MORE)
-          exit (1);
-      }
-    }
 
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp)) {
       while ((rc = cpssEventRecv (event_handle,
