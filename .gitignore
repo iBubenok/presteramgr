@@ -7,3 +7,4 @@ Makefile
 /config.status
 .deps
 /stamp-h1
+/initrd
