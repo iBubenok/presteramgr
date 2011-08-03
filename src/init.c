@@ -961,6 +961,9 @@ cpss_start (void)
   fprintf (stderr, "\n\n");
   init_cpss ();
 
+  fprintf (stderr, "init mgmt interface\n");
+  mgmt_init ();
+
   fprintf (stderr, "start handling events\n");
   event_enter_loop ();
 }
