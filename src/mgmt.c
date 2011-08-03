@@ -8,9 +8,9 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <linux/netlink.h>
+#include <pdsa-mgmt.h>
 #include <pthread.h>
-
-#define NETLINK_PDSA_MGMT 30
+#include <presteramgr.h>
 
 #define MAX_PAYLOAD 1024
 
@@ -50,6 +50,16 @@ mgmt_tx (pid_t to, __u16 type, const void *data, size_t len)
   return sendmsg (sock, &msg, 0);
 }
 
+static PDSA_MGMT_HANDLER (mgmt_set_vlan_mac_addr)
+{
+  struct pdsa_vlan_mac_addr *addr = NLMSG_DATA (nlh);
+  vlan_set_mac_addr (addr->vid, addr->addr);
+}
+
+static PDSA_MGMT_HANDLERS (handlers) = {
+  [PDSA_MGMT_SET_VLAN_MAC_ADDR] = mgmt_set_vlan_mac_addr
+};
+
 static void *
 mgmt_thread (void *unused)
 {
@@ -80,14 +90,9 @@ mgmt_thread (void *unused)
       break;
     }
 
-    switch (nlh->nlmsg_type) {
-    case 1:
-      vlan_set_mac_addr (*((__u16 *) NLMSG_DATA (nlh)), NLMSG_DATA (nlh) + 2);
-      break;
-
-    default:
-      printf ("Received message of type %d from %d\n", nlh->nlmsg_type, nlh->nlmsg_pid);
-    }
+    if (pdsa_mgmt_invoke_handler (handlers, nlh) < 0)
+      fprintf (stderr, "invalid management command %d from %d\n",
+               nlh->nlmsg_type, nlh->nlmsg_pid);
   }
 
   return NULL;
