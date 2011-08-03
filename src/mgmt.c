@@ -67,6 +67,12 @@ mgmt_thread (void *unused)
   msg.msg_iov = &iov;
   msg.msg_iovlen = 1;
 
+  printf ("registering pdsa manager\n");
+  if (mgmt_tx (0, 0, NULL, 0) < 0) {
+    perror ("mgmt_tx");
+    return NULL;
+  }
+
   printf ("receiving messages from kernel\n");
   while (1) {
     if (recvmsg (sock, &msg, 0) < 0) {
@@ -74,8 +80,14 @@ mgmt_thread (void *unused)
       break;
     }
 
-    /* TODO: handle messages. */
-    printf ("Received message: %s\n", (char *) NLMSG_DATA (nlh));
+    switch (nlh->nlmsg_type) {
+    case 1:
+      vlan_set_mac_addr (*((__u16 *) NLMSG_DATA (nlh)), NLMSG_DATA (nlh) + 2);
+      break;
+
+    default:
+      printf ("Received message of type %d from %d\n", nlh->nlmsg_type, nlh->nlmsg_pid);
+    }
   }
 
   return NULL;
@@ -85,7 +97,6 @@ int
 mgmt_init (void)
 {
   static struct sockaddr_nl addr;
-  const char *str = "XPEH BAM BCEM B POT!";
 
   my_pid = getpid ();
 
@@ -100,12 +111,6 @@ mgmt_init (void)
   addr.nl_pid = my_pid;
   if (bind (sock, (struct sockaddr*) &addr, sizeof (addr)) < 0) {
     perror ("bind");
-    return -1;
-  }
-
-  printf ("Sending message to kernel\n");
-  if (mgmt_tx (0, 115, str, strlen (str) + 1) < 0) {
-    perror ("mgmt_tx");
     return -1;
   }
 

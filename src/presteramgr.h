@@ -27,6 +27,11 @@ extern GT_STATUS port_set_sgmii_mode (GT_U8, GT_U8);
 extern int mgmt_init (void);
 
 /*
+ * vlan.c
+ */
+extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
+
+/*
  * extsvc.c
  */
 extern GT_STATUS extsvc_bind (void);

@@ -149,9 +149,8 @@ static GT_STATUS
 phase2_init (void)
 {
   CPSS_DXCH_PP_PHASE2_INIT_INFO_STC info;
-  GT_U32 au_desc_size, tx_desc_size, rx_desc_size;
+  GT_U32 au_desc_size;
   GT_32 int_key;
-  const static GT_U32 buf_per [] = { 13, 13, 13, 13, 12, 12, 12, 12 };
   GT_STATUS rc;
 
   osMemSet (&info, 0, sizeof (info));
@@ -807,7 +806,6 @@ static GT_STATUS
 linux_ip_setup (GT_U8 dev)
 {
   GT_STATUS rc;
-  CPSS_MAC_ENTRY_EXT_STC mac;
 #define CHECK(a) do {                                               \
     rc = (a);                                                       \
     printf ("*** " #a ": %04X\n", rc);                              \
@@ -819,26 +817,8 @@ linux_ip_setup (GT_U8 dev)
   /* CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)); */
   /* CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)); */
   /* CHECK (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet (0, 13, 0)); */
-  CHECK (cpssDxChBrgVlanIpCntlToCpuSet (dev, 1, CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E));
   CHECK (cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
   CHECK (cpssDxChBrgGenArpTrapEnable (dev, 13, GT_TRUE));
-
-  memset (&mac, 0, sizeof (mac));
-  mac.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-  mac.key.key.macVlan.vlanId = 1;
-  mac.key.key.macVlan.macAddr.arEther[0] = 0x00;
-  mac.key.key.macVlan.macAddr.arEther[1] = 0x01;
-  mac.key.key.macVlan.macAddr.arEther[2] = 0x02;
-  mac.key.key.macVlan.macAddr.arEther[3] = 0x03;
-  mac.key.key.macVlan.macAddr.arEther[4] = 0x04;
-  mac.key.key.macVlan.macAddr.arEther[5] = 0x50;
-  mac.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  mac.dstInterface.devPort.devNum = 0;
-  mac.dstInterface.devPort.portNum = 63;
-  mac.isStatic = GT_TRUE;
-  mac.daCommand = CPSS_MAC_TABLE_CNTL_E;
-  mac.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-  CHECK (cpssDxChBrgFdbMacEntrySet (dev, &mac));
 
 #undef CHECK
   return rc;
