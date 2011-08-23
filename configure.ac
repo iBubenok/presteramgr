@@ -16,6 +16,14 @@ AC_ARG_WITH([cpss],
   [AC_MSG_ERROR([you must specify the CPSS location])])
 AC_SUBST([cpss])
 
+AC_ARG_WITH([initrd],
+  [AS_HELP_STRING([--with-initrd=PATH],
+                  [specify the initrd tree location])],
+  [initrd=`readlink -f $withval`],
+  [initrd=""])
+AC_SUBST([initrd])
+AM_CONDITIONAL([INITRD], [test x$initrd != x])
+
 AC_ARG_ENABLE([cpss-rprint],
   [AS_HELP_STRING([--enable-cpss-rprint],
                   [configure the CRP macro behavior:
