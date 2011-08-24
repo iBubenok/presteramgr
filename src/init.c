@@ -49,6 +49,10 @@
 /* Trunk library. */
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
 
+#include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
+#include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
+
 /* OS binding function prototypes. */
 #include <gtOs/gtOsMem.h>
 #include <gtOs/gtOsStr.h>
