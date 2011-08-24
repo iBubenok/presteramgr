@@ -29,6 +29,7 @@ extern int mgmt_init (void);
 /*
  * vlan.c
  */
+extern int vlan_init (void);
 extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
 
 /*

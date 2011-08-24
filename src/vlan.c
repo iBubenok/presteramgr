@@ -9,6 +9,15 @@
 #include <debug.h>
 #include <string.h>
 
+int
+vlan_init (void)
+{
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1D_E));
+
+  return rc != GT_OK;
+}
 
 GT_STATUS
 vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)

@@ -813,7 +813,6 @@ linux_ip_setup (GT_U8 dev)
       return rc;                                                    \
   } while (0)
 
-  CHECK (cpssDxChBrgVlanBridgingModeSet (dev, CPSS_BRG_MODE_802_1D_E));
   /* CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)); */
   /* CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)); */
   /* CHECK (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet (0, 13, 0)); */
@@ -855,6 +854,7 @@ after_init (void)
   if (rc != GT_OK)
     return rc;
 
+  vlan_init ();
   rc = linux_ip_setup (0);
 
   return rc;
