@@ -28,4 +28,7 @@
     return __st;                                \
     })
 
+#define DECLSHOW(type) extern const char *show_##type (type)
+#define SHOW(type, value) (show_##type (value))
+
 #endif /* __DEBUG_H__ */
