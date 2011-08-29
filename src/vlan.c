@@ -4,6 +4,7 @@
 
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
+#include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <presteramgr.h>
 #include <debug.h>
@@ -119,6 +120,67 @@ vlan_read_1 (void)
     osPrintSync ("    %2d: %s\n", i,
                  SHOW (CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT,
                        tagging_cmd.portsCmd[i]));
+}
+
+int
+vlan_add (GT_U16 vid)
+{
+  CPSS_PORTS_BMP_STC members, tagging;
+  CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
+  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
+  GT_STATUS rc;
+  int i;
+
+  memset (&members, 0, sizeof (members));
+  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
+    if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray [i].portType
+        != PRV_CPSS_PORT_NOT_EXISTS_E)
+      CPSS_PORTS_BMP_PORT_SET_MAC (&members, i);
+  CPSS_PORTS_BMP_PORT_SET_MAC (&members, CPSS_CPU_PORT_NUM_CNS);
+
+  memset (&tagging, 0, sizeof (tagging));
+
+  memset (&vlan_info, 0, sizeof (vlan_info));
+  vlan_info.unkSrcAddrSecBreach   = GT_FALSE;
+  vlan_info.unregNonIpMcastCmd    = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.unregIpv4McastCmd     = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.unregIpv6McastCmd     = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.unkUcastCmd           = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.unregIpv4BcastCmd     = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.unregNonIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+  vlan_info.ipv4IgmpToCpuEn       = GT_FALSE;
+  vlan_info.mirrToRxAnalyzerEn    = GT_FALSE;
+  vlan_info.ipv6IcmpToCpuEn       = GT_FALSE;
+  vlan_info.ipCtrlToCpuEn         = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
+  vlan_info.ipv4IpmBrgMode        = CPSS_BRG_IPM_SGV_E;
+  vlan_info.ipv6IpmBrgMode        = CPSS_BRG_IPM_SGV_E;
+  vlan_info.ipv4IpmBrgEn          = GT_FALSE;
+  vlan_info.ipv6IpmBrgEn          = GT_FALSE;
+  vlan_info.ipv6SiteIdMode        = CPSS_IP_SITE_ID_INTERNAL_E;
+  vlan_info.ipv4UcastRouteEn      = GT_FALSE;
+  vlan_info.ipv4McastRouteEn      = GT_FALSE;
+  vlan_info.ipv6UcastRouteEn      = GT_FALSE;
+  vlan_info.ipv6McastRouteEn      = GT_FALSE;
+  vlan_info.stgId                 = 0;
+  vlan_info.autoLearnDisable      = GT_FALSE;
+  vlan_info.naMsgToCpuEn          = GT_TRUE;
+  vlan_info.mruIdx                = 0;
+  vlan_info.bcastUdpTrapMirrEn    = GT_FALSE;
+  vlan_info.vrfId                 = 0;
+  vlan_info.floodVidx             = 4095;
+  vlan_info.floodVidxMode         = CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E;
+  vlan_info.portIsolationMode     = CPSS_DXCH_BRG_VLAN_PORT_ISOLATION_DISABLE_CMD_E;
+  vlan_info.ucastLocalSwitchingEn = GT_FALSE;
+  vlan_info.mcastLocalSwitchingEn = GT_FALSE;
+
+  memset (&tagging_cmd, 0, sizeof (tagging_cmd));
+  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
+    tagging_cmd.portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+
+  rc = CRP (cpssDxChBrgVlanEntryWrite (0, vid, &members,
+                                       &tagging, &vlan_info, &tagging_cmd));
+
+  return rc != GT_OK;
 }
 
 int
