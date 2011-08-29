@@ -188,7 +188,8 @@ vlan_init (void)
 {
   GT_STATUS rc;
 
-  rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1D_E));
+  rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
+  vlan_add (1);
   vlan_read_1 ();
 
   return rc != GT_OK;
