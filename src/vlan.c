@@ -100,7 +100,7 @@ print_port_bmp (const CPSS_PORTS_BMP_STC *ports)
 }
 
 static void
-vlan_read_1 (void)
+vlan_dump (GT_U16 vid)
 {
   CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
@@ -108,8 +108,8 @@ vlan_read_1 (void)
   GT_BOOL valid;
   int i;
 
-  CRP (cpssDxChBrgVlanEntryRead (0, 1, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
-  vlan_print_info (1, &vlan_info);
+  CRP (cpssDxChBrgVlanEntryRead (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+  vlan_print_info (vid, &vlan_info);
   osPrintSync ("\n  members: ");
   print_port_bmp (&members);
   osPrintSync ("\n  tagging: ");
@@ -190,7 +190,7 @@ vlan_init (void)
 
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
-  vlan_read_1 ();
+  vlan_dump (1);
 
   return rc != GT_OK;
 }
