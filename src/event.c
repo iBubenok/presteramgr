@@ -23,6 +23,10 @@
 #include <utils.h>
 
 
+DECLSHOW (CPSS_PORT_SPEED_ENT);
+DECLSHOW (CPSS_PORT_DUPLEX_ENT);
+
+
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
 };
@@ -55,12 +59,39 @@ eventp (CPSS_UNI_EV_CAUSE_ENT e, const GT_U32 *b)
   return b [e >> 5] & (1 << (e & 0x1f));
 }
 
+static GT_STATUS
+event_handle_link_change (void)
+{
+  GT_U32 edata;
+  GT_U8 dev;
+  CPSS_PORT_ATTRIBUTES_STC attrs;
+  GT_STATUS rc;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
+                              &edata, &dev)) == GT_OK) {
+    rc = CRP (cpssDxChPortAttributesOnPortGet (dev, (GT_U8) edata, &attrs));
+    if (rc != GT_OK)
+      continue;
+
+    if (attrs.portLinkUp)
+      osPrintSync ("dev %d port %2d link up at %s, %s\n",
+                   dev, edata,
+                   SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
+                   SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
+    else
+      osPrintSync ("dev %d port %2d link down\n", dev, edata);
+  }
+  if (rc == GT_NO_MORE)
+    rc = GT_OK;
+
+  return CRP (rc);
+}
+
 void
 event_enter_loop (void)
 {
   static GT_U32 ebmp [CPSS_UNI_EV_BITMAP_SIZE_CNS];
-  GT_U32 edata;
-  GT_U8 dev;
   GT_STATUS rc;
   int i;
   GT_32 key;
@@ -84,23 +115,9 @@ event_enter_loop (void)
     rc = CRP (cpssEventSelect (event_handle, NULL, ebmp,
                                CPSS_UNI_EV_BITMAP_SIZE_CNS));
     if (rc != GT_OK)
-      exit (1);
+      continue;
 
-    if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp)) {
-      while ((rc = cpssEventRecv (event_handle,
-                                  CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
-                                  &edata, &dev)) == GT_OK) {
-        GT_BOOL link;
-
-        rc = CRP (cpssDxChPortLinkStatusGet (dev, (GT_U8) edata, &link));
-        if (rc != GT_OK)
-          exit (1);
-
-        osPrintSync ("dev %d port %2d link %s\n",
-                     dev, edata, link ? "up" : "down");
-      }
-      if (rc != GT_NO_MORE)
-        exit (1);
-    }
+    if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
+      event_handle_link_change ();
   }
 }
