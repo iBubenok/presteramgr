@@ -7,6 +7,7 @@
 #include <gtOs/gtOsGen.h>
 #include <cpss/generic/cpssCommonDefs.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
+#include <cpss/generic/port/cpssPortCtrl.h>
 
 
 static const char *invalid = "invalid";
@@ -76,3 +77,20 @@ DEFSHOW (CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT,
          S (CPSS_DXCH_BRG_VLAN_PORT_PUSH_TAG0_CMD_E),
          S (CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E));
 
+DEFSHOW (CPSS_PORT_SPEED_ENT,
+         S (CPSS_PORT_SPEED_10_E),
+         S (CPSS_PORT_SPEED_100_E),
+         S (CPSS_PORT_SPEED_1000_E),
+         S (CPSS_PORT_SPEED_10000_E),
+         S (CPSS_PORT_SPEED_12000_E),
+         S (CPSS_PORT_SPEED_2500_E),
+         S (CPSS_PORT_SPEED_5000_E),
+         S (CPSS_PORT_SPEED_13600_E),
+         S (CPSS_PORT_SPEED_20000_E),
+         S (CPSS_PORT_SPEED_40000_E),
+         S (CPSS_PORT_SPEED_16000_E),
+         S (CPSS_PORT_SPEED_NA_E));
+
+DEFSHOW (CPSS_PORT_DUPLEX_ENT,
+         S (CPSS_PORT_FULL_DUPLEX_E),
+         S (CPSS_PORT_HALF_DUPLEX_E));
