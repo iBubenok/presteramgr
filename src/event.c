@@ -74,6 +74,9 @@ event_handle_link_change (void)
     if (rc != GT_OK)
       continue;
 
+    if (!port_exists (dev, (GT_U8) edata))
+      continue;
+
     if (attrs.portLinkUp)
       osPrintSync ("dev %d port %2d link up at %s, %s\n",
                    dev, edata,
