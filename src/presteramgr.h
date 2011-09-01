@@ -5,6 +5,7 @@
 
 #include <cpss/extServices/os/gtOs/gtGenTypes.h>
 
+
 /*
  * init.c
  */
@@ -20,6 +21,7 @@ extern void event_enter_loop (void);
  */
 
 extern GT_STATUS port_set_sgmii_mode (GT_U8, GT_U8);
+extern int port_exists (GT_U8, GT_U8);
 
 /*
  * mgmt.c
