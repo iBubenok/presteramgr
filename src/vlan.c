@@ -99,7 +99,7 @@ print_port_bmp (const CPSS_PORTS_BMP_STC *ports)
       osPrintSync ("%d ", i);
 }
 
-static void
+static void __attribute__ ((unused))
 vlan_dump (GT_U16 vid)
 {
   CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
@@ -190,7 +190,6 @@ vlan_init (void)
 
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
-  vlan_dump (1);
 
   return rc != GT_OK;
 }
