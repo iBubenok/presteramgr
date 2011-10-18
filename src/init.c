@@ -304,6 +304,7 @@ port_lib_init (void)
 {
   GT_STATUS rc;
 
+  port_init ();
   RCC ((rc = cpssDxChPortStatInit (0)), cpssDxChPortStatInit);
   RCC ((rc = dxChPortBufMgInit (0)), dxChPortBufMgInit);
   RCC ((rc = cpssDxChPortTxInit (0)), cpssDxChPortTxInit);
@@ -836,7 +837,7 @@ after_init (void)
   /* set ports 24-27 to SGMII mode */
   for (port = 24; port < 28; port++) {
     printf ("*** configure GE port %02d => SGMII mode\n", port);
-    rc = port_set_sgmii_mode (0, port);
+    rc = port_set_sgmii_mode (port);
     if (rc != GT_OK)
       return rc;
   }

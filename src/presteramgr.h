@@ -20,7 +20,22 @@ extern void event_enter_loop (void);
  * port.c
  */
 
-extern GT_STATUS port_set_sgmii_mode (GT_U8, GT_U8);
+struct port {
+  GT_U8 ldev;
+  GT_U8 lport;
+};
+
+extern struct port *ports;
+extern int nports;
+
+static inline int
+port_valid (int n)
+{
+  return n >= 0 && n < nports;
+}
+
+extern int port_init (void);
+extern GT_STATUS port_set_sgmii_mode (int);
 extern int port_exists (GT_U8, GT_U8);
 
 /*
@@ -38,7 +53,7 @@ extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
  * extsvc.c
  */
 extern GT_STATUS extsvc_bind (void);
-
 extern int osPrintSync (const char *, ...);
+
 
 #endif /* __PRESTERAMGR_H__ */
