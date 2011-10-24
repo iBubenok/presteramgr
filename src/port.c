@@ -4,17 +4,19 @@
 
 #include <presteramgr.h>
 #include <debug.h>
+#include <sysdeps.h>
+#include <port.h>
 
-#include <cpss/generic/port/cpssPortCtrl.h>
+
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
 #include <assert.h>
 
-#include <sysdeps.h>
-#include <port.h>
 
+DECLSHOW (CPSS_PORT_SPEED_ENT);
+DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 struct port *ports = NULL;
 int nports = 0;
@@ -76,4 +78,33 @@ port_exists (GT_U8 dev, GT_U8 port)
 {
   return CPSS_PORTS_BMP_IS_PORT_SET_MAC
     (&(PRV_CPSS_PP_MAC (dev)->existingPorts), port);
+}
+
+void
+port_handle_link_change (GT_U8 ldev, GT_U8 lport)
+{
+  CPSS_PORT_ATTRIBUTES_STC attrs;
+  GT_STATUS rc;
+  int p;
+  struct port *port;
+
+  if ((p = port_num (ldev, lport)) < 0)
+    return;
+  port = &ports[p];
+
+  rc = CRP (cpssDxChPortAttributesOnPortGet (ldev, lport, &attrs));
+  if (rc != GT_OK)
+    return;
+
+  if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
+      attrs.portSpeed     != port->state.attrs.portSpeed  ||
+      attrs.portDuplexity != port->state.attrs.portDuplexity) {
+    port->state.attrs = attrs;
+    if (attrs.portLinkUp)
+      osPrintSync ("port %2d link up at %s, %s\n", p,
+                   SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
+                   SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
+    else
+      osPrintSync ("port %2d link down\n", p);
+  }
 }

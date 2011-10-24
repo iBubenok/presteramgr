@@ -21,7 +21,7 @@
 #include <presteramgr.h>
 #include <debug.h>
 #include <utils.h>
-
+#include <port.h>
 
 DECLSHOW (CPSS_PORT_SPEED_ENT);
 DECLSHOW (CPSS_PORT_DUPLEX_ENT);
@@ -64,27 +64,12 @@ event_handle_link_change (void)
 {
   GT_U32 edata;
   GT_U8 dev;
-  CPSS_PORT_ATTRIBUTES_STC attrs;
   GT_STATUS rc;
 
   while ((rc = cpssEventRecv (event_handle,
                               CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
-                              &edata, &dev)) == GT_OK) {
-    rc = CRP (cpssDxChPortAttributesOnPortGet (dev, (GT_U8) edata, &attrs));
-    if (rc != GT_OK)
-      continue;
-
-    if (!port_exists (dev, (GT_U8) edata))
-      continue;
-
-    if (attrs.portLinkUp)
-      osPrintSync ("dev %d port %2d link up at %s, %s\n",
-                   dev, edata,
-                   SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
-                   SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
-    else
-      osPrintSync ("dev %d port %2d link down\n", dev, edata);
-  }
+                              &edata, &dev)) == GT_OK)
+    port_handle_link_change (dev, (GT_U8) edata);
   if (rc == GT_NO_MORE)
     rc = GT_OK;
 

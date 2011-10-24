@@ -1,6 +1,8 @@
 #ifndef __PORT_H__
 #define __PORT_H__
 
+#include <cpss/generic/port/cpssPortCtrl.h>
+
 
 struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
@@ -24,5 +26,6 @@ port_valid (int n)
 extern int port_init (void);
 extern GT_STATUS port_set_sgmii_mode (int);
 extern int port_exists (GT_U8, GT_U8);
+extern void port_handle_link_change (GT_U8, GT_U8);
 
 #endif /* __PORT_H__ */
