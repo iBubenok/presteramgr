@@ -12,27 +12,41 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <sysdeps.h>
 #include <port.h>
 
-/* TODO: make the constants device-dependent/configurable. */
-#define NPORTS 28
 
 struct port *ports = NULL;
 int nports = 0;
+
+static int *port_nums;
+
+static int
+port_num (GT_U8 ldev, GT_U8 lport)
+{
+  assert (ldev < NDEVS);
+  assert (lport < CPSS_MAX_PORTS_NUM_CNS);
+  assert (port_nums);
+  return port_nums[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
+}
 
 int
 port_init (void)
 {
   int i;
 
+  port_nums = malloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS * sizeof (int));
+  assert (port_nums);
+  for (i = 0; i < NDEVS * CPSS_MAX_PORTS_NUM_CNS; i++)
+    port_nums[i] = -1;
+
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
-
   for (i = 0; i < NPORTS; i++) {
     ports[i].ldev = 0;
     ports[i].lport = i;
+    port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i;
   }
-
   nports = NPORTS;
 
   return 0;
