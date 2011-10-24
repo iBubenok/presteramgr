@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <port.h>
+
 /* TODO: make the constants device-dependent/configurable. */
 #define NPORTS 28
 

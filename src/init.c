@@ -77,6 +77,8 @@
 #include <gtExtDrv/drivers/gtPciDrv.h>
 #include <gtExtDrv/drivers/gtDragoniteDrv.h>
 
+#include <port.h>
+
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
 #define AU_DESC_NUM_DEF         2048
