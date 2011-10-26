@@ -47,7 +47,7 @@ am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
 am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	port.$(OBJEXT) extsvc.$(OBJEXT) mgmt.$(OBJEXT) vlan.$(OBJEXT) \
-	debug.$(OBJEXT)
+	debug.$(OBJEXT) control.$(OBJEXT)
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS)
 presteramgr_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -153,7 +153,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c init.c event.c port.c \
-	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h
+	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
+	control.c
 
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -244,6 +245,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/extsvc.Po@am__quote@

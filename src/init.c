@@ -78,6 +78,7 @@
 #include <gtExtDrv/drivers/gtDragoniteDrv.h>
 
 #include <port.h>
+#include <control.h>
 
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
@@ -950,6 +951,9 @@ cpss_start (void)
 
   fprintf (stderr, "init mgmt interface\n");
   mgmt_init ();
+
+  fprintf (stderr, "init control interface\n");
+  control_init ();
 
   fprintf (stderr, "start handling events\n");
   event_enter_loop ();
