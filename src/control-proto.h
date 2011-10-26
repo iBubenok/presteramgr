@@ -1,6 +1,7 @@
 #ifndef __CONTROL_PROTO_H__
 #define __CONTROL_PROTO_H__
 
+#include <zmq.h>
 #include <stdint.h>
 
 #define PUB_SOCK_EP "ipc://tmp/presteramgr.notify"
@@ -9,6 +10,26 @@ enum control_notification {
   CN_PORT_STATE,
   CN_MAX /* NB: must be the last. */
 };
+
+static inline int
+control_notification_subscribe (void *sock, enum control_notification cn)
+{
+  uint16_t tmp = cn;
+  return zmq_setsockopt (sock, ZMQ_SUBSCRIBE, &tmp, sizeof (tmp));
+}
+
+static inline int
+control_notification_unsubscribe (void *sock, enum control_notification cn)
+{
+  uint16_t tmp = cn;
+  return zmq_setsockopt (sock, ZMQ_UNSUBSCRIBE, &tmp, sizeof (tmp));
+}
+
+static inline int
+control_notification_connect (void *sock)
+{
+  return zsocket_connect (sock, PUB_SOCK_EP);
+}
 
 enum control_port_speed {
   PORT_SPEED_10,
