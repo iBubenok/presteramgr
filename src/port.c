@@ -101,11 +101,13 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
     control_notify_port_state (p, &attrs);
     port->state.attrs = attrs;
+#ifdef DEBUG_STATE
     if (attrs.portLinkUp)
       osPrintSync ("port %2d link up at %s, %s\n", p,
                    SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
                    SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
     else
       osPrintSync ("port %2d link down\n", p);
+#endif /* DEBUG_STATE */
   }
 }
