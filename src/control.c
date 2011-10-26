@@ -28,6 +28,18 @@ control_init (void)
   return 0;
 }
 
+static zmsg_t *
+make_notify_message (enum control_notification type)
+{
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+
+  uint16_t tmp = type;
+  zmsg_addmem (msg, &tmp, sizeof (tmp));
+
+  return msg;
+}
+
 void
 control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -45,8 +57,6 @@ control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
     [CPSS_PORT_SPEED_16000_E] = PORT_SPEED_16000,
     [CPSS_PORT_SPEED_NA_E]    = PORT_SPEED_NA
   };
-  zmsg_t *msg;
-  uint16_t type = CN_PORT_STATE;
   struct control_port_state state;
 
   state.port = port;
@@ -55,10 +65,7 @@ control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   assert (attrs->portSpeed >= 0 && attrs->portSpeed <= CPSS_PORT_SPEED_NA_E);
   state.speed = psm[attrs->portSpeed];
 
-  msg = zmsg_new ();
-  assert (msg);
-
-  zmsg_addmem (msg, &type, sizeof (type));
+  zmsg_t *msg = make_notify_message (CN_PORT_STATE);
   zmsg_addmem (msg, &state, sizeof (state));
 
   zmsg_send (&msg, pub_sock);
