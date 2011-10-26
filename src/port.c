@@ -36,6 +36,11 @@ int
 port_init (void)
 {
   int i;
+  int pmap[NPORTS] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+    27, 26, 25, 24
+  };
 
   port_nums = malloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS * sizeof (int));
   assert (port_nums);
@@ -46,9 +51,10 @@ port_init (void)
   assert (ports);
   for (i = 0; i < NPORTS; i++) {
     ports[i].ldev = 0;
-    ports[i].lport = i;
+    ports[i].lport = pmap[i];
     port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i;
   }
+
   nports = NPORTS;
 
   return 0;
