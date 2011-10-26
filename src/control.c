@@ -5,15 +5,61 @@
 #include <zmq.h>
 #include <czmq.h>
 #include <assert.h>
+#include <control.h>
+#include <control-proto.h>
+#include <port.h>
 
 
 static zctx_t *context;
-
+static void *pub_sock;
 
 int
 control_init (void)
 {
+  int rc;
+
   context = zctx_new ();
+  assert (context);
+
+  pub_sock = zsocket_new (context, ZMQ_PUB);
+  assert (pub_sock);
+  rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
 
   return 0;
+}
+
+void
+control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+{
+  static enum control_port_speed psm [] = {
+    [CPSS_PORT_SPEED_10_E]    = PORT_SPEED_10,
+    [CPSS_PORT_SPEED_100_E]   = PORT_SPEED_100,
+    [CPSS_PORT_SPEED_1000_E]  = PORT_SPEED_1000,
+    [CPSS_PORT_SPEED_10000_E] = PORT_SPEED_10000,
+    [CPSS_PORT_SPEED_12000_E] = PORT_SPEED_12000,
+    [CPSS_PORT_SPEED_2500_E]  = PORT_SPEED_2500,
+    [CPSS_PORT_SPEED_5000_E]  = PORT_SPEED_5000,
+    [CPSS_PORT_SPEED_13600_E] = PORT_SPEED_13600,
+    [CPSS_PORT_SPEED_20000_E] = PORT_SPEED_20000,
+    [CPSS_PORT_SPEED_40000_E] = PORT_SPEED_40000,
+    [CPSS_PORT_SPEED_16000_E] = PORT_SPEED_16000,
+    [CPSS_PORT_SPEED_NA_E]    = PORT_SPEED_NA
+  };
+  zmsg_t *msg;
+  uint16_t type = CN_PORT_STATE;
+  struct control_port_state state;
+
+  state.port = port;
+  state.link = attrs->portLinkUp == GT_TRUE;
+  state.duplex = attrs->portDuplexity == GT_TRUE;
+  assert (attrs->portSpeed >= 0 && attrs->portSpeed <= CPSS_PORT_SPEED_NA_E);
+  state.speed = psm [attrs->portSpeed];
+
+  msg = zmsg_new ();
+  assert (msg);
+
+  zmsg_addmem (msg, &type, sizeof (type));
+  zmsg_addmem (msg, &state, sizeof (state));
+
+  zmsg_send (&msg, pub_sock);
 }

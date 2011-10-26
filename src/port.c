@@ -6,7 +6,7 @@
 #include <debug.h>
 #include <sysdeps.h>
 #include <port.h>
-
+#include <control.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -99,6 +99,7 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
   if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
+    control_notify_port_state (p, &attrs);
     port->state.attrs = attrs;
     if (attrs.portLinkUp)
       osPrintSync ("port %2d link up at %s, %s\n", p,
