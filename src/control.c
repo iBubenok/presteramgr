@@ -31,7 +31,7 @@ control_init (void)
 void
 control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-  static enum control_port_speed psm [] = {
+  static enum control_port_speed psm[] = {
     [CPSS_PORT_SPEED_10_E]    = PORT_SPEED_10,
     [CPSS_PORT_SPEED_100_E]   = PORT_SPEED_100,
     [CPSS_PORT_SPEED_1000_E]  = PORT_SPEED_1000,
@@ -51,9 +51,9 @@ control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 
   state.port = port;
   state.link = attrs->portLinkUp == GT_TRUE;
-  state.duplex = attrs->portDuplexity == GT_TRUE;
+  state.duplex = attrs->portDuplexity == CPSS_PORT_FULL_DUPLEX_E;
   assert (attrs->portSpeed >= 0 && attrs->portSpeed <= CPSS_PORT_SPEED_NA_E);
-  state.speed = psm [attrs->portSpeed];
+  state.speed = psm[attrs->portSpeed];
 
   msg = zmsg_new ();
   assert (msg);
