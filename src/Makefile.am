@@ -8,3 +8,6 @@ AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h -I @cpss@/compilation_root
 AM_CFLAGS = -Wall
+
+bin_PROGRAMS = pmntest
+pmntest_SOURCES = pmntest.c
