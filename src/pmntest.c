@@ -18,19 +18,18 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   assert (zframe_size (frame) == sizeof (type));
   memcpy (&type, zframe_data (frame), sizeof (type));
   zframe_destroy (&frame);
-  printf ("got message of type %d\n", type);
 
   frame = zmsg_pop (msg);
   assert (zframe_size (frame) == sizeof (state));
   memcpy (&state, zframe_data (frame), sizeof (state));
   zframe_destroy (&frame);
+  if (state.link)
+    printf ("port %d link up at speed %d, %s duplex\n",
+            state.port, state.speed, state.duplex ? "full" : "half");
+  else
+    printf ("port %d link down\n", state.port);
 
   zmsg_destroy (&msg);
-
-  printf ("port %d link %s at speed %d, %s duplex\n",
-          state.port, state.link ? "up" : "down",
-          state.speed, state.duplex ? "full" : "half");
-
   return 0;
 }
 
@@ -41,11 +40,10 @@ main (int argc, char **argv)
   void *sub_sock = zsocket_new (context, ZMQ_SUB);
   zmq_pollitem_t pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_t *loop = zloop_new ();
-  uint16_t sub = CN_PORT_STATE;
 
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
-  zmq_setsockopt (sub_sock, ZMQ_SUBSCRIBE, &sub, sizeof (sub));
-  zsocket_connect (sub_sock, PUB_SOCK_EP);
+  control_notification_subscribe (sub_sock, CN_PORT_STATE);
+  control_notification_connect (sub_sock);
   zloop_poller (loop, &pi, notify_handler, sub_sock);
   zloop_start (loop);
 
