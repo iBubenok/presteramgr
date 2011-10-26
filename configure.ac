@@ -41,5 +41,10 @@ esac
 
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
+AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])
+AC_CHECK_LIB([czmq], [zctx_new], , [AC_MSG_ERROR([no zctx_new() in -lczmq])])
+
+AC_CHECK_HEADER([zmq.h], , [AC_MSG_ERROR([zmq header not found])])
+AC_CHECK_HEADER([czmq.h], , [AC_MSG_ERROR([czmq header not found])])
 
 AC_OUTPUT([Makefile src/Makefile])
