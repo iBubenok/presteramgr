@@ -8,7 +8,7 @@
 #define PUB_SOCK_EP "ipc://tmp/presteramgr.notify"
 
 enum control_notification {
-  CN_PORT_STATE,
+  CN_PORT_LINK_STATE,
   CN_MAX /* NB: must be the last. */
 };
 
@@ -32,7 +32,7 @@ control_notification_connect (void *sock)
   return zsocket_connect (sock, PUB_SOCK_EP);
 }
 
-enum control_port_speed {
+enum port_speed {
   PORT_SPEED_10,
   PORT_SPEED_100,
   PORT_SPEED_1000,
@@ -47,7 +47,7 @@ enum control_port_speed {
   PORT_SPEED_NA
 };
 
-struct control_port_state {
+struct port_link_state {
   uint32_t port   : 10;
   uint32_t link   : 1;
   uint32_t speed  : 4;

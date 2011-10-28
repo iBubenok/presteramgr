@@ -12,7 +12,7 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   zmsg_t *msg = zmsg_recv (sock);
   zframe_t *frame;
   uint16_t type;
-  struct control_port_state state;
+  struct port_link_state state;
 
   frame = zmsg_pop (msg);
   assert (zframe_size (frame) == sizeof (type));
@@ -42,7 +42,7 @@ main (int argc, char **argv)
   zloop_t *loop = zloop_new ();
 
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
-  control_notification_subscribe (sub_sock, CN_PORT_STATE);
+  control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
   control_notification_connect (sub_sock);
   zloop_poller (loop, &pi, notify_handler, sub_sock);
   zloop_start (loop);

@@ -6,11 +6,11 @@
 #include <data.h>
 
 int
-data_encode_port_state (struct control_port_state *state,
+data_encode_port_state (struct port_link_state *state,
                         int port,
                         const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-  static enum control_port_speed psm[] = {
+  static enum port_speed psm[] = {
     [CPSS_PORT_SPEED_10_E]    = PORT_SPEED_10,
     [CPSS_PORT_SPEED_100_E]   = PORT_SPEED_100,
     [CPSS_PORT_SPEED_1000_E]  = PORT_SPEED_1000,
