@@ -51,7 +51,7 @@ pmntest_OBJECTS = $(am_pmntest_OBJECTS)
 pmntest_LDADD = $(LDADD)
 am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	port.$(OBJEXT) extsvc.$(OBJEXT) mgmt.$(OBJEXT) vlan.$(OBJEXT) \
-	debug.$(OBJEXT) control.$(OBJEXT)
+	debug.$(OBJEXT) control.$(OBJEXT) data.$(OBJEXT)
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS)
 presteramgr_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -158,7 +158,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
-	control.c
+	control.c data.c
 
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -291,6 +291,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/data.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/extsvc.Po@am__quote@

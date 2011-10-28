@@ -2,6 +2,7 @@
 #define __CONTROL_PROTO_H__
 
 #include <zmq.h>
+#include <czmq.h>
 #include <stdint.h>
 
 #define PUB_SOCK_EP "ipc://tmp/presteramgr.notify"
