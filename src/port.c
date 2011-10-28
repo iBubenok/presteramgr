@@ -13,15 +13,30 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <pthread.h>
 
 
 DECLSHOW (CPSS_PORT_SPEED_ENT);
 DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
 struct port *ports = NULL;
 int nports = 0;
 
 static int *port_nums;
+
+static inline void
+port_lock (void)
+{
+  pthread_mutex_lock (&lock);
+}
+
+static inline void
+port_unlock (void)
+{
+  pthread_mutex_unlock (&lock);
+}
 
 static int
 port_num (GT_U8 ldev, GT_U8 lport)
@@ -102,6 +117,8 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
   if (rc != GT_OK)
     return;
 
+  port_lock ();
+
   if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
@@ -116,4 +133,6 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
       osPrintSync ("port %2d link down\n", p);
 #endif /* DEBUG_STATE */
   }
+
+  port_unlock ();
 }
