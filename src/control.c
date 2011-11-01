@@ -17,6 +17,7 @@ static unsigned __TASKCONV control_loop (GT_VOID *);
 
 static zctx_t *context;
 static void *pub_sock;
+static void *cmd_sock;
 
 int
 control_init (void)
@@ -29,6 +30,10 @@ control_init (void)
   pub_sock = zsocket_new (context, ZMQ_PUB);
   assert (pub_sock);
   rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
+
+  cmd_sock = zsocket_new (context, ZMQ_REP);
+  assert (cmd_sock);
+  rc = zsocket_bind (pub_sock, CMD_SOCK_EP);
 
   return 0;
 }
@@ -79,14 +84,21 @@ control_start (void)
   return 0;
 }
 
+static int
+cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  return 0;
+}
 
 static unsigned __TASKCONV
 control_loop (GT_VOID *dummy)
 {
-  while (1) {
-    fprintf (stderr, "control loop running\n");
-    sleep (10);
-  }
+  zloop_t *loop = zloop_new ();
+
+  zmq_pollitem_t pi = { cmd_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &pi, cmd_handler, NULL);
+
+  zloop_start (loop);
 
   return 0; /* Make the compiler happy. */
 }

@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #define PUB_SOCK_EP "ipc:///tmp/presteramgr.notify"
+#define CMD_SOCK_EP "ipc:///tmp/presteramgr.command"
 
 enum control_notification {
   CN_PORT_LINK_STATE,
