@@ -5,7 +5,7 @@
 #include <czmq.h>
 #include <stdint.h>
 
-#define PUB_SOCK_EP "ipc://tmp/presteramgr.notify"
+#define PUB_SOCK_EP "ipc:///tmp/presteramgr.notify"
 
 enum control_notification {
   CN_PORT_LINK_STATE,
