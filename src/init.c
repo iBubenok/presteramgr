@@ -955,6 +955,9 @@ cpss_start (void)
   fprintf (stderr, "init control interface\n");
   control_init ();
 
+  fprintf (stderr, "start control interface\n");
+  control_start ();
+
   fprintf (stderr, "start handling events\n");
   event_enter_loop ();
 }

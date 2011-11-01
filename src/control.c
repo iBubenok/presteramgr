@@ -9,7 +9,11 @@
 #include <control-proto.h>
 #include <port.h>
 #include <data.h>
+#include <sysdeps.h>
 
+#include <gtOs/gtOsTask.h>
+
+static unsigned __TASKCONV control_loop (GT_VOID *);
 
 static zctx_t *context;
 static void *pub_sock;
@@ -63,4 +67,26 @@ control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_state (msg, port, attrs);
   notify_send (&msg);
+}
+
+int
+control_start (void)
+{
+  GT_TASK control_loop_tid;
+
+  osTaskCreate ("control", 0, sysdeps_default_stack_size,
+                control_loop, NULL, &control_loop_tid);
+  return 0;
+}
+
+
+static unsigned __TASKCONV
+control_loop (GT_VOID *dummy)
+{
+  while (1) {
+    fprintf (stderr, "control loop running\n");
+    sleep (10);
+  }
+
+  return 0; /* Make the compiler happy. */
 }

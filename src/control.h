@@ -4,6 +4,7 @@
 #include <cpss/generic/port/cpssPortCtrl.h>
 
 extern int control_init (void);
+extern int control_start (void);
 extern void control_notify_port_state (int, const CPSS_PORT_ATTRIBUTES_STC *);
 
 #endif /* __CONTROL_H__ */
