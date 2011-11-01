@@ -609,9 +609,6 @@ LIBOBJS
 EGREP
 GREP
 CPP
-INITRD_FALSE
-INITRD_TRUE
-initrd
 cpss
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
@@ -695,7 +692,6 @@ ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
 with_cpss
-with_initrd
 enable_cpss_rprint
 '
       ac_precious_vars='build_alias
@@ -1334,7 +1330,6 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-cpss=PATH        specify the CPSS location
-  --with-initrd=PATH      specify the initrd tree location
 
 Some influential environment variables:
   CC          C compiler command
@@ -3563,24 +3558,6 @@ fi
 
 
 
-
-# Check whether --with-initrd was given.
-if test "${with_initrd+set}" = set; then :
-  withval=$with_initrd; initrd=`readlink -f $withval`
-else
-  initrd=""
-fi
-
-
- if test x$initrd != x; then
-  INITRD_TRUE=
-  INITRD_FALSE='#'
-else
-  INITRD_TRUE='#'
-  INITRD_FALSE=
-fi
-
-
 # Check whether --enable-cpss-rprint was given.
 if test "${enable_cpss_rprint+set}" = set; then :
   enableval=$enable_cpss_rprint;
@@ -4330,10 +4307,6 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${am__fastdepCC_TRUE}" && test -z "${am__fastdepCC_FALSE}"; then
   as_fn_error $? "conditional \"am__fastdepCC\" was never defined.
-Usually this means the macro was only invoked conditionally." "$LINENO" 5
-fi
-if test -z "${INITRD_TRUE}" && test -z "${INITRD_FALSE}"; then
-  as_fn_error $? "conditional \"INITRD\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
