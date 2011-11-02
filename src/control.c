@@ -33,7 +33,7 @@ control_init (void)
 
   cmd_sock = zsocket_new (context, ZMQ_REP);
   assert (cmd_sock);
-  rc = zsocket_bind (pub_sock, CMD_SOCK_EP);
+  rc = zsocket_bind (cmd_sock, CMD_SOCK_EP);
 
   return 0;
 }
@@ -87,6 +87,25 @@ control_start (void)
 static int
 cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
+  zmsg_t *msg = zmsg_recv (cmd_sock);
+  zframe_t *frame;
+  uint16_t data;
+
+  frame = zmsg_pop (msg);
+  assert (zframe_size (frame) == sizeof (data));
+  memcpy (&data, zframe_data (frame), sizeof (data));
+  zframe_destroy (&frame);
+  zmsg_destroy (&msg);
+
+  fprintf (stderr, "got request: %d\n", data);
+
+  data *= 2;
+  msg = zmsg_new ();
+  zmsg_addmem (msg, &data, sizeof (data));
+  zmsg_send (&msg, cmd_sock);
+
+  fprintf (stderr, "sent reply: %d\n", data);
+
   return 0;
 }
 
