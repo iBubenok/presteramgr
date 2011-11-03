@@ -55,4 +55,20 @@ struct port_link_state {
   uint32_t duplex : 1;
 } __attribute__ ((packed));
 
+enum control_command {
+  CC_PORT_SEND_BPDU,
+  CC_PORT_SHUTDOWN,
+  CC_PORT_GET_STATE,
+  CC_PORT_FDB_FLUSH,
+  CC_PORT_SET_STP_STATE,
+  CC_MAX /* must be the last. */
+};
+
+enum port_stp_state {
+    STP_STATE_DISABLED = 0,
+    STP_STATE_DISCARDING,
+    STP_STATE_LEARNING,
+    STP_STATE_FORWARDING
+};
+
 #endif /* __CONTROL_PROTO_H__ */
