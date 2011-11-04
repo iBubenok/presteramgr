@@ -111,8 +111,13 @@ report_ok (void)
 }
 
 typedef void (*cmd_handler_t) (zmsg_t *);
+#define DECLARE_HANDLER(cmd) static void handle_##cmd (zmsg_t *)
+#define DEFINE_HANDLER(cmd) static void handle_##cmd (zmsg_t *args)
+#define HANDLER(cmd) [cmd] = handle_##cmd
 
-static cmd_handler_t handlers[] = {NULL};
+static cmd_handler_t handlers[] = {
+  NULL
+};
 
 
 static int
