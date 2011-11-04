@@ -10,6 +10,7 @@
 #include <port.h>
 #include <data.h>
 #include <sysdeps.h>
+#include <utils.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -84,28 +85,59 @@ control_start (void)
   return 0;
 }
 
+static zmsg_t *
+make_reply (enum error_code code)
+{
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+
+  uint16_t val = code;
+  zmsg_addmem (msg, &val, sizeof (val));
+
+  return msg;
+}
+
+static inline void
+report_error (enum error_code code)
+{
+  zmsg_t *msg = make_reply (code);
+  zmsg_send (&msg, cmd_sock);
+}
+
+static inline void
+report_ok (void)
+{
+  report_error (EC_OK);
+}
+
+typedef void (*cmd_handler_t) (zmsg_t *);
+
+static cmd_handler_t handlers[] = {NULL};
+
+
 static int
 cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
-  zmsg_t *msg = zmsg_recv (cmd_sock);
+  zmsg_t *msg;
   zframe_t *frame;
-  uint16_t data;
+  uint16_t cmd;
+  cmd_handler_t handler;
 
+  msg = zmsg_recv (cmd_sock);
   frame = zmsg_pop (msg);
-  assert (zframe_size (frame) == sizeof (data));
-  memcpy (&data, zframe_data (frame), sizeof (data));
+  assert (zframe_size (frame) == sizeof (cmd));
+  memcpy (&cmd, zframe_data (frame), sizeof (cmd));
   zframe_destroy (&frame);
+
+  if (cmd >= ARRAY_SIZE (handlers) ||
+      (handler = handlers[cmd]) == NULL) {
+    report_error (EC_BAD_REQUEST);
+    goto out;
+  }
+  handler (msg);
+
+ out:
   zmsg_destroy (&msg);
-
-  fprintf (stderr, "got request: %d\n", data);
-
-  data *= 2;
-  msg = zmsg_new ();
-  zmsg_addmem (msg, &data, sizeof (data));
-  zmsg_send (&msg, cmd_sock);
-
-  fprintf (stderr, "sent reply: %d\n", data);
-
   return 0;
 }
 
