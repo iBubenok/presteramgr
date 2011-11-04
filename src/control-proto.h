@@ -74,6 +74,7 @@ enum port_stp_state {
 };
 
 enum error_code {
+  EC_BAD_REQUEST,
   EC_BAD_VALUE
 };
 
