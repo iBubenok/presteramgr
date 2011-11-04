@@ -56,6 +56,7 @@ struct port_link_state {
 } __attribute__ ((packed));
 
 enum control_command {
+  CC_SET_FDB_MAP,
   CC_PORT_SEND_BPDU,
   CC_PORT_SHUTDOWN,
   CC_PORT_GET_STATE,
