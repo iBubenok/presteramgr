@@ -56,6 +56,7 @@ struct port_link_state {
 } __attribute__ ((packed));
 
 enum control_command {
+  CC_SET_FDB_MAP,
   CC_PORT_SEND_BPDU,
   CC_PORT_SHUTDOWN,
   CC_PORT_GET_STATE,
@@ -65,10 +66,10 @@ enum control_command {
 };
 
 enum port_stp_state {
-    STP_STATE_DISABLED = 0,
-    STP_STATE_DISCARDING,
-    STP_STATE_LEARNING,
-    STP_STATE_FORWARDING
+  STP_STATE_DISABLED = 0,
+  STP_STATE_DISCARDING,
+  STP_STATE_LEARNING,
+  STP_STATE_FORWARDING
 };
 
 #endif /* __CONTROL_PROTO_H__ */
