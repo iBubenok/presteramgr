@@ -68,7 +68,12 @@ enum port_stp_state {
     STP_STATE_DISABLED = 0,
     STP_STATE_DISCARDING,
     STP_STATE_LEARNING,
-    STP_STATE_FORWARDING
+    STP_STATE_FORWARDING,
+    STP_STATE_MAX /* must be the last */
+};
+
+enum error_code {
+  EC_BAD_VALUE
 };
 
 #endif /* __CONTROL_PROTO_H__ */

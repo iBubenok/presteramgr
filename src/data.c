@@ -33,3 +33,21 @@ data_encode_port_state (struct port_link_state *state,
 
   return 0;
 }
+
+int
+data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
+{
+  static CPSS_STP_STATE_ENT csm[] = {
+    [STP_STATE_DISABLED] = CPSS_STP_DISABLED_E,
+    [STP_STATE_DISCARDING] = CPSS_STP_BLCK_LSTN_E,
+    [STP_STATE_LEARNING] =  CPSS_STP_LRN_E,
+    [STP_STATE_FORWARDING] = CPSS_STP_FRWRD_E
+  };
+
+  if (state < 0 || state >= STP_STATE_MAX)
+    return EC_BAD_VALUE;
+
+  *cs = csm[state];
+
+  return 0;
+}
