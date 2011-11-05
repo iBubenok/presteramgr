@@ -9,6 +9,9 @@
 #define CMD_SOCK_EP "ipc:///tmp/presteramgr.command"
 
 typedef uint16_t port_num_t;
+typedef uint16_t notification_t;
+typedef uint16_t command_t;
+typedef uint16_t status_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -18,14 +21,14 @@ enum control_notification {
 static inline int
 control_notification_subscribe (void *sock, enum control_notification cn)
 {
-  uint16_t tmp = cn;
+  notification_t tmp = cn;
   return zmq_setsockopt (sock, ZMQ_SUBSCRIBE, &tmp, sizeof (tmp));
 }
 
 static inline int
 control_notification_unsubscribe (void *sock, enum control_notification cn)
 {
-  uint16_t tmp = cn;
+  notification_t tmp = cn;
   return zmq_setsockopt (sock, ZMQ_UNSUBSCRIBE, &tmp, sizeof (tmp));
 }
 
@@ -74,11 +77,11 @@ enum port_stp_state {
     STP_STATE_MAX /* must be the last */
 };
 
-enum error_code {
-  EC_OK = 0,
-  EC_BAD_FORMAT,
-  EC_BAD_REQUEST,
-  EC_BAD_VALUE
+enum status {
+  ST_OK = 0,
+  ST_BAD_FORMAT,
+  ST_BAD_REQUEST,
+  ST_BAD_VALUE
 };
 
 #endif /* __CONTROL_PROTO_H__ */

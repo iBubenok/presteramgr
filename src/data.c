@@ -43,7 +43,7 @@ data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
   };
 
   if (state < 0 || state >= STP_STATE_MAX)
-    return EC_BAD_VALUE;
+    return ST_BAD_VALUE;
 
   *cs = csm[state];
 

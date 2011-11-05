@@ -6,14 +6,14 @@
 #include <czmq.h>
 #include <control-proto.h>
 
-static uint16_t data = 0;
+static command_t data = 0;
 
 static int
 notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
   zmsg_t *msg = zmsg_recv (sock);
   zframe_t *frame;
-  uint16_t type;
+  notification_t type;
   port_num_t port;
   struct port_link_state state;
 
@@ -60,7 +60,7 @@ reply_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
   zmsg_t *msg = zmsg_recv (sock);
   zframe_t *frame;
-  uint16_t data;
+  status_t data;
 
   frame = zmsg_pop (msg);
   assert (zframe_size (frame) == sizeof (data));

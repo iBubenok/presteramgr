@@ -45,7 +45,7 @@ make_notify_message (enum control_notification type)
   zmsg_t *msg = zmsg_new ();
   assert (msg);
 
-  uint16_t tmp = type;
+  notification_t tmp = type;
   zmsg_addmem (msg, &tmp, sizeof (tmp));
 
   return msg;
@@ -93,19 +93,19 @@ control_start (void)
 }
 
 static zmsg_t *
-make_reply (enum error_code code)
+make_reply (enum status code)
 {
   zmsg_t *msg = zmsg_new ();
   assert (msg);
 
-  uint16_t val = code;
+  status_t val = code;
   zmsg_addmem (msg, &val, sizeof (val));
 
   return msg;
 }
 
 static inline void
-report_error (enum error_code code)
+report_status (enum status code)
 {
   zmsg_t *msg = make_reply (code);
   zmsg_send (&msg, cmd_sock);
@@ -114,7 +114,7 @@ report_error (enum error_code code)
 static inline void
 report_ok (void)
 {
-  report_error (EC_OK);
+  report_status (ST_OK);
 }
 
 typedef void (*cmd_handler_t) (zmsg_t *);
@@ -132,7 +132,7 @@ cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg;
   zframe_t *frame;
-  uint16_t cmd;
+  command_t cmd;
   cmd_handler_t handler;
 
   msg = zmsg_recv (cmd_sock);
@@ -143,7 +143,7 @@ cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 
   if (cmd >= ARRAY_SIZE (handlers) ||
       (handler = handlers[cmd]) == NULL) {
-    report_error (EC_BAD_REQUEST);
+    report_status (ST_BAD_REQUEST);
     goto out;
   }
   handler (msg);
