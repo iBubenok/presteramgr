@@ -51,7 +51,6 @@ enum port_speed {
 };
 
 struct port_link_state {
-  uint32_t port   : 10;
   uint32_t link   : 1;
   uint32_t speed  : 4;
   uint32_t duplex : 1;

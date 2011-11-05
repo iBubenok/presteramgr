@@ -14,6 +14,7 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   zmsg_t *msg = zmsg_recv (sock);
   zframe_t *frame;
   uint16_t type;
+  port_num_t port;
   struct port_link_state state;
 
   frame = zmsg_pop (msg);
@@ -22,14 +23,19 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   zframe_destroy (&frame);
 
   frame = zmsg_pop (msg);
+  assert (zframe_size (frame) == sizeof (port));
+  memcpy (&port, zframe_data (frame), sizeof (port));
+  zframe_destroy (&frame);
+
+  frame = zmsg_pop (msg);
   assert (zframe_size (frame) == sizeof (state));
   memcpy (&state, zframe_data (frame), sizeof (state));
   zframe_destroy (&frame);
   if (state.link)
     printf ("port %d link up at speed %d, %s duplex\n",
-            state.port, state.speed, state.duplex ? "full" : "half");
+            port, state.speed, state.duplex ? "full" : "half");
   else
-    printf ("port %d link down\n", state.port);
+    printf ("port %d link down\n", port);
 
   zmsg_destroy (&msg);
   return 0;

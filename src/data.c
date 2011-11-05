@@ -7,7 +7,6 @@
 
 int
 data_encode_port_state (struct port_link_state *state,
-                        int port,
                         const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   static enum port_speed psm[] = {
@@ -25,7 +24,6 @@ data_encode_port_state (struct port_link_state *state,
     [CPSS_PORT_SPEED_NA_E]    = PORT_SPEED_NA
   };
 
-  state->port = port;
   state->link = attrs->portLinkUp == GT_TRUE;
   state->duplex = attrs->portDuplexity == CPSS_PORT_FULL_DUPLEX_E;
   assert (attrs->portSpeed >= 0 && attrs->portSpeed <= CPSS_PORT_SPEED_NA_E);

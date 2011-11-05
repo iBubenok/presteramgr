@@ -57,12 +57,18 @@ notify_send (zmsg_t **msg)
   zmsg_send (msg, pub_sock);
 }
 
+static inline void
+put_port_num (zmsg_t *msg, port_num_t port)
+{
+  zmsg_addmem (msg, &port, sizeof (port));
+}
+
 static void
-put_port_state (zmsg_t *msg, port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   struct port_link_state state;
 
-  data_encode_port_state (&state, port, attrs);
+  data_encode_port_state (&state, attrs);
   zmsg_addmem (msg, &state, sizeof (state));
 }
 
@@ -71,7 +77,8 @@ control_notify_port_state (port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attr
 {
 
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
-  put_port_state (msg, port, attrs);
+  put_port_num (msg, port);
+  put_port_state (msg, attrs);
   notify_send (&msg);
 }
 
