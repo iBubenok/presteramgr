@@ -8,6 +8,8 @@
 #define PUB_SOCK_EP "ipc:///tmp/presteramgr.notify"
 #define CMD_SOCK_EP "ipc:///tmp/presteramgr.command"
 
+typedef uint16_t port_num_t;
+
 enum control_notification {
   CN_PORT_LINK_STATE,
   CN_MAX /* NB: must be the last. */

@@ -58,7 +58,7 @@ notify_send (zmsg_t **msg)
 }
 
 static void
-put_port_state (zmsg_t *msg, int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+put_port_state (zmsg_t *msg, port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   struct port_link_state state;
 
@@ -67,7 +67,7 @@ put_port_state (zmsg_t *msg, int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 }
 
 void
-control_notify_port_state (int port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+control_notify_port_state (port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
 
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
