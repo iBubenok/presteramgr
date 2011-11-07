@@ -12,6 +12,8 @@ typedef uint16_t port_num_t;
 typedef uint16_t notification_t;
 typedef uint16_t command_t;
 typedef uint16_t status_t;
+typedef uint16_t stp_id_t;
+typedef uint8_t  stp_state_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,

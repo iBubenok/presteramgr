@@ -10,6 +10,7 @@
 #include <data.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
@@ -154,4 +155,39 @@ port_get_state (port_num_t port, struct port_link_state *state)
  out:
   port_unlock ();
   return result;
+}
+
+enum status
+port_set_stp_state (port_num_t port, stp_id_t stp_id,
+                    enum port_stp_state state)
+{
+  CPSS_STP_STATE_ENT cs;
+  GT_STATUS rc;
+  enum status result;
+
+  if (!port_valid (port) || stp_id > 255)
+    return ST_BAD_VALUE;
+
+  result = data_decode_stp_state (&cs, state);
+  if (result != ST_OK)
+    return result;
+
+  rc = CRP (cpssDxChBrgStpStateSet (ports[port].ldev, ports[port].lport,
+                                    stp_id, cs));
+  switch (rc) {
+  case GT_OK:
+    return ST_OK;
+
+  case GT_HW_ERROR:
+    return ST_HW_ERROR;
+
+  case GT_BAD_PARAM:
+    return ST_BAD_VALUE;
+
+  case GT_NOT_APPLICABLE_DEVICE:
+    return ST_NOT_SUPPORTED;
+
+  default:
+    return ST_OTHER_ERROR;
+  }
 }

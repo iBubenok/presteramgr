@@ -148,9 +148,11 @@ typedef void (*cmd_handler_t) (zmsg_t *);
 #define POP_OPT_ARG(buf, size) (pop_size (buf, args, size, 1))
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
+DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 
 static cmd_handler_t handlers[] = {
-  HANDLER (CC_PORT_GET_STATE)
+  HANDLER (CC_PORT_GET_STATE),
+  HANDLER (CC_PORT_SET_STP_STATE)
 };
 
 
@@ -221,4 +223,37 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
+{
+  port_num_t port;
+  stp_id_t stp_id;
+  stp_state_t state;
+  enum status result;
+
+  result = POP_ARG (&port, sizeof (port));
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&state, sizeof (state));
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_OPT_ARG (&stp_id, sizeof (stp_id));
+  switch (result) {
+  case ST_OK:
+    result = port_set_stp_state (port, stp_id, state);
+    break;
+
+  case ST_DOES_NOT_EXIST:
+    result = ST_NOT_IMPLEMENTED;
+    break;
+
+  default:
+    break;
+  }
+
+ out:
+  report_status (result);
 }
