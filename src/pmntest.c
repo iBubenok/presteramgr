@@ -6,6 +6,8 @@
 #include <czmq.h>
 #include <control-proto.h>
 
+static void *sub_sock, *cmd_sock;
+
 static int
 notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
@@ -39,21 +41,10 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   return 0;
 }
 
-int
-main (int argc, char **argv)
+static void
+test_CC_PORT_GET_STATE (void)
 {
-  zctx_t *context = zctx_new ();
-  void *sub_sock = zsocket_new (context, ZMQ_SUB);
-  zmq_pollitem_t pi = { sub_sock, 0, ZMQ_POLLIN };
-  void *cmd_sock = zsocket_new (context, ZMQ_REQ);
-  zloop_t *loop = zloop_new ();
   port_num_t port;
-
-  zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
-  control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
-  control_notification_connect (sub_sock);
-
-  zsocket_connect (cmd_sock, CMD_SOCK_EP);
 
   for (port = 0; port < 30; port++) {
     zmsg_t *msg = zmsg_new ();
@@ -89,8 +80,63 @@ main (int argc, char **argv)
 
     zmsg_destroy (&msg);
   }
+}
 
+static void
+test_CC_PORT_SET_STP_STATE (void)
+{
+  zmsg_t *msg = zmsg_new ();
+
+  command_t command = CC_PORT_SET_STP_STATE;
+  zmsg_addmem (msg, &command, sizeof (command));
+
+  port_num_t port = 3;
+  zmsg_addmem (msg, &port, sizeof (port));
+
+  stp_state_t state = STP_STATE_DISCARDING;
+  zmsg_addmem (msg, &state, sizeof (state));
+
+  stp_id_t id = 0;
+  zmsg_addmem (msg, &id, sizeof (id));
+
+  zmsg_send (&msg, cmd_sock);
+
+  msg = zmsg_recv (cmd_sock);
+  assert (zmsg_size (msg) == 1);
+  status_t status;
+  zframe_t *frame = zmsg_pop (msg);
+  assert (zframe_size (frame) == sizeof (status));
+  memcpy (&status, zframe_data (frame), sizeof (status));
+  zframe_destroy (&frame);
+  zmsg_destroy (&msg);
+
+  printf ("CC_PORT_SET_STP_STATE for port %2d, STP ID %3d returned %d\n",
+          port, id, status);
+}
+
+int
+main (int argc, char **argv)
+{
+  zctx_t *context = zctx_new ();
+  zloop_t *loop = zloop_new ();
+
+  sub_sock = zsocket_new (context, ZMQ_SUB);
+  zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
+  control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
+  control_notification_connect (sub_sock);
+
+  cmd_sock = zsocket_new (context, ZMQ_REQ);
+  zsocket_connect (cmd_sock, CMD_SOCK_EP);
+
+  /* Test CC_PORT_GET_STATE request. */
+  test_CC_PORT_GET_STATE ();
+
+  /* Test CC_PORT_SET_STP_STATE request. */
+  test_CC_PORT_SET_STP_STATE ();
+
+  zmq_pollitem_t pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &pi, notify_handler, sub_sock);
+
   zloop_start (loop);
 
   return 0;
