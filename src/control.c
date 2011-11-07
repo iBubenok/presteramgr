@@ -63,6 +63,27 @@ put_port_num (zmsg_t *msg, port_num_t port)
   zmsg_addmem (msg, &port, sizeof (port));
 }
 
+static enum status
+get_port_num (zmsg_t *msg, port_num_t *port)
+{
+  enum status result = ST_BAD_FORMAT;
+
+  if (zmsg_size (msg) < 1)
+    goto out;
+
+  zframe_t *frame = zmsg_pop (msg);
+  if (zframe_size (frame) != sizeof (port_num_t))
+    goto destroy;
+
+  memcpy (port, zframe_data (frame), sizeof (port_num_t));
+  result = ST_OK;
+
+ destroy:
+  zframe_destroy (&frame);
+ out:
+  return result;
+}
+
 static void
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -105,10 +126,15 @@ make_reply (enum status code)
 }
 
 static inline void
+send_reply (zmsg_t *reply)
+{
+  zmsg_send (&reply, cmd_sock);
+}
+
+static inline void
 report_status (enum status code)
 {
-  zmsg_t *msg = make_reply (code);
-  zmsg_send (&msg, cmd_sock);
+  send_reply (make_reply (code));
 }
 
 static inline void
@@ -122,8 +148,10 @@ typedef void (*cmd_handler_t) (zmsg_t *);
 #define DEFINE_HANDLER(cmd) static void handle_##cmd (zmsg_t *args)
 #define HANDLER(cmd) [cmd] = handle_##cmd
 
+DECLARE_HANDLER (CC_PORT_GET_STATE);
+
 static cmd_handler_t handlers[] = {
-  NULL
+  HANDLER (CC_PORT_GET_STATE)
 };
 
 
@@ -172,4 +200,32 @@ control_loop (GT_VOID *dummy)
   zloop_start (loop);
 
   return 0; /* Make the compiler happy. */
+}
+
+
+/*
+ * Command handlers.
+ */
+
+DEFINE_HANDLER (CC_PORT_GET_STATE)
+{
+  port_num_t port;
+  enum status result;
+  struct port_link_state state;
+
+  result = get_port_num (args, &port);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = port_get_state (port, &state);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
 }

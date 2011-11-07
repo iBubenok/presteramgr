@@ -7,6 +7,7 @@
 #include <sysdeps.h>
 #include <port.h>
 #include <control.h>
+#include <data.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -135,4 +136,22 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
   }
 
   port_unlock ();
+}
+
+enum status
+port_get_state (port_num_t port, struct port_link_state *state)
+{
+  enum status result = ST_BAD_VALUE;
+
+  port_lock ();
+
+  if (!port_valid (port))
+    goto out;
+
+  data_encode_port_state (state, &ports[port].state.attrs);
+  result = ST_OK;
+
+ out:
+  port_unlock ();
+  return result;
 }
