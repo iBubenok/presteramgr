@@ -63,27 +63,6 @@ put_port_num (zmsg_t *msg, port_num_t port)
   zmsg_addmem (msg, &port, sizeof (port));
 }
 
-static enum status
-get_port_num (zmsg_t *msg, port_num_t *port)
-{
-  enum status result = ST_BAD_FORMAT;
-
-  if (zmsg_size (msg) < 1)
-    goto out;
-
-  zframe_t *frame = zmsg_pop (msg);
-  if (zframe_size (frame) != sizeof (port_num_t))
-    goto destroy;
-
-  memcpy (port, zframe_data (frame), sizeof (port_num_t));
-  result = ST_OK;
-
- destroy:
-  zframe_destroy (&frame);
- out:
-  return result;
-}
-
 static void
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -143,10 +122,30 @@ report_ok (void)
   report_status (ST_OK);
 }
 
+static enum status
+pop_size (void *buf, zmsg_t *msg, size_t size, int opt)
+{
+  if (zmsg_size (msg) < 1)
+    return opt ? ST_DOES_NOT_EXIST : ST_BAD_FORMAT;
+
+  zframe_t *frame = zmsg_pop (msg);
+  if (zframe_size (frame) != size) {
+    zframe_destroy (&frame);
+    return ST_BAD_FORMAT;
+  }
+
+  memcpy (buf, zframe_data (frame), size);
+  zframe_destroy (&frame);
+
+  return ST_OK;
+}
+
 typedef void (*cmd_handler_t) (zmsg_t *);
 #define DECLARE_HANDLER(cmd) static void handle_##cmd (zmsg_t *)
 #define DEFINE_HANDLER(cmd) static void handle_##cmd (zmsg_t *args)
 #define HANDLER(cmd) [cmd] = handle_##cmd
+#define POP_ARG(buf, size) (pop_size (buf, args, size, 0))
+#define POP_OPT_ARG(buf, size) (pop_size (buf, args, size, 1))
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 
@@ -159,23 +158,17 @@ static int
 cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg;
-  zframe_t *frame;
   command_t cmd;
   cmd_handler_t handler;
+  enum status result;
 
   msg = zmsg_recv (cmd_sock);
-  if (zmsg_size (msg) < 1) {
-    report_status (ST_BAD_FORMAT);
-    goto out;
-  }
 
-  frame = zmsg_pop (msg);
-  if (zframe_size (frame) != sizeof (cmd)) {
-    report_status (ST_BAD_FORMAT);
+  result = pop_size (&cmd, msg, sizeof (cmd), 0);
+  if (result != ST_OK) {
+    report_status (result);
     goto out;
   }
-  memcpy (&cmd, zframe_data (frame), sizeof (cmd));
-  zframe_destroy (&frame);
 
   if (cmd >= ARRAY_SIZE (handlers) ||
       (handler = handlers[cmd]) == NULL) {
@@ -213,7 +206,7 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   enum status result;
   struct port_link_state state;
 
-  result = get_port_num (args, &port);
+  result = POP_ARG (&port, sizeof (port));
   if (result != ST_OK) {
     report_status (result);
     return;
