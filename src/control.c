@@ -136,8 +136,16 @@ cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   cmd_handler_t handler;
 
   msg = zmsg_recv (cmd_sock);
+  if (zmsg_size (msg) < 1) {
+    report_status (ST_BAD_FORMAT);
+    goto out;
+  }
+
   frame = zmsg_pop (msg);
-  assert (zframe_size (frame) == sizeof (cmd));
+  if (zframe_size (frame) != sizeof (cmd)) {
+    report_status (ST_BAD_FORMAT);
+    goto out;
+  }
   memcpy (&cmd, zframe_data (frame), sizeof (cmd));
   zframe_destroy (&frame);
 
