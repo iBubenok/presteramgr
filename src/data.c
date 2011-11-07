@@ -2,10 +2,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <control-proto.h>
 #include <data.h>
 
-int
+enum status
 data_encode_port_state (struct port_link_state *state,
                         const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -32,7 +31,7 @@ data_encode_port_state (struct port_link_state *state,
   return 0;
 }
 
-int
+enum status
 data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
 {
   static CPSS_STP_STATE_ENT csm[] = {
@@ -47,5 +46,5 @@ data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
 
   *cs = csm[state];
 
-  return 0;
+  return ST_OK;
 }
