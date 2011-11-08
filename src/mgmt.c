@@ -78,7 +78,7 @@ mgmt_thread (void *unused)
   msg.msg_iovlen = 1;
 
   printf ("registering pdsa manager\n");
-  if (mgmt_tx (0, 0, NULL, 0) < 0) {
+  if (mgmt_tx (0, PDSA_MGMT_SET_MGR, NULL, 0) < 0) {
     perror ("mgmt_tx");
     return NULL;
   }
