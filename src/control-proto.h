@@ -17,6 +17,7 @@ typedef uint8_t  stp_state_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
+  CN_BPDU,
   CN_MAX /* NB: must be the last. */
 };
 

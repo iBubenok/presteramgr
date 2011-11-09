@@ -75,10 +75,20 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 void
 control_notify_port_state (port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_num (msg, port);
   put_port_state (msg, attrs);
+  notify_send (&msg);
+}
+
+void
+control_notify_spec_frame (port_num_t port,
+                           const unsigned char *data,
+                           size_t len)
+{
+  zmsg_t *msg = make_notify_message (CN_BPDU);
+  put_port_num (msg, port);
+  zmsg_addmem (msg, data, len);
   notify_send (&msg);
 }
 

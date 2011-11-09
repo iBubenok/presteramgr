@@ -8,19 +8,12 @@
 
 static void *sub_sock, *cmd_sock;
 
-static int
-notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
+static void
+handle_port_link_state (zmsg_t *msg)
 {
-  zmsg_t *msg = zmsg_recv (sock);
   zframe_t *frame;
-  notification_t type;
   port_num_t port;
   struct port_link_state state;
-
-  frame = zmsg_pop (msg);
-  assert (zframe_size (frame) == sizeof (type));
-  memcpy (&type, zframe_data (frame), sizeof (type));
-  zframe_destroy (&frame);
 
   frame = zmsg_pop (msg);
   assert (zframe_size (frame) == sizeof (port));
@@ -36,6 +29,54 @@ notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
             port, state.speed, state.duplex ? "full" : "half");
   else
     printf ("port %2d link down\n", port);
+}
+
+static void
+handle_bpdu (zmsg_t *msg)
+{
+  zframe_t *frame;
+  port_num_t port;
+  unsigned char *data;
+  int len, i;
+
+  frame = zmsg_pop (msg);
+  assert (zframe_size (frame) == sizeof (port));
+  memcpy (&port, zframe_data (frame), sizeof (port));
+  zframe_destroy (&frame);
+
+  frame = zmsg_pop (msg);
+  len = zframe_size (frame);
+  data = zframe_data (frame);
+  printf ("got BPDU of length %d from port %d:", len, port);
+  for (i = 0; i < len; i++)
+    printf ("%c%02X", (i % 16) ? ' ' : '\n', data[i]);
+  printf ("\n\n");
+  zframe_destroy (&frame);
+}
+
+static int
+notify_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
+{
+  zmsg_t *msg = zmsg_recv (sock);
+  zframe_t *frame;
+  notification_t type;
+
+
+  frame = zmsg_pop (msg);
+  assert (zframe_size (frame) == sizeof (type));
+  memcpy (&type, zframe_data (frame), sizeof (type));
+  zframe_destroy (&frame);
+
+  switch (type) {
+  case CN_PORT_LINK_STATE:
+    handle_port_link_state (msg);
+    break;
+  case CN_BPDU:
+    handle_bpdu (msg);
+    break;
+  default:
+    fprintf (stderr, "notification %d not supported\n", type);
+  }
 
   zmsg_destroy (&msg);
   return 0;
@@ -123,6 +164,7 @@ main (int argc, char **argv)
   sub_sock = zsocket_new (context, ZMQ_SUB);
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
   control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
+  control_notification_subscribe (sub_sock, CN_BPDU);
   control_notification_connect (sub_sock);
 
   cmd_sock = zsocket_new (context, ZMQ_REQ);

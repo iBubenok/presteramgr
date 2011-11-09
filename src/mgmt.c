@@ -11,6 +11,7 @@
 #include <pdsa-mgmt.h>
 #include <pthread.h>
 #include <presteramgr.h>
+#include <port.h>
 
 #define MAX_PAYLOAD 1024
 
@@ -56,8 +57,22 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
   vlan_set_mac_addr (addr->vid, addr->addr);
 }
 
+DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
+{
+  struct pdsa_spec_frame *frame = NLMSG_DATA (nlh);
+  int port = port_num (frame->dev, frame->port);
+
+  if (port < 0) {
+    fprintf (stderr, "invalid port spec %d-%d\n", frame->dev, frame->port);
+    return;
+  }
+
+  control_notify_spec_frame (port, frame->data, frame->len);
+}
+
 static PDSA_MGMT_HANDLERS (handlers) = {
-  PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
+  PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR),
+  PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 };
 
 static void *

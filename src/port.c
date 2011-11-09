@@ -40,7 +40,7 @@ port_unlock (void)
   pthread_mutex_unlock (&lock);
 }
 
-static int
+int
 port_num (GT_U8 ldev, GT_U8 lport)
 {
   assert (ldev < NDEVS);
