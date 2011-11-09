@@ -50,14 +50,14 @@ mgmt_tx (pid_t to, __u16 type, const void *data, size_t len)
   return sendmsg (sock, &msg, 0);
 }
 
-static PDSA_MGMT_HANDLER (mgmt_set_vlan_mac_addr)
+DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 {
   struct pdsa_vlan_mac_addr *addr = NLMSG_DATA (nlh);
   vlan_set_mac_addr (addr->vid, addr->addr);
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {
-  [PDSA_MGMT_SET_VLAN_MAC_ADDR] = mgmt_set_vlan_mac_addr
+  PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 };
 
 static void *
