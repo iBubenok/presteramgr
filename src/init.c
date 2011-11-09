@@ -821,9 +821,9 @@ linux_ip_setup (GT_U8 dev)
       return rc;                                                    \
   } while (0)
 
-  /* CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)); */
-  /* CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)); */
-  /* CHECK (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet (0, 13, 0)); */
+  CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE));
+  CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E));
+  CHECK (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet (0, 13, 0));
   CHECK (cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
   CHECK (cpssDxChBrgGenArpTrapEnable (dev, 13, GT_TRUE));
 
