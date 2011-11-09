@@ -11,6 +11,7 @@
 #include <data.h>
 #include <sysdeps.h>
 #include <utils.h>
+#include <presteramgr.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -159,10 +160,12 @@ typedef void (*cmd_handler_t) (zmsg_t *);
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
+DECLARE_HANDLER (CC_PORT_SEND_BPDU);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
-  HANDLER (CC_PORT_SET_STP_STATE)
+  HANDLER (CC_PORT_SET_STP_STATE),
+  HANDLER (CC_PORT_SEND_BPDU)
 };
 
 
@@ -257,13 +260,49 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
     break;
 
   case ST_DOES_NOT_EXIST:
-    result = ST_NOT_IMPLEMENTED;
+    /* FIXME: set state for all STGs. */
+    result = port_set_stp_state (port, 0, state);
     break;
 
   default:
     break;
   }
 
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SEND_BPDU)
+{
+  port_num_t port;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&port, sizeof (port));
+  if (result != ST_OK)
+    goto out;
+
+  if (!port_valid (port)) {
+    result = ST_BAD_VALUE;
+    goto out;
+  }
+
+  if (zmsg_size (args) != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (args);
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  mgmt_send_frame (ports[port].ldev, ports[port].lport,
+                   zframe_data (frame), len);
+  result = ST_OK;
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }

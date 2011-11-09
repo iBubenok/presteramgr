@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <presteramgr.h>
 #include <port.h>
+#include <control.h>
 
 #define MAX_PAYLOAD 1024
 
@@ -137,4 +138,20 @@ mgmt_init (void)
   pthread_create (&thread, NULL, mgmt_thread, NULL);
 
   return 0;
+}
+
+void
+mgmt_send_frame (GT_U8 dev, GT_U8 port, const void *data, size_t len)
+{
+  struct pdsa_spec_frame *frame;
+
+  frame = malloc (PDSA_SPEC_FRAME_SIZE (len));
+  frame->dev = dev;
+  frame->port = port;
+  frame->len = len;
+  memcpy (frame->data, data, len);
+
+  mgmt_tx (0, PDSA_MGMT_SPEC_FRAME_TX, frame, PDSA_SPEC_FRAME_SIZE (len));
+
+  free (frame);
 }
