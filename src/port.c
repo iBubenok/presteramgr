@@ -188,6 +188,6 @@ port_set_stp_state (port_num_t port, stp_id_t stp_id,
     return ST_NOT_SUPPORTED;
 
   default:
-    return ST_OTHER_ERROR;
+    return ST_HEX;
   }
 }

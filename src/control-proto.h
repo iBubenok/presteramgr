@@ -89,7 +89,7 @@ enum status {
   ST_NOT_SUPPORTED,
   ST_NOT_IMPLEMENTED,
   ST_DOES_NOT_EXIST,
-  ST_OTHER_ERROR
+  ST_HEX
 };
 
 #endif /* __CONTROL_PROTO_H__ */
