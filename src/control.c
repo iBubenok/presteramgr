@@ -12,6 +12,7 @@
 #include <sysdeps.h>
 #include <utils.h>
 #include <presteramgr.h>
+#include <pdsa-mgmt.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -84,10 +85,22 @@ control_notify_port_state (port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attr
 
 void
 control_notify_spec_frame (port_num_t port,
+                           uint8_t code,
                            const unsigned char *data,
                            size_t len)
 {
-  zmsg_t *msg = make_notify_message (CN_BPDU);
+  notification_t type;
+
+  switch (code) {
+  case CPU_CODE_IEEE_RES_MC_0_TM:
+    type = CN_BPDU;
+    break;
+  default:
+    fprintf (stderr, "spec frame code %02X not supported\n", code);
+    return;
+  }
+
+  zmsg_t *msg = make_notify_message (type);
   put_port_num (msg, port);
   zmsg_addmem (msg, data, len);
   notify_send (&msg);

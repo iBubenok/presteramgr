@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <linux/netlink.h>
 #include <pdsa-mgmt.h>
 #include <pthread.h>
 #include <presteramgr.h>
@@ -68,7 +67,7 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
     return;
   }
 
-  control_notify_spec_frame (port, frame->data, frame->len);
+  control_notify_spec_frame (port, frame->code, frame->data, frame->len);
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {
