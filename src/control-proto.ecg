@@ -1,12 +1,13 @@
-#ifndef __CONTROL_PROTO_H__
-#define __CONTROL_PROTO_H__
+header __CONTROL_PROTO_HEADER__;
 
+verbatim C %%%
 #include <zmq.h>
 #include <czmq.h>
 #include <stdint.h>
+%%%
 
-#define PUB_SOCK_EP "ipc:///tmp/presteramgr.notify"
-#define CMD_SOCK_EP "ipc:///tmp/presteramgr.command"
+const PUB_SOCK_EP = "ipc:///tmp/presteramgr.notify";
+const CMD_SOCK_EP = "ipc:///tmp/presteramgr.command";
 
 typedef uint16_t port_num_t;
 typedef uint16_t notification_t;
@@ -18,9 +19,10 @@ typedef uint8_t  stp_state_t;
 enum control_notification {
   CN_PORT_LINK_STATE,
   CN_BPDU,
-  CN_MAX /* NB: must be the last. */
+  CN_MAX
 };
 
+verbatim C %%%
 static inline int
 control_notification_subscribe (void *sock, enum control_notification cn)
 {
@@ -40,6 +42,7 @@ control_notification_connect (void *sock)
 {
   return zsocket_connect (sock, PUB_SOCK_EP);
 }
+%%%
 
 enum port_speed {
   PORT_SPEED_10,
@@ -60,7 +63,7 @@ struct port_link_state {
   uint8_t link;
   uint8_t speed;
   uint8_t duplex;
-} __attribute__ ((packed));
+};
 
 enum control_command {
   CC_SET_FDB_MAP,
@@ -69,19 +72,19 @@ enum control_command {
   CC_PORT_GET_STATE,
   CC_PORT_FDB_FLUSH,
   CC_PORT_SET_STP_STATE,
-  CC_MAX /* must be the last. */
+  CC_MAX
 };
 
 enum port_stp_state {
-    STP_STATE_DISABLED = 0,
-    STP_STATE_DISCARDING,
-    STP_STATE_LEARNING,
-    STP_STATE_FORWARDING,
-    STP_STATE_MAX /* must be the last */
+  STP_STATE_DISABLED,
+  STP_STATE_DISCARDING,
+  STP_STATE_LEARNING,
+  STP_STATE_FORWARDING,
+  STP_STATE_MAX
 };
 
 enum status {
-  ST_OK = 0,
+  ST_OK,
   ST_BAD_FORMAT,
   ST_BAD_REQUEST,
   ST_BAD_VALUE,
@@ -91,5 +94,3 @@ enum status {
   ST_DOES_NOT_EXIST,
   ST_HEX
 };
-
-#endif /* __CONTROL_PROTO_H__ */
