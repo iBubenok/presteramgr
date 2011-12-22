@@ -13,6 +13,7 @@
 #include <utils.h>
 #include <presteramgr.h>
 #include <pdsa-mgmt.h>
+#include <vlan.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -177,6 +178,7 @@ DECLARE_HANDLER (CC_PORT_SEND_BPDU);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
+DECLARE_HANDLER (CC_VLAN_DUMP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -184,7 +186,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SEND_BPDU),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_PORT_FDB_FLUSH),
-  HANDLER (CC_SET_FDB_MAP)
+  HANDLER (CC_SET_FDB_MAP),
+  HANDLER (CC_VLAN_DUMP)
 };
 
 
@@ -344,3 +347,22 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
   report_ok ();
 }
 
+DEFINE_HANDLER (CC_VLAN_DUMP)
+{
+  enum status result;
+  vid_t vid;
+
+  result = POP_ARG (&vid, sizeof (vid));
+  if (result != ST_OK)
+    goto out;
+
+  if (vid < 1) {
+    result = ST_BAD_VALUE;
+    goto out;
+  }
+
+  result = vlan_dump (vid);
+
+ out:
+  report_status (result);
+}

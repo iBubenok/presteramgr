@@ -79,6 +79,8 @@
 
 #include <control.h>
 #include <port.h>
+#include <vlan.h>
+
 
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000

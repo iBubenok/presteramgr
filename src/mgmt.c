@@ -12,6 +12,7 @@
 #include <presteramgr.h>
 #include <port.h>
 #include <control.h>
+#include <vlan.h>
 
 #define MAX_PAYLOAD 1024
 

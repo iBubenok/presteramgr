@@ -23,12 +23,6 @@ extern int mgmt_init (void);
 extern void mgmt_send_frame (GT_U8, GT_U8, const void *, size_t);
 
 /*
- * vlan.c
- */
-extern int vlan_init (void);
-extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
-
-/*
  * extsvc.c
  */
 extern GT_STATUS extsvc_bind (void);

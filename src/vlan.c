@@ -9,6 +9,7 @@
 #include <presteramgr.h>
 #include <debug.h>
 #include <string.h>
+#include <control-proto.h>
 
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
@@ -23,38 +24,38 @@ static void
 vlan_print_info (GT_U16 vid, const CPSS_DXCH_BRG_VLAN_INFO_STC *info)
 {
   osPrintSync
-    ("VLAN %d\n"
-     "  unkSrcAddrSecBreach   = %s\n"
-     "  unregNonIpMcastCmd    = %s\n"
-     "  unregIpv4McastCmd     = %s\n"
-     "  unregIpv6McastCmd     = %s\n"
-     "  unkUcastCmd           = %s\n"
-     "  unregIpv4BcastCmd     = %s\n"
-     "  unregNonIpv4BcastCmd  = %s\n"
-     "  ipv4IgmpToCpuEn       = %s\n"
-     "  mirrToRxAnalyzerEn    = %s\n"
-     "  ipv6IcmpToCpuEn       = %s\n"
-     "  ipCtrlToCpuEn         = %s\n"
-     "  ipv4IpmBrgMode        = %s\n"
-     "  ipv6IpmBrgMode        = %s\n"
-     "  ipv4IpmBrgEn          = %s\n"
-     "  ipv6IpmBrgEn          = %s\n"
-     "  ipv6SiteIdMode        = %s\n"
-     "  ipv4UcastRouteEn      = %s\n"
-     "  ipv4McastRouteEn      = %s\n"
-     "  ipv6UcastRouteEn      = %s\n"
-     "  ipv6McastRouteEn      = %s\n"
-     "  stgId                 = %d\n"
-     "  autoLearnDisable      = %s\n"
-     "  naMsgToCpuEn          = %s\n"
-     "  mruIdx                = %d\n"
-     "  bcastUdpTrapMirrEn    = %s\n"
-     "  vrfId                 = %d\n"
-     "  floodVidx             = %d\n"
-     "  floodVidxMode         = %s\n"
-     "  portIsolationMode     = %s\n"
-     "  ucastLocalSwitchingEn = %s\n"
-     "  mcastLocalSwitchingEn = %s\n",
+    ("VLAN %d\r\n"
+     "  unkSrcAddrSecBreach   = %s\r\n"
+     "  unregNonIpMcastCmd    = %s\r\n"
+     "  unregIpv4McastCmd     = %s\r\n"
+     "  unregIpv6McastCmd     = %s\r\n"
+     "  unkUcastCmd           = %s\r\n"
+     "  unregIpv4BcastCmd     = %s\r\n"
+     "  unregNonIpv4BcastCmd  = %s\r\n"
+     "  ipv4IgmpToCpuEn       = %s\r\n"
+     "  mirrToRxAnalyzerEn    = %s\r\n"
+     "  ipv6IcmpToCpuEn       = %s\r\n"
+     "  ipCtrlToCpuEn         = %s\r\n"
+     "  ipv4IpmBrgMode        = %s\r\n"
+     "  ipv6IpmBrgMode        = %s\r\n"
+     "  ipv4IpmBrgEn          = %s\r\n"
+     "  ipv6IpmBrgEn          = %s\r\n"
+     "  ipv6SiteIdMode        = %s\r\n"
+     "  ipv4UcastRouteEn      = %s\r\n"
+     "  ipv4McastRouteEn      = %s\r\n"
+     "  ipv6UcastRouteEn      = %s\r\n"
+     "  ipv6McastRouteEn      = %s\r\n"
+     "  stgId                 = %d\r\n"
+     "  autoLearnDisable      = %s\r\n"
+     "  naMsgToCpuEn          = %s\r\n"
+     "  mruIdx                = %d\r\n"
+     "  bcastUdpTrapMirrEn    = %s\r\n"
+     "  vrfId                 = %d\r\n"
+     "  floodVidx             = %d\r\n"
+     "  floodVidxMode         = %s\r\n"
+     "  portIsolationMode     = %s\r\n"
+     "  ucastLocalSwitchingEn = %s\r\n"
+     "  mcastLocalSwitchingEn = %s\r\n",
      vid,
      SHOW (GT_BOOL, info->unkSrcAddrSecBreach),
      SHOW (CPSS_PACKET_CMD_ENT, info->unregNonIpMcastCmd),
@@ -99,27 +100,33 @@ print_port_bmp (const CPSS_PORTS_BMP_STC *ports)
       osPrintSync ("%d ", i);
 }
 
-static void __attribute__ ((unused))
-vlan_dump (GT_U16 vid)
+enum status
+vlan_dump (vid_t vid)
 {
   CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_BOOL valid;
+  GT_STATUS result;
   int i;
 
-  CRP (cpssDxChBrgVlanEntryRead (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+  result = CRP (cpssDxChBrgVlanEntryRead (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+  if (result != GT_OK)
+    return ST_HEX; /* FIXME: return meaningful values. */
+
   vlan_print_info (vid, &vlan_info);
-  osPrintSync ("\n  members: ");
+  osPrintSync ("\r\n  members: ");
   print_port_bmp (&members);
-  osPrintSync ("\n  tagging: ");
+  osPrintSync ("\r\n  tagging: ");
   print_port_bmp (&tagging);
-  osPrintSync ("\n  valid:   %s", SHOW (GT_BOOL, valid));
-  osPrintSync ("\n  tagging cmd:\n");
+  osPrintSync ("\r\n  valid:   %s", SHOW (GT_BOOL, valid));
+  osPrintSync ("\r\n  tagging cmd:\r\n");
   for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
-    osPrintSync ("    %2d: %s\n", i,
+    osPrintSync ("    %2d: %s\r\n", i,
                  SHOW (CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT,
                        tagging_cmd.portsCmd[i]));
+
+  return ST_OK;
 }
 
 int
