@@ -179,6 +179,7 @@ DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_DUMP);
+DECLARE_HANDLER (CC_ADD_STATIC_MAC);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -187,7 +188,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_PORT_FDB_FLUSH),
   HANDLER (CC_SET_FDB_MAP),
-  HANDLER (CC_VLAN_DUMP)
+  HANDLER (CC_VLAN_DUMP),
+  HANDLER (CC_ADD_STATIC_MAC)
 };
 
 
@@ -362,6 +364,39 @@ DEFINE_HANDLER (CC_VLAN_DUMP)
   }
 
   result = vlan_dump (vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ADD_STATIC_MAC)
+{
+  enum status result;
+  struct mac_op_arg op_arg;
+
+  result = POP_ARG (&op_arg, sizeof (op_arg));
+  if (result != ST_OK)
+    goto out;
+
+  if (op_arg.vid < 1) {
+    result = ST_BAD_VALUE;
+    goto out;
+  }
+
+  if (!port_valid (op_arg.port)) {
+    result = ST_BAD_VALUE;
+    goto out;
+  }
+
+  /* TODO: really do it */
+  fprintf (stderr,
+           "ADD STATIC MAC:\r\n"
+           "\tport = %d\r\n"
+           "\tvlan = %d\r\n"
+           "\taddr = %02X:%02X:%02X:%02X:%02X:%02X\r\n",
+           op_arg.port, op_arg.vid,
+           op_arg.mac[0], op_arg.mac[1], op_arg.mac[2],
+           op_arg.mac[3], op_arg.mac[4], op_arg.mac[5]);
 
  out:
   report_status (result);

@@ -16,6 +16,7 @@ typedef uint16_t status_t;
 typedef uint16_t stp_id_t;
 typedef uint8_t  stp_state_t;
 typedef uint16_t vid_t;
+typedef uint8_t mac_addr_t[6];
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -66,6 +67,12 @@ struct port_link_state {
   uint8_t duplex;
 };
 
+struct mac_op_arg {
+  vid_t vid;
+  port_num_t port;
+  mac_addr_t mac;
+};
+
 enum control_command {
   CC_SET_FDB_MAP,
   CC_PORT_SEND_BPDU,
@@ -74,6 +81,7 @@ enum control_command {
   CC_PORT_FDB_FLUSH,
   CC_PORT_SET_STP_STATE,
   CC_VLAN_DUMP,
+  CC_ADD_STATIC_MAC,
   CC_MAX
 };
 
