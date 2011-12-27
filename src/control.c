@@ -180,6 +180,7 @@ DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
+DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 
@@ -191,6 +192,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_FLUSH),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
+  HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP)
 };
@@ -361,12 +363,22 @@ DEFINE_HANDLER (CC_VLAN_ADD)
   if (result != ST_OK)
     goto out;
 
-  if (!vlan_valid (vid)) {
-    result = ST_BAD_VALUE;
-    goto out;
-  }
-
   result = vlan_add (vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_DELETE)
+{
+  enum status result;
+  vid_t vid;
+
+  result = POP_ARG (&vid, sizeof (vid));
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_delete (vid);
 
  out:
   report_status (result);

@@ -9,6 +9,7 @@
 #include <presteramgr.h>
 #include <debug.h>
 #include <string.h>
+#include <vlan.h>
 #include <control-proto.h>
 
 DECLSHOW (GT_BOOL);
@@ -138,6 +139,9 @@ vlan_add (vid_t vid)
   GT_STATUS rc;
   int i;
 
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
   memset (&members, 0, sizeof (members));
   for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
     if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray [i].portType
@@ -190,6 +194,21 @@ vlan_add (vid_t vid)
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
+  }
+}
+
+enum status
+vlan_delete (vid_t vid)
+{
+  GT_STATUS rc;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChBrgVlanEntryInvalidate (0, vid));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
   }
 }
 

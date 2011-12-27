@@ -83,6 +83,7 @@ enum control_command {
   CC_PORT_FDB_FLUSH,
   CC_PORT_SET_STP_STATE,
   CC_VLAN_ADD,
+  CC_VLAN_DELETE,
   CC_VLAN_DUMP,
   CC_MAC_OP,
   CC_MAX
