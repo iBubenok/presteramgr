@@ -14,6 +14,7 @@
 #include <presteramgr.h>
 #include <pdsa-mgmt.h>
 #include <vlan.h>
+#include <mac.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -378,25 +379,7 @@ DEFINE_HANDLER (CC_ADD_STATIC_MAC)
   if (result != ST_OK)
     goto out;
 
-  if (op_arg.vid < 1) {
-    result = ST_BAD_VALUE;
-    goto out;
-  }
-
-  if (!port_valid (op_arg.port)) {
-    result = ST_BAD_VALUE;
-    goto out;
-  }
-
-  /* TODO: really do it */
-  fprintf (stderr,
-           "ADD STATIC MAC:\r\n"
-           "\tport = %d\r\n"
-           "\tvlan = %d\r\n"
-           "\taddr = %02X:%02X:%02X:%02X:%02X:%02X\r\n",
-           op_arg.port, op_arg.vid,
-           op_arg.mac[0], op_arg.mac[1], op_arg.mac[2],
-           op_arg.mac[3], op_arg.mac[4], op_arg.mac[5]);
+  result = mac_add_static (&op_arg);
 
  out:
   report_status (result);
