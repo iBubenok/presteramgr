@@ -1,6 +1,8 @@
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
 
+#include <extsvc.h>
+
 #define DECLSHOW(type) extern const char *show_##type (type)
 #define SHOW(type, value) (show_##type (value))
 

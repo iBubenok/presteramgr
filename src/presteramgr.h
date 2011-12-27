@@ -22,11 +22,5 @@ extern void event_enter_loop (void);
 extern int mgmt_init (void);
 extern void mgmt_send_frame (GT_U8, GT_U8, const void *, size_t);
 
-/*
- * extsvc.c
- */
-extern GT_STATUS extsvc_bind (void);
-extern int osPrintSync (const char *, ...);
-
 
 #endif /* __PRESTERAMGR_H__ */

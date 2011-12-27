@@ -77,6 +77,7 @@
 #include <gtExtDrv/drivers/gtPciDrv.h>
 #include <gtExtDrv/drivers/gtDragoniteDrv.h>
 
+#include <extsvc.h>
 #include <control.h>
 #include <port.h>
 #include <vlan.h>
