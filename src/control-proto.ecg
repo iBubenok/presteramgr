@@ -70,6 +70,8 @@ struct port_link_state {
 struct mac_op_arg {
   vid_t vid;
   port_num_t port;
+  uint8_t drop;
+  uint8_t delete;
   mac_addr_t mac;
 };
 
@@ -81,7 +83,7 @@ enum control_command {
   CC_PORT_FDB_FLUSH,
   CC_PORT_SET_STP_STATE,
   CC_VLAN_DUMP,
-  CC_ADD_STATIC_MAC,
+  CC_MAC_OP,
   CC_MAX
 };
 

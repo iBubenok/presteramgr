@@ -180,7 +180,7 @@ DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_DUMP);
-DECLARE_HANDLER (CC_ADD_STATIC_MAC);
+DECLARE_HANDLER (CC_MAC_OP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -190,7 +190,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_FLUSH),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_DUMP),
-  HANDLER (CC_ADD_STATIC_MAC)
+  HANDLER (CC_MAC_OP)
 };
 
 
@@ -370,7 +370,7 @@ DEFINE_HANDLER (CC_VLAN_DUMP)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_ADD_STATIC_MAC)
+DEFINE_HANDLER (CC_MAC_OP)
 {
   enum status result;
   struct mac_op_arg op_arg;
@@ -379,7 +379,7 @@ DEFINE_HANDLER (CC_ADD_STATIC_MAC)
   if (result != ST_OK)
     goto out;
 
-  result = mac_add_static (&op_arg);
+  result = mac_op (&op_arg);
 
  out:
   report_status (result);

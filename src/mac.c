@@ -15,7 +15,7 @@
  */
 
 enum status
-mac_add_static (const struct mac_op_arg *arg)
+mac_op (const struct mac_op_arg *arg)
 {
   CPSS_MAC_ENTRY_EXT_STC me;
   GT_STATUS result;
@@ -23,19 +23,32 @@ mac_add_static (const struct mac_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  if (!port_valid (arg->port))
-    return ST_BAD_VALUE;
-
   memset (&me, 0, sizeof (me));
   me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   memcpy (me.key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   me.key.key.macVlan.vlanId = arg->vid;
-  me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  me.dstInterface.devPort.devNum = ports[arg->port].ldev;
-  me.dstInterface.devPort.portNum = ports[arg->port].lport;
   me.isStatic = GT_TRUE;
-  me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
-  me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+
+  if (arg->drop) {
+    fprintf (stderr, "drop mac!\r\n");
+    me.dstInterface.type = CPSS_INTERFACE_VID_E;
+    me.dstInterface.vlanId = arg->vid;
+
+    me.daCommand = CPSS_MAC_TABLE_DROP_E;
+    me.saCommand = CPSS_MAC_TABLE_DROP_E;
+  } else {
+    fprintf (stderr, "add mac!\r\n");
+
+    if (!port_valid (arg->port))
+      return ST_BAD_VALUE;
+
+    me.dstInterface.type = CPSS_INTERFACE_PORT_E;
+    me.dstInterface.devPort.devNum = ports[arg->port].ldev;
+    me.dstInterface.devPort.portNum = ports[arg->port].lport;
+
+    me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+    me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+  }
 
   result = CRP (cpssDxChBrgFdbMacEntrySet (0, &me));
   switch (result) {
