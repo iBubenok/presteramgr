@@ -14,14 +14,11 @@
  * TODO: maintain shadow FDB.
  */
 
-enum status
-mac_op (const struct mac_op_arg *arg)
+static enum status
+mac_add (const struct mac_op_arg *arg)
 {
   CPSS_MAC_ENTRY_EXT_STC me;
   GT_STATUS result;
-
-  if (!vlan_valid (arg->vid))
-    return ST_BAD_VALUE;
 
   memset (&me, 0, sizeof (me));
   me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
@@ -57,4 +54,23 @@ mac_op (const struct mac_op_arg *arg)
   case GT_BAD_STATE: return ST_BUSY;
   default:           return ST_HEX;
   }
+}
+
+static enum status
+mac_delete (const struct mac_op_arg *arg)
+{
+  fprintf (stderr, "delete mac!\r\n");
+  return ST_NOT_IMPLEMENTED;
+}
+
+enum status
+mac_op (const struct mac_op_arg *arg)
+{
+  if (!vlan_valid (arg->vid))
+    return ST_BAD_VALUE;
+
+  if (arg->delete)
+    return mac_delete (arg);
+  else
+    return mac_add (arg);
 }
