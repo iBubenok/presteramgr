@@ -359,7 +359,7 @@ DEFINE_HANDLER (CC_VLAN_DUMP)
   if (result != ST_OK)
     goto out;
 
-  if (vid < 1) {
+  if (!vlan_valid (vid)) {
     result = ST_BAD_VALUE;
     goto out;
   }
