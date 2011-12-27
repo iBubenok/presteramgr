@@ -129,8 +129,8 @@ vlan_dump (vid_t vid)
   return ST_OK;
 }
 
-int
-vlan_add (GT_U16 vid)
+enum status
+vlan_add (vid_t vid)
 {
   CPSS_PORTS_BMP_STC members, tagging;
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
@@ -186,8 +186,11 @@ vlan_add (GT_U16 vid)
 
   rc = CRP (cpssDxChBrgVlanEntryWrite (0, vid, &members,
                                        &tagging, &vlan_info, &tagging_cmd));
-
-  return rc != GT_OK;
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
 }
 
 int
