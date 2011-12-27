@@ -59,8 +59,25 @@ mac_add (const struct mac_op_arg *arg)
 static enum status
 mac_delete (const struct mac_op_arg *arg)
 {
+  CPSS_MAC_ENTRY_EXT_KEY_STC key;
+  GT_STATUS result;
+
   fprintf (stderr, "delete mac!\r\n");
-  return ST_NOT_IMPLEMENTED;
+
+  if (!port_valid (arg->port))
+    return ST_BAD_VALUE;
+
+  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
+  key.key.macVlan.vlanId = arg->vid;
+
+  result = CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
+  switch (result) {
+  case GT_OK:        return ST_OK;
+  case GT_HW_ERROR:  return ST_HW_ERROR;
+  case GT_BAD_STATE: return ST_BUSY;
+  default:           return ST_HEX;
+  }
 }
 
 enum status
