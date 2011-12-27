@@ -27,15 +27,12 @@ mac_add (const struct mac_op_arg *arg)
   me.isStatic = GT_TRUE;
 
   if (arg->drop) {
-    fprintf (stderr, "drop mac!\r\n");
     me.dstInterface.type = CPSS_INTERFACE_VID_E;
     me.dstInterface.vlanId = arg->vid;
 
     me.daCommand = CPSS_MAC_TABLE_DROP_E;
     me.saCommand = CPSS_MAC_TABLE_DROP_E;
   } else {
-    fprintf (stderr, "add mac!\r\n");
-
     if (!port_valid (arg->port))
       return ST_BAD_VALUE;
 
@@ -61,8 +58,6 @@ mac_delete (const struct mac_op_arg *arg)
 {
   CPSS_MAC_ENTRY_EXT_KEY_STC key;
   GT_STATUS result;
-
-  fprintf (stderr, "delete mac!\r\n");
 
   if (!port_valid (arg->port))
     return ST_BAD_VALUE;
