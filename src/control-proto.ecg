@@ -102,5 +102,6 @@ enum status {
   ST_NOT_SUPPORTED,
   ST_NOT_IMPLEMENTED,
   ST_DOES_NOT_EXIST,
+  ST_BUSY,
   ST_HEX
 };
