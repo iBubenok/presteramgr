@@ -433,3 +433,31 @@ port_set_mode (port_num_t n, enum port_mode mode)
 
   return result;
 }
+
+enum status
+port_shutdown (port_num_t n, int shutdown)
+{
+  struct port *port;
+  GT_STATUS rc;
+
+  if (!port_valid (n))
+    return ST_BAD_VALUE;
+
+  port = &ports[n];
+
+  rc = CRP (cpssDxChPortEnableSet (port->ldev, port->lport, !shutdown));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPortForceLinkDownEnableSet
+            (port->ldev,
+             port->lport,
+             !!shutdown));
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}

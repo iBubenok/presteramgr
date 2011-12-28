@@ -37,6 +37,7 @@ extern enum status port_set_stp_state (port_num_t, stp_id_t, enum port_stp_state
 extern enum status port_set_mode (port_num_t, enum port_mode);
 extern enum status port_set_access_vid (port_num_t, vid_t);
 extern enum status port_set_native_vid (port_num_t, vid_t);
+extern enum status port_shutdown (port_num_t, int);
 
 
 #endif /* __PORT_H__ */

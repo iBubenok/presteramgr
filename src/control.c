@@ -346,8 +346,22 @@ DEFINE_HANDLER (CC_PORT_SEND_BPDU)
 
 DEFINE_HANDLER (CC_PORT_SHUTDOWN)
 {
-  /* FIXME: stub. */
-  report_ok ();
+  enum status result;
+  port_num_t port;
+  bool_t shutdown;
+
+  result = POP_ARG (&port, sizeof (port));
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&shutdown, sizeof (shutdown));
+  if (result != ST_OK)
+    goto out;
+
+  result = port_shutdown (port, shutdown);
+
+ out:
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
