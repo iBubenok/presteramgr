@@ -285,3 +285,47 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
   return CRP (cpssDxChBrgFdbMacEntrySet (0, &mac_entry));
 }
+
+enum status
+vlan_set_dot1q_tag_native (int value)
+{
+  GT_STATUS rc = GT_OK;
+
+  if (value != vlan_dot1q_tag_native) {
+    GT_BOOL tag;
+    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+    int i;
+
+    if (value) {
+      tag = GT_TRUE;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+    } else {
+      tag = GT_FALSE;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+    }
+
+    for (i = 0; i < nports; i++) {
+      if (ports[i].mode == PM_TRUNK) {
+        rc = CRP (cpssDxChBrgVlanMemberSet
+                  (ports[i].ldev,
+                   ports[i].native_vid,
+                   ports[i].lport,
+                   GT_TRUE,
+                   tag,
+                   cmd));
+        if (rc != GT_OK)
+          break;
+      }
+    }
+  }
+
+  switch (rc) {
+  case GT_OK:
+    vlan_dot1q_tag_native = value;
+    return ST_OK;
+  case GT_HW_ERROR:
+    return ST_HW_ERROR;
+  default:
+    return ST_HEX;
+  }
+}

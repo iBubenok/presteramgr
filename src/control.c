@@ -184,6 +184,7 @@ DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
+DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 
@@ -199,6 +200,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
+  HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP)
 };
@@ -385,6 +387,21 @@ DEFINE_HANDLER (CC_VLAN_DELETE)
     goto out;
 
   result = vlan_delete (vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE)
+{
+  enum status result;
+  bool_t value;
+
+  result = POP_ARG (&value, sizeof (value));
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_dot1q_tag_native (value);
 
  out:
   report_status (result);
