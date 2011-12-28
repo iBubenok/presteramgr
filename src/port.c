@@ -51,12 +51,11 @@ port_num (GT_U8 ldev, GT_U8 lport)
 }
 
 static void
-port_set_vid (int n)
+port_set_vid (port_num_t n)
 {
   vid_t vid = 0; /* Make the compiler happy. */
   struct port *port;
 
-  assert (port_valid (n));
   port = &ports[n];
 
   switch (port->mode) {
