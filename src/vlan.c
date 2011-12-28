@@ -13,6 +13,8 @@
 #include <port.h>
 #include <control-proto.h>
 
+struct vlan vlans[4095];
+
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
 DECLSHOW (CPSS_DXCH_BRG_IP_CTRL_TYPE_ENT);
@@ -217,9 +219,13 @@ vlan_add (vid_t vid)
                                        &tagging, &vlan_info,
                                        &tagging_cmd));
   switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
+  case GT_OK:
+    vlans[vid - 1].state = VS_ACTIVE;
+    return ST_OK;
+  case GT_HW_ERROR:
+    return ST_HW_ERROR;
+  default:
+    return ST_HEX;
   }
 }
 
@@ -233,8 +239,11 @@ vlan_delete (vid_t vid)
 
   rc = CRP (cpssDxChBrgVlanEntryInvalidate (0, vid));
   switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
+  case GT_OK:
+    vlans[vid - 1].state = VS_DELETED;
+    return ST_OK;
+  default:
+    return ST_HEX;
   }
 }
 
@@ -242,6 +251,10 @@ int
 vlan_init (void)
 {
   GT_STATUS rc;
+  int i;
+
+  for (i = 0; i < 4095; i++)
+    vlans[i].state = VS_DELETED;
 
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);

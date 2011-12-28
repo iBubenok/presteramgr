@@ -5,6 +5,18 @@
 
 extern int vlan_dot1q_tag_native;
 
+enum vlan_state {
+  VS_DELETED,
+  VS_SHUTDOWN,
+  VS_ACTIVE
+};
+
+struct vlan {
+  enum vlan_state state;
+};
+
+extern struct vlan vlans[4095];
+
 static inline int
 vlan_valid (vid_t vid)
 {
