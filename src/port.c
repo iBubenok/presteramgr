@@ -11,6 +11,7 @@
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
@@ -49,6 +50,22 @@ port_num (GT_U8 ldev, GT_U8 lport)
   return port_nums[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
 }
 
+static void
+port_set_vid (int n)
+{
+  vid_t vid = 0; /* Make the compiler happy. */
+  struct port *port;
+
+  assert (port_valid (n));
+  port = &ports[n];
+
+  switch (port->mode) {
+  case PM_ACCESS: vid = port->access_vid; break;
+  case PM_TRUNK:  vid = port->native_vid; break;
+  }
+  CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
+}
+
 int
 port_init (void)
 {
@@ -73,6 +90,8 @@ port_init (void)
     ports[i].access_vid = 1;
     ports[i].native_vid = 1;
     port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i;
+
+    port_set_vid (i);
   }
 
   nports = NPORTS;
