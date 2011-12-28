@@ -10,6 +10,7 @@
 #include <debug.h>
 #include <string.h>
 #include <vlan.h>
+#include <port.h>
 #include <control-proto.h>
 
 DECLSHOW (GT_BOOL);
@@ -130,6 +131,42 @@ vlan_dump (vid_t vid)
   return ST_OK;
 }
 
+int vlan_dot1q_tag_native = 0;
+
+static void
+setup_tagging (vid_t vid,
+               CPSS_PORTS_BMP_STC *members,
+               CPSS_PORTS_BMP_STC *tagging,
+               CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC *tagging_cmd)
+{
+  int i;
+
+  memset (members, 0, sizeof (*members));
+  memset (tagging, 0, sizeof (*tagging));
+  memset (tagging_cmd, 0, sizeof (*tagging_cmd));
+
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+
+    switch (ports[i].mode) {
+    case PM_ACCESS:
+      if (port->access_vid == vid) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
+        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      }
+      break;
+
+    case PM_TRUNK:
+      CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
+      if (port->native_vid != vid || vlan_dot1q_tag_native) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (tagging, i);
+        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_PUSH_TAG0_CMD_E;
+      } else
+        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+    }
+  }
+}
+
 enum status
 vlan_add (vid_t vid)
 {
@@ -137,19 +174,9 @@ vlan_add (vid_t vid)
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_STATUS rc;
-  int i;
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
-
-  memset (&members, 0, sizeof (members));
-  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
-    if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray [i].portType
-        != PRV_CPSS_PORT_NOT_EXISTS_E)
-      CPSS_PORTS_BMP_PORT_SET_MAC (&members, i);
-  CPSS_PORTS_BMP_PORT_SET_MAC (&members, CPSS_CPU_PORT_NUM_CNS);
-
-  memset (&tagging, 0, sizeof (tagging));
 
   memset (&vlan_info, 0, sizeof (vlan_info));
   vlan_info.unkSrcAddrSecBreach   = GT_FALSE;
@@ -184,12 +211,11 @@ vlan_add (vid_t vid)
   vlan_info.ucastLocalSwitchingEn = GT_FALSE;
   vlan_info.mcastLocalSwitchingEn = GT_FALSE;
 
-  memset (&tagging_cmd, 0, sizeof (tagging_cmd));
-  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; ++i)
-    tagging_cmd.portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+  setup_tagging (vid, &members, &tagging, &tagging_cmd);
 
   rc = CRP (cpssDxChBrgVlanEntryWrite (0, vid, &members,
-                                       &tagging, &vlan_info, &tagging_cmd));
+                                       &tagging, &vlan_info,
+                                       &tagging_cmd));
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
