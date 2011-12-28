@@ -178,6 +178,7 @@ DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_BPDU);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
+DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
@@ -190,6 +191,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SEND_BPDU),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_PORT_FDB_FLUSH),
+  HANDLER (CC_PORT_SET_ACCESS_VLAN),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
@@ -414,6 +416,26 @@ DEFINE_HANDLER (CC_MAC_OP)
     goto out;
 
   result = mac_op (&op_arg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
+{
+  enum status result;
+  port_num_t port;
+  vid_t vid;
+
+  result = POP_ARG (&port, sizeof (port));
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid, sizeof (vid));
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_access_vid (port, vid);
 
  out:
   report_status (result);

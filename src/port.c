@@ -8,6 +8,7 @@
 #include <port.h>
 #include <control.h>
 #include <data.h>
+#include <vlan.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
@@ -210,5 +211,50 @@ port_set_stp_state (port_num_t port, stp_id_t stp_id,
 
   default:
     return ST_HEX;
+  }
+}
+
+
+enum status
+port_set_access_vid (port_num_t n, vid_t vid)
+{
+  struct port *port;
+  GT_STATUS rc = GT_OK;
+
+  if (!(port_valid (n) && vlan_valid (vid)))
+    return ST_BAD_VALUE;
+
+  port = &ports[n];
+
+  if (port->mode == PM_ACCESS) {
+    rc = CRP (cpssDxChBrgVlanPortDelete
+              (port->ldev,
+               port->access_vid,
+               port->lport));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               vid,
+               port->lport,
+               GT_TRUE,
+               GT_FALSE,
+               CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
+    if (rc != GT_OK)
+      goto out;
+  }
+
+  port->access_vid = vid;
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
   }
 }
