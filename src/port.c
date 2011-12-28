@@ -316,3 +316,120 @@ port_set_native_vid (port_num_t n, vid_t vid)
   default:          return ST_HEX;
   }
 }
+
+static enum status
+port_set_trunk_mode (struct port *port)
+{
+  GT_BOOL tag_native;
+  CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+  GT_STATUS rc;
+  int i;
+
+  if (vlan_dot1q_tag_native) {
+    tag_native = GT_TRUE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+  } else {
+    tag_native = GT_FALSE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+  }
+
+  for (i = 0; i < 4095; i++) {
+    if (vlans[i].state == VS_DELETED || port->native_vid == i + 1)
+      continue;
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               i + 1,
+               port->lport,
+               GT_TRUE,
+               GT_TRUE,
+               CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E));
+    if (rc != GT_OK)
+      goto out;
+  }
+
+  rc = CRP (cpssDxChBrgVlanMemberSet
+            (port->ldev,
+             port->native_vid,
+             port->lport,
+             GT_TRUE,
+             tag_native,
+             cmd));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChBrgVlanPortVidSet
+            (port->ldev,
+             port->lport,
+             port->native_vid));
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+static enum status
+port_set_access_mode (struct port *port)
+{
+  GT_STATUS rc;
+  int i;
+
+  for (i = 0; i < 4095; i++) {
+    if (vlans[i].state == VS_DELETED || port->access_vid == i + 1)
+      continue;
+
+    rc = CRP (cpssDxChBrgVlanPortDelete
+              (port->ldev,
+               i + 1,
+               port->lport));
+    if (rc != GT_OK)
+      goto out;
+  }
+
+  rc = CRP (cpssDxChBrgVlanMemberSet
+            (port->ldev,
+             port->access_vid,
+             port->lport,
+             GT_TRUE,
+             GT_FALSE,
+             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChBrgVlanPortVidSet
+            (port->ldev,
+             port->lport,
+             port->access_vid));
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+port_set_mode (port_num_t n, enum port_mode mode)
+{
+  struct port *port;
+  enum status result;
+
+  if (!port_valid (n))
+    return ST_BAD_VALUE;
+
+  port = &ports[n];
+  if (port->mode == mode)
+    return ST_OK;
+
+  if (mode == PM_TRUNK)
+    result = port_set_trunk_mode (port);
+  else
+    result = port_set_access_mode (port);
+
+  if (result == ST_OK)
+    port->mode = mode;
+
+  return result;
+}

@@ -162,7 +162,7 @@ setup_tagging (vid_t vid,
       CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
       if (port->native_vid != vid || vlan_dot1q_tag_native) {
         CPSS_PORTS_BMP_PORT_SET_MAC (tagging, i);
-        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_PUSH_TAG0_CMD_E;
+        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
       } else
         tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
     }
