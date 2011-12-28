@@ -61,6 +61,11 @@ enum port_speed {
   PORT_SPEED_NA
 };
 
+enum port_mode {
+  PM_ACCESS,
+  PM_TRUNK
+};
+
 struct port_link_state {
   uint8_t link;
   uint8_t speed;

@@ -12,6 +12,9 @@ struct port_state {
 struct port {
   GT_U8 ldev;
   GT_U8 lport;
+  enum port_mode mode;
+  vid_t access_vid;
+  vid_t native_vid;
   struct port_state state;
 };
 

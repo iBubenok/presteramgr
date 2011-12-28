@@ -69,6 +69,9 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].ldev = 0;
     ports[i].lport = pmap[i];
+    ports[i].mode = PM_ACCESS;
+    ports[i].access_vid = 1;
+    ports[i].native_vid = 1;
     port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i;
   }
 
