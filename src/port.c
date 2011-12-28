@@ -318,50 +318,47 @@ port_set_native_vid (port_num_t n, vid_t vid)
 }
 
 static enum status
-port_set_trunk_mode (struct port *port)
+port_vlan_bulk_op (struct port *port,
+                   vid_t vid,
+                   GT_BOOL vid_tag,
+                   CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT vid_tag_cmd,
+                   GT_BOOL rest_member,
+                   GT_BOOL rest_tag,
+                   CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT rest_tag_cmd)
+
 {
-  GT_BOOL tag_native;
-  CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
   GT_STATUS rc;
   int i;
 
-  if (vlan_dot1q_tag_native) {
-    tag_native = GT_TRUE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
-  } else {
-    tag_native = GT_FALSE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
-  }
-
   for (i = 0; i < 4095; i++) {
-    if (vlans[i].state == VS_DELETED || port->native_vid == i + 1)
+    if (vlans[i].state == VS_DELETED || vid == i + 1)
       continue;
 
     rc = CRP (cpssDxChBrgVlanMemberSet
               (port->ldev,
                i + 1,
                port->lport,
-               GT_TRUE,
-               GT_TRUE,
-               CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E));
+               rest_member,
+               rest_tag,
+               rest_tag_cmd));
     if (rc != GT_OK)
       goto out;
   }
 
   rc = CRP (cpssDxChBrgVlanMemberSet
             (port->ldev,
-             port->native_vid,
+             vid,
              port->lport,
              GT_TRUE,
-             tag_native,
-             cmd));
+             vid_tag,
+             vid_tag_cmd));
   if (rc != GT_OK)
     goto out;
 
   rc = CRP (cpssDxChBrgVlanPortVidSet
             (port->ldev,
              port->lport,
-             port->native_vid));
+             vid));
  out:
   switch (rc) {
   case GT_OK:       return ST_OK;
@@ -371,43 +368,38 @@ port_set_trunk_mode (struct port *port)
 }
 
 static enum status
+port_set_trunk_mode (struct port *port)
+{
+  GT_BOOL tag;
+  CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+
+  if (vlan_dot1q_tag_native) {
+    tag = GT_TRUE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+  } else {
+    tag = GT_FALSE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+  }
+
+  return port_vlan_bulk_op (port,
+                            port->native_vid,
+                            tag,
+                            cmd,
+                            GT_TRUE,
+                            GT_TRUE,
+                            CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E);
+}
+
+static enum status
 port_set_access_mode (struct port *port)
 {
-  GT_STATUS rc;
-  int i;
-
-  for (i = 0; i < 4095; i++) {
-    if (vlans[i].state == VS_DELETED || port->access_vid == i + 1)
-      continue;
-
-    rc = CRP (cpssDxChBrgVlanPortDelete
-              (port->ldev,
-               i + 1,
-               port->lport));
-    if (rc != GT_OK)
-      goto out;
-  }
-
-  rc = CRP (cpssDxChBrgVlanMemberSet
-            (port->ldev,
-             port->access_vid,
-             port->lport,
-             GT_TRUE,
-             GT_FALSE,
-             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E));
-  if (rc != GT_OK)
-    goto out;
-
-  rc = CRP (cpssDxChBrgVlanPortVidSet
-            (port->ldev,
-             port->lport,
-             port->access_vid));
- out:
-  switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
+  return port_vlan_bulk_op (port,
+                            port->access_vid,
+                            GT_FALSE,
+                            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
+                            GT_FALSE,
+                            GT_FALSE,
+                            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
 }
 
 enum status
@@ -423,10 +415,18 @@ port_set_mode (port_num_t n, enum port_mode mode)
   if (port->mode == mode)
     return ST_OK;
 
-  if (mode == PM_TRUNK)
-    result = port_set_trunk_mode (port);
-  else
+  switch (mode) {
+  case PM_ACCESS:
     result = port_set_access_mode (port);
+    break;
+
+  case PM_TRUNK:
+    result = port_set_trunk_mode (port);
+    break;
+
+  default:
+    result = ST_BAD_VALUE;
+  }
 
   if (result == ST_OK)
     port->mode = mode;
