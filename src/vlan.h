@@ -3,6 +3,7 @@
 
 #include <control-proto.h>
 
+extern int vlan_dot1q_tag_native;
 
 static inline int
 vlan_valid (vid_t vid)

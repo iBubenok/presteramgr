@@ -258,3 +258,61 @@ port_set_access_vid (port_num_t n, vid_t vid)
   default:          return ST_HEX;
   }
 }
+
+enum status
+port_set_native_vid (port_num_t n, vid_t vid)
+{
+  struct port *port;
+  GT_STATUS rc = GT_OK;
+
+  if (!(port_valid (n) && vlan_valid (vid)))
+    return ST_BAD_VALUE;
+
+  port = &ports[n];
+
+  if (port->mode == PM_TRUNK) {
+    GT_BOOL tag_native;
+    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+
+    if (vlan_dot1q_tag_native) {
+      tag_native = GT_TRUE;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+    } else {
+      tag_native = GT_FALSE;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+    }
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               port->native_vid,
+               port->lport,
+               GT_TRUE,
+               GT_TRUE,
+               CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               vid,
+               port->lport,
+               GT_TRUE,
+               tag_native,
+               cmd));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
+    if (rc != GT_OK)
+      goto out;
+  }
+
+  port->native_vid = vid;
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
