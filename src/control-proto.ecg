@@ -19,6 +19,7 @@ typedef uint16_t vid_t;
 typedef uint8_t mac_addr_t[6];
 typedef uint8_t port_mode_t;
 typedef uint8_t bool_t;
+typedef uint32_t aging_time_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -111,6 +112,7 @@ enum control_command {
   CC_VLAN_SET_DOT1Q_TAG_NATIVE,
   CC_VLAN_DUMP,
   CC_MAC_OP,
+  CC_MAC_SET_AGING_TIME,
   CC_MAX
 };
 

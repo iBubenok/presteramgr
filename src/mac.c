@@ -86,3 +86,18 @@ mac_op (const struct mac_op_arg *arg)
   else
     return mac_add (arg);
 }
+
+enum status
+mac_set_aging_time (aging_time_t time)
+{
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChBrgFdbAgingTimeoutSet (0, time));
+
+  switch (rc) {
+  case GT_OK:        return ST_OK;
+  case GT_BAD_PARAM: return ST_BAD_VALUE;
+  case GT_HW_ERROR:  return ST_HW_ERROR;
+  default:           return ST_HEX;
+  }
+}

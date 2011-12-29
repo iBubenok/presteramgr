@@ -188,6 +188,7 @@ DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
+DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -204,7 +205,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
   HANDLER (CC_VLAN_DUMP),
-  HANDLER (CC_MAC_OP)
+  HANDLER (CC_MAC_OP),
+  HANDLER (CC_MAC_SET_AGING_TIME)
 };
 
 
@@ -473,6 +475,21 @@ DEFINE_HANDLER (CC_MAC_OP)
     goto out;
 
   result = mac_op (&op_arg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
+{
+  enum status result;
+  aging_time_t time;
+
+  result = POP_ARG (&time, sizeof (time));
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_set_aging_time (time);
 
  out:
   report_status (result);
