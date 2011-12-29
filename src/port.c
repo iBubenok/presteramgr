@@ -13,6 +13,7 @@
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
@@ -455,6 +456,50 @@ port_shutdown (port_num_t n, int shutdown)
              !!shutdown));
 
  out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+port_block (port_num_t n, const struct port_block *what)
+{
+  struct port *port;
+  GT_STATUS rc;
+
+  if (!port_valid (n))
+    return ST_BAD_VALUE;
+
+  port = &ports[n];
+
+  switch (what->type) {
+  case TT_UNICAST:
+    rc = CRP (cpssDxChBrgPortEgrFltUnkEnable
+              (port->ldev,
+               port->lport,
+               !!what->block));
+    break;
+
+  case TT_MULTICAST:
+    rc = CRP (cpssDxChBrgPortEgrFltUregMcastEnable
+              (port->ldev,
+               port->lport,
+               !!what->block));
+    break;
+
+  case TT_BROADCAST:
+    rc = CRP (cpssDxChBrgPortEgrFltUregBcEnable
+              (port->ldev,
+               port->lport,
+               !!what->block));
+    break;
+
+  default:
+    return ST_BAD_VALUE;
+  }
+
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
