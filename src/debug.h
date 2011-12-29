@@ -13,7 +13,7 @@ DECLSHOW (GT_STATUS);
 #define CRP(call) ({                                                    \
       GT_STATUS __st = (call);                                          \
       if (__st != GT_OK)                                                \
-        osPrintSync ("%s:%d: %s => %s (%04X)\n",                        \
+        osPrintSync ("%s:%d: %s => %s (%04X)\r\n",                      \
                      __FILE__, __LINE__, #call,                         \
                      SHOW (GT_STATUS, __st), __st);                     \
       __st;                                                             \
@@ -22,7 +22,7 @@ DECLSHOW (GT_STATUS);
 #include <stdio.h>
 #define CRP(call) ({                                 \
       GT_STATUS __st = (call);                       \
-      osPrintSync ("%s:%d: %s => %s (%04X)\n",       \
+      osPrintSync ("%s:%d: %s => %s (%04X)\r\n",     \
                    __FILE__, __LINE__, #call,        \
                    SHOW (GT_STATUS, __st), __st);    \
       __st;                                          \
