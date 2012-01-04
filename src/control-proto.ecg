@@ -83,6 +83,13 @@ struct mac_op_arg {
   mac_addr_t mac;
 };
 
+struct mac_flush_arg {
+  vid_t vid;
+  port_num_t port;
+};
+const ALL_VLANS = 0;
+const ALL_PORTS = 0;
+
 enum traffic_type {
   TT_UNICAST,
   TT_MULTICAST,
@@ -113,6 +120,8 @@ enum control_command {
   CC_VLAN_DUMP,
   CC_MAC_OP,
   CC_MAC_SET_AGING_TIME,
+  CC_MAC_LIST,
+  CC_MAC_FLUSH_DYNAMIC,
   CC_MAX
 };
 

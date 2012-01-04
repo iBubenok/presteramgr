@@ -189,6 +189,8 @@ DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
+DECLARE_HANDLER (CC_MAC_LIST);
+DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -206,7 +208,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP),
-  HANDLER (CC_MAC_SET_AGING_TIME)
+  HANDLER (CC_MAC_SET_AGING_TIME),
+  HANDLER (CC_MAC_LIST),
+  HANDLER (CC_MAC_FLUSH_DYNAMIC)
 };
 
 
@@ -550,6 +554,30 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
     goto out;
 
   result = port_set_native_vid (port, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_LIST)
+{
+  enum status result;
+
+  result = mac_list ();
+
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
+{
+  enum status result;
+  struct mac_flush_arg fa;
+
+  result = POP_ARG (&fa, sizeof (fa));
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_flush_dynamic (&fa);
 
  out:
   report_status (result);

@@ -101,3 +101,120 @@ mac_set_aging_time (aging_time_t time)
   default:           return ST_HEX;
   }
 }
+
+enum status
+mac_list (void)
+{
+  CPSS_FDB_ACTION_MODE_ENT act_mode;
+  CPSS_MAC_ACTION_MODE_ENT mac_mode;
+  GT_U32 act_dev, act_dev_mask;
+  GT_U16 act_vid, act_vid_mask;
+  GT_U32 is_trunk, is_trunk_mask;
+  GT_U32 pt, pt_mask;
+  GT_BOOL done = GT_FALSE;
+  GT_BOOL full;
+  /* GT_U32 naddrs = 20000, i; */
+  /* static CPSS_MAC_UPDATE_MSG_EXT_STC addrs[20000]; */
+
+  CRP (cpssDxChBrgFdbQueueFullGet (0, CPSS_DXCH_FDB_QUEUE_TYPE_AU_E, &full));
+  fprintf (stderr, "AU queue full: %d\r\n", full);
+  CRP (cpssDxChBrgFdbQueueFullGet (0, CPSS_DXCH_FDB_QUEUE_TYPE_FU_E, &full));
+  fprintf (stderr, "FU queue full: %d\r\n", full);
+
+  CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
+  fprintf (stderr, "FDB trigger done: %d\r\n", done);
+  if (!done)
+    return ST_OK;
+
+  CRP (cpssDxChBrgFdbActionModeGet (0, &act_mode));
+  CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &mac_mode));
+  CRP (cpssDxChBrgFdbActionActiveDevGet (0, &act_dev, &act_dev_mask));
+  CRP (cpssDxChBrgFdbActionActiveVlanGet (0, &act_vid, &act_vid_mask));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceGet (0, &is_trunk, &is_trunk_mask, &pt, &pt_mask));
+
+  CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_FALSE));
+  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, 0, 0));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, 0, 0, 0, 0));
+  CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_TRUE));
+  CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
+
+  /* do { */
+  /*   CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done)); */
+  /* } while (!done); */
+
+  /* CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_FALSE)); */
+  /* CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, is_trunk, is_trunk_mask, pt, pt_mask)); */
+  /* CRP (cpssDxChBrgFdbActionActiveDevSet (0, act_dev, act_dev_mask)); */
+  /* CRP (cpssDxChBrgFdbActionModeSet (0, act_mode)); */
+  /* CRP (cpssDxChBrgFdbActionActiveVlanSet (0, act_vid, act_vid_mask)); */
+  /* CRP (cpssDxChBrgFdbMacTriggerModeSet (0, mac_mode)); */
+  /* CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE)); */
+
+  /* CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &naddrs, addrs)); */
+  /* fprintf (stderr, "*** GOT %lu MAC addrs\r\n", naddrs); */
+
+  return ST_OK;
+}
+
+enum status
+mac_flush_dynamic (const struct mac_flush_arg *arg)
+{
+  CPSS_FDB_ACTION_MODE_ENT s_act_mode;
+  CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
+  GT_U32 s_act_dev, s_act_dev_mask;
+  GT_U16 s_act_vid, s_act_vid_mask, act_vid, act_vid_mask;
+  GT_U32 s_is_trunk, s_is_trunk_mask;
+  GT_U32 s_port, s_port_mask, port, port_mask;
+  GT_BOOL done = GT_FALSE;
+
+  if (arg->vid == ALL_VLANS) {
+    act_vid = 0;
+    act_vid_mask = 0;
+  } else {
+    if (!vlan_valid (arg->vid))
+      return ST_BAD_VALUE;
+    act_vid = arg->vid;
+    act_vid_mask = 0x0FFF;
+  }
+
+  if (arg->port == ALL_PORTS) {
+    port = 0;
+    port_mask = 0;
+  } else {
+    if (!port_valid (arg->port))
+      return ST_BAD_VALUE;
+    port = arg->port;
+    port_mask = 0x0000007F;
+  }
+
+  CRP (cpssDxChBrgFdbAAandTAToCpuSet (0, GT_FALSE));
+
+  CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
+  CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
+  CRP (cpssDxChBrgFdbActionActiveDevGet (0, &s_act_dev, &s_act_dev_mask));
+  CRP (cpssDxChBrgFdbActionActiveVlanGet (0, &s_act_vid, &s_act_vid_mask));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceGet
+       (0, &s_is_trunk, &s_is_trunk_mask, &s_port, &s_port_mask));
+  CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_FALSE));
+
+  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, act_vid, act_vid_mask));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, 0, 0, port, port_mask));
+  CRP (cpssDxChBrgFdbStaticDelEnable (0, GT_FALSE));
+  CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_DELETING_E));
+
+  /* FIXME: use event system instead of polling. */
+  do {
+    CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
+    usleep (100);
+  } while (!done);
+
+  CRP (cpssDxChBrgFdbActionActiveInterfaceSet
+       (0, s_is_trunk, s_is_trunk_mask, s_port, s_port_mask));
+  CRP (cpssDxChBrgFdbActionActiveDevSet (0, s_act_dev, s_act_dev_mask));
+  CRP (cpssDxChBrgFdbActionModeSet (0, s_act_mode));
+  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, s_act_vid, s_act_vid_mask));
+  CRP (cpssDxChBrgFdbMacTriggerModeSet (0, s_mac_mode));
+  CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
+
+  return ST_OK;
+}
