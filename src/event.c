@@ -28,6 +28,7 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
+  CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
 };
 #define EVENT_NUM ARRAY_SIZE (events)
@@ -76,6 +77,25 @@ event_handle_link_change (void)
   return CRP (rc);
 }
 
+static GT_STATUS
+event_handle_aging_done (void)
+{
+  GT_U32 edata;
+  GT_U8 dev;
+  GT_STATUS rc;
+
+  /* TODO: notify others. */
+
+  while ((rc = cpssEventRecv (event_handle,
+                              CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
+                              &edata, &dev)) == GT_OK)
+    osPrintSync ("Aging done\r\n");
+  if (rc == GT_NO_MORE)
+    rc = GT_OK;
+
+  return CRP (rc);
+}
+
 void
 event_enter_loop (void)
 {
@@ -105,6 +125,8 @@ event_enter_loop (void)
     if (rc != GT_OK)
       continue;
 
+    if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp))
+      event_handle_aging_done ();
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
       event_handle_link_change ();
   }
