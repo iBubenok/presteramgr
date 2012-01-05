@@ -29,7 +29,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 struct port *ports = NULL;
 int nports = 0;
 
-static int *port_nums;
+static port_num_t *port_nums;
 
 static inline void
 port_lock (void)
@@ -77,10 +77,8 @@ port_init (void)
     27, 26, 25, 24
   };
 
-  port_nums = malloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS * sizeof (int));
+  port_nums = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_num_t));
   assert (port_nums);
-  for (i = 0; i < NDEVS * CPSS_MAX_PORTS_NUM_CNS; i++)
-    port_nums[i] = -1;
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
@@ -90,7 +88,7 @@ port_init (void)
     ports[i].mode = PM_ACCESS;
     ports[i].access_vid = 1;
     ports[i].native_vid = 1;
-    port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i;
+    port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
     port_set_vid (i);
   }
@@ -101,20 +99,19 @@ port_init (void)
 }
 
 GT_STATUS
-port_set_sgmii_mode (int n)
+port_set_sgmii_mode (port_num_t n)
 {
-  GT_U8 dev, port;
+  struct port *port = port_ptr (n);
 
-  assert (port_valid (n));
-  dev = ports[n].ldev;
-  port = ports[n].lport;
+  assert (port);
 
   CRPR (cpssDxChPortInterfaceModeSet
-        (dev, port, CPSS_PORT_INTERFACE_MODE_SGMII_E));
-  CRPR (cpssDxChPortSpeedSet (dev, port, CPSS_PORT_SPEED_1000_E));
+        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E));
+  CRPR (cpssDxChPortSpeedSet
+        (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
   CRPR (cpssDxChPortSerdesPowerStatusSet
-        (dev, port, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
-  CRPR (cpssDxChPortInbandAutoNegEnableSet (dev, port, GT_TRUE));
+        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
+  CRPR (cpssDxChPortInbandAutoNegEnableSet (port->ldev, port->lport, GT_TRUE));
 
   return GT_OK;
 }
@@ -131,14 +128,13 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
 {
   CPSS_PORT_ATTRIBUTES_STC attrs;
   GT_STATUS rc;
-  int p;
-  struct port *port;
+  port_num_t n = port_num (ldev, lport);
+  struct port *port = port_ptr (n);
 
-  if ((p = port_num (ldev, lport)) < 0)
+  if (!port)
     return;
-  port = &ports[p];
 
-  rc = CRP (cpssDxChPortAttributesOnPortGet (ldev, lport, &attrs));
+  rc = CRP (cpssDxChPortAttributesOnPortGet (port->ldev, port->lport, &attrs));
   if (rc != GT_OK)
     return;
 
@@ -147,15 +143,15 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
   if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
-    control_notify_port_state (p, &attrs);
+    control_notify_port_state (n, &attrs);
     port->state.attrs = attrs;
 #ifdef DEBUG_STATE
     if (attrs.portLinkUp)
-      osPrintSync ("port %2d link up at %s, %s\n", p,
+      osPrintSync ("port %2d link up at %s, %s\n", n,
                    SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
                    SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
     else
-      osPrintSync ("port %2d link down\n", p);
+      osPrintSync ("port %2d link down\n", n);
 #endif /* DEBUG_STATE */
   }
 
@@ -163,16 +159,17 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
 }
 
 enum status
-port_get_state (port_num_t port, struct port_link_state *state)
+port_get_state (port_num_t n, struct port_link_state *state)
 {
   enum status result = ST_BAD_VALUE;
+  struct port *port = port_ptr (n);
 
   port_lock ();
 
-  if (!port_valid (port))
+  if (!port)
     goto out;
 
-  data_encode_port_state (state, &ports[port].state.attrs);
+  data_encode_port_state (state, &port->state.attrs);
   result = ST_OK;
 
  out:
@@ -181,37 +178,28 @@ port_get_state (port_num_t port, struct port_link_state *state)
 }
 
 enum status
-port_set_stp_state (port_num_t port, stp_id_t stp_id,
+port_set_stp_state (port_num_t n, stp_id_t stp_id,
                     enum port_stp_state state)
 {
   CPSS_STP_STATE_ENT cs;
   GT_STATUS rc;
   enum status result;
+  struct port *port;
 
-  if (!port_valid (port) || stp_id > 255)
+  if (!(port = port_ptr (n)) || stp_id > 255)
     return ST_BAD_VALUE;
 
   result = data_decode_stp_state (&cs, state);
   if (result != ST_OK)
     return result;
 
-  rc = CRP (cpssDxChBrgStpStateSet (ports[port].ldev, ports[port].lport,
-                                    stp_id, cs));
+  rc = CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   switch (rc) {
-  case GT_OK:
-    return ST_OK;
-
-  case GT_HW_ERROR:
-    return ST_HW_ERROR;
-
-  case GT_BAD_PARAM:
-    return ST_BAD_VALUE;
-
-  case GT_NOT_APPLICABLE_DEVICE:
-    return ST_NOT_SUPPORTED;
-
-  default:
-    return ST_HEX;
+  case GT_OK:                    return ST_OK;
+  case GT_HW_ERROR:              return ST_HW_ERROR;
+  case GT_BAD_PARAM:             return ST_BAD_VALUE;
+  case GT_NOT_APPLICABLE_DEVICE: return ST_NOT_SUPPORTED;
+  default:                       return ST_HEX;
   }
 }
 
@@ -219,13 +207,11 @@ port_set_stp_state (port_num_t port, stp_id_t stp_id,
 enum status
 port_set_access_vid (port_num_t n, vid_t vid)
 {
-  struct port *port;
+  struct port *port = port_ptr (n);
   GT_STATUS rc = GT_OK;
 
-  if (!(port_valid (n) && vlan_valid (vid)))
+  if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
-
-  port = &ports[n];
 
   if (port->mode == PM_ACCESS) {
     rc = CRP (cpssDxChBrgVlanPortDelete
@@ -263,13 +249,11 @@ port_set_access_vid (port_num_t n, vid_t vid)
 enum status
 port_set_native_vid (port_num_t n, vid_t vid)
 {
-  struct port *port;
+  struct port *port = port_ptr (n);
   GT_STATUS rc = GT_OK;
 
-  if (!(port_valid (n) && vlan_valid (vid)))
+  if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
-
-  port = &ports[n];
 
   if (port->mode == PM_TRUNK) {
     GT_BOOL tag_native;
@@ -406,13 +390,12 @@ port_set_access_mode (struct port *port)
 enum status
 port_set_mode (port_num_t n, enum port_mode mode)
 {
-  struct port *port;
+  struct port *port = port_ptr (n);
   enum status result;
 
-  if (!port_valid (n))
+  if (!port)
     return ST_BAD_VALUE;
 
-  port = &ports[n];
   if (port->mode == mode)
     return ST_OK;
 
@@ -438,13 +421,11 @@ port_set_mode (port_num_t n, enum port_mode mode)
 enum status
 port_shutdown (port_num_t n, int shutdown)
 {
-  struct port *port;
+  struct port *port = port_ptr (n);
   GT_STATUS rc;
 
-  if (!port_valid (n))
+  if (!port)
     return ST_BAD_VALUE;
-
-  port = &ports[n];
 
   rc = CRP (cpssDxChPortEnableSet (port->ldev, port->lport, !shutdown));
   if (rc != GT_OK)
@@ -466,13 +447,11 @@ port_shutdown (port_num_t n, int shutdown)
 enum status
 port_block (port_num_t n, const struct port_block *what)
 {
-  struct port *port;
+  struct port *port = port_ptr (n);
   GT_STATUS rc;
 
-  if (!port_valid (n))
+  if (port)
     return ST_BAD_VALUE;
-
-  port = &ports[n];
 
   switch (what->type) {
   case TT_UNICAST:

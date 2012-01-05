@@ -331,16 +331,17 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 
 DEFINE_HANDLER (CC_PORT_SEND_BPDU)
 {
-  port_num_t port;
+  port_num_t n;
+  struct port *port;
   size_t len;
   zframe_t *frame;
   enum status result = ST_BAD_FORMAT;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&n);
   if (result != ST_OK)
     goto out;
 
-  if (!port_valid (port)) {
+  if (!(port = port_ptr (n))) {
     result = ST_BAD_VALUE;
     goto out;
   }
@@ -354,8 +355,7 @@ DEFINE_HANDLER (CC_PORT_SEND_BPDU)
   if ((len = zframe_size (frame)) < 1)
     goto destroy_frame;
 
-  mgmt_send_frame (ports[port].ldev, ports[port].lport,
-                   zframe_data (frame), len);
+  mgmt_send_frame (port->ldev, port->lport, zframe_data (frame), len);
   result = ST_OK;
 
  destroy_frame:

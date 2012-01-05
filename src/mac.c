@@ -33,12 +33,14 @@ mac_add (const struct mac_op_arg *arg)
     me.daCommand = CPSS_MAC_TABLE_DROP_E;
     me.saCommand = CPSS_MAC_TABLE_DROP_E;
   } else {
-    if (!port_valid (arg->port))
+    struct port *port = port_ptr (arg->port);
+
+    if (!port)
       return ST_BAD_VALUE;
 
     me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-    me.dstInterface.devPort.devNum = ports[arg->port].ldev;
-    me.dstInterface.devPort.portNum = ports[arg->port].lport;
+    me.dstInterface.devPort.devNum = port->ldev;
+    me.dstInterface.devPort.portNum = port->lport;
 
     me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
     me.saCommand = CPSS_MAC_TABLE_FRWRD_E;

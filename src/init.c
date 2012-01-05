@@ -841,7 +841,7 @@ after_init (void)
   GT_U8 port;
 
   /* set ports 24-27 to SGMII mode */
-  for (port = 24; port < 28; port++) {
+  for (port = 25; port <= 28; port++) {
     printf ("*** configure GE port %02d => SGMII mode\n", port);
     rc = port_set_sgmii_mode (port);
     if (rc != GT_OK)

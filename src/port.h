@@ -22,13 +22,19 @@ extern struct port *ports;
 extern int nports;
 
 static inline int
-port_valid (int n)
+port_valid (port_num_t n)
 {
-  return n >= 0 && n < nports;
+  return n >= 1 && n <= nports;
+}
+
+static inline struct port *
+port_ptr (port_num_t n)
+{
+  return port_valid (n) ? &ports[n - 1] : NULL;
 }
 
 extern int port_init (void);
-extern GT_STATUS port_set_sgmii_mode (int);
+extern GT_STATUS port_set_sgmii_mode (port_num_t);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_num (GT_U8, GT_U8);
 extern void port_handle_link_change (GT_U8, GT_U8);

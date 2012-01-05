@@ -148,9 +148,9 @@ setup_tagging (vid_t vid,
   memset (tagging_cmd, 0, sizeof (*tagging_cmd));
 
   for (i = 0; i < nports; i++) {
-    struct port *port = &ports[i];
+    struct port *port = port_ptr (i + 1);
 
-    switch (ports[i].mode) {
+    switch (port->mode) {
     case PM_ACCESS:
       if (port->access_vid == vid) {
         CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
@@ -305,11 +305,13 @@ vlan_set_dot1q_tag_native (int value)
     }
 
     for (i = 0; i < nports; i++) {
-      if (ports[i].mode == PM_TRUNK) {
+      struct port *port = port_ptr (i + 1);
+
+      if (port->mode == PM_TRUNK) {
         rc = CRP (cpssDxChBrgVlanMemberSet
-                  (ports[i].ldev,
-                   ports[i].native_vid,
-                   ports[i].lport,
+                  (port->ldev,
+                   port->native_vid,
+                   port->lport,
                    GT_TRUE,
                    tag,
                    cmd));
