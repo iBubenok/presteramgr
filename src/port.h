@@ -15,6 +15,8 @@ struct port {
   enum port_mode mode;
   vid_t access_vid;
   vid_t native_vid;
+  int trust_cos;
+  int trust_dscp;
   struct port_state state;
 };
 
@@ -46,6 +48,7 @@ extern enum status port_set_native_vid (port_num_t, vid_t);
 extern enum status port_set_speed (port_num_t, port_speed_t);
 extern enum status port_shutdown (port_num_t, int);
 extern enum status port_block (port_num_t, const struct port_block *);
+extern enum status port_update_qos_trust (const struct port *);
 
 
 #endif /* __PORT_H__ */

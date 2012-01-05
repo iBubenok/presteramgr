@@ -15,6 +15,7 @@
 #include <pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
+#include <qos.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -204,6 +205,7 @@ DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
+DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -224,7 +226,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
-  HANDLER (CC_MAC_FLUSH_DYNAMIC)
+  HANDLER (CC_MAC_FLUSH_DYNAMIC),
+  HANDLER (CC_QOS_SET_MLS_QOS_TRUST)
 };
 
 
@@ -612,6 +615,21 @@ DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
     goto out;
 
   result = mac_flush_dynamic (&fa);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST)
+{
+  enum status result;
+  bool_t trust;
+
+  result = POP_ARG (&trust);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_mls_qos_trust (trust);
 
  out:
   report_status (result);

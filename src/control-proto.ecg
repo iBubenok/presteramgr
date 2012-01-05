@@ -125,6 +125,7 @@ enum control_command {
   CC_MAC_SET_AGING_TIME,
   CC_MAC_LIST,
   CC_MAC_FLUSH_DYNAMIC,
+  CC_QOS_SET_MLS_QOS_TRUST,
   CC_MAX
 };
 

@@ -9,11 +9,13 @@
 #include <control.h>
 #include <data.h>
 #include <vlan.h>
+#include <qos.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
+#include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
@@ -67,6 +69,31 @@ port_set_vid (port_num_t n)
   CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
 }
 
+enum status
+port_update_qos_trust (const struct port *port)
+{
+  GT_STATUS rc;
+  CPSS_QOS_PORT_TRUST_MODE_ENT trust;
+
+  if (mls_qos_trust) {
+    if (port->trust_cos && port->trust_dscp)
+      trust = CPSS_QOS_PORT_TRUST_L2_L3_E;
+    else if (port->trust_cos)
+      trust = CPSS_QOS_PORT_TRUST_L2_E;
+    else if (port->trust_dscp)
+      trust = CPSS_QOS_PORT_TRUST_L3_E;
+    else
+      trust = CPSS_QOS_PORT_NO_TRUST_E;
+  } else
+    trust = CPSS_QOS_PORT_NO_TRUST_E;
+
+  rc = CRP (cpssDxChCosPortQosTrustModeSet (port->ldev, port->lport, trust));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
+}
+
 int
 port_init (void)
 {
@@ -88,9 +115,12 @@ port_init (void)
     ports[i].mode = PM_ACCESS;
     ports[i].access_vid = 1;
     ports[i].native_vid = 1;
+    ports[i].trust_cos = 0;
+    ports[i].trust_dscp = 0;
     port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
     port_set_vid (i);
+    port_update_qos_trust (&ports[i]);
   }
 
   nports = NPORTS;
