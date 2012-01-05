@@ -21,3 +21,26 @@ qos_set_mls_qos_trust (int trust)
   return ST_OK;
 }
 
+enum status
+qos_set_port_mls_qos_trust_cos (port_num_t n, bool_t trust)
+{
+  struct port *port = port_ptr (n);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  port->trust_cos = !!trust;
+  return port_update_qos_trust (port);
+}
+
+enum status
+qos_set_port_mls_qos_trust_dscp (port_num_t n, bool_t trust)
+{
+  struct port *port = port_ptr (n);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  port->trust_dscp = !!trust;
+  return port_update_qos_trust (port);
+}

@@ -206,6 +206,8 @@ DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
+DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
+DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -227,7 +229,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
-  HANDLER (CC_QOS_SET_MLS_QOS_TRUST)
+  HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
+  HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
+  HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
 };
 
 
@@ -630,6 +634,46 @@ DEFINE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST)
     goto out;
 
   result = qos_set_mls_qos_trust (trust);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS)
+{
+  enum status result;
+  port_num_t port;
+  bool_t trust;
+
+  result = POP_ARG (&port);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&trust);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_port_mls_qos_trust_cos (port, trust);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
+{
+  enum status result;
+  port_num_t port;
+  bool_t trust;
+
+  result = POP_ARG (&port);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&trust);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_port_mls_qos_trust_dscp (port, trust);
 
  out:
   report_status (result);
