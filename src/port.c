@@ -450,7 +450,7 @@ port_block (port_num_t n, const struct port_block *what)
   struct port *port = port_ptr (n);
   GT_STATUS rc;
 
-  if (port)
+  if (!port)
     return ST_BAD_VALUE;
 
   switch (what->type) {
