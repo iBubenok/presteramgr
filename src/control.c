@@ -170,8 +170,20 @@ typedef void (*cmd_handler_t) (zmsg_t *);
 #define DECLARE_HANDLER(cmd) static void handle_##cmd (zmsg_t *)
 #define DEFINE_HANDLER(cmd) static void handle_##cmd (zmsg_t *args)
 #define HANDLER(cmd) [cmd] = handle_##cmd
-#define POP_ARG(buf, size) (pop_size (buf, args, size, 0))
-#define POP_OPT_ARG(buf, size) (pop_size (buf, args, size, 1))
+
+#define POP_ARG_SZ(buf, size) (pop_size (buf, args, size, 0))
+
+#define POP_ARG(ptr) ({                         \
+      typeof (ptr) __buf = ptr;                 \
+      POP_ARG_SZ (__buf, sizeof (*__buf));      \
+    })
+
+#define POP_OPT_ARG_SZ(buf, size) (pop_size (buf, args, size, 1))
+
+#define POP_OPT_ARG(ptr) ({                     \
+      typeof (ptr) __buf = ptr;                 \
+      POP_OPT_ARG_SZ (__buf, sizeof (*__buf));  \
+    })
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
@@ -266,7 +278,7 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   enum status result;
   struct port_link_state state;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK) {
     report_status (result);
     return;
@@ -290,15 +302,15 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   stp_state_t state;
   enum status result;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&state, sizeof (state));
+  result = POP_ARG (&state);
   if (result != ST_OK)
     goto out;
 
-  result = POP_OPT_ARG (&stp_id, sizeof (stp_id));
+  result = POP_OPT_ARG (&stp_id);
   switch (result) {
   case ST_OK:
     result = port_set_stp_state (port, stp_id, state);
@@ -324,7 +336,7 @@ DEFINE_HANDLER (CC_PORT_SEND_BPDU)
   zframe_t *frame;
   enum status result = ST_BAD_FORMAT;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
@@ -358,11 +370,11 @@ DEFINE_HANDLER (CC_PORT_SHUTDOWN)
   port_num_t port;
   bool_t shutdown;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&shutdown, sizeof (shutdown));
+  result = POP_ARG (&shutdown);
   if (result != ST_OK)
     goto out;
 
@@ -378,11 +390,11 @@ DEFINE_HANDLER (CC_PORT_BLOCK)
   port_num_t port;
   struct port_block what;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&what, sizeof (what));
+  result = POP_ARG (&what);
   if (result != ST_OK)
     goto out;
 
@@ -409,7 +421,7 @@ DEFINE_HANDLER (CC_VLAN_ADD)
   enum status result;
   vid_t vid;
 
-  result = POP_ARG (&vid, sizeof (vid));
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -424,7 +436,7 @@ DEFINE_HANDLER (CC_VLAN_DELETE)
   enum status result;
   vid_t vid;
 
-  result = POP_ARG (&vid, sizeof (vid));
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -439,7 +451,7 @@ DEFINE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE)
   enum status result;
   bool_t value;
 
-  result = POP_ARG (&value, sizeof (value));
+  result = POP_ARG (&value);
   if (result != ST_OK)
     goto out;
 
@@ -454,7 +466,7 @@ DEFINE_HANDLER (CC_VLAN_DUMP)
   enum status result;
   vid_t vid;
 
-  result = POP_ARG (&vid, sizeof (vid));
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -474,7 +486,7 @@ DEFINE_HANDLER (CC_MAC_OP)
   enum status result;
   struct mac_op_arg op_arg;
 
-  result = POP_ARG (&op_arg, sizeof (op_arg));
+  result = POP_ARG (&op_arg);
   if (result != ST_OK)
     goto out;
 
@@ -489,7 +501,7 @@ DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
   enum status result;
   aging_time_t time;
 
-  result = POP_ARG (&time, sizeof (time));
+  result = POP_ARG (&time);
   if (result != ST_OK)
     goto out;
 
@@ -505,11 +517,11 @@ DEFINE_HANDLER (CC_PORT_SET_MODE)
   port_num_t port;
   port_mode_t mode;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&mode, sizeof (mode));
+  result = POP_ARG (&mode);
   if (result != ST_OK)
     goto out;
 
@@ -525,11 +537,11 @@ DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
   port_num_t port;
   vid_t vid;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&vid, sizeof (vid));
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -545,11 +557,11 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
   port_num_t port;
   vid_t vid;
 
-  result = POP_ARG (&port, sizeof (port));
+  result = POP_ARG (&port);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&vid, sizeof (vid));
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -573,7 +585,7 @@ DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
   enum status result;
   struct mac_flush_arg fa;
 
-  result = POP_ARG (&fa, sizeof (fa));
+  result = POP_ARG (&fa);
   if (result != ST_OK)
     goto out;
 
