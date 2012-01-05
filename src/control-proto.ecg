@@ -20,6 +20,7 @@ typedef uint8_t mac_addr_t[6];
 typedef uint8_t port_mode_t;
 typedef uint8_t bool_t;
 typedef uint32_t aging_time_t;
+typedef uint8_t port_speed_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -50,6 +51,7 @@ control_notification_connect (void *sock)
 %%%
 
 enum port_speed {
+  PORT_SPEED_AUTO,
   PORT_SPEED_10,
   PORT_SPEED_100,
   PORT_SPEED_1000,
@@ -114,6 +116,7 @@ enum control_command {
   CC_PORT_SET_MODE,
   CC_PORT_SET_ACCESS_VLAN,
   CC_PORT_SET_NATIVE_VLAN,
+  CC_PORT_SET_SPEED,
   CC_VLAN_ADD,
   CC_VLAN_DELETE,
   CC_VLAN_SET_DOT1Q_TAG_NATIVE,

@@ -32,6 +32,30 @@ data_encode_port_state (struct port_link_state *state,
 }
 
 enum status
+data_decode_port_speed (CPSS_PORT_SPEED_ENT *outp, enum port_speed inp)
+{
+  static CPSS_PORT_SPEED_ENT psm[] = {
+    [PORT_SPEED_10]    = CPSS_PORT_SPEED_10_E,
+    [PORT_SPEED_100]   = CPSS_PORT_SPEED_100_E,
+    [PORT_SPEED_1000]  = CPSS_PORT_SPEED_1000_E,
+    [PORT_SPEED_10000] = CPSS_PORT_SPEED_10000_E,
+    [PORT_SPEED_12000] = CPSS_PORT_SPEED_12000_E,
+    [PORT_SPEED_2500]  = CPSS_PORT_SPEED_2500_E,
+    [PORT_SPEED_5000]  = CPSS_PORT_SPEED_5000_E,
+    [PORT_SPEED_13600] = CPSS_PORT_SPEED_13600_E,
+    [PORT_SPEED_20000] = CPSS_PORT_SPEED_20000_E,
+    [PORT_SPEED_40000] = CPSS_PORT_SPEED_40000_E,
+    [PORT_SPEED_16000] = CPSS_PORT_SPEED_16000_E
+  };
+
+  if (inp < PORT_SPEED_10 || inp >= PORT_SPEED_NA)
+    return ST_BAD_VALUE;
+
+  *outp = psm[inp];
+  return ST_OK;
+}
+
+enum status
 data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
 {
   static CPSS_STP_STATE_ENT csm[] = {

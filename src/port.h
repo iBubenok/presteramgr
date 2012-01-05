@@ -43,6 +43,7 @@ extern enum status port_set_stp_state (port_num_t, stp_id_t, enum port_stp_state
 extern enum status port_set_mode (port_num_t, enum port_mode);
 extern enum status port_set_access_vid (port_num_t, vid_t);
 extern enum status port_set_native_vid (port_num_t, vid_t);
+extern enum status port_set_speed (port_num_t, port_speed_t);
 extern enum status port_shutdown (port_num_t, int);
 extern enum status port_block (port_num_t, const struct port_block *);
 

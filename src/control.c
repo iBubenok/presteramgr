@@ -194,6 +194,7 @@ DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_PORT_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
+DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
@@ -214,6 +215,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MODE),
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
+  HANDLER (CC_PORT_SET_SPEED),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
@@ -566,6 +568,26 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
     goto out;
 
   result = port_set_native_vid (port, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_SPEED)
+{
+  enum status result;
+  port_num_t port;
+  port_speed_t speed;
+
+  result = POP_ARG (&port);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&speed);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_speed (port, speed);
 
  out:
   report_status (result);

@@ -485,3 +485,35 @@ port_block (port_num_t n, const struct port_block *what)
   default:          return ST_HEX;
   }
 }
+
+enum status
+port_set_speed (port_num_t n, port_speed_t s)
+{
+  GT_STATUS rc;
+  struct port *port = port_ptr (n);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (s == PORT_SPEED_AUTO) {
+    rc = CRP (cpssDxChPortSpeedAutoNegEnableSet
+              (port->ldev, port->lport, GT_TRUE));
+  } else {
+    enum status st;
+    CPSS_PORT_SPEED_ENT speed;
+
+    if ((st = data_decode_port_speed (&speed, s)) != ST_OK)
+      return st;
+
+    CRP (cpssDxChPortSpeedAutoNegEnableSet
+         (port->ldev, port->lport, GT_FALSE));
+    rc = CRP (cpssDxChPortSpeedSet (port->ldev, port->lport, speed));
+  }
+
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
