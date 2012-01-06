@@ -12,6 +12,7 @@
 #include <qos.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
+#include <cpss/dxCh/dxChxGen/phy/cpssDxChPhySmi.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
@@ -453,18 +454,23 @@ port_shutdown (port_num_t n, int shutdown)
 {
   struct port *port = port_ptr (n);
   GT_STATUS rc;
+  GT_U16 reg;
 
   if (!port)
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssDxChPortEnableSet (port->ldev, port->lport, !shutdown));
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &reg));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPortForceLinkDownEnableSet
-            (port->ldev,
-             port->lport,
-             !!shutdown));
+  if (shutdown)
+    reg |= (1 << 11);
+  else
+    reg &= ~(1 << 11);
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, reg));
 
  out:
   switch (rc) {
