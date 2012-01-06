@@ -139,18 +139,18 @@ init_pci (CPSS_DXCH_PP_PHASE1_INIT_INFO_STC *info)
 static GT_STATUS
 post_phase_1 (void)
 {
-  GT_STATUS rc;
-  CPSS_DXCH_IMPLEMENT_WA_ENT wa [CPSS_DXCH_IMPLEMENT_WA_LAST_E];
-  GT_U32 wa_info [CPSS_DXCH_IMPLEMENT_WA_LAST_E];
+  /* GT_STATUS rc; */
+  /* CPSS_DXCH_IMPLEMENT_WA_ENT wa [CPSS_DXCH_IMPLEMENT_WA_LAST_E]; */
+  /* GT_U32 wa_info [CPSS_DXCH_IMPLEMENT_WA_LAST_E]; */
 
   /* wa [0] = CPSS_DXCH_IMPLEMENT_WA_SDMA_PKTS_FROM_CPU_STACK_E; */
   /* wa_info [0] = 0; */
 
-  wa [0] = CPSS_DXCH_IMPLEMENT_WA_FDB_AU_FIFO_E;
-  wa_info [0] = 0;
+  /* wa [0] = CPSS_DXCH_IMPLEMENT_WA_FDB_AU_FIFO_E; */
+  /* wa_info [0] = 0; */
 
-  rc = cpssDxChHwPpImplementWaInit (0, 1, wa, wa_info);
-  RCC (rc, cpssDxChHwPpImplementWaInit);
+  /* rc = cpssDxChHwPpImplementWaInit (0, 1, wa, wa_info); */
+  /* RCC (rc, cpssDxChHwPpImplementWaInit); */
 
   return GT_OK;
 }
