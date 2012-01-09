@@ -603,9 +603,15 @@ DEFINE_HANDLER (CC_PORT_SET_SPEED)
 DEFINE_HANDLER (CC_MAC_LIST)
 {
   enum status result;
+  vid_t vid;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
 
   result = mac_list ();
 
+ out:
   report_status (result);
 }
 
