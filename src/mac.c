@@ -107,71 +107,68 @@ mac_set_aging_time (aging_time_t time)
 enum status
 mac_list (void)
 {
-  CPSS_FDB_ACTION_MODE_ENT act_mode;
-  CPSS_MAC_ACTION_MODE_ENT mac_mode;
-  GT_U32 act_dev, act_dev_mask;
-  GT_U16 act_vid, act_vid_mask;
-  GT_U32 is_trunk, is_trunk_mask;
-  GT_U32 pt, pt_mask;
+  CPSS_FDB_ACTION_MODE_ENT s_act_mode;
+  CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
+  GT_U32 s_act_dev, s_act_dev_mask;
+  GT_U16 s_act_vid, s_act_vid_mask;
+  GT_U32 s_is_trunk, s_is_trunk_mask;
+  GT_U32 s_port, s_port_mask;
   GT_BOOL done = GT_FALSE;
-  GT_BOOL full;
   GT_U32 naddrs = 20000, i;
   static CPSS_MAC_UPDATE_MSG_EXT_STC addrs[20000];
 
-  CRP (cpssDxChBrgFdbQueueFullGet (0, CPSS_DXCH_FDB_QUEUE_TYPE_AU_E, &full));
-  fprintf (stderr, "AU queue full: %d\r\n", full);
-  CRP (cpssDxChBrgFdbQueueFullGet (0, CPSS_DXCH_FDB_QUEUE_TYPE_FU_E, &full));
-  fprintf (stderr, "FU queue full: %d\r\n", full);
-
-  CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
-  fprintf (stderr, "FDB trigger done: %d\r\n", done);
-  if (!done)
-    return ST_OK;
-
-  CRP (cpssDxChBrgFdbActionModeGet (0, &act_mode));
-  CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &mac_mode));
-  CRP (cpssDxChBrgFdbActionActiveDevGet (0, &act_dev, &act_dev_mask));
-  CRP (cpssDxChBrgFdbActionActiveVlanGet (0, &act_vid, &act_vid_mask));
-  CRP (cpssDxChBrgFdbActionActiveInterfaceGet (0, &is_trunk, &is_trunk_mask, &pt, &pt_mask));
-
+  CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
+  CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
+  CRP (cpssDxChBrgFdbActionActiveDevGet (0, &s_act_dev, &s_act_dev_mask));
+  CRP (cpssDxChBrgFdbActionActiveVlanGet (0, &s_act_vid, &s_act_vid_mask));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceGet
+       (0, &s_is_trunk, &s_is_trunk_mask, &s_port, &s_port_mask));
   CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_FALSE));
+
   CRP (cpssDxChBrgFdbActionActiveVlanSet (0, 0, 0));
   CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, 0, 0, 0, 0));
   CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_TRUE));
   CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
 
+  /* FIXME: use event system instead of polling. */
   do {
     CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
+    usleep (100);
   } while (!done);
 
   CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_FALSE));
-  CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, is_trunk, is_trunk_mask, pt, pt_mask));
-  CRP (cpssDxChBrgFdbActionActiveDevSet (0, act_dev, act_dev_mask));
-  CRP (cpssDxChBrgFdbActionModeSet (0, act_mode));
-  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, act_vid, act_vid_mask));
-  CRP (cpssDxChBrgFdbMacTriggerModeSet (0, mac_mode));
+  CRP (cpssDxChBrgFdbActionActiveInterfaceSet
+       (0, s_is_trunk, s_is_trunk_mask, s_port, s_port_mask));
+  CRP (cpssDxChBrgFdbActionActiveDevSet (0, s_act_dev, s_act_dev_mask));
+  CRP (cpssDxChBrgFdbActionModeSet (0, s_act_mode));
+  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, s_act_vid, s_act_vid_mask));
+  CRP (cpssDxChBrgFdbMacTriggerModeSet (0, s_mac_mode));
   CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
 
   CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &naddrs, addrs));
   fprintf (stderr, "*** GOT %lu MAC addrs\r\n", naddrs);
 
   for (i = 0; i < naddrs; i++) {
-    port_num_t n;
+    port_num_t n = 0;
 
-    if ((!addrs[i].skip) &&
-        (addrs[i].updType == CPSS_FU_E) &&
-        (addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E) &&
-        (addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) &&
-        (n = port_num (addrs[i].macEntry.dstInterface.devPort.devNum,
-                       addrs[i].macEntry.dstInterface.devPort.portNum))) {
-      fprintf (stderr, "VLAN %4d, port %2d: %02X:%02X:%02X:%02X:%02X:%02X\r\n",
-               addrs[i].macEntry.key.key.macVlan.vlanId, n,
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[0],
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[1],
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[2],
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[3],
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[4],
-               addrs[i].macEntry.key.key.macVlan.macAddr.arEther[5]);
+    if (!addrs[i].skip) {
+      fprintf (stderr, "aging: %d\r\n", addrs[i].aging);
+
+      if (((addrs[i].updType == CPSS_FU_E) &&
+           (addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E) &&
+           (addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) &&
+           (n = port_num (addrs[i].macEntry.dstInterface.devPort.devNum,
+                          addrs[i].macEntry.dstInterface.devPort.portNum))) ||
+          addrs[i].aging) {
+        fprintf (stderr, "VLAN %4d, port %2d: %02X:%02X:%02X:%02X:%02X:%02X\r\n",
+                 addrs[i].macEntry.key.key.macVlan.vlanId, n,
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[0],
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[1],
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[2],
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[3],
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[4],
+                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[5]);
+      }
     }
   }
 
