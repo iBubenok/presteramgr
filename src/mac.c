@@ -59,9 +59,6 @@ mac_delete (const struct mac_op_arg *arg)
   CPSS_MAC_ENTRY_EXT_KEY_STC key;
   GT_STATUS result;
 
-  if (!port_valid (arg->port))
-    return ST_BAD_VALUE;
-
   key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   key.key.macVlan.vlanId = arg->vid;
