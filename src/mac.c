@@ -179,7 +179,7 @@ mac_list (void)
 }
 
 enum status
-mac_flush_dynamic (const struct mac_flush_arg *arg)
+mac_flush_dynamic (const struct mac_age_arg *arg)
 {
   CPSS_FDB_ACTION_MODE_ENT s_act_mode;
   CPSS_MAC_ACTION_MODE_ENT s_mac_mode;

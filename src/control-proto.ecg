@@ -85,7 +85,7 @@ struct mac_op_arg {
   mac_addr_t mac;
 };
 
-struct mac_flush_arg {
+struct mac_age_arg {
   vid_t vid;
   port_num_t port;
 };

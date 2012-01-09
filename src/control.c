@@ -612,13 +612,13 @@ DEFINE_HANDLER (CC_MAC_LIST)
 DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
 {
   enum status result;
-  struct mac_flush_arg fa;
+  struct mac_age_arg aa;
 
-  result = POP_ARG (&fa);
+  result = POP_ARG (&aa);
   if (result != ST_OK)
     goto out;
 
-  result = mac_flush_dynamic (&fa);
+  result = mac_flush_dynamic (&aa);
 
  out:
   report_status (result);
