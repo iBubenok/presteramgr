@@ -2,8 +2,6 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
-
 #include <mac.h>
 #include <port.h>
 #include <vlan.h>
@@ -104,6 +102,9 @@ mac_set_aging_time (aging_time_t time)
   }
 }
 
+CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
+GT_U32 fdb_naddrs = 0;
+
 enum status
 mac_list (void)
 {
@@ -114,8 +115,6 @@ mac_list (void)
   GT_U32 s_is_trunk, s_is_trunk_mask;
   GT_U32 s_port, s_port_mask;
   GT_BOOL done = GT_FALSE;
-  GT_U32 naddrs = 20000, i;
-  static CPSS_MAC_UPDATE_MSG_EXT_STC addrs[20000];
 
   CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
   CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
@@ -145,32 +144,9 @@ mac_list (void)
   CRP (cpssDxChBrgFdbMacTriggerModeSet (0, s_mac_mode));
   CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
 
-  CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &naddrs, addrs));
-  fprintf (stderr, "*** GOT %lu MAC addrs\r\n", naddrs);
-
-  for (i = 0; i < naddrs; i++) {
-    port_num_t n = 0;
-
-    if (!addrs[i].skip) {
-      fprintf (stderr, "aging: %d\r\n", addrs[i].aging);
-
-      if (((addrs[i].updType == CPSS_FU_E) &&
-           (addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E) &&
-           (addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) &&
-           (n = port_num (addrs[i].macEntry.dstInterface.devPort.devNum,
-                          addrs[i].macEntry.dstInterface.devPort.portNum))) ||
-          addrs[i].aging) {
-        fprintf (stderr, "VLAN %4d, port %2d: %02X:%02X:%02X:%02X:%02X:%02X\r\n",
-                 addrs[i].macEntry.key.key.macVlan.vlanId, n,
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[0],
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[1],
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[2],
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[3],
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[4],
-                 addrs[i].macEntry.key.key.macVlan.macAddr.arEther[5]);
-      }
-    }
-  }
+  fdb_naddrs = FDB_MAX_ADDRS;
+  CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &fdb_naddrs, fdb_addrs));
+  fprintf (stderr, "*** GOT %lu MAC addrs\r\n", fdb_naddrs);
 
   return ST_OK;
 }

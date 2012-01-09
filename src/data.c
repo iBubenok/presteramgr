@@ -3,6 +3,8 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <data.h>
+#include <mac.h>
+#include <port.h>
 
 enum status
 data_encode_port_state (struct port_link_state *state,
@@ -71,4 +73,27 @@ data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
   *cs = csm[state];
 
   return ST_OK;
+}
+
+void
+data_encode_fdb_addrs (zmsg_t *msg)
+{
+  GT_U32 i;
+
+  for (i = 0; i < fdb_naddrs; i++) {
+    if (!fdb_addrs[i].skip &&
+        fdb_addrs[i].updType == CPSS_FU_E &&
+        (fdb_addrs[i].aging || fdb_addrs[i].macEntry.isStatic) &&
+        fdb_addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
+        fdb_addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E &&
+        port_num (fdb_addrs[i].macEntry.dstInterface.devPort.devNum,
+                  fdb_addrs[i].macEntry.dstInterface.devPort.portNum)) {
+      struct mac_entry me;
+
+      memcpy (me.mac, fdb_addrs[i].macEntry.key.key.macVlan.macAddr.arEther, 6);
+      me.dynamic = !fdb_addrs[i].macEntry.isStatic;
+
+      zmsg_addmem (msg, &me, sizeof (me));
+    }
+  }
 }

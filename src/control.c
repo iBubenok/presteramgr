@@ -607,11 +607,18 @@ DEFINE_HANDLER (CC_MAC_LIST)
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
-    goto out;
+    goto err;
 
   result = mac_list ();
+  if (result != ST_OK)
+    goto err;
 
- out:
+  zmsg_t *reply = make_reply (ST_OK);
+  data_encode_fdb_addrs (reply);
+  send_reply (reply);
+  return;
+
+ err:
   report_status (result);
 }
 

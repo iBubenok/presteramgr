@@ -85,6 +85,11 @@ struct mac_op_arg {
   mac_addr_t mac;
 };
 
+struct mac_entry {
+  mac_addr_t mac;
+  bool_t dynamic;
+};
+
 struct mac_age_arg {
   vid_t vid;
   port_num_t port;
