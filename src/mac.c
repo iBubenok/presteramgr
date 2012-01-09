@@ -205,7 +205,7 @@ mac_flush_dynamic (const struct mac_age_arg *arg)
   } else {
     if (!port_valid (arg->port))
       return ST_BAD_VALUE;
-    port = arg->port;
+    port = port_ptr (arg->port)->lport;
     port_mask = 0x0000007F;
   }
 
