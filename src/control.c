@@ -63,9 +63,9 @@ notify_send (zmsg_t **msg)
 }
 
 static inline void
-put_port_num (zmsg_t *msg, port_num_t port)
+put_port_id (zmsg_t *msg, port_id_t pid)
 {
-  zmsg_addmem (msg, &port, sizeof (port));
+  zmsg_addmem (msg, &pid, sizeof (pid));
 }
 
 static void
@@ -78,16 +78,16 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 }
 
 void
-control_notify_port_state (port_num_t port, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+control_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
-  put_port_num (msg, port);
+  put_port_id (msg, pid);
   put_port_state (msg, attrs);
   notify_send (&msg);
 }
 
 void
-control_notify_spec_frame (port_num_t port,
+control_notify_spec_frame (port_id_t pid,
                            uint8_t code,
                            const unsigned char *data,
                            size_t len)
@@ -104,7 +104,7 @@ control_notify_spec_frame (port_num_t port,
   }
 
   zmsg_t *msg = make_notify_message (type);
-  put_port_num (msg, port);
+  put_port_id (msg, pid);
   zmsg_addmem (msg, data, len);
   notify_send (&msg);
 }
@@ -283,17 +283,17 @@ control_loop (GT_VOID *dummy)
 
 DEFINE_HANDLER (CC_PORT_GET_STATE)
 {
-  port_num_t port;
+  port_id_t pid;
   enum status result;
   struct port_link_state state;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK) {
     report_status (result);
     return;
   }
 
-  result = port_get_state (port, &state);
+  result = port_get_state (pid, &state);
   if (result != ST_OK) {
     report_status (result);
     return;
@@ -306,12 +306,12 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
 DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 {
-  port_num_t port;
+  port_id_t pid;
   stp_id_t stp_id;
   stp_state_t state;
   enum status result;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -322,12 +322,12 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   result = POP_OPT_ARG (&stp_id);
   switch (result) {
   case ST_OK:
-    result = port_set_stp_state (port, stp_id, state);
+    result = port_set_stp_state (pid, stp_id, state);
     break;
 
   case ST_DOES_NOT_EXIST:
     /* FIXME: set state for all STGs. */
-    result = port_set_stp_state (port, 0, state);
+    result = port_set_stp_state (pid, 0, state);
     break;
 
   default:
@@ -340,17 +340,17 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 
 DEFINE_HANDLER (CC_PORT_SEND_BPDU)
 {
-  port_num_t n;
+  port_id_t pid;
   struct port *port;
   size_t len;
   zframe_t *frame;
   enum status result = ST_BAD_FORMAT;
 
-  result = POP_ARG (&n);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
-  if (!(port = port_ptr (n))) {
+  if (!(port = port_ptr (pid))) {
     result = ST_BAD_VALUE;
     goto out;
   }
@@ -376,10 +376,10 @@ DEFINE_HANDLER (CC_PORT_SEND_BPDU)
 DEFINE_HANDLER (CC_PORT_SHUTDOWN)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   bool_t shutdown;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -387,7 +387,7 @@ DEFINE_HANDLER (CC_PORT_SHUTDOWN)
   if (result != ST_OK)
     goto out;
 
-  result = port_shutdown (port, shutdown);
+  result = port_shutdown (pid, shutdown);
 
  out:
   report_status (result);
@@ -396,10 +396,10 @@ DEFINE_HANDLER (CC_PORT_SHUTDOWN)
 DEFINE_HANDLER (CC_PORT_BLOCK)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   struct port_block what;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -407,7 +407,7 @@ DEFINE_HANDLER (CC_PORT_BLOCK)
   if (result != ST_OK)
     goto out;
 
-  result = port_block (port, &what);
+  result = port_block (pid, &what);
 
  out:
   report_status (result);
@@ -523,10 +523,10 @@ DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
 DEFINE_HANDLER (CC_PORT_SET_MODE)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   port_mode_t mode;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -534,7 +534,7 @@ DEFINE_HANDLER (CC_PORT_SET_MODE)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_mode (port, mode);
+  result = port_set_mode (pid, mode);
 
  out:
   report_status (result);
@@ -543,10 +543,10 @@ DEFINE_HANDLER (CC_PORT_SET_MODE)
 DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   vid_t vid;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -554,7 +554,7 @@ DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_access_vid (port, vid);
+  result = port_set_access_vid (pid, vid);
 
  out:
   report_status (result);
@@ -563,10 +563,10 @@ DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
 DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   vid_t vid;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -574,7 +574,7 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_native_vid (port, vid);
+  result = port_set_native_vid (pid, vid);
 
  out:
   report_status (result);
@@ -583,10 +583,10 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
 DEFINE_HANDLER (CC_PORT_SET_SPEED)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   port_speed_t speed;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -594,7 +594,7 @@ DEFINE_HANDLER (CC_PORT_SET_SPEED)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_speed (port, speed);
+  result = port_set_speed (pid, speed);
 
  out:
   report_status (result);
@@ -655,10 +655,10 @@ DEFINE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST)
 DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   bool_t trust;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -666,7 +666,7 @@ DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS)
   if (result != ST_OK)
     goto out;
 
-  result = qos_set_port_mls_qos_trust_cos (port, trust);
+  result = qos_set_port_mls_qos_trust_cos (pid, trust);
 
  out:
   report_status (result);
@@ -675,10 +675,10 @@ DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS)
 DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
 {
   enum status result;
-  port_num_t port;
+  port_id_t pid;
   bool_t trust;
 
-  result = POP_ARG (&port);
+  result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
@@ -686,7 +686,7 @@ DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
   if (result != ST_OK)
     goto out;
 
-  result = qos_set_port_mls_qos_trust_dscp (port, trust);
+  result = qos_set_port_mls_qos_trust_dscp (pid, trust);
 
  out:
   report_status (result);

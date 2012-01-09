@@ -12,7 +12,7 @@ int mls_qos_trust = 0;
 enum status
 qos_set_mls_qos_trust (int trust)
 {
-  port_num_t i;
+  port_id_t i;
 
   mls_qos_trust = trust;
   for (i = 1; i <= nports; i++)
@@ -22,9 +22,9 @@ qos_set_mls_qos_trust (int trust)
 }
 
 enum status
-qos_set_port_mls_qos_trust_cos (port_num_t n, bool_t trust)
+qos_set_port_mls_qos_trust_cos (port_id_t pid, bool_t trust)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
 
   if (!port)
     return ST_BAD_VALUE;
@@ -34,9 +34,9 @@ qos_set_port_mls_qos_trust_cos (port_num_t n, bool_t trust)
 }
 
 enum status
-qos_set_port_mls_qos_trust_dscp (port_num_t n, bool_t trust)
+qos_set_port_mls_qos_trust_dscp (port_id_t pid, bool_t trust)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
 
   if (!port)
     return ST_BAD_VALUE;

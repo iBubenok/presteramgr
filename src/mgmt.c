@@ -61,14 +61,14 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 {
   struct pdsa_spec_frame *frame = NLMSG_DATA (nlh);
-  int port = port_num (frame->dev, frame->port);
+  port_id_t pid = port_id (frame->dev, frame->port);
 
-  if (port < 0) {
+  if (!pid) {
     fprintf (stderr, "invalid port spec %d-%d\n", frame->dev, frame->port);
     return;
   }
 
-  control_notify_spec_frame (port, frame->code, frame->data, frame->len);
+  control_notify_spec_frame (pid, frame->code, frame->data, frame->len);
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {

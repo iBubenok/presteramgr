@@ -9,7 +9,7 @@ verbatim C %%%
 const PUB_SOCK_EP = "ipc:///tmp/presteramgr.notify";
 const CMD_SOCK_EP = "ipc:///tmp/presteramgr.command";
 
-typedef uint16_t port_num_t;
+typedef uint16_t port_id_t;
 typedef uint16_t notification_t;
 typedef uint16_t command_t;
 typedef uint16_t status_t;
@@ -79,7 +79,7 @@ struct port_link_state {
 
 struct mac_op_arg {
   vid_t vid;
-  port_num_t port;
+  port_id_t port;
   uint8_t drop;
   uint8_t delete;
   mac_addr_t mac;
@@ -92,7 +92,7 @@ struct mac_entry {
 
 struct mac_age_arg {
   vid_t vid;
-  port_num_t port;
+  port_id_t port;
 };
 const ALL_VLANS = 0;
 const ALL_PORTS = 0;

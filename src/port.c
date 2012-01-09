@@ -32,7 +32,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 struct port *ports = NULL;
 int nports = 0;
 
-static port_num_t *port_nums;
+static port_id_t *port_ids;
 
 static inline void
 port_lock (void)
@@ -47,21 +47,18 @@ port_unlock (void)
 }
 
 int
-port_num (GT_U8 ldev, GT_U8 lport)
+port_id (GT_U8 ldev, GT_U8 lport)
 {
   assert (ldev < NDEVS);
   assert (lport < CPSS_MAX_PORTS_NUM_CNS);
-  assert (port_nums);
-  return port_nums[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
+  assert (port_ids);
+  return port_ids[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
 }
 
 static void
-port_set_vid (port_num_t n)
+port_set_vid (struct port *port)
 {
   vid_t vid = 0; /* Make the compiler happy. */
-  struct port *port;
-
-  port = &ports[n];
 
   switch (port->mode) {
   case PM_ACCESS: vid = port->access_vid; break;
@@ -105,8 +102,8 @@ port_init (void)
     27, 26, 25, 24
   };
 
-  port_nums = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_num_t));
-  assert (port_nums);
+  port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
+  assert (port_ids);
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
@@ -118,9 +115,9 @@ port_init (void)
     ports[i].native_vid = 1;
     ports[i].trust_cos = 0;
     ports[i].trust_dscp = 0;
-    port_nums[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
+    port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
-    port_set_vid (i);
+    port_set_vid (&ports[i]);
     port_update_qos_trust (&ports[i]);
   }
 
@@ -130,9 +127,9 @@ port_init (void)
 }
 
 GT_STATUS
-port_set_sgmii_mode (port_num_t n)
+port_set_sgmii_mode (port_id_t pid)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
 
   assert (port);
 
@@ -159,8 +156,8 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
 {
   CPSS_PORT_ATTRIBUTES_STC attrs;
   GT_STATUS rc;
-  port_num_t n = port_num (ldev, lport);
-  struct port *port = port_ptr (n);
+  port_id_t pid = port_id (ldev, lport);
+  struct port *port = port_ptr (pid);
 
   if (!port)
     return;
@@ -174,7 +171,7 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
   if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
-    control_notify_port_state (n, &attrs);
+    control_notify_port_state (pid, &attrs);
     port->state.attrs = attrs;
 #ifdef DEBUG_STATE
     if (attrs.portLinkUp)
@@ -190,10 +187,10 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport)
 }
 
 enum status
-port_get_state (port_num_t n, struct port_link_state *state)
+port_get_state (port_id_t pid, struct port_link_state *state)
 {
   enum status result = ST_BAD_VALUE;
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
 
   port_lock ();
 
@@ -209,7 +206,7 @@ port_get_state (port_num_t n, struct port_link_state *state)
 }
 
 enum status
-port_set_stp_state (port_num_t n, stp_id_t stp_id,
+port_set_stp_state (port_id_t pid, stp_id_t stp_id,
                     enum port_stp_state state)
 {
   CPSS_STP_STATE_ENT cs;
@@ -217,7 +214,7 @@ port_set_stp_state (port_num_t n, stp_id_t stp_id,
   enum status result;
   struct port *port;
 
-  if (!(port = port_ptr (n)) || stp_id > 255)
+  if (!(port = port_ptr (pid)) || stp_id > 255)
     return ST_BAD_VALUE;
 
   result = data_decode_stp_state (&cs, state);
@@ -236,9 +233,9 @@ port_set_stp_state (port_num_t n, stp_id_t stp_id,
 
 
 enum status
-port_set_access_vid (port_num_t n, vid_t vid)
+port_set_access_vid (port_id_t pid, vid_t vid)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
   GT_STATUS rc = GT_OK;
 
   if (!(port && vlan_valid (vid)))
@@ -278,9 +275,9 @@ port_set_access_vid (port_num_t n, vid_t vid)
 }
 
 enum status
-port_set_native_vid (port_num_t n, vid_t vid)
+port_set_native_vid (port_id_t pid, vid_t vid)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
   GT_STATUS rc = GT_OK;
 
   if (!(port && vlan_valid (vid)))
@@ -419,9 +416,9 @@ port_set_access_mode (struct port *port)
 }
 
 enum status
-port_set_mode (port_num_t n, enum port_mode mode)
+port_set_mode (port_id_t pid, enum port_mode mode)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
   enum status result;
 
   if (!port)
@@ -450,9 +447,9 @@ port_set_mode (port_num_t n, enum port_mode mode)
 }
 
 enum status
-port_shutdown (port_num_t n, int shutdown)
+port_shutdown (port_id_t pid, int shutdown)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
   GT_STATUS rc;
   GT_U16 reg;
 
@@ -481,9 +478,9 @@ port_shutdown (port_num_t n, int shutdown)
 }
 
 enum status
-port_block (port_num_t n, const struct port_block *what)
+port_block (port_id_t pid, const struct port_block *what)
 {
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
   GT_STATUS rc;
 
   if (!port)
@@ -523,10 +520,10 @@ port_block (port_num_t n, const struct port_block *what)
 }
 
 enum status
-port_set_speed (port_num_t n, port_speed_t s)
+port_set_speed (port_id_t pid, port_speed_t s)
 {
   GT_STATUS rc;
-  struct port *port = port_ptr (n);
+  struct port *port = port_ptr (pid);
 
   if (!port)
     return ST_BAD_VALUE;
