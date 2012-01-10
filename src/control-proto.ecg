@@ -21,6 +21,7 @@ typedef uint8_t port_mode_t;
 typedef uint8_t bool_t;
 typedef uint32_t aging_time_t;
 typedef uint8_t port_speed_t;
+typedef uint8_t port_duplex_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -122,6 +123,7 @@ enum control_command {
   CC_PORT_SET_ACCESS_VLAN,
   CC_PORT_SET_NATIVE_VLAN,
   CC_PORT_SET_SPEED,
+  CC_PORT_SET_DUPLEX,
   CC_VLAN_ADD,
   CC_VLAN_DELETE,
   CC_VLAN_SET_DOT1Q_TAG_NATIVE,
@@ -147,6 +149,13 @@ enum port_stp_state {
 struct port_speed_arg {
   port_speed_t speed;
   bool_t speed_auto;
+};
+
+enum port_duplex {
+  PORT_DUPLEX_AUTO,
+  PORT_DUPLEX_HALF,
+  PORT_DUPLEX_FULL,
+  __PORT_DUPLEX_MAX
 };
 
 enum status {
