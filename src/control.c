@@ -584,17 +584,17 @@ DEFINE_HANDLER (CC_PORT_SET_SPEED)
 {
   enum status result;
   port_id_t pid;
-  port_speed_t speed;
+  struct port_speed_arg psa;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&speed);
+  result = POP_ARG (&psa);
   if (result != ST_OK)
     goto out;
 
-  result = port_set_speed (pid, speed);
+  result = port_set_speed (pid, &psa);
 
  out:
   report_status (result);

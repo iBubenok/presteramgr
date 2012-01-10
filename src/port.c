@@ -34,6 +34,8 @@ int nports = 0;
 
 static port_id_t *port_ids;
 
+static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
+
 static inline void
 port_lock (void)
 {
@@ -115,6 +117,9 @@ port_init (void)
     ports[i].native_vid = 1;
     ports[i].trust_cos = 0;
     ports[i].trust_dscp = 0;
+    ports[i].c_speed = PORT_SPEED_AUTO;
+    ports[i].c_speed_auto = 1;
+    ports[i].set_speed = port_set_speed_fe;
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
     port_set_vid (&ports[i]);
@@ -519,34 +524,74 @@ port_block (port_id_t pid, const struct port_block *what)
   }
 }
 
-enum status
-port_set_speed (port_id_t pid, port_speed_t s)
+static enum status
+port_update_sd_fe (const struct port *port)
 {
   GT_STATUS rc;
+  GT_U16 reg;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x04, &reg));
+  if (rc != GT_OK)
+    goto out;
+
+  reg |= 0x01E0;
+  switch (port->c_speed) {
+  case PORT_SPEED_10:
+    reg &= ~((1 << 7) | (1 << 8));
+    break;
+  case PORT_SPEED_100:
+    reg &= ~((1 << 5) | (1 << 6));
+    break;
+  default:
+    break;
+  }
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x04, reg));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &reg));
+  if (rc != GT_OK)
+    goto out;
+
+  reg |= (1 << 12) | (1 << 15);
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, reg));
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+static enum status
+port_set_speed_fe (struct port *port, const struct port_speed_arg *psa)
+{
+  if (psa->speed > PORT_SPEED_100)
+    return ST_BAD_VALUE;
+
+  port->c_speed = psa->speed;
+  port->c_speed_auto = psa->speed_auto;
+
+  return port_update_sd_fe (port);
+}
+
+enum status
+port_set_speed (port_id_t pid, const struct port_speed_arg *psa)
+{
   struct port *port = port_ptr (pid);
 
   if (!port)
     return ST_BAD_VALUE;
 
-  if (s == PORT_SPEED_AUTO) {
-    rc = CRP (cpssDxChPortSpeedAutoNegEnableSet
-              (port->ldev, port->lport, GT_TRUE));
-  } else {
-    enum status st;
-    CPSS_PORT_SPEED_ENT speed;
+  if (psa->speed == PORT_SPEED_AUTO && !psa->speed_auto)
+    return ST_BAD_VALUE;
 
-    if ((st = data_decode_port_speed (&speed, s)) != ST_OK)
-      return st;
-
-    CRP (cpssDxChPortSpeedAutoNegEnableSet
-         (port->ldev, port->lport, GT_FALSE));
-    rc = CRP (cpssDxChPortSpeedSet (port->ldev, port->lport, speed));
-  }
-
-  switch (rc) {
-  case GT_OK:            return ST_OK;
-  case GT_HW_ERROR:      return ST_HW_ERROR;
-  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
-  default:               return ST_HEX;
-  }
+  return port->set_speed (port, psa);
 }

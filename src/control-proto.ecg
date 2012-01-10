@@ -144,6 +144,11 @@ enum port_stp_state {
   STP_STATE_MAX
 };
 
+struct port_speed_arg {
+  port_speed_t speed;
+  bool_t speed_auto;
+};
+
 enum status {
   ST_OK,
   ST_BAD_FORMAT,
