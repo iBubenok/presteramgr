@@ -534,6 +534,8 @@ port_update_sd_fe (const struct port *port)
   GT_U16 reg;
 
   if (port->c_speed_auto || port->c_duplex == PORT_DUPLEX_AUTO) {
+    /* Speed or duplex is AUTO. */
+
     rc = CRP (cpssDxChPhyPortSmiRegisterRead
               (port->ldev, port->lport, 0x04, &reg));
     if (rc != GT_OK)
@@ -578,7 +580,29 @@ port_update_sd_fe (const struct port *port)
     rc = CRP (cpssDxChPhyPortSmiRegisterWrite
               (port->ldev, port->lport, 0x00, reg));
   } else {
-    rc = GT_OK;
+    /* Everything is set the hard way. */
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x00, &reg));
+    if (rc != GT_OK)
+      goto out;
+
+    if (port->c_duplex == PORT_DUPLEX_FULL)
+      reg |= 1 << 8;
+    else
+      reg &= ~(1 << 8);
+
+    if (port->c_speed == PORT_SPEED_100)
+      reg |= 1 << 13;
+    else
+      reg &= ~(1 << 13);
+
+    reg |= 1 << 15;
+    reg &= ~(1 << 12);
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x00, reg));
+
   }
 
  out:
