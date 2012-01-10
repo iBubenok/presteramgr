@@ -36,6 +36,7 @@ static port_id_t *port_ids;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
+static enum status port_shutdown_fe (struct port *, int);
 
 static inline void
 port_lock (void)
@@ -123,6 +124,7 @@ port_init (void)
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
     ports[i].set_speed = port_set_speed_fe;
     ports[i].set_duplex = port_set_duplex_fe;
+    ports[i].shutdown = port_shutdown_fe;
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
     port_set_vid (&ports[i]);
@@ -458,31 +460,11 @@ enum status
 port_shutdown (port_id_t pid, int shutdown)
 {
   struct port *port = port_ptr (pid);
-  GT_STATUS rc;
-  GT_U16 reg;
 
   if (!port)
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
-  if (rc != GT_OK)
-    goto out;
-
-  if (shutdown)
-    reg |= (1 << 11);
-  else
-    reg &= ~(1 << 11);
-
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
-
- out:
-  switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
+  return port->shutdown (port, shutdown);
 }
 
 enum status
@@ -630,6 +612,33 @@ port_set_duplex_fe (struct port *port, enum port_duplex duplex)
 {
   port->c_duplex = duplex;
   return port_update_sd_fe (port);
+}
+
+static enum status
+port_shutdown_fe (struct port *port, int shutdown)
+{
+  GT_STATUS rc;
+  GT_U16 reg;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &reg));
+  if (rc != GT_OK)
+    goto out;
+
+  if (shutdown)
+    reg |= (1 << 11);
+  else
+    reg &= ~(1 << 11);
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, reg));
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
 }
 
 enum status

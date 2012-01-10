@@ -23,6 +23,7 @@ struct port {
   struct port_state state;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
+  enum status (*shutdown) (struct port *, int);
 };
 
 extern struct port *ports;
