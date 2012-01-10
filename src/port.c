@@ -37,6 +37,9 @@ static port_id_t *port_ids;
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
 static enum status port_shutdown_fe (struct port *, int);
+static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
+static enum status port_set_duplex_ge (struct port *, enum port_duplex);
+static enum status port_shutdown_ge (struct port *, int);
 
 static inline void
 port_lock (void)
@@ -122,9 +125,15 @@ port_init (void)
     ports[i].c_speed = PORT_SPEED_AUTO;
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
-    ports[i].set_speed = port_set_speed_fe;
-    ports[i].set_duplex = port_set_duplex_fe;
-    ports[i].shutdown = port_shutdown_fe;
+    if (i < 24) {
+      ports[i].set_speed = port_set_speed_fe;
+      ports[i].set_duplex = port_set_duplex_fe;
+      ports[i].shutdown = port_shutdown_fe;
+    } else {
+      ports[i].set_speed = port_set_speed_ge;
+      ports[i].set_duplex = port_set_duplex_ge;
+      ports[i].shutdown = port_shutdown_ge;
+    }
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
     port_set_vid (&ports[i]);
@@ -510,6 +519,124 @@ port_block (port_id_t pid, const struct port_block *what)
 }
 
 static enum status
+port_update_sd_ge (const struct port *port)
+{
+  GT_STATUS rc;
+  GT_U16 reg, reg1;
+
+  if (port->c_speed_auto || port->c_duplex == PORT_DUPLEX_AUTO) {
+    /* Speed or duplex is AUTO. */
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x04, &reg));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x09, &reg1));
+    if (rc != GT_OK)
+      goto out;
+
+    reg |= 0x01E0;
+
+    switch (port->c_speed) {
+    case PORT_SPEED_AUTO:
+      reg1 |= 1 << 9;
+      break;
+    case PORT_SPEED_10:
+      reg &= ~((1 << 7) | (1 << 8));
+      reg1 &= ~(1 << 9);
+      break;
+    case PORT_SPEED_100:
+      reg &= ~((1 << 5) | (1 << 6));
+      reg1 &= ~(1 << 9);
+      break;
+    case PORT_SPEED_1000:
+      reg &= ~0x01E0;
+      reg1 |= 1 << 9;
+      break;
+    default:
+      /* We should never get here. */
+      return ST_BAD_VALUE;
+    }
+
+    switch (port->c_duplex) {
+    case PORT_DUPLEX_FULL:
+      reg &= ~((1 << 5) | (1 << 7));
+      break;
+    case PORT_DUPLEX_HALF:
+      reg &= ~((1 << 6) | (1 << 8));
+      break;
+    default:
+      break;
+    }
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x04, reg));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x09, reg1));
+    if (rc != GT_OK)
+      goto out;
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x00, &reg));
+    if (rc != GT_OK)
+      goto out;
+
+    reg |= (1 << 12) | (1 << 15);
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x00, reg));
+  } else {
+    /* Everything is set the hard way. */
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x00, &reg));
+    if (rc != GT_OK)
+      goto out;
+
+    if (port->c_duplex == PORT_DUPLEX_FULL)
+      reg |= 1 << 8;
+    else
+      reg &= ~(1 << 8);
+
+    switch (port->c_speed) {
+    case PORT_SPEED_10:
+      reg &= ~((1 << 6) | (1 << 13));
+      break;
+    case PORT_SPEED_100:
+      reg &= ~(1 << 6);
+      reg |= 1 << 13;
+      break;
+    case PORT_SPEED_1000:
+      reg |= (1 << 6) | (1 << 13);
+      break;
+    default:
+      /* We should never get here. */
+      return ST_BAD_VALUE;
+    }
+
+    reg |= 1 << 15;
+    reg &= ~(1 << 12);
+
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x00, reg));
+
+  }
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+
+static enum status
 port_update_sd_fe (const struct port *port)
 {
   GT_STATUS rc;
@@ -616,6 +743,52 @@ port_set_duplex_fe (struct port *port, enum port_duplex duplex)
 
 static enum status
 port_shutdown_fe (struct port *port, int shutdown)
+{
+  GT_STATUS rc;
+  GT_U16 reg;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &reg));
+  if (rc != GT_OK)
+    goto out;
+
+  if (shutdown)
+    reg |= (1 << 11);
+  else
+    reg &= ~(1 << 11);
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, reg));
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+static enum status
+port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
+{
+  if (psa->speed > PORT_SPEED_1000)
+    return ST_BAD_VALUE;
+
+  port->c_speed = psa->speed;
+  port->c_speed_auto = psa->speed_auto;
+
+  return port_update_sd_ge (port);
+}
+
+static enum status
+port_set_duplex_ge (struct port *port, enum port_duplex duplex)
+{
+  port->c_duplex = duplex;
+  return port_update_sd_ge (port);
+}
+
+static enum status
+port_shutdown_ge (struct port *port, int shutdown)
 {
   GT_STATUS rc;
   GT_U16 reg;
