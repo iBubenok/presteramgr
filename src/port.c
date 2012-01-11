@@ -37,9 +37,11 @@ static port_id_t *port_ids;
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
 static enum status port_shutdown_fe (struct port *, int);
+static enum status port_set_mdix_auto_fe (struct port *, int);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_shutdown_ge (struct port *, int);
+static enum status port_set_mdix_auto_ge (struct port *, int);
 
 static inline void
 port_lock (void)
@@ -129,10 +131,12 @@ port_init (void)
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
       ports[i].shutdown = port_shutdown_fe;
+      ports[i].set_mdix_auto = port_set_mdix_auto_fe;
     } else {
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
       ports[i].shutdown = port_shutdown_ge;
+      ports[i].set_mdix_auto = port_set_mdix_auto_ge;
     }
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
 
@@ -867,4 +871,101 @@ port_dump_phy_reg (port_id_t pid, uint16_t reg)
   case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
   default:               return ST_HEX;
   }
+}
+
+static enum status
+port_set_mdix_auto_fe (struct port *port, int mdix_auto)
+{
+  GT_STATUS rc;
+  GT_U16 val;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x10, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  if (mdix_auto)
+    val |= 3 << 4;
+  else {
+    val &= ~(1 << 5);
+    val |= 1 << 4;
+  }
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x10, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  val |= 1 << 15;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, val));
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
+
+static enum status
+port_set_mdix_auto_ge (struct port *port, int mdix_auto)
+{
+  GT_STATUS rc;
+  GT_U16 val;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x10, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  if (mdix_auto)
+    val |= 3 << 5;
+  else {
+    val &= ~(1 << 6);
+    val |= 1 << 5;
+  }
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x10, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  val |= 1 << 15;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, val));
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
+
+enum status
+port_set_mdix_auto (port_id_t pid, int mdix_auto)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  return port->set_mdix_auto (port, mdix_auto);
 }

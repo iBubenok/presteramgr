@@ -197,6 +197,7 @@ DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
+DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
@@ -223,6 +224,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
   HANDLER (CC_PORT_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
+  HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
@@ -736,6 +738,26 @@ DEFINE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
     goto out;
 
   result = qos_set_port_mls_qos_trust_dscp (pid, trust);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_MDIX_AUTO)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t mdix_auto;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mdix_auto);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_mdix_auto (pid, mdix_auto);
 
  out:
   report_status (result);

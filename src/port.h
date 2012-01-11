@@ -24,6 +24,7 @@ struct port {
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*shutdown) (struct port *, int);
+  enum status (*set_mdix_auto) (struct port *, int);
 };
 
 extern struct port *ports;
@@ -57,6 +58,7 @@ extern enum status port_shutdown (port_id_t, int);
 extern enum status port_block (port_id_t, const struct port_block *);
 extern enum status port_update_qos_trust (const struct port *);
 extern enum status port_dump_phy_reg (port_id_t, uint16_t);
+extern enum status port_set_mdix_auto (port_id_t, int);
 
 
 #endif /* __PORT_H__ */
