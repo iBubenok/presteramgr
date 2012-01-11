@@ -732,6 +732,7 @@ after_phase2 (void)
 {
   GT_STATUS rc;
   GT_U8 portNum;
+  GT_U16 val;
 
   RCC ((rc = cpssDxChCscdDsaSrcDevFilterSet (0, GT_FALSE)),
        cpssDxChCscdDsaSrcDevFilterSet);
@@ -807,6 +808,27 @@ after_phase2 (void)
          cpssDxChPhyPortSmiRegisterWrite);
 
     RCC ((rc = cpssDxChPhyPortAddrSet (0, portNum, 0x10 + (portNum - 24) * 2)),
+         cpssDxChPhyPortAddrSet);
+
+    RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, portNum, 0x16, 0x2)),
+         cpssDxChPhyPortSmiRegisterWrite);
+
+    RCC ((rc = cpssDxChPhyPortSmiRegisterRead (0, portNum, 0x10, &val)),
+         cpssDxChPhyPortSmiRegisterRead);
+    val &= ~(1 << 3);
+    RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, portNum, 0x10, val)),
+         cpssDxChPhyPortSmiRegisterWrite);
+
+    RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, portNum, 0x16, 0x0)),
+         cpssDxChPhyPortSmiRegisterWrite);
+
+    RCC ((rc = cpssDxChPhyPortSmiRegisterRead (0, portNum, 0x00, &val)),
+         cpssDxChPhyPortSmiRegisterRead);
+    val |= 1 << 15;
+    RCC ((rc = cpssDxChPhyPortSmiRegisterWrite (0, portNum, 0x00, val)),
+         cpssDxChPhyPortSmiRegisterWrite);
+
+    RCC ((rc = cpssDxChPhyPortAddrSet (0, portNum, 0x11 + (portNum - 24) * 2)),
          cpssDxChPhyPortAddrSet);
   }
 
