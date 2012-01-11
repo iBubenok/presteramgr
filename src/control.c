@@ -653,12 +653,17 @@ DEFINE_HANDLER (CC_MAC_LIST)
   if (result != ST_OK)
     goto err;
 
+  if (!vlan_valid (vid)) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
   result = mac_list ();
   if (result != ST_OK)
     goto err;
 
   zmsg_t *reply = make_reply (ST_OK);
-  data_encode_fdb_addrs (reply);
+  data_encode_fdb_addrs (reply, vid);
   send_reply (reply);
   return;
 

@@ -76,7 +76,7 @@ data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
 }
 
 void
-data_encode_fdb_addrs (zmsg_t *msg)
+data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
 {
   GT_U32 i;
 
@@ -85,6 +85,7 @@ data_encode_fdb_addrs (zmsg_t *msg)
         fdb_addrs[i].updType == CPSS_FU_E &&
         (fdb_addrs[i].aging || fdb_addrs[i].macEntry.isStatic) &&
         fdb_addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
+        fdb_addrs[i].macEntry.key.key.macVlan.vlanId == vid &&
         fdb_addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E &&
         port_id (fdb_addrs[i].macEntry.dstInterface.devPort.devNum,
                  fdb_addrs[i].macEntry.dstInterface.devPort.portNum)) {
