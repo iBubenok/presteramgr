@@ -841,3 +841,30 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 
   return port->set_duplex (port, duplex);
 }
+
+enum status
+port_dump_phy_reg (port_id_t pid, uint16_t reg)
+{
+  GT_STATUS rc;
+  GT_U16 val;
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, reg, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  fprintf (stderr, "%04X\r\n", val);
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}

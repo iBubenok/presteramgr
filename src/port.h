@@ -56,6 +56,7 @@ extern enum status port_set_duplex (port_id_t, port_duplex_t);
 extern enum status port_shutdown (port_id_t, int);
 extern enum status port_block (port_id_t, const struct port_block *);
 extern enum status port_update_qos_trust (const struct port *);
+extern enum status port_dump_phy_reg (port_id_t, uint16_t);
 
 
 #endif /* __PORT_H__ */
