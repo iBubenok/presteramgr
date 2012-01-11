@@ -106,6 +106,15 @@ enum traffic_type {
 
 typedef uint8_t traffic_type_t;
 
+enum flow_control {
+  FC_DESIRED,
+  FC_ON,
+  FC_OFF,
+  __FC_MAX
+};
+
+typedef uint8_t flow_control_t;
+
 struct port_block {
   traffic_type_t type;
   bool_t block;
@@ -125,6 +134,7 @@ enum control_command {
   CC_PORT_SET_SPEED,
   CC_PORT_SET_DUPLEX,
   CC_PORT_SET_MDIX_AUTO,
+  CC_PORT_SET_FLOW_CONTROL,
   CC_PORT_DUMP_PHY_REG,
   CC_VLAN_ADD,
   CC_VLAN_DELETE,

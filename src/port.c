@@ -969,3 +969,74 @@ port_set_mdix_auto (port_id_t pid, int mdix_auto)
 
   return port->set_mdix_auto (port, mdix_auto);
 }
+
+enum status
+port_set_flow_control (port_id_t pid, flow_control_t fc)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_PORT_FLOW_CONTROL_ENT type;
+  GT_BOOL aneg;
+  GT_U16 val;
+  GT_STATUS rc;
+
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  switch (fc) {
+  case FC_DESIRED:
+    aneg = GT_TRUE;
+    type = CPSS_PORT_FLOW_CONTROL_RX_TX_E;
+    break;
+  case FC_ON:
+    aneg = GT_FALSE;
+    type = CPSS_PORT_FLOW_CONTROL_RX_TX_E;
+    break;
+  case FC_OFF:
+    aneg = GT_FALSE;
+    type = CPSS_PORT_FLOW_CONTROL_DISABLE_E;
+    break;
+  default:
+    return ST_BAD_VALUE;
+  }
+
+  rc = CRP (cpssDxChPortFlowCntrlAutoNegEnableSet
+            (port->ldev, port->lport, aneg, GT_FALSE));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPortFlowControlEnableSet
+            (port->ldev, port->lport, type));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x04, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  val |= 1 << 10;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x04, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x00, &val));
+  if (rc != GT_OK)
+    goto out;
+
+  val |= 1 << 15;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x00, val));
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
