@@ -102,6 +102,18 @@ port_update_qos_trust (const struct port *port)
   }
 }
 
+static void
+port_setup_stats (GT_U8 ldev, GT_U8 lport)
+{
+  CPSS_PORT_MAC_COUNTER_SET_STC stats;
+
+  CRP (cpssDxChPortMacCountersEnable (ldev, lport, GT_TRUE));
+  CRP (cpssDxChPortMacCountersClearOnReadSet (ldev, lport, GT_TRUE));
+  CRP (cpssDxChPortMacCountersOnPortGet (ldev, lport, &stats));
+  CRP (cpssDxChPortMacCountersClearOnReadSet (ldev, lport, GT_FALSE));
+  CRP (cpssDxChPortMacCountersEnable (ldev, lport, GT_TRUE));
+}
+
 int
 port_init (void)
 {
@@ -143,7 +155,10 @@ port_init (void)
 
     port_set_vid (&ports[i]);
     port_update_qos_trust (&ports[i]);
+    port_setup_stats (ports[i].ldev, ports[i].lport);
   }
+
+  port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
 
   nports = NPORTS;
 
