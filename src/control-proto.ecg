@@ -97,6 +97,7 @@ struct mac_age_arg {
 };
 const ALL_VLANS = 0;
 const ALL_PORTS = 0;
+const CPU_PORT = 0xFFFF;
 
 enum traffic_type {
   TT_UNICAST,
@@ -135,6 +136,7 @@ enum control_command {
   CC_PORT_SET_DUPLEX,
   CC_PORT_SET_MDIX_AUTO,
   CC_PORT_SET_FLOW_CONTROL,
+  CC_PORT_GET_STATS,
   CC_PORT_DUMP_PHY_REG,
   CC_VLAN_ADD,
   CC_VLAN_DELETE,
@@ -181,4 +183,42 @@ enum status {
   ST_DOES_NOT_EXIST,
   ST_BUSY,
   ST_HEX
+};
+
+struct port_stats {
+  uint64_t goodOctetsRcv;
+  uint64_t badOctetsRcv;
+  uint64_t macTransmitErr;
+  uint64_t goodPktsRcv;
+  uint64_t badPktsRcv;
+  uint64_t brdcPktsRcv;
+  uint64_t mcPktsRcv;
+  uint64_t pkts64Octets;
+  uint64_t pkts65to127Octets;
+  uint64_t pkts128to255Octets;
+  uint64_t pkts256to511Octets;
+  uint64_t pkts512to1023Octets;
+  uint64_t pkts1024tomaxOoctets;
+  uint64_t goodOctetsSent;
+  uint64_t goodPktsSent;
+  uint64_t excessiveCollisions;
+  uint64_t mcPktsSent;
+  uint64_t brdcPktsSent;
+  uint64_t unrecogMacCntrRcv;
+  uint64_t fcSent;
+  uint64_t goodFcRcv;
+  uint64_t dropEvents;
+  uint64_t undersizePkts;
+  uint64_t fragmentsPkts;
+  uint64_t oversizePkts;
+  uint64_t jabberPkts;
+  uint64_t macRcvError;
+  uint64_t badCrc;
+  uint64_t collisions;
+  uint64_t lateCollisions;
+  uint64_t badFcRcv;
+  uint64_t ucPktsRcv;
+  uint64_t ucPktsSent;
+  uint64_t multiplePktsSent;
+  uint64_t deferredPktsSent;
 };

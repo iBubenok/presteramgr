@@ -12,6 +12,7 @@
 #include <qos.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
+#include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
 #include <cpss/dxCh/dxChxGen/phy/cpssDxChPhySmi.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
@@ -1038,5 +1039,32 @@ port_set_flow_control (port_id_t pid, flow_control_t fc)
   case GT_HW_ERROR:      return ST_HW_ERROR;
   case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
   default:               return ST_HEX;
+  }
+}
+
+enum status
+port_get_stats (port_id_t pid, void *stats)
+{
+  GT_U8 ldev, lport;
+  GT_STATUS rc;
+
+  if (pid == CPU_PORT) {
+    ldev = 0;
+    lport = CPSS_CPU_PORT_NUM_CNS;
+  } else  {
+    struct port *port = port_ptr (pid);
+
+    if (!port)
+      return ST_BAD_VALUE;
+
+    ldev = port->ldev;
+    lport = port->lport;
+  }
+
+  rc = CRP (cpssDxChPortMacCountersOnPortGet (ldev, lport, stats));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
   }
 }

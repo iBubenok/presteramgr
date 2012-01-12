@@ -199,6 +199,7 @@ DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
+DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
@@ -227,6 +228,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
+  HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
@@ -782,5 +784,28 @@ DEFINE_HANDLER (CC_PORT_SET_FLOW_CONTROL)
   result = port_set_flow_control (pid, fc);
 
  out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_STATS)
+{
+  enum status result;
+  port_id_t pid;
+  struct port_stats stats;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_get_stats (pid, &stats);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &stats, sizeof (stats));
+  send_reply (reply);
+  return;
+
+ err:
   report_status (result);
 }
