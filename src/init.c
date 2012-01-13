@@ -856,6 +856,21 @@ linux_ip_setup (GT_U8 dev)
   return rc;
 }
 
+static void
+rate_limit_init (void)
+{
+  CPSS_DXCH_BRG_GEN_RATE_LIMIT_STC cfg = {
+    .dropMode    = CPSS_DROP_MODE_HARD_E,
+    .rMode       = CPSS_RATE_LIMIT_BYTE_BASED_E,
+    .win10Mbps   = 1000000,
+    .win100Mbps  = 100000,
+    .win1000Mbps = 10000,
+    .win10Gbps   = 1000
+  };
+
+  CRP (cpssDxChBrgGenRateLimitGlobalCfgSet (0, &cfg));
+}
+
 static GT_STATUS
 after_init (void)
 {
@@ -889,6 +904,7 @@ after_init (void)
 
   vlan_init ();
   rc = linux_ip_setup (0);
+  rate_limit_init ();
 
   return rc;
 }
