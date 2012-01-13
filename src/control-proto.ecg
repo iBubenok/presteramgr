@@ -22,6 +22,7 @@ typedef uint8_t bool_t;
 typedef uint32_t aging_time_t;
 typedef uint8_t port_speed_t;
 typedef uint8_t port_duplex_t;
+typedef uint64_t bandwidth_limit_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,
@@ -137,6 +138,7 @@ enum control_command {
   CC_PORT_SET_MDIX_AUTO,
   CC_PORT_SET_FLOW_CONTROL,
   CC_PORT_GET_STATS,
+  CC_PORT_SET_BANDWIDTH_LIMIT,
   CC_PORT_DUMP_PHY_REG,
   CC_VLAN_ADD,
   CC_VLAN_DELETE,

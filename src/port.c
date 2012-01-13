@@ -10,14 +10,17 @@
 #include <data.h>
 #include <vlan.h>
 #include <qos.h>
+#include <utils.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
+#include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 #include <cpss/dxCh/dxChxGen/phy/cpssDxChPhySmi.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
+#include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <stdlib.h>
@@ -141,11 +144,13 @@ port_init (void)
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
     if (i < 24) {
+      ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
     } else {
+      ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
       ports[i].shutdown = port_shutdown_ge;
@@ -156,6 +161,9 @@ port_init (void)
     port_set_vid (&ports[i]);
     port_update_qos_trust (&ports[i]);
     port_setup_stats (ports[i].ldev, ports[i].lport);
+    CRP (cpssDxChPortTxShaperModeSet
+         (ports[i].ldev, ports[i].lport,
+          CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
   }
 
   port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
@@ -1077,6 +1085,65 @@ port_get_stats (port_id_t pid, void *stats)
   }
 
   rc = CRP (cpssDxChPortMacCountersOnPortGet (ldev, lport, stats));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+static uint64_t
+max_bps (enum port_speed ps)
+{
+  switch (ps) {
+  case PORT_SPEED_10:    return 10000000ULL;
+  case PORT_SPEED_100:   return 100000000ULL;
+  case PORT_SPEED_1000:  return 1000000000ULL;
+  case PORT_SPEED_10000: return 10000000000ULL;
+  case PORT_SPEED_12000: return 12000000000ULL;
+  case PORT_SPEED_2500:  return 2500000000ULL;
+  case PORT_SPEED_5000:  return 5000000000ULL;
+  case PORT_SPEED_13600: return 13600000000ULL;
+  case PORT_SPEED_20000: return 20000000000ULL;
+  case PORT_SPEED_40000: return 40000000000ULL;
+  case PORT_SPEED_16000: return 16000000000ULL;
+  default:               return 0ULL;
+  }
+}
+
+enum status
+port_set_bandwidth_limit (port_id_t pid, bandwidth_limit_t limit)
+{
+  struct port *port = port_ptr (pid);
+  uint64_t max;
+  GT_STATUS rc;
+  GT_U32 rate;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  max = max_bps (port->max_speed);
+  if (max == 0)
+    return ST_HEX;
+
+  if (limit > max)
+    return ST_BAD_VALUE;
+
+  rate = limit / 1000;
+
+  if (limit == 0)
+    rc = CRP (cpssDxChPortTxShaperEnableSet
+              (port->ldev, port->lport, GT_FALSE));
+  else {
+    rc = CRP (cpssDxChPortTxShaperProfileSet
+              (port->ldev, port->lport, 1, &rate));
+    ON_GT_ERROR (rc, goto out);
+
+    rc = CRP (cpssDxChPortTxShaperEnableSet
+              (port->ldev, port->lport, GT_TRUE));
+  }
+
+ out:
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;

@@ -21,6 +21,7 @@ struct port {
   int c_speed_auto;
   enum port_duplex c_duplex;
   struct port_state state;
+  enum port_speed max_speed;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*shutdown) (struct port *, int);
@@ -61,6 +62,7 @@ extern enum status port_dump_phy_reg (port_id_t, uint16_t);
 extern enum status port_set_mdix_auto (port_id_t, int);
 extern enum status port_set_flow_control (port_id_t, flow_control_t);
 extern enum status port_get_stats (port_id_t, void *);
+extern enum status port_set_bandwidth_limit (port_id_t, bandwidth_limit_t);
 
 
 #endif /* __PORT_H__ */
