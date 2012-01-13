@@ -209,7 +209,7 @@ vlan_add (vid_t vid)
   vlan_info.vrfId                 = 0;
   vlan_info.floodVidx             = 4095;
   vlan_info.floodVidxMode         = CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E;
-  vlan_info.portIsolationMode     = CPSS_DXCH_BRG_VLAN_PORT_ISOLATION_DISABLE_CMD_E;
+  vlan_info.portIsolationMode     = CPSS_DXCH_BRG_VLAN_PORT_ISOLATION_L2_CMD_E;
   vlan_info.ucastLocalSwitchingEn = GT_FALSE;
   vlan_info.mcastLocalSwitchingEn = GT_FALSE;
 
