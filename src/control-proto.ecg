@@ -22,7 +22,7 @@ typedef uint8_t bool_t;
 typedef uint32_t aging_time_t;
 typedef uint8_t port_speed_t;
 typedef uint8_t port_duplex_t;
-typedef uint64_t bandwidth_limit_t;
+typedef uint64_t bps_t;
 
 enum control_notification {
   CN_PORT_LINK_STATE,

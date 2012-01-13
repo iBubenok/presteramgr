@@ -816,7 +816,7 @@ DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
 {
   enum status result;
   port_id_t pid;
-  bandwidth_limit_t limit;
+  bps_t limit;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)

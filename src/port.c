@@ -1114,7 +1114,7 @@ max_bps (enum port_speed ps)
 }
 
 enum status
-port_set_bandwidth_limit (port_id_t pid, bandwidth_limit_t limit)
+port_set_bandwidth_limit (port_id_t pid, bps_t limit)
 {
   struct port *port = port_ptr (pid);
   uint64_t max;
@@ -1152,3 +1152,4 @@ port_set_bandwidth_limit (port_id_t pid, bandwidth_limit_t limit)
   default:          return ST_HEX;
   }
 }
+
