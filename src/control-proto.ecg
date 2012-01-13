@@ -103,7 +103,8 @@ const CPU_PORT = 0xFFFF;
 enum traffic_type {
   TT_UNICAST,
   TT_MULTICAST,
-  TT_BROADCAST
+  TT_BROADCAST,
+  __TT_MAX
 };
 
 typedef uint8_t traffic_type_t;
@@ -122,6 +123,11 @@ struct port_block {
   bool_t block;
 };
 
+struct rate_limit {
+  traffic_type_t type;
+  bps_t limit;
+};
+
 enum control_command {
   CC_SET_FDB_MAP,
   CC_PORT_SEND_BPDU,
@@ -138,6 +144,7 @@ enum control_command {
   CC_PORT_SET_MDIX_AUTO,
   CC_PORT_SET_FLOW_CONTROL,
   CC_PORT_GET_STATS,
+  CC_PORT_SET_RATE_LIMIT,
   CC_PORT_SET_BANDWIDTH_LIMIT,
   CC_PORT_DUMP_PHY_REG,
   CC_VLAN_ADD,

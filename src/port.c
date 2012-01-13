@@ -19,6 +19,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -1110,6 +1111,59 @@ max_bps (enum port_speed ps)
   case PORT_SPEED_40000: return 40000000000ULL;
   case PORT_SPEED_16000: return 16000000000ULL;
   default:               return 0ULL;
+  }
+}
+
+enum status
+port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
+{
+  struct port *port = port_ptr (pid);
+  GT_STATUS rc;
+  CPSS_DXCH_BRG_GEN_RATE_LIMIT_PORT_STC cfg = {
+    .enableMcReg = GT_FALSE,
+    .enableUcKnown = GT_FALSE
+  };
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (rl->type >= __TT_MAX)
+    return ST_BAD_VALUE;
+
+  if (rl->limit) {
+    switch (rl->type) {
+    case TT_UNICAST:
+      cfg.enableBc = GT_TRUE;
+      cfg.enableMc = GT_TRUE;
+      cfg.enableUcUnk = GT_TRUE;
+      break;
+
+    case TT_MULTICAST:
+      cfg.enableBc = GT_TRUE;
+      cfg.enableMc = GT_TRUE;
+      cfg.enableUcUnk = GT_FALSE;
+      break;
+
+    case TT_BROADCAST:
+      cfg.enableBc = GT_TRUE;
+      cfg.enableMc = GT_FALSE;
+      cfg.enableUcUnk = GT_FALSE;
+    }
+
+    cfg.rateLimit = (rl->limit / 512000) ? : 1;
+  } else {
+    cfg.enableBc = GT_FALSE;
+    cfg.enableMc = GT_FALSE;
+    cfg.enableUcUnk = GT_FALSE;
+    cfg.rateLimit = 0;
+  }
+
+  rc = CRP (cpssDxChBrgGenPortRateLimitSet (port->ldev, port->lport, &cfg));
+  switch (rc) {
+  case GT_OK:           return ST_OK;
+  case GT_HW_ERROR:     return ST_HW_ERROR;
+  case GT_OUT_OF_RANGE: return ST_NOT_SUPPORTED;
+  default:              return ST_HEX;
   }
 }
 
