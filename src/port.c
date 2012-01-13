@@ -161,9 +161,11 @@ port_init (void)
     port_set_vid (&ports[i]);
     port_update_qos_trust (&ports[i]);
     port_setup_stats (ports[i].ldev, ports[i].lport);
+#ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports[i].ldev, ports[i].lport,
           CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
+#endif /* PRESTERAMGR_FUTURE_LION */
   }
 
   port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
