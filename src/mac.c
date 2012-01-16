@@ -143,7 +143,7 @@ mac_list (void)
 
   fdb_naddrs = FDB_MAX_ADDRS;
   CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &fdb_naddrs, fdb_addrs));
-  fprintf (stderr, "*** GOT %lu MAC addrs\r\n", fdb_naddrs);
+  DEBUG ("got %lu MAC addrs\r\n", fdb_naddrs);
 
   return ST_OK;
 }
