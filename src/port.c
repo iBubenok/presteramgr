@@ -207,9 +207,6 @@ port_start (void)
 static GT_STATUS
 port_set_sgmii_mode (const struct port *port)
 {
-  fprintf (stderr, "%s: dev %d, port %d\r\n",
-           __PRETTY_FUNCTION__, port->ldev, port->lport);
-
   CRPR (cpssDxChPortInterfaceModeSet
         (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E));
   CRPR (cpssDxChPortSpeedSet
@@ -1244,6 +1241,5 @@ static enum status
 port_setup_ge (struct port *port)
 {
   port_set_sgmii_mode (port);
-
   return ST_OK;
 }
