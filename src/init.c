@@ -874,39 +874,11 @@ rate_limit_init (void)
 static GT_STATUS
 after_init (void)
 {
-  GT_STATUS rc;
-  GT_U8 port;
-
-  /* set ports 24-27 to SGMII mode */
-  for (port = 25; port <= 28; port++) {
-    printf ("*** configure GE port %02d => SGMII mode\n", port);
-    rc = port_set_sgmii_mode (port);
-    if (rc != GT_OK)
-      return rc;
-  }
-
-  for (port = 0; port < 28; ++port) {
-    rc = cpssDxChPortEnableSet (0, port, GT_TRUE);
-    if (rc != GT_OK)
-      return rc;
-  }
-  RCC ((rc = cpssDxChCscdPortTypeSet (0, 63,  CPSS_CSCD_PORT_DSA_MODE_EXTEND_E)),
-       cpssDxChCscdPortTypeSet);
-  if (rc != GT_OK)
-    return rc;
-  rc = cpssDxChPortEnableSet (0, 63, GT_TRUE);
-  if (rc != GT_OK)
-    return rc;
-
-  rc = cpssDxChCfgDevEnable (0, GT_TRUE);
-  if (rc != GT_OK)
-    return rc;
-
   vlan_init ();
-  rc = linux_ip_setup (0);
+  linux_ip_setup (0);
   rate_limit_init ();
-
-  return rc;
+  port_start ();
+  return cpssDxChCfgDevEnable (0, GT_TRUE);
 }
 
 static GT_STATUS

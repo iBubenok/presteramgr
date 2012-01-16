@@ -21,6 +21,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
+#include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
+#include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
@@ -43,10 +45,12 @@ static enum status port_set_speed_fe (struct port *, const struct port_speed_arg
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
 static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
+static enum status port_setup_fe (struct port *);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
+static enum status port_setup_ge (struct port *);
 
 static inline void
 port_lock (void)
@@ -150,38 +154,61 @@ port_init (void)
       ports[i].set_duplex = port_set_duplex_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
+      ports[i].setup = port_setup_fe;
     } else {
       ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
+      ports[i].setup = port_setup_ge;
     }
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
-
-    port_set_vid (&ports[i]);
-    port_update_qos_trust (&ports[i]);
-    port_setup_stats (ports[i].ldev, ports[i].lport);
-#ifdef PRESTERAMGR_FUTURE_LION
-    CRP (cpssDxChPortTxShaperModeSet
-         (ports[i].ldev, ports[i].lport,
-          CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
-#endif /* PRESTERAMGR_FUTURE_LION */
   }
-
-  port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
 
   nports = NPORTS;
 
   return 0;
 }
 
-GT_STATUS
-port_set_sgmii_mode (port_id_t pid)
+enum status
+port_start (void)
 {
-  struct port *port = port_ptr (pid);
+  int i;
 
-  assert (port);
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+
+    port->setup (port);
+    port_set_vid (port);
+    port_update_qos_trust (port);
+    port_setup_stats (port->ldev, port->lport);
+#ifdef PRESTERAMGR_FUTURE_LION
+    CRP (cpssDxChPortTxShaperModeSet
+         (ports->ldev, port->lport,
+          CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
+#endif /* PRESTERAMGR_FUTURE_LION */
+  }
+
+  port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
+  CRP (cpssDxChCscdPortTypeSet
+       (0, CPSS_CPU_PORT_NUM_CNS,
+        CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
+
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+    CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
+  };
+  CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+
+  return ST_OK;
+}
+
+static GT_STATUS
+port_set_sgmii_mode (const struct port *port)
+{
+  fprintf (stderr, "%s: dev %d, port %d\r\n",
+           __PRETTY_FUNCTION__, port->ldev, port->lport);
 
   CRPR (cpssDxChPortInterfaceModeSet
         (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E));
@@ -800,6 +827,12 @@ port_shutdown_fe (struct port *port, int shutdown)
 }
 
 static enum status
+port_setup_fe (struct port *port)
+{
+  return ST_OK;
+}
+
+static enum status
 port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
 {
   if (psa->speed > PORT_SPEED_1000)
@@ -1207,3 +1240,10 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
   }
 }
 
+static enum status
+port_setup_ge (struct port *port)
+{
+  port_set_sgmii_mode (port);
+
+  return ST_OK;
+}

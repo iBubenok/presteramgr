@@ -26,6 +26,7 @@ struct port {
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*shutdown) (struct port *, int);
   enum status (*set_mdix_auto) (struct port *, int);
+  enum status (*setup) (struct port *);
 };
 
 extern struct port *ports;
@@ -44,7 +45,7 @@ port_ptr (port_id_t n)
 }
 
 extern int port_init (void);
-extern GT_STATUS port_set_sgmii_mode (port_id_t);
+extern enum status port_start (void);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_id (GT_U8, GT_U8);
 extern void port_handle_link_change (GT_U8, GT_U8);
