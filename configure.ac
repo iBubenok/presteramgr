@@ -16,6 +16,14 @@ AC_ARG_WITH([cpss],
   [AC_MSG_ERROR([you must specify the CPSS location])])
 AC_SUBST([cpss])
 
+AC_ARG_ENABLE([msg-prio],
+  [AS_HELP_STRING([--enable-msg-prio],
+                  [print messages with priority higher or equal to argument by default])],
+  [],
+  [enable_msg_prio=MSG_DEBUG])
+AC_DEFINE_UNQUOTED([MSG_MIN_PRIO], $enable_msg_prio,
+                   [Default minimum message priority.])
+
 AC_ARG_ENABLE([cpss-rprint],
   [AS_HELP_STRING([--enable-cpss-rprint],
                   [configure the CRP macro behavior:
@@ -25,9 +33,9 @@ AC_ARG_ENABLE([cpss-rprint],
   [],
   [enable_cpss_rprint=1])
 case $enable_cpss_rprint in
-  0 | no)  AC_DEFINE([CPSS_RPRINT], [0], [CPSS result printing level]);;
-  1 | yes) AC_DEFINE([CPSS_RPRINT], [1], [CPSS result printing level]);;
-  2 | all) AC_DEFINE([CPSS_RPRINT], [2], [CPSS result printing level]);;
+  0 | no)  AC_DEFINE([CPSS_RPRINT], [0], [CPSS result printing level.]);;
+  1 | yes) AC_DEFINE([CPSS_RPRINT], [1], [CPSS result printing level.]);;
+  2 | all) AC_DEFINE([CPSS_RPRINT], [2], [CPSS result printing level.]);;
   *)       AC_MSG_ERROR([invalid --enable-cpss-rprint argument]);;
 esac
 

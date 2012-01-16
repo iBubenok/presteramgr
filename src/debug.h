@@ -37,4 +37,27 @@ DECLSHOW (GT_STATUS);
         return __st;                            \
     })
 
+enum {
+  MSG_DEBUG,
+  MSG_INFO,
+  MSG_NOTICE,
+  MSG_WARN,
+  MSG_ERROR,
+  MSG_ALERT
+};
+
+extern int msg_min_prio;
+
+#define MSG(prio, prefix, format, arg...) ({                            \
+      if (prio >= msg_min_prio)                                         \
+        osPrintSync (prefix "%s:%d: " format, __FILE__, __LINE__, ##arg); \
+    })
+
+#define DEBUG(format, arg...)   (MSG (MSG_DEBUG,  "<D>:", format, ##arg))
+#define INFO(format, arg...)    (MSG (MSG_INFO,   "<I>:", format, ##arg))
+#define NOTICE(format, arg...)  (MSG (MSG_NOTICE, "<N>:", format, ##arg))
+#define WARN(format, arg...)    (MSG (MSG_WARN,   "<W>:", format, ##arg))
+#define ERROR(format, arg...)   (MSG (MSG_ERROR,  "<E>:", format, ##arg))
+#define ALERT(format, arg...)   (MSG (MSG_ALERT,  "<A>:", format, ##arg))
+
 #endif /* __DEBUG_H__ */

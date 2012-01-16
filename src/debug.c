@@ -8,6 +8,7 @@
 #include <cpss/generic/cpssCommonDefs.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/generic/port/cpssPortCtrl.h>
+#include <debug.h>
 
 
 static const char *invalid = "invalid";
@@ -129,3 +130,4 @@ DEFSHOW (GT_STATUS,
          S (GT_CHECKSUM_ERROR),
          S (GT_DSA_PARSING_ERROR));
 
+int msg_min_prio = MSG_MIN_PRIO;
