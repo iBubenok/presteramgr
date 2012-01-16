@@ -89,7 +89,7 @@ event_handle_aging_done (void)
   while ((rc = cpssEventRecv (event_handle,
                               CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
                               &edata, &dev)) == GT_OK)
-    osPrintSync ("Aging done\r\n");
+    DEBUG ("aging done\r\n");
   if (rc == GT_NO_MORE)
     rc = GT_OK;
 
