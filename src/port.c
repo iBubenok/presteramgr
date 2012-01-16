@@ -176,6 +176,10 @@ port_start (void)
 {
   int i;
 
+  CRP (cpssDxChPhyAutoPollNumOfPortsSet
+       (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
+        CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
+
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
@@ -826,6 +830,9 @@ port_shutdown_fe (struct port *port, int shutdown)
 static enum status
 port_setup_fe (struct port *port)
 {
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, (GT_U8) (port->lport % 16)));
+
   return ST_OK;
 }
 
@@ -1240,6 +1247,82 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
 static enum status
 port_setup_ge (struct port *port)
 {
+  GT_U16 val;
+
+  CRP (cpssDxChPhyPortSmiInterfaceSet
+       (port->ldev, port->lport, CPSS_PHY_SMI_INTERFACE_1_E));
+
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8205));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1A, 0xB002));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1B, 0x7C03));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x1));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8207));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0xFF));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x18, 0x2800));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x17, 0x2001));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x18, 0x1F70));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x17, 0x2004));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x3));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x10, 0x1AA7));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1A, 0x9040));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x2));
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x10, &val));
+  val &= ~(1 << 3);
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x10, val));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x0));
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &val));
+  val |= 1 << 15;
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, val));
+
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+
   port_set_sgmii_mode (port);
+
   return ST_OK;
 }
