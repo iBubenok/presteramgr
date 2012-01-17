@@ -159,6 +159,7 @@ enum control_command {
   CC_QOS_SET_MLS_QOS_TRUST,
   CC_QOS_SET_PORT_MLS_QOS_TRUST_COS,
   CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP,
+  CC_QOS_SET_DSCP_PRIO,
   CC_MAX
 };
 
@@ -231,4 +232,12 @@ struct port_stats {
   uint64_t ucPktsSent;
   uint64_t multiplePktsSent;
   uint64_t deferredPktsSent;
+};
+
+typedef uint8_t queue_id_t;
+typedef uint8_t dscp_t;
+
+struct dscp_map {
+  dscp_t dscp;
+  queue_id_t queue;
 };

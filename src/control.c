@@ -186,6 +186,8 @@ typedef void (*cmd_handler_t) (zmsg_t *);
       POP_OPT_ARG_SZ (__buf, sizeof (*__buf));  \
     })
 
+#define FIRST_ARG() (zmsg_first (args))
+
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_BPDU);
@@ -216,6 +218,7 @@ DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
+DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -247,7 +250,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
-  HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP)
+  HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
+  HANDLER (CC_QOS_SET_DSCP_PRIO)
 };
 
 
@@ -871,6 +875,27 @@ DEFINE_HANDLER (CC_PORT_SET_PROTECTED)
     goto out;
 
   result = port_set_protected (pid, protected);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_DSCP_PRIO)
+{
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG ();
+  int size;
+
+  if (!frame)
+    goto out;
+
+  size = zframe_size (frame);
+  if (size == 0 || size % sizeof (struct dscp_map))
+    goto out;
+
+  result = qos_set_dscp_prio
+    (size / sizeof (struct dscp_map),
+     (const struct dscp_map *) zframe_data (frame));
 
  out:
   report_status (result);

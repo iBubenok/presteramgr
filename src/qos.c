@@ -64,5 +64,17 @@ qos_start (void)
     CRP (cpssDxChCosProfileEntrySet (0, i, &prof));
   }
 
+enum status
+qos_set_dscp_prio (int n, const struct dscp_map *map)
+{
+  int i;
+
+  for (i = 0; i < n; ++i)
+    if (map[i].dscp > 63 || map[i].queue > 7)
+      return ST_BAD_VALUE;
+
+  for (i = 0; i < n; ++i)
+    CRP (cpssDxChCosDscpToProfileMapSet (0, map[i].dscp, map[i].queue));
+
   return ST_OK;
 }
