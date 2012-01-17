@@ -55,8 +55,8 @@ qos_start (void)
   for (i = 0; i < 8; i++) {
     CPSS_DXCH_COS_PROFILE_STC prof = {
       .dropPrecedence = CPSS_DP_GREEN_E,
-      .userPriority = i,
-      .trafficClass = 0,
+      .userPriority = 0,
+      .trafficClass = i,
       .dscp = 0,
       .exp = 0
     };
