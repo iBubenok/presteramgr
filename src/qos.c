@@ -50,6 +50,7 @@ qos_set_port_mls_qos_trust_dscp (port_id_t pid, bool_t trust)
 enum status
 qos_start (void)
 {
+  struct dscp_map dscp_map[64];
   int i;
 
   for (i = 0; i < 8; i++) {
@@ -63,6 +64,15 @@ qos_start (void)
 
     CRP (cpssDxChCosProfileEntrySet (0, i, &prof));
   }
+
+  for (i = 0; i < 64; i++) {
+    dscp_map[i].dscp = i;
+    dscp_map[i].queue = i / 8;
+  }
+  qos_set_dscp_prio (64, dscp_map);
+
+  return ST_OK;
+}
 
 enum status
 qos_set_dscp_prio (int n, const struct dscp_map *map)
