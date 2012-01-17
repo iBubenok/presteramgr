@@ -51,6 +51,7 @@ enum status
 qos_start (void)
 {
   struct dscp_map dscp_map[64];
+  queue_id_t cos_map[8] = { 2, 0, 1, 3, 4, 5, 6, 7 };
   int i;
 
   for (i = 0; i < 8; i++) {
@@ -70,6 +71,8 @@ qos_start (void)
     dscp_map[i].queue = i / 8;
   }
   qos_set_dscp_prio (64, dscp_map);
+
+  qos_set_cos_prio (cos_map);
 
   return ST_OK;
 }
