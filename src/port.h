@@ -10,6 +10,7 @@ struct port_state {
 };
 
 struct port {
+  port_id_t id;
   GT_U8 ldev;
   GT_U8 lport;
   enum port_mode mode;

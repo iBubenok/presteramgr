@@ -138,6 +138,7 @@ port_init (void)
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
   for (i = 0; i < NPORTS; i++) {
+    ports[i].id = i + 1;
     ports[i].ldev = 0;
     ports[i].lport = pmap[i];
     ports[i].mode = PM_ACCESS;
@@ -163,7 +164,8 @@ port_init (void)
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
     }
-    port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] = i + 1;
+    port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] =
+      ports[i].id;
   }
 
   nports = NPORTS;
