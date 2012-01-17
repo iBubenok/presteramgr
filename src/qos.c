@@ -2,6 +2,8 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
+
 #include <presteramgr.h>
 #include <debug.h>
 #include <qos.h>
@@ -43,4 +45,24 @@ qos_set_port_mls_qos_trust_dscp (port_id_t pid, bool_t trust)
 
   port->trust_dscp = !!trust;
   return port_update_qos_trust (port);
+}
+
+enum status
+qos_start (void)
+{
+  int i;
+
+  for (i = 0; i < 8; i++) {
+    CPSS_DXCH_COS_PROFILE_STC prof = {
+      .dropPrecedence = CPSS_DP_GREEN_E,
+      .userPriority = i,
+      .trafficClass = 0,
+      .dscp = 0,
+      .exp = 0
+    };
+
+    CRP (cpssDxChCosProfileEntrySet (0, i, &prof));
+  }
+
+  return ST_OK;
 }

@@ -81,6 +81,7 @@
 #include <control.h>
 #include <port.h>
 #include <vlan.h>
+#include <qos.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -776,6 +777,7 @@ after_init (void)
 {
   vlan_init ();
   linux_ip_setup (0);
+  qos_start ();
   rate_limit_init ();
   port_start ();
   return cpssDxChCfgDevEnable (0, GT_TRUE);
