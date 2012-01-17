@@ -219,6 +219,7 @@ DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
+DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -251,7 +252,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
-  HANDLER (CC_QOS_SET_DSCP_PRIO)
+  HANDLER (CC_QOS_SET_DSCP_PRIO),
+  HANDLER (CC_QOS_SET_COS_PRIO)
 };
 
 
@@ -896,6 +898,25 @@ DEFINE_HANDLER (CC_QOS_SET_DSCP_PRIO)
   result = qos_set_dscp_prio
     (size / sizeof (struct dscp_map),
      (const struct dscp_map *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
+{
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG ();
+  int size;
+
+  if (!frame)
+    goto out;
+
+  size = zframe_size (frame);
+  if (size != sizeof (queue_id_t) * 8)
+    goto out;
+
+  result = qos_set_cos_prio ((const queue_id_t *) zframe_data (frame));
 
  out:
   report_status (result);

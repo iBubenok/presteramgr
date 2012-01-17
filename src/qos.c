@@ -88,3 +88,20 @@ qos_set_dscp_prio (int n, const struct dscp_map *map)
 
   return ST_OK;
 }
+
+enum status
+qos_set_cos_prio (const queue_id_t *map)
+{
+  int i;
+
+  for (i = 0; i < 8; i++)
+    if (map[i] > 7)
+      return ST_BAD_VALUE;
+
+  for (i = 0; i < 8; i++) {
+    CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 0, map[i]));
+    CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 1, map[i]));
+  }
+
+  return ST_OK;
+}
