@@ -206,8 +206,6 @@ port_update_isolation (const struct port *port)
     if (ports[i].id == port->id || !ports[i].c_protected)
       continue;
 
-    DEBUG ("updating for port %d\r\n", ports[i].id);
-
     CRP (isolation_op
          (port->ldev,
           CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
