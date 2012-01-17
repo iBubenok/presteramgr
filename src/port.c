@@ -150,6 +150,7 @@ port_init (void)
     ports[i].c_speed = PORT_SPEED_AUTO;
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
+    ports[i].c_protected = 0;
     if (i < 24) {
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
@@ -172,6 +173,54 @@ port_init (void)
   nports = NPORTS;
 
   return 0;
+}
+
+static enum status
+port_update_isolation (const struct port *port)
+{
+  CPSS_INTERFACE_INFO_STC t_iface = {
+    .type = CPSS_INTERFACE_PORT_E,
+    .devPort = {
+      .devNum = port->ldev,
+      .portNum = port->lport
+    }
+  };
+  GT_STATUS (*isolation_op)
+    (GT_U8,
+     CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_ENT,
+     CPSS_INTERFACE_INFO_STC,
+     GT_U8) = port->c_protected
+    ? cpssDxChNstPortIsolationPortDelete
+    : cpssDxChNstPortIsolationPortAdd;
+  int i;
+
+  for (i = 0; i < nports; i++) {
+    CPSS_INTERFACE_INFO_STC o_iface = {
+      .type = CPSS_INTERFACE_PORT_E,
+      .devPort = {
+        .devNum = ports[i].ldev,
+        .portNum = ports[i].lport
+      }
+    };
+
+    if (ports[i].id == port->id || !ports[i].c_protected)
+      continue;
+
+    DEBUG ("updating for port %d\r\n", ports[i].id);
+
+    CRP (isolation_op
+         (port->ldev,
+          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
+          o_iface,
+          port->lport));
+    CRP (isolation_op
+         (ports[i].ldev,
+          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
+          t_iface,
+          ports[i].lport));
+  }
+
+  return ST_OK;
 }
 
 static enum status
@@ -1361,4 +1410,20 @@ port_setup_ge (struct port *port)
   port_set_sgmii_mode (port);
 
   return ST_OK;
+}
+
+enum status
+port_set_protected (port_id_t pid, bool_t protected)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  protected = !!protected;
+  if (port->c_protected == protected)
+    return ST_OK;
+
+  port->c_protected = protected;
+  return port_update_isolation (port);
 }

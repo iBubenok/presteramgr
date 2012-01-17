@@ -202,6 +202,7 @@ DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
+DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
@@ -233,6 +234,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
+  HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
@@ -849,6 +851,26 @@ DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
     goto out;
 
   result = port_set_bandwidth_limit (pid, limit);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_PROTECTED)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t protected;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&protected);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_protected (pid, protected);
 
  out:
   report_status (result);
