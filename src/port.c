@@ -22,6 +22,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
+#include <cpss/dxCh/dxChxGen/nst/cpssDxChNstPortIsolation.h>
 #include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -173,6 +174,38 @@ port_init (void)
   return 0;
 }
 
+static enum status
+port_setup_isolation (void)
+{
+  int i;
+  CPSS_PORTS_BMP_STC pbmp;
+
+  CRP (cpssDxChNstPortIsolationEnableSet (0, GT_TRUE));
+
+  memset (&pbmp, 0, sizeof (pbmp));
+  for (i = 0; i < nports; i++)
+    CPSS_PORTS_BMP_PORT_SET_MAC (&pbmp, ports[i].lport);
+
+  for (i = 0; i < nports; i++) {
+    CPSS_INTERFACE_INFO_STC iface = {
+      .type = CPSS_INTERFACE_PORT_E,
+      .devPort = {
+        .devNum = ports[i].ldev,
+        .portNum = ports[i].lport
+      }
+    };
+
+    CRP (cpssDxChNstPortIsolationTableEntrySet
+         (ports[i].ldev,
+          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
+          iface,
+          GT_TRUE,
+          &pbmp));
+  }
+
+  return ST_OK;
+}
+
 enum status
 port_start (void)
 {
@@ -196,6 +229,7 @@ port_start (void)
 #endif /* PRESTERAMGR_FUTURE_LION */
   }
 
+  port_setup_isolation ();
   port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
   CRP (cpssDxChCscdPortTypeSet
        (0, CPSS_CPU_PORT_NUM_CNS,
