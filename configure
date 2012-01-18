@@ -2571,6 +2571,8 @@ am__tar='${AMTAR} chof - "$$tardir"'; am__untar='${AMTAR} xf -'
 ac_config_headers="$ac_config_headers config.h"
 
 
+CPPFLAGS="-I`cross-config arm sysroot`/usr/include/libnl3 $CPPFLAGS"
+
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
@@ -3783,6 +3785,100 @@ else
   as_fn_error $? "no zctx_new() in -lczmq" "$LINENO" 5
 fi
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for nl_send_sync in -lnl-3" >&5
+$as_echo_n "checking for nl_send_sync in -lnl-3... " >&6; }
+if ${ac_cv_lib_nl_3_nl_send_sync+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lnl-3  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char nl_send_sync ();
+int
+main ()
+{
+return nl_send_sync ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_nl_3_nl_send_sync=yes
+else
+  ac_cv_lib_nl_3_nl_send_sync=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nl_3_nl_send_sync" >&5
+$as_echo "$ac_cv_lib_nl_3_nl_send_sync" >&6; }
+if test "x$ac_cv_lib_nl_3_nl_send_sync" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBNL_3 1
+_ACEOF
+
+  LIBS="-lnl-3 $LIBS"
+
+else
+  as_fn_error $? "no nl_send_sync() in -lnl-3" "$LINENO" 5
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for genl_connect in -lnl-genl-3" >&5
+$as_echo_n "checking for genl_connect in -lnl-genl-3... " >&6; }
+if ${ac_cv_lib_nl_genl_3_genl_connect+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lnl-genl-3  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char genl_connect ();
+int
+main ()
+{
+return genl_connect ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_nl_genl_3_genl_connect=yes
+else
+  ac_cv_lib_nl_genl_3_genl_connect=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nl_genl_3_genl_connect" >&5
+$as_echo "$ac_cv_lib_nl_genl_3_genl_connect" >&6; }
+if test "x$ac_cv_lib_nl_genl_3_genl_connect" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBNL_GENL_3 1
+_ACEOF
+
+  LIBS="-lnl-genl-3 $LIBS"
+
+else
+  as_fn_error $? "no genl_connect() in -lnl-genl-3" "$LINENO" 5
+fi
+
 
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
@@ -4194,6 +4290,30 @@ if test "x$ac_cv_header_czmq_h" = xyes; then :
 
 else
   as_fn_error $? "czmq header not found" "$LINENO" 5
+fi
+
+
+ac_fn_c_check_header_mongrel "$LINENO" "netlink/netlink.h" "ac_cv_header_netlink_netlink_h" "$ac_includes_default"
+if test "x$ac_cv_header_netlink_netlink_h" = xyes; then :
+
+else
+  as_fn_error $? "netlink/netlink.h not found" "$LINENO" 5
+fi
+
+
+ac_fn_c_check_header_mongrel "$LINENO" "netlink/genl/genl.h" "ac_cv_header_netlink_genl_genl_h" "$ac_includes_default"
+if test "x$ac_cv_header_netlink_genl_genl_h" = xyes; then :
+
+else
+  as_fn_error $? "netlink/genl/genl.h not found" "$LINENO" 5
+fi
+
+
+ac_fn_c_check_header_mongrel "$LINENO" "netlink/genl/ctrl.h" "ac_cv_header_netlink_genl_ctrl_h" "$ac_includes_default"
+if test "x$ac_cv_header_netlink_genl_ctrl_h" = xyes; then :
+
+else
+  as_fn_error $? "netlink/genl/ctrl.h not found" "$LINENO" 5
 fi
 
 
