@@ -11,6 +11,7 @@
 #include <string.h>
 #include <vlan.h>
 #include <port.h>
+#include <pdsa.h>
 #include <control-proto.h>
 
 struct vlan vlans[4095];
@@ -330,4 +331,13 @@ vlan_set_dot1q_tag_native (int value)
   default:
     return ST_HEX;
   }
+}
+
+enum status
+vlan_set_cpu (vid_t vid, bool_t cpu)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  return pdsa_vlan_if_op (vid, cpu);
 }

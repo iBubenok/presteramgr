@@ -29,5 +29,7 @@ extern enum status vlan_add (vid_t);
 extern enum status vlan_delete (vid_t);
 extern enum status vlan_set_dot1q_tag_native (int);
 extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
+enum status vlan_set_cpu (vid_t, bool_t);
+
 
 #endif /* __VLAN_H__ */

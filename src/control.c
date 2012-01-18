@@ -210,6 +210,7 @@ DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
+DECLARE_HANDLER (CC_VLAN_SET_CPU);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
@@ -244,6 +245,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
+  HANDLER (CC_VLAN_SET_CPU),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_SET_AGING_TIME),
@@ -917,6 +919,26 @@ DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
     goto out;
 
   result = qos_set_cos_prio ((const queue_id_t *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_CPU)
+{
+  enum status result;
+  vid_t vid;
+  bool_t cpu;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&cpu);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_cpu (vid, cpu);
 
  out:
   report_status (result);
