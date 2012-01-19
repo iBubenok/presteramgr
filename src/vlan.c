@@ -242,7 +242,7 @@ vlan_delete (vid_t vid)
   switch (rc) {
   case GT_OK:
     vlans[vid - 1].state = VS_DELETED;
-    return ST_OK;
+    return vlan_set_cpu (vid, 0);
   default:
     return ST_HEX;
   }
@@ -254,8 +254,12 @@ vlan_init (void)
   GT_STATUS rc;
   int i;
 
-  for (i = 0; i < 4095; i++)
+  for (i = 0; i < 4095; i++) {
+    vlans[i].vid = i + 1;
+    vlans[i].c_cpu = 0;
+    vlans[i].mac_addr_set = 0;
     vlans[i].state = VS_DELETED;
+  }
 
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
@@ -272,7 +276,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   rc = CRP (cpssDxChBrgVlanIpCntlToCpuSet
             (0, vid, CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E));
   if (rc != GT_OK)
-    return rc;
+    goto err;
 
   memset (&mac_entry, 0, sizeof (mac_entry));
   mac_entry.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
@@ -284,7 +288,19 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.isStatic = GT_TRUE;
   mac_entry.daCommand = CPSS_MAC_TABLE_CNTL_E;
   mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-  return CRP (cpssDxChBrgFdbMacEntrySet (0, &mac_entry));
+  rc = CRP (cpssDxChBrgFdbMacEntrySet (0, &mac_entry));
+  if (rc != GT_OK)
+    goto cancel_ip_cntl;
+
+  memcpy (vlans[vid - 1].c_mac_addr, addr, 6);
+  vlans[vid - 1].mac_addr_set = 1;
+
+  return GT_OK;
+
+ cancel_ip_cntl:
+  CRP (cpssDxChBrgVlanIpCntlToCpuSet (0, vid, CPSS_DXCH_BRG_IP_CTRL_NONE_E));
+ err:
+  return rc;
 }
 
 enum status
@@ -333,11 +349,41 @@ vlan_set_dot1q_tag_native (int value)
   }
 }
 
+static void
+vlan_clear_mac_addr (struct vlan *vlan)
+{
+  if (vlan->mac_addr_set) {
+    CPSS_MAC_ENTRY_EXT_KEY_STC key;
+
+    key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+    key.key.macVlan.vlanId = vlan->vid;
+    memcpy (key.key.macVlan.macAddr.arEther, vlan->c_mac_addr, 6);
+    CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
+    CRP (cpssDxChBrgVlanIpCntlToCpuSet
+         (0, vlan->vid, CPSS_DXCH_BRG_IP_CTRL_NONE_E));
+
+    vlan->mac_addr_set = 0;
+  }
+}
+
 enum status
 vlan_set_cpu (vid_t vid, bool_t cpu)
 {
+  struct vlan *vlan;
+
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
+
+  vlan = &vlans[vid - 1];
+
+  cpu = !!cpu;
+  if (vlan->c_cpu == cpu)
+    return ST_OK;
+
+  vlan->c_cpu = cpu;
+
+  if (!cpu)
+    vlan_clear_mac_addr (vlan);
 
   return pdsa_vlan_if_op (vid, cpu);
 }

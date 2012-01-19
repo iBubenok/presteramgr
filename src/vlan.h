@@ -12,6 +12,10 @@ enum vlan_state {
 };
 
 struct vlan {
+  vid_t vid;
+  int c_cpu;
+  int mac_addr_set;
+  mac_addr_t c_mac_addr;
   enum vlan_state state;
 };
 
