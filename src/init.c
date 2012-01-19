@@ -347,6 +347,9 @@ dxChBrgFdbInit (IN GT_U8 dev)
   RCC ((rc = cpssDxChBrgFdbMaxLookupLenSet (dev, 4)),
        cpssDxChBrgFdbMaxLookupLenSet);
 
+  RCC ((rc = cpssDxChBrgFdbMacVlanLookupModeSet (dev, CPSS_IVL_E)),
+        cpssDxChBrgFdbMacVlanLookupModeSet);
+
   /******************************/
   /* do specific cheetah coding */
   /******************************/
