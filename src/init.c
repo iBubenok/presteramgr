@@ -806,6 +806,7 @@ init_cpss (void)
   osFatalErrorInit (NULL);
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
+  msg_set_output_function (osPrintSync);
 
   osMemSet (&ph1_info, 0, sizeof (ph1_info));
 

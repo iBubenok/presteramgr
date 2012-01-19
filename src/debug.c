@@ -3,6 +3,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <stdint.h>
+#include <stdarg.h>
 
 #include <gtOs/gtOsGen.h>
 #include <cpss/generic/cpssCommonDefs.h>
@@ -130,4 +131,24 @@ DEFSHOW (GT_STATUS,
          S (GT_CHECKSUM_ERROR),
          S (GT_DSA_PARSING_ERROR));
 
+static int
+msg_print_early (const char *format, ...)
+{
+  va_list ap;
+  int result;
+
+  va_start (ap, format);
+  result = vfprintf (stderr, format, ap);
+  va_end (ap);
+
+  return result;
+}
+
 int msg_min_prio = MSG_MIN_PRIO;
+int (*msg_out) (const char *, ...) = msg_print_early;
+
+void
+msg_set_output_function (int (*func) (const char *, ...))
+{
+  msg_out = func;
+}

@@ -47,10 +47,12 @@ enum {
 };
 
 extern int msg_min_prio;
+extern int (*msg_out) (const char *, ...);
+extern void msg_set_output_function (int (*) (const char *, ...));
 
-#define MSG(prio, prefix, format, arg...) ({                            \
-      if (prio >= msg_min_prio)                                         \
-        osPrintSync (prefix "%s:%d: " format, __FILE__, __LINE__, ##arg); \
+#define MSG(prio, prefix, format, arg...) ({                          \
+      if (prio >= msg_min_prio)                                       \
+        msg_out (prefix "%s:%d: " format, __FILE__, __LINE__, ##arg); \
     })
 
 #define DEBUG(format, arg...)   (MSG (MSG_DEBUG,  "<D>:", format, ##arg))
