@@ -84,6 +84,7 @@
 #include <qos.h>
 #include <pdsa.h>
 #include <mac.h>
+#include <wnct.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -746,8 +747,6 @@ linux_ip_setup (GT_U8 dev)
 {
   GT_STATUS rc;
 
-  CRPR ((rc = cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)));
-  CRPR ((rc = cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)));
   CRPR ((rc = cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E)));
 
   return rc;
@@ -773,6 +772,7 @@ after_init (void)
 {
   mac_start ();
   vlan_init ();
+  wnct_start ();
   linux_ip_setup (0);
   qos_start ();
   rate_limit_init ();
