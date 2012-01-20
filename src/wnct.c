@@ -24,7 +24,7 @@ wnct_enable_proto (uint8_t proto, int enable)
   rc = CRP (cpssDxChBrgGenIeeeReservedMcastProtCmdSet
             (0, 0, proto, enable
              ? CPSS_PACKET_CMD_TRAP_TO_CPU_E
-             : CPSS_PACKET_CMD_DROP_HARD_E));
+             : CPSS_PACKET_CMD_FORWARD_E));
   ON_GT_ERROR (rc, goto out);
 
   protos[proto] = enable;
