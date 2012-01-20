@@ -202,7 +202,7 @@ vlan_add (vid_t vid)
   vlan_info.ipv4McastRouteEn      = GT_FALSE;
   vlan_info.ipv6UcastRouteEn      = GT_FALSE;
   vlan_info.ipv6McastRouteEn      = GT_FALSE;
-  vlan_info.stgId                 = 0;
+  vlan_info.stgId                 = vlans[vid - 1].stp_id;
   vlan_info.autoLearnDisable      = GT_FALSE;
   vlan_info.naMsgToCpuEn          = GT_TRUE;
   vlan_info.mruIdx                = 0;
@@ -256,6 +256,7 @@ vlan_init (void)
 
   for (i = 0; i < 4095; i++) {
     vlans[i].vid = i + 1;
+    vlans[i].stp_id = 0;
     vlans[i].c_cpu = 0;
     vlans[i].mac_addr_set = 0;
     vlans[i].state = VS_DELETED;
@@ -263,6 +264,10 @@ vlan_init (void)
 
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
+
+  static stp_id_t ids[4096];
+  memset (ids, 0, sizeof (ids));
+  vlan_set_fdb_map (ids);
 
   return rc != GT_OK;
 }
@@ -386,4 +391,22 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
     vlan_clear_mac_addr (vlan);
 
   return pdsa_vlan_if_op (vid, cpu);
+}
+
+enum status
+vlan_set_fdb_map (const stp_id_t *ids)
+{
+  int i;
+
+  for (i = 0; i < 4095; i++)
+    if (ids[i] > 255)
+      return ST_BAD_VALUE;
+
+  for (i = 0; i < 4095; i++) {
+    vlans[i].stp_id = ids[i];
+    if (vlans[i].state == VS_ACTIVE)
+      CRP (cpssDxChBrgVlanToStpIdBind (0, i + 1, ids[i]));
+  }
+
+  return ST_OK;
 }

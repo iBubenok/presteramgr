@@ -13,6 +13,7 @@ enum vlan_state {
 
 struct vlan {
   vid_t vid;
+  stp_id_t stp_id;
   int c_cpu;
   int mac_addr_set;
   mac_addr_t c_mac_addr;
@@ -33,7 +34,8 @@ extern enum status vlan_add (vid_t);
 extern enum status vlan_delete (vid_t);
 extern enum status vlan_set_dot1q_tag_native (int);
 extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
-enum status vlan_set_cpu (vid_t, bool_t);
+extern enum status vlan_set_cpu (vid_t, bool_t);
+extern enum status vlan_set_fdb_map (const stp_id_t *);
 
 
 #endif /* __VLAN_H__ */

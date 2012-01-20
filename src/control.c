@@ -460,8 +460,16 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 
 DEFINE_HANDLER (CC_SET_FDB_MAP)
 {
-  /* FIXME: stub. */
-  report_ok ();
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG ();
+
+  if (zframe_size (frame) != sizeof (stp_id_t) * 4096)
+    goto out;
+
+  result = vlan_set_fdb_map ((stp_id_t *) zframe_data (frame));
+
+ out:
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_VLAN_ADD)
