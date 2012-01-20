@@ -83,6 +83,7 @@
 #include <vlan.h>
 #include <qos.h>
 #include <pdsa.h>
+#include <mac.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -770,6 +771,7 @@ rate_limit_init (void)
 static GT_STATUS
 after_init (void)
 {
+  mac_start ();
   vlan_init ();
   linux_ip_setup (0);
   qos_start ();

@@ -149,7 +149,7 @@ mac_list (void)
 }
 
 enum status
-mac_flush_dynamic (const struct mac_age_arg *arg)
+mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 {
   CPSS_FDB_ACTION_MODE_ENT s_act_mode;
   CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
@@ -191,7 +191,7 @@ mac_flush_dynamic (const struct mac_age_arg *arg)
 
   CRP (cpssDxChBrgFdbActionActiveVlanSet (0, act_vid, act_vid_mask));
   CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, 0, 0, port, port_mask));
-  CRP (cpssDxChBrgFdbStaticDelEnable (0, GT_FALSE));
+  CRP (cpssDxChBrgFdbStaticDelEnable (0, del_static));
   CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_DELETING_E));
 
   /* FIXME: use event system instead of polling. */
@@ -209,4 +209,15 @@ mac_flush_dynamic (const struct mac_age_arg *arg)
   CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
 
   return ST_OK;
+}
+
+enum status
+mac_start (void)
+{
+  struct mac_age_arg arg = {
+    .vid = ALL_VLANS,
+    .port = ALL_PORTS
+  };
+
+  return mac_flush (&arg, GT_TRUE);
 }

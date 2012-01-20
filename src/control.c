@@ -452,7 +452,7 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 
   arg.vid = ALL_VLANS;
   arg.port = pid;
-  result = mac_flush_dynamic (&arg);
+  result = mac_flush (&arg, GT_FALSE);
 
  out:
   report_status (result);
@@ -723,7 +723,7 @@ DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
   if (result != ST_OK)
     goto out;
 
-  result = mac_flush_dynamic (&aa);
+  result = mac_flush (&aa, GT_FALSE);
 
  out:
   report_status (result);
