@@ -262,6 +262,7 @@ vlan_init (void)
     vlans[i].state = VS_DELETED;
   }
 
+  CRP (cpssDxChBrgVlanTableInvalidate (0));
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
 
