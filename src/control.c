@@ -17,6 +17,7 @@
 #include <mac.h>
 #include <qos.h>
 #include <debug.h>
+#include <wnct.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -222,6 +223,7 @@ DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
 DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
+DECLARE_HANDLER (CC_GVRP_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -256,7 +258,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
   HANDLER (CC_QOS_SET_DSCP_PRIO),
-  HANDLER (CC_QOS_SET_COS_PRIO)
+  HANDLER (CC_QOS_SET_COS_PRIO),
+  HANDLER (CC_GVRP_ENABLE)
 };
 
 
@@ -962,6 +965,21 @@ DEFINE_HANDLER (CC_VLAN_SET_CPU)
     goto out;
 
   result = vlan_set_cpu (vid, cpu);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GVRP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = wnct_enable_proto (WNCT_GVRP, enable);
 
  out:
   report_status (result);

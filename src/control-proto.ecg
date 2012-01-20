@@ -162,6 +162,7 @@ enum control_command {
   CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP,
   CC_QOS_SET_DSCP_PRIO,
   CC_QOS_SET_COS_PRIO,
+  CC_GVRP_ENABLE,
   CC_MAX
 };
 
