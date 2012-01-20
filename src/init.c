@@ -113,22 +113,22 @@ init_pci (CPSS_DXCH_PP_PHASE1_INIT_INFO_STC *info)
 
   rc = extDrvPciFindDev (vid, did, ins, &bus_no, &dev_sel, &func_no);
   RCC (rc, extDrvPciFindDev);
-  printf ("Device found: bus no %d, dev sel %d, func no %d\n",
-          bus_no, dev_sel, func_no);
+  DEBUG ("Device found: bus no %d, dev sel %d, func no %d\r\n",
+         bus_no, dev_sel, func_no);
 
   rc = extDrvPciMap (bus_no, dev_sel, func_no, vid, did,
                      &pci_base_addr, &internal_pci_base);
   RCC (rc, extDrvPciMap);
   internal_pci_base &= 0xFFF00000;
-  fprintf (stderr, "%08X %08X\n", pci_base_addr, internal_pci_base);
+  DEBUG ("%08X %08X\r\n", pci_base_addr, internal_pci_base);
 
   rc = extDrvGetPciIntVec (GT_PCI_INT_B, &int_vec);
   RCC (rc, extDrvGetPciIntVec);
-  fprintf (stderr, "intvec: %d\n", (GT_U32) int_vec);
+  DEBUG ("intvec: %d\r\n", (GT_U32) int_vec);
 
   rc = extDrvGetIntMask (GT_PCI_INT_B, &int_mask);
   RCC (rc, extDrvGetIntMask);
-  fprintf (stderr, "intmask: %08X\n", int_mask);
+  DEBUG ("intmask: %08X\r\n", int_mask);
 
   info->busBaseAddr = pci_base_addr;
   info->internalPciBase = internal_pci_base;
@@ -173,7 +173,7 @@ phase2_init (void)
   info.auqCfg.auDescBlockSize = au_desc_size * AU_DESC_NUM_DEF;
   info.auqCfg.auDescBlock = osCacheDmaMalloc ((au_desc_size + 1) * AU_DESC_NUM_DEF);
   if (!info.auqCfg.auDescBlock) {
-    fprintf (stderr, "failed to allocate AU desc memory\n");
+    ERROR ("failed to allocate AU desc memory\n");
     return GT_OUT_OF_CPU_MEM;
   }
 
@@ -418,7 +418,7 @@ netif_lib_init (void)
   init.txInternalBufBlockSize = 16000;
   init.txInternalBufBlockPtr = cpssOsCacheDmaMalloc (init.txInternalBufBlockSize);
   if (init.txInternalBufBlockPtr == NULL) {
-    fprintf (stderr, "failed to allocate TX buffers\n");
+    ALERT ("failed to allocate TX buffers\n");
     return GT_FAIL;
   }
 
@@ -436,7 +436,7 @@ netif_lib_init (void)
   init.rxBufBlockSize = 307200;
   init.rxBufBlockPtr = cpssOsCacheDmaMalloc (init.rxBufBlockSize);
   if (init.rxBufBlockPtr == NULL) {
-    fprintf (stderr, "failed to allocate RX buffers\n");
+    ALERT ("failed to allocate RX buffers\n");
     return GT_FAIL;
   }
 
@@ -488,7 +488,7 @@ policer_lib_init (void)
 
   if (PRV_CPSS_DXCH_PP_MAC (0)->fineTuning.featureInfo.iplrSecondStageSupported
       != GT_TRUE) {
-    fprintf (stderr, "policer_lib_init: doing nothing\n");
+    DEBUG ("policer_lib_init: doing nothing\n");
     return GT_OK;
   }
 
@@ -587,7 +587,7 @@ prvDxCh2Ch3IpLibInit (void)
     if (rc == GT_OUT_OF_RANGE) {
       /* The device does not support any IP (not router device). */
       rc = GT_OK;
-      fprintf (stderr "cpssDxChIpUcRouteEntriesWrite : device not supported\n");
+      DEBUG ("cpssDxChIpUcRouteEntriesWrite : device not supported\n");
     }
     return  rc;
   }
@@ -605,7 +605,7 @@ prvDxCh2Ch3IpLibInit (void)
   if (lpmDbInitialized == GT_TRUE) {
     rc = cpssDxChIpLpmDBDevListAdd (lpmDbId, &dev, 1);
     if (rc == GT_BAD_PARAM) {
-      fprintf (stderr, "cpssDxChIpLpmDBDevListAdd : device not supported\n");
+      DEBUG ("cpssDxChIpLpmDBDevListAdd : device not supported\n");
       rc = GT_OK;
     }
     return  rc;
@@ -650,7 +650,7 @@ prvDxCh2Ch3IpLibInit (void)
         if(rc == GT_BAD_PARAM)
         {
             /* the device not support the router tcam */
-            osPrintf("cpssDxChIpLpmDBDevListAdd : device[%d] not supported \n",dev);
+            DEBUG("cpssDxChIpLpmDBDevListAdd : device[%d] not supported \n",dev);
             rc = GT_OK;
         }
 
@@ -697,37 +697,37 @@ lib_init (void)
 {
   GT_STATUS rc;
 
-  fprintf (stderr, "doing port library init\n");
+  DEBUG ("doing port library init\n");
   RCC ((rc = port_lib_init ()), port_lib_init);
-  fprintf (stderr, "port library init done\n");
+  DEBUG ("port library init done\n");
 
-  fprintf (stderr, "doing phy library init\n");
+  DEBUG ("doing phy library init\n");
   RCC ((rc = phy_lib_init ()), phy_lib_init);
-  fprintf (stderr, "phy library init done\n");
+  DEBUG ("phy library init done\n");
 
-  fprintf (stderr, "doing bridge library init\n");
+  DEBUG ("doing bridge library init\n");
   RCC ((rc = bridge_lib_init ()), bridge_lib_init);
-  fprintf (stderr, "bridge library init done\n");
+  DEBUG ("bridge library init done\n");
 
-  fprintf (stderr, "doing netif library init\n");
+  DEBUG ("doing netif library init\n");
   RCC ((rc = netif_lib_init ()), netif_lib_init);
-  fprintf (stderr, "netif library init done\n");
+  DEBUG ("netif library init done\n");
 
-  fprintf (stderr, "doing mirror library init\n");
+  DEBUG ("doing mirror library init\n");
   RCC ((rc = mirror_lib_init ()), mirror_lib_init);
-  fprintf (stderr, "mirror library init done\n");
+  DEBUG ("mirror library init done\n");
 
-  fprintf (stderr, "doing pcl library init\n");
+  DEBUG ("doing pcl library init\n");
   RCC ((rc = pcl_lib_init ()), pcl_lib_init);
-  fprintf (stderr, "pcl library init done\n");
+  DEBUG ("pcl library init done\n");
 
-  fprintf (stderr, "doing policer library init\n");
+  DEBUG ("doing policer library init\n");
   RCC ((rc = policer_lib_init ()), policer_lib_init);
-  fprintf (stderr, "policer library init done\n");
+  DEBUG ("policer library init done\n");
 
-  fprintf (stderr, "doing trunk library init\n");
+  DEBUG ("doing trunk library init\n");
   RCC ((rc = trunk_lib_init ()), trunk_lib_init);
-  fprintf (stderr, "trunk library init done\n");
+  DEBUG ("trunk library init done\n");
 
   return GT_OK;
 }
@@ -744,18 +744,11 @@ static GT_STATUS
 linux_ip_setup (GT_U8 dev)
 {
   GT_STATUS rc;
-#define CHECK(a) do {                                               \
-    rc = (a);                                                       \
-    printf ("*** " #a ": %04X\n", rc);                              \
-    if (rc != GT_OK)                                                \
-      return rc;                                                    \
-  } while (0)
 
-  CHECK (cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE));
-  CHECK (cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E));
-  CHECK (cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+  CRPR ((rc = cpssDxChBrgGenIeeeReservedMcastTrapEnable (dev, GT_TRUE)));
+  CRPR ((rc = cpssDxChBrgGenIeeeReservedMcastProtCmdSet (0, 0, 0, CPSS_PACKET_CMD_TRAP_TO_CPU_E)));
+  CRPR ((rc = cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E)));
 
-#undef CHECK
   return rc;
 }
 
@@ -819,39 +812,39 @@ init_cpss (void)
   rc = init_pci (&ph1_info);
   RCC (rc, init_pci);
 
-  fprintf (stderr, "doing phase1 config\n");
+  DEBUG ("doing phase1 config\n");
   rc = cpssDxChHwPpPhase1Init (&ph1_info, &dev_type);
   RCC (rc, cpssDxChHwPpPhase1Init);
-  fprintf (stderr, "device type: %08X\n", dev_type);
+  DEBUG ("device type: %08X\n", dev_type);
 
-  fprintf (stderr, "initializing workarounds\n");
+  DEBUG ("initializing workarounds\n");
   rc = post_phase_1 ();
   RCC (rc, post_phase_1);
 
-  fprintf (stderr, "doing phase2 config\n");
+  DEBUG ("doing phase2 config\n");
   rc = phase2_init ();
   RCC (rc, phase2_init);
-  fprintf (stderr, "phase2 config done\n");
+  DEBUG ("phase2 config done\n");
 
-  fprintf (stderr, "after phase2 config\n");
+  DEBUG ("after phase2 config\n");
   rc = after_phase2 ();
   RCC (rc, after_phase2);
-  fprintf (stderr, "after config done\n");
+  DEBUG ("after config done\n");
 
-  fprintf (stderr, "doing logical init\n");
+  DEBUG ("doing logical init\n");
   rc = logical_init ();
   RCC (rc, logical_init);
-  fprintf (stderr, "logical init done\n");
+  DEBUG ("logical init done\n");
 
-  fprintf (stderr, "doing library init\n");
+  DEBUG ("doing library init\n");
   rc = lib_init ();
   RCC (rc, lib_init);
-  fprintf (stderr, "library init done\n");
+  DEBUG ("library init done\n");
 
-  fprintf (stderr, "doing after init\n");
+  DEBUG ("doing after init\n");
   rc = after_init ();
   RCC (rc, after_init);
-  fprintf (stderr, "after init done\n");
+  DEBUG ("after init done\n");
 
   return GT_OK;
 }
@@ -861,22 +854,21 @@ void
 cpss_start (void)
 {
   if (osWrapperOpen (NULL) != GT_OK) {
-    fprintf (stderr, "osWrapper initialization failure!\n");
+    ALERT ("osWrapper initialization failure!\n");
     return;
   }
 
-  fprintf (stderr, "\n\n");
   init_cpss ();
 
-  fprintf (stderr, "init mgmt interface\n");
+  INFO ("init mgmt interface\n");
   mgmt_init ();
 
-  fprintf (stderr, "init control interface\n");
+  INFO ("init control interface\n");
   control_init ();
 
-  fprintf (stderr, "start control interface\n");
+  INFO ("start control interface\n");
   control_start ();
 
-  fprintf (stderr, "start handling events\n");
+  INFO ("start handling events\n");
   event_enter_loop ();
 }
