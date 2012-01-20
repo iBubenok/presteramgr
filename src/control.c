@@ -16,6 +16,7 @@
 #include <vlan.h>
 #include <mac.h>
 #include <qos.h>
+#include <debug.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -439,8 +440,22 @@ DEFINE_HANDLER (CC_PORT_BLOCK)
 
 DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 {
-  /* FIXME: stub. */
-  report_ok ();
+  struct mac_age_arg arg;
+  port_id_t pid;
+  enum status result;
+
+  /* TODO: support flush for specific STP instance. */
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  arg.vid = ALL_VLANS;
+  arg.port = pid;
+  result = mac_flush_dynamic (&arg);
+
+ out:
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_SET_FDB_MAP)
