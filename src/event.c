@@ -20,6 +20,7 @@
 
 #include <presteramgr.h>
 #include <debug.h>
+#include <log.h>
 #include <utils.h>
 #include <port.h>
 

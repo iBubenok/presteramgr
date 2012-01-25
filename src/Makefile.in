@@ -49,7 +49,7 @@ am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	port.$(OBJEXT) extsvc.$(OBJEXT) mgmt.$(OBJEXT) vlan.$(OBJEXT) \
 	debug.$(OBJEXT) control.$(OBJEXT) data.$(OBJEXT) \
 	sysdeps.$(OBJEXT) mac.$(OBJEXT) qos.$(OBJEXT) pdsa.$(OBJEXT) \
-	wnct.$(OBJEXT)
+	wnct.$(OBJEXT) log.$(OBJEXT)
 nodist_presteramgr_OBJECTS =
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS) \
 	$(nodist_presteramgr_OBJECTS)
@@ -157,7 +157,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
-	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c
+	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c
 
 nodist_presteramgr_SOURCES = control-proto.h
 BUILT_SOURCES = control-proto.h control-proto.hrl
@@ -258,6 +258,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/extsvc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/init.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mac.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mgmt.Po@am__quote@

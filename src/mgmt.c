@@ -14,6 +14,7 @@
 #include <control.h>
 #include <vlan.h>
 #include <debug.h>
+#include <log.h>
 
 #define MAX_PAYLOAD 1024
 
@@ -65,7 +66,7 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
   port_id_t pid = port_id (frame->dev, frame->port);
 
   if (!pid) {
-    ERROR ("invalid port spec %d-%d\n", frame->dev, frame->port);
+    ERR ("invalid port spec %d-%d\n", frame->dev, frame->port);
     return;
   }
 
@@ -96,19 +97,19 @@ mgmt_thread (void *unused)
 
   DEBUG ("registering pdsa manager\r\n");
   if (mgmt_tx (0, PDSA_MGMT_SET_MGR, NULL, 0) < 0) {
-    ERROR ("mgmt_tx(): %s\r\n", strerror (errno));
+    ERR ("mgmt_tx(): %s\r\n", strerror (errno));
     return NULL;
   }
 
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {
     if (recvmsg (sock, &msg, 0) < 0) {
-      ERROR ("recvmsg(): %s\r\n", strerror (errno));
+      ERR ("recvmsg(): %s\r\n", strerror (errno));
       break;
     }
 
     if (pdsa_mgmt_invoke_handler (handlers, nlh) < 0)
-      ERROR ("invalid management command %d from %d\n",
+      ERR ("invalid management command %d from %d\n",
              nlh->nlmsg_type, nlh->nlmsg_pid);
   }
 

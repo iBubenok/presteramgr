@@ -8,6 +8,7 @@
 #include <linux/pdsa.h>
 #include <pdsa.h>
 #include <debug.h>
+#include <log.h>
 
 
 static struct nl_sock *sock;

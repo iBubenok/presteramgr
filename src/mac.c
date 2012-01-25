@@ -6,6 +6,7 @@
 #include <port.h>
 #include <vlan.h>
 #include <debug.h>
+#include <log.h>
 
 
 /*

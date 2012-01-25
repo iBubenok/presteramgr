@@ -4,6 +4,7 @@
 
 #include <presteramgr.h>
 #include <debug.h>
+#include <log.h>
 
 #include <gtOs/gtOsInit.h>
 #include <gtOs/gtOsGen.h>
@@ -175,7 +176,7 @@ phase2_init (void)
   info.auqCfg.auDescBlockSize = au_desc_size * AU_DESC_NUM_DEF;
   info.auqCfg.auDescBlock = osCacheDmaMalloc ((au_desc_size + 1) * AU_DESC_NUM_DEF);
   if (!info.auqCfg.auDescBlock) {
-    ERROR ("failed to allocate AU desc memory\n");
+    ERR ("failed to allocate AU desc memory\n");
     return GT_OUT_OF_CPU_MEM;
   }
 
@@ -799,7 +800,6 @@ init_cpss (void)
   osFatalErrorInit (NULL);
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
-  msg_set_output_function (osPrintSync);
 
   osMemSet (&ph1_info, 0, sizeof (ph1_info));
 
