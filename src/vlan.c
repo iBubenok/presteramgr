@@ -154,18 +154,21 @@ setup_tagging (vid_t vid,
     switch (port->mode) {
     case PM_ACCESS:
       if (port->access_vid == vid) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
-        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+        tagging_cmd->portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
       }
       break;
 
     case PM_TRUNK:
-      CPSS_PORTS_BMP_PORT_SET_MAC (members, i);
+      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
       if (port->native_vid != vid || vlan_dot1q_tag_native) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (tagging, i);
-        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+        CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
+        tagging_cmd->portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
       } else
-        tagging_cmd->portsCmd[i] = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+        tagging_cmd->portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
     }
   }
 }
