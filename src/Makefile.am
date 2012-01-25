@@ -12,6 +12,9 @@ AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h -I @cpss@/compilation_root
 AM_CFLAGS = -Wall
 
+bin_PROGRAMS = presteractl
+presteractl_SOURCES = presteractl.c
+
 %.h: %.ecg
 	ecgen -lc -o$@ $<
 
