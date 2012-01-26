@@ -3,7 +3,7 @@
 
 #include <syslog.h>
 
-extern void log_init (void);
+extern void log_init (int, int);
 
 #define LOG(level, format, arg...)                          \
   syslog (level, "%s:%d: " format, __FILE__, __LINE__, ##arg)
