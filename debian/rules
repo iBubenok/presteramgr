@@ -18,7 +18,8 @@ config.status: configure
 		--host=$(CROSS_GNU_TARGET) \
 		--prefix=/usr \
 		--with-cpss=$(CPSS) \
-		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3
+		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3 \
+		--with-pscp=$(PSCP)
 
 build: build-stamp
 build-stamp: config.status
