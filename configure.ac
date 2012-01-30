@@ -23,6 +23,13 @@ AC_ARG_WITH([libnl3-includes],
   [libnl3_includes=/usr/include/libnl3])
 CPPFLAGS="-I$libnl3_includes $CPPFLAGS"
 
+AC_ARG_WITH([pscp],
+  [AS_HELP_STRING([--with-pscp=PATH],
+                  [specify the PSCP templates location])],
+  [pscp=`readlink -f $withval`],
+  [pscp=/usr/include/pscp])
+AC_SUBST([pscp])
+
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])

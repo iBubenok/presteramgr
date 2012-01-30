@@ -609,6 +609,7 @@ LIBOBJS
 EGREP
 GREP
 CPP
+pscp
 cpss
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
@@ -693,6 +694,7 @@ enable_option_checking
 enable_dependency_tracking
 with_cpss
 with_libnl3_includes
+with_pscp
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1328,6 +1330,7 @@ Optional Packages:
   --with-cpss=PATH        specify the CPSS location
   --with-libnl3-includes=PATH
                           specify the libnl3 headers location
+  --with-pscp=PATH        specify the PSCP templates location
 
 Some influential environment variables:
   CC          C compiler command
@@ -3565,6 +3568,16 @@ else
 fi
 
 CPPFLAGS="-I$libnl3_includes $CPPFLAGS"
+
+
+# Check whether --with-pscp was given.
+if test "${with_pscp+set}" = set; then :
+  withval=$with_pscp; pscp=`readlink -f $withval`
+else
+  pscp=/usr/include/pscp
+fi
+
+
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5
