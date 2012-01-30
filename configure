@@ -692,7 +692,6 @@ ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
 with_cpss
-enable_msg_prio
 enable_cpss_rprint
 '
       ac_precious_vars='build_alias
@@ -1322,8 +1321,6 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
-  --enable-msg-prio       print messages with priority higher or equal to
-                          argument by default
   --enable-cpss-rprint    configure the CRP macro behavior: 0, no : do not
                           print CPSS call results 1, yes: print non-OK CPSS
                           call results (default) 2, all: print all CPSS call
@@ -3561,19 +3558,6 @@ else
   as_fn_error $? "you must specify the CPSS location" "$LINENO" 5
 fi
 
-
-
-# Check whether --enable-msg-prio was given.
-if test "${enable_msg_prio+set}" = set; then :
-  enableval=$enable_msg_prio;
-else
-  enable_msg_prio=MSG_DEBUG
-fi
-
-
-cat >>confdefs.h <<_ACEOF
-#define MSG_MIN_PRIO $enable_msg_prio
-_ACEOF
 
 
 # Check whether --enable-cpss-rprint was given.

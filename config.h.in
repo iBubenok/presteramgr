@@ -48,9 +48,6 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* Default minimum message priority. */
-#undef MSG_MIN_PRIO
-
 /* Name of package */
 #undef PACKAGE
 

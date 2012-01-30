@@ -18,14 +18,6 @@ AC_ARG_WITH([cpss],
   [AC_MSG_ERROR([you must specify the CPSS location])])
 AC_SUBST([cpss])
 
-AC_ARG_ENABLE([msg-prio],
-  [AS_HELP_STRING([--enable-msg-prio],
-                  [print messages with priority higher or equal to argument by default])],
-  [],
-  [enable_msg_prio=MSG_DEBUG])
-AC_DEFINE_UNQUOTED([MSG_MIN_PRIO], $enable_msg_prio,
-                   [Default minimum message priority.])
-
 AC_ARG_ENABLE([cpss-rprint],
   [AS_HELP_STRING([--enable-cpss-rprint],
                   [configure the CRP macro behavior:
