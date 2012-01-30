@@ -1,0 +1,6 @@
+/files
+/install
+/*.debhelper.log
+/*.substvars
+/presteramgr
+/presteractl

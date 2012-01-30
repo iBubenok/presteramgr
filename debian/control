@@ -1,0 +1,17 @@
+Source: presteramgr
+Section: net
+Priority: required
+Maintainer: Oleg Belozeorov <obelozeorov@plgn.ru>
+
+Package: presteramgr
+Architecture: any
+Section: net
+Description: Prestera family switch manager
+ presteramgr is a management daemon for Marvell Prestera family
+ switches.
+
+Package: presteractl
+Architecture: any
+Section: net
+Description: Prestera family switch manager control tool
+ presteractl is a control tool for presteramgr.

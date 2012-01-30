@@ -10,4 +10,4 @@ Makefile
 /initrd
 /initrd.cpio.gz
 /uInitrd
-
+/build-stamp

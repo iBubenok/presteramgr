@@ -1,0 +1,55 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+.NOTPARALLEL:
+
+SYSROOT             = $(shell cross-config $(CROSS_TARGET) sysroot)
+CROSS_GNU_TARGET    = $(shell cross-config $(CROSS_TARGET) CROSS_GNU_TARGET)
+DEBIAN_ARCH         = $(shell cross-config $(CROSS_TARGET) DEBIAN_ARCH)
+DEB_HOST_ARCH       = $(DEBIAN_ARCH)
+DEB_HOST_GNU_TYPE   = $(CROSS_GNU_TARGET)
+DEB_BUILD_GNU_TYPE  = $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+export DH_OPTIONS DEB_HOST_ARCH CROSS_GNU_TARGET
+
+config.status: configure
+	dh_testdir
+	./configure \
+		--build=$(DEB_BUILD_GNU_TYPE) \
+		--host=$(CROSS_GNU_TARGET) \
+		--prefix=/usr \
+		--with-cpss=$(CPSS) \
+		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3
+
+build: build-stamp
+build-stamp: config.status
+	$(MAKE)
+	touch $@
+
+clean:
+	dh_testroot
+	rm -f build-stamp prepare-stamp
+	rm -rf debian/install
+	-$(MAKE) distclean
+	-dh_clean
+
+install:
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+	$(MAKE) DESTDIR=$(CURDIR)/debian/install install
+	dh_install --sourcedir=$(CURDIR)/debian/install
+
+binary: build install
+	dh_testdir
+	dh_testroot
+	dh_link
+	cross_dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+.PHONY: build clean binary install
