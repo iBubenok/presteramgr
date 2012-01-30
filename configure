@@ -692,7 +692,6 @@ ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
 with_cpss
-enable_cpss_rprint
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1321,10 +1320,6 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
-  --enable-cpss-rprint    configure the CRP macro behavior: 0, no : do not
-                          print CPSS call results 1, yes: print non-OK CPSS
-                          call results (default) 2, all: print all CPSS call
-                          results
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3559,26 +3554,6 @@ else
 fi
 
 
-
-# Check whether --enable-cpss-rprint was given.
-if test "${enable_cpss_rprint+set}" = set; then :
-  enableval=$enable_cpss_rprint;
-else
-  enable_cpss_rprint=1
-fi
-
-case $enable_cpss_rprint in
-  0 | no)
-$as_echo "#define CPSS_RPRINT 0" >>confdefs.h
-;;
-  1 | yes)
-$as_echo "#define CPSS_RPRINT 1" >>confdefs.h
-;;
-  2 | all)
-$as_echo "#define CPSS_RPRINT 2" >>confdefs.h
-;;
-  *)       as_fn_error $? "invalid --enable-cpss-rprint argument" "$LINENO" 5;;
-esac
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5

@@ -10,6 +10,7 @@
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <debug.h>
 
+int log_cpss_errors = 0;
 
 static const char *invalid = "invalid";
 #define str(s, v) ({                                                \

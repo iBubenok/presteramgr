@@ -42,10 +42,11 @@ main (int argc, char **argv)
     static struct option opts[] = {
       {"angel", 0, NULL, 'a'},
       {"debug", 0, NULL, 'd'},
-      {0, 0, NULL, 0}
+      {"log-cpss-errors", 0, NULL, 'c'},
+      {NULL, 0, NULL, 0}
     };
 
-    c = getopt_long (argc, argv, "ad", opts, &option_index);
+    c = getopt_long (argc, argv, "adc", opts, &option_index);
     if (c == -1)
       break;
 
@@ -56,8 +57,11 @@ main (int argc, char **argv)
     case 'd':
       debug = 1;
       break;
+    case 'c':
+      log_cpss_errors = 1;
+      break;
     default:
-      fprintf (stderr, "invalid arguments\n");
+      fprintf (stderr, "invalid command line arguments\n");
       exit (EXIT_FAILURE);
     }
   }
