@@ -692,6 +692,7 @@ ac_user_opts='
 enable_option_checking
 enable_dependency_tracking
 with_cpss
+with_libnl3_includes
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1325,6 +1326,8 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-cpss=PATH        specify the CPSS location
+  --with-libnl3-includes=PATH
+                          specify the libnl3 headers location
 
 Some influential environment variables:
   CC          C compiler command
@@ -2563,8 +2566,6 @@ am__tar='${AMTAR} chof - "$$tardir"'; am__untar='${AMTAR} xf -'
 ac_config_headers="$ac_config_headers config.h"
 
 
-CPPFLAGS="-I`cross-config arm sysroot`/usr/include/libnl3 $CPPFLAGS"
-
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
@@ -3554,6 +3555,16 @@ else
 fi
 
 
+
+
+# Check whether --with-libnl3-includes was given.
+if test "${with_libnl3_includes+set}" = set; then :
+  withval=$with_libnl3_includes; libnl3_includes=`readlink -f $withval`
+else
+  libnl3_includes=/usr/include/libnl3
+fi
+
+CPPFLAGS="-I$libnl3_includes $CPPFLAGS"
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5

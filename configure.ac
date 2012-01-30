@@ -7,8 +7,6 @@ AM_INIT_AUTOMAKE([presteramgr], [0.0.0])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([config.h])
 
-CPPFLAGS="-I`cross-config arm sysroot`/usr/include/libnl3 $CPPFLAGS"
-
 AC_PROG_CC
 
 AC_ARG_WITH([cpss],
@@ -17,6 +15,13 @@ AC_ARG_WITH([cpss],
   [cpss=`readlink -f $withval`],
   [AC_MSG_ERROR([you must specify the CPSS location])])
 AC_SUBST([cpss])
+
+AC_ARG_WITH([libnl3-includes],
+  [AS_HELP_STRING([--with-libnl3-includes=PATH],
+                  [specify the libnl3 headers location])],
+  [libnl3_includes=`readlink -f $withval`],
+  [libnl3_includes=/usr/include/libnl3])
+CPPFLAGS="-I$libnl3_includes $CPPFLAGS"
 
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
