@@ -11,6 +11,12 @@ DEB_HOST_GNU_TYPE   = $(CROSS_GNU_TARGET)
 DEB_BUILD_GNU_TYPE  = $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 export DH_OPTIONS DEB_HOST_ARCH CROSS_GNU_TARGET
 
+ifeq ($(PSCP),)
+WITH_PSCP :=
+else
+WITH_PSCP := --with-pscp=$(PSCP)
+endif
+
 config.status: configure
 	dh_testdir
 	./configure \
@@ -19,7 +25,7 @@ config.status: configure
 		--prefix=/usr \
 		--with-cpss=$(CPSS) \
 		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3 \
-		--with-pscp=$(PSCP)
+		$(WITH_PSCP)
 
 build: build-stamp
 build-stamp: config.status
