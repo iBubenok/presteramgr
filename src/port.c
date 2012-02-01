@@ -271,8 +271,6 @@ port_start (void)
     port_setup_stats (port->ldev, port->lport);
     CRP (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet
          (port->ldev, port->lport, 0));
-    CRP (cpssDxChBrgGenArpTrapEnable
-         (port->ldev, port->lport, GT_TRUE));
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
