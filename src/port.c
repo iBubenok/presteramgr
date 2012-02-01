@@ -288,6 +288,9 @@ port_start (void)
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
+
+    CRP (cpssDxChBrgStpStateSet
+         (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
   };
   CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
