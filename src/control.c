@@ -98,8 +98,16 @@ control_notify_spec_frame (port_id_t pid,
 
   switch (code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
-    type = CN_BPDU;
+    switch (data[5]) {
+    case WNCT_STP:
+      type = CN_BPDU;
+      break;
+    default:
+      DEBUG ("IEEE reserved multicast %02X not supported\n", data[5]);
+      return;
+    }
     break;
+
   default:
     fprintf (stderr, "spec frame code %02X not supported\n", code);
     return;
