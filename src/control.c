@@ -102,6 +102,9 @@ control_notify_spec_frame (port_id_t pid,
     case WNCT_STP:
       type = CN_BPDU;
       break;
+    case WNCT_GVRP:
+      type = CN_GVRP_PDU;
+      break;
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n", data[5]);
       return;
