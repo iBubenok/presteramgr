@@ -239,6 +239,7 @@ DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
 DECLARE_HANDLER (CC_VLAN_SET_CPU);
+DECLARE_HANDLER (CC_VLAN_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
@@ -275,6 +276,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
   HANDLER (CC_VLAN_SET_CPU),
+  HANDLER (CC_VLAN_SET_MAC_ADDR),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_SET_AGING_TIME),
@@ -1009,6 +1011,26 @@ DEFINE_HANDLER (CC_GVRP_ENABLE)
     goto out;
 
   result = wnct_enable_proto (WNCT_GVRP, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
+{
+  enum status result = ST_BAD_FORMAT;
+  struct pdsa_vlan_mac_addr *addr;
+  zframe_t *frame = FIRST_ARG;
+
+  if (!frame)
+    goto out;
+
+  if (zframe_size (frame) != sizeof (*addr))
+    goto out;
+
+  addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
+  vlan_set_mac_addr (addr->vid, addr->addr);
+  result = ST_OK;
 
  out:
   report_status (result);
