@@ -109,7 +109,7 @@ control_notify_spec_frame (port_id_t pid,
     break;
 
   default:
-    fprintf (stderr, "spec frame code %02X not supported\n", code);
+    DEBUG ("spec frame code %02X not supported\n", code);
     return;
   }
 
