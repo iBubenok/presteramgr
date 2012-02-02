@@ -86,6 +86,7 @@
 #include <pdsa.h>
 #include <mac.h>
 #include <wnct.h>
+#include <zcontext.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -862,11 +863,14 @@ cpss_start (void)
 
   init_cpss ();
 
-  INFO ("init mgmt interface\n");
-  mgmt_init ();
+  INFO ("init ZMQ context\n");
+  zcontext_init ();
 
   INFO ("init control interface\n");
   control_init ();
+
+  INFO ("init mgmt interface\n");
+  mgmt_init ();
 
   INFO ("start control interface\n");
   control_start ();

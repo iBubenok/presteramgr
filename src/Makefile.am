@@ -1,7 +1,8 @@
 sbin_PROGRAMS = presteramgr
 presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
-	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c
+	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
+	zcontext.c
 nodist_presteramgr_SOURCES = control-proto.h
 BUILT_SOURCES = control-proto.h
 CLEANFILES = control-proto.h

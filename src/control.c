@@ -16,6 +16,7 @@
 #include <vlan.h>
 #include <mac.h>
 #include <qos.h>
+#include <zcontext.h>
 #include <debug.h>
 #include <wnct.h>
 
@@ -23,7 +24,6 @@
 
 static unsigned __TASKCONV control_loop (GT_VOID *);
 
-static zctx_t *context;
 static void *pub_sock;
 static void *cmd_sock;
 
@@ -32,14 +32,11 @@ control_init (void)
 {
   int rc;
 
-  context = zctx_new ();
-  assert (context);
-
-  pub_sock = zsocket_new (context, ZMQ_PUB);
+  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
 
-  cmd_sock = zsocket_new (context, ZMQ_REP);
+  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (cmd_sock);
   rc = zsocket_bind (cmd_sock, CMD_SOCK_EP);
 
