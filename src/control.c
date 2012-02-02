@@ -299,7 +299,7 @@ cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   cmd_handler_t handler;
   enum status result;
 
-  msg = zmsg_recv (cmd_sock);
+  msg = zmsg_recv (sock);
 
   result = pop_size (&cmd, msg, sizeof (cmd), 0);
   if (result != ST_OK) {
