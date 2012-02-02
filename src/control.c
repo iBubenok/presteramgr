@@ -145,21 +145,21 @@ make_reply (enum status code)
 }
 
 static inline void
-send_reply (zmsg_t *reply)
+__send_reply (zmsg_t *reply, void *sock)
 {
-  zmsg_send (&reply, cmd_sock);
+  zmsg_send (&reply, sock);
 }
 
 static inline void
-report_status (enum status code)
+__report_status (enum status code, void *sock)
 {
-  send_reply (make_reply (code));
+  __send_reply (make_reply (code), sock);
 }
 
 static inline void
-report_ok (void)
+__report_ok (void *sock)
 {
-  report_status (ST_OK);
+  __report_status (ST_OK, sock);
 }
 
 static enum status
@@ -180,26 +180,39 @@ pop_size (void *buf, zmsg_t *msg, size_t size, int opt)
   return ST_OK;
 }
 
-typedef void (*cmd_handler_t) (zmsg_t *);
-#define DECLARE_HANDLER(cmd) static void handle_##cmd (zmsg_t *)
-#define DEFINE_HANDLER(cmd) static void handle_##cmd (zmsg_t *args)
+typedef void (*cmd_handler_t) (zmsg_t *, void *);
+
+#define DECLARE_HANDLER(cmd)                    \
+  static void handle_##cmd (zmsg_t *, void *)
+
+#define DEFINE_HANDLER(cmd)                                 \
+  static void handle_##cmd (zmsg_t *__args, void *__sock)
+
 #define HANDLER(cmd) [cmd] = handle_##cmd
 
-#define POP_ARG_SZ(buf, size) (pop_size (buf, args, size, 0))
+#define send_reply(reply) __send_reply ((reply), __sock)
+
+#define report_status(status) __report_status ((status), __sock)
+
+#define report_ok() __report_ok (__sock)
+
+#define ARGS_SIZE (zmsg_size (__args))
+
+#define POP_ARG_SZ(buf, size) (pop_size (buf, __args, size, 0))
 
 #define POP_ARG(ptr) ({                         \
       typeof (ptr) __buf = ptr;                 \
       POP_ARG_SZ (__buf, sizeof (*__buf));      \
     })
 
-#define POP_OPT_ARG_SZ(buf, size) (pop_size (buf, args, size, 1))
+#define POP_OPT_ARG_SZ(buf, size) (pop_size (buf, __args, size, 1))
 
 #define POP_OPT_ARG(ptr) ({                     \
       typeof (ptr) __buf = ptr;                 \
       POP_OPT_ARG_SZ (__buf, sizeof (*__buf));  \
     })
 
-#define FIRST_ARG() (zmsg_first (args))
+#define FIRST_ARG (zmsg_first (__args))
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
@@ -275,7 +288,7 @@ static cmd_handler_t handlers[] = {
 
 
 static int
-cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
   zmsg_t *msg;
   command_t cmd;
@@ -286,16 +299,16 @@ cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 
   result = pop_size (&cmd, msg, sizeof (cmd), 0);
   if (result != ST_OK) {
-    report_status (result);
+    __report_status (result, sock);
     goto out;
   }
 
   if (cmd >= ARRAY_SIZE (handlers) ||
       (handler = handlers[cmd]) == NULL) {
-    report_status (ST_BAD_REQUEST);
+    __report_status (ST_BAD_REQUEST, sock);
     goto out;
   }
-  handler (msg);
+  handler (msg, sock);
 
  out:
   zmsg_destroy (&msg);
@@ -308,7 +321,7 @@ control_loop (GT_VOID *dummy)
   zloop_t *loop = zloop_new ();
 
   zmq_pollitem_t pi = { cmd_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &pi, cmd_handler, NULL);
+  zloop_poller (loop, &pi, cmd_handler, cmd_sock);
 
   zloop_start (loop);
 
@@ -394,12 +407,12 @@ DEFINE_HANDLER (CC_PORT_SEND_FRAME)
     goto out;
   }
 
-  if (zmsg_size (args) != 1) {
+  if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
     goto out;
   }
 
-  frame = zmsg_pop (args);
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
   if ((len = zframe_size (frame)) < 1)
     goto destroy_frame;
 
@@ -475,7 +488,7 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 DEFINE_HANDLER (CC_SET_FDB_MAP)
 {
   enum status result = ST_BAD_FORMAT;
-  zframe_t *frame = FIRST_ARG ();
+  zframe_t *frame = FIRST_ARG;
 
   if (zframe_size (frame) != sizeof (stp_id_t) * 4096)
     goto out;
@@ -924,7 +937,7 @@ DEFINE_HANDLER (CC_PORT_SET_PROTECTED)
 DEFINE_HANDLER (CC_QOS_SET_DSCP_PRIO)
 {
   enum status result = ST_BAD_FORMAT;
-  zframe_t *frame = FIRST_ARG ();
+  zframe_t *frame = FIRST_ARG;
   int size;
 
   if (!frame)
@@ -945,7 +958,7 @@ DEFINE_HANDLER (CC_QOS_SET_DSCP_PRIO)
 DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
 {
   enum status result = ST_BAD_FORMAT;
-  zframe_t *frame = FIRST_ARG ();
+  zframe_t *frame = FIRST_ARG;
   int size;
 
   if (!frame)
