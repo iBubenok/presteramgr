@@ -13,12 +13,14 @@
 #include <port.h>
 #include <control.h>
 #include <vlan.h>
+#include <zcontext.h>
 #include <debug.h>
 #include <log.h>
 
 #define MAX_PAYLOAD 1024
 
 static int sock;
+static void *inp_sock;
 static pid_t my_pid;
 static pthread_t thread;
 
@@ -136,6 +138,14 @@ mgmt_init (void)
     perror ("bind");
     return -1;
   }
+
+  assert (zcontext);
+  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
+  if (!inp_sock) {
+    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
+    return -1;
+  }
+  zsocket_connect (inp_sock, INP_SOCK_EP);
 
   pthread_create (&thread, NULL, mgmt_thread, NULL);
 
