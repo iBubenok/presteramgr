@@ -26,6 +26,7 @@ static unsigned __TASKCONV control_loop (GT_VOID *);
 
 static void *pub_sock;
 static void *cmd_sock;
+static void *inp_sock;
 
 int
 control_init (void)
@@ -39,6 +40,10 @@ control_init (void)
   cmd_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (cmd_sock);
   rc = zsocket_bind (cmd_sock, CMD_SOCK_EP);
+
+  inp_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (inp_sock);
+  rc = zsocket_bind (inp_sock, INP_SOCK_EP);
 
   return 0;
 }
@@ -317,8 +322,11 @@ control_loop (GT_VOID *dummy)
 {
   zloop_t *loop = zloop_new ();
 
-  zmq_pollitem_t pi = { cmd_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &pi, cmd_handler, cmd_sock);
+  zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &cmd_pi, cmd_handler, cmd_sock);
+
+  zmq_pollitem_t inp_pi = { inp_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &inp_pi, cmd_handler, inp_sock);
 
   zloop_start (loop);
 

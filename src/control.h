@@ -4,6 +4,8 @@
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
 
+#define INP_SOCK_EP "inproc://command"
+
 extern int control_init (void);
 extern int control_start (void);
 extern void control_notify_port_state (port_id_t, const CPSS_PORT_ATTRIBUTES_STC *);
