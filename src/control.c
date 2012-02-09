@@ -233,6 +233,7 @@ DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
+DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
@@ -270,6 +271,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_RATE_LIMIT),
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
   HANDLER (CC_PORT_SET_PROTECTED),
+  HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
@@ -1031,6 +1033,26 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
   vlan_set_mac_addr (addr->vid, addr->addr);
   result = ST_OK;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_IGMP_SNOOP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_igmp_snoop (pid, enable);
 
  out:
   report_status (result);

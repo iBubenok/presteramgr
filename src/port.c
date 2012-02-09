@@ -1430,3 +1430,21 @@ port_set_protected (port_id_t pid, bool_t protected)
   port->c_protected = protected;
   return port_update_isolation (port);
 }
+
+enum status
+port_set_igmp_snoop (port_id_t pid, bool_t enable)
+{
+  struct port *port = port_ptr (pid);
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChBrgGenIgmpSnoopEnable
+            (port->ldev, port->lport, !!enable));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}

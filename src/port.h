@@ -68,6 +68,7 @@ extern enum status port_get_stats (port_id_t, void *);
 extern enum status port_set_rate_limit (port_id_t, const struct rate_limit *);
 extern enum status port_set_bandwidth_limit (port_id_t, bps_t);
 extern enum status port_set_protected (port_id_t, bool_t);
+extern enum status port_set_igmp_snoop (port_id_t, bool_t);
 
 
 #endif /* __PORT_H__ */
