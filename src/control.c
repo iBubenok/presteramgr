@@ -113,6 +113,10 @@ control_notify_spec_frame (port_id_t pid,
     }
     break;
 
+  case CPU_CODE_IPv4_IGMP_TM:
+    type = CN_IPv4_IGMP_PDU;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", code);
     return;
