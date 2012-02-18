@@ -102,3 +102,34 @@ mcg_add_port (mcg_t mcg, port_id_t pid)
   default:          return ST_HEX;
   }
 }
+
+enum status
+mcg_del_port (mcg_t mcg, port_id_t pid)
+{
+  GT_STATUS rc;
+  struct mcast_group *group;
+  struct port *port;
+  int key = mcg;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  HASH_FIND_INT (groups, &key, group);
+  if (!group)
+    return ST_DOES_NOT_EXIST;
+
+  if (!CPSS_PORTS_BMP_IS_PORT_SET_MAC (&group->ports, port->lport))
+    return ST_DOES_NOT_EXIST;
+
+  rc = CRP (cpssDxChBrgMcMemberDelete (0, mcg, port->lport));
+  if (rc == GT_OK) {
+    CPSS_PORTS_BMP_PORT_CLEAR_MAC (&group->ports, port->lport);
+    return ST_OK;
+  }
+
+  switch (rc) {
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
