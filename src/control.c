@@ -259,6 +259,7 @@ DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
 DECLARE_HANDLER (CC_GVRP_ENABLE);
 DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
+DECLARE_HANDLER (CC_MCG_ADD_PORT);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -298,7 +299,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_COS_PRIO),
   HANDLER (CC_GVRP_ENABLE),
   HANDLER (CC_MCG_CREATE),
-  HANDLER (CC_MCG_DELETE)
+  HANDLER (CC_MCG_DELETE),
+  HANDLER (CC_MCG_ADD_PORT)
 };
 
 
@@ -1092,6 +1094,26 @@ DEFINE_HANDLER (CC_MCG_DELETE)
     goto out;
 
   result = mcg_delete (mcg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MCG_ADD_PORT)
+{
+  enum status result;
+  mcg_t mcg;
+  port_id_t pid;
+
+  result = POP_ARG (&mcg);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = mcg_add_port (mcg, pid);
 
  out:
   report_status (result);
