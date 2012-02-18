@@ -19,6 +19,7 @@
 #include <zcontext.h>
 #include <debug.h>
 #include <wnct.h>
+#include <mcg.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -256,6 +257,8 @@ DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
 DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
 DECLARE_HANDLER (CC_GVRP_ENABLE);
+DECLARE_HANDLER (CC_MCG_CREATE);
+DECLARE_HANDLER (CC_MCG_DELETE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -293,7 +296,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
   HANDLER (CC_QOS_SET_DSCP_PRIO),
   HANDLER (CC_QOS_SET_COS_PRIO),
-  HANDLER (CC_GVRP_ENABLE)
+  HANDLER (CC_GVRP_ENABLE),
+  HANDLER (CC_MCG_CREATE),
+  HANDLER (CC_MCG_DELETE)
 };
 
 
@@ -1057,6 +1062,36 @@ DEFINE_HANDLER (CC_PORT_SET_IGMP_SNOOP)
     goto out;
 
   result = port_set_igmp_snoop (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MCG_CREATE)
+{
+  enum status result;
+  mcg_t mcg;
+
+  result = POP_ARG (&mcg);
+  if (result != ST_OK)
+    goto out;
+
+  result = mcg_create (mcg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MCG_DELETE)
+{
+  enum status result;
+  mcg_t mcg;
+
+  result = POP_ARG (&mcg);
+  if (result != ST_OK)
+    goto out;
+
+  result = mcg_delete (mcg);
 
  out:
   report_status (result);
