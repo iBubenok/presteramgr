@@ -14,6 +14,72 @@
  */
 
 static enum status
+mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_KEY_STC key;
+  GT_STATUS result;
+
+  memset (&key, 0, sizeof (key));
+
+  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
+  memcpy (key.key.ipMcast.sip, arg->src, sizeof (arg->src));
+  memcpy (key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  key.key.ipMcast.vlanId = arg->vid;
+
+  result = CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
+  switch (result) {
+  case GT_OK:           return ST_OK;
+  case GT_BAD_PARAM:    return ST_BAD_VALUE;
+  case GT_HW_ERROR:     return ST_HW_ERROR;
+  case GT_OUT_OF_RANGE: return ST_BAD_VALUE;
+  case GT_BAD_STATE:    return ST_BUSY;
+  default:              return ST_HEX;
+  }
+}
+
+static enum status
+mac_mc_ip_add (const struct mc_ip_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_STC me;
+  GT_STATUS result;
+
+  memset (&me, 0, sizeof (me));
+
+  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
+  memcpy (me.key.key.ipMcast.sip, arg->src, sizeof (arg->src));
+  memcpy (me.key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  me.key.key.ipMcast.vlanId = arg->vid;
+
+  me.isStatic = GT_TRUE;
+  me.dstInterface.type = CPSS_INTERFACE_VIDX_E;
+  me.dstInterface.vidx = arg->mcg;
+  me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+  me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+
+  result = CRP (cpssDxChBrgFdbMacEntrySet (0, &me));
+  switch (result) {
+  case GT_OK:           return ST_OK;
+  case GT_BAD_PARAM:    return ST_BAD_VALUE;
+  case GT_HW_ERROR:     return ST_HW_ERROR;
+  case GT_OUT_OF_RANGE: return ST_BAD_VALUE;
+  case GT_BAD_STATE:    return ST_BUSY;
+  default:              return ST_HEX;
+  }
+}
+
+enum status
+mac_mc_ip_op (const struct mc_ip_op_arg *arg)
+{
+  if (!vlan_valid (arg->vid))
+    return ST_BAD_VALUE;
+
+  if (arg->delete)
+    return mac_mc_ip_delete (arg);
+  else
+    return mac_mc_ip_add (arg);
+}
+
+static enum status
 mac_add (const struct mac_op_arg *arg)
 {
   CPSS_MAC_ENTRY_EXT_STC me;

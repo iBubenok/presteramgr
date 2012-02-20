@@ -251,6 +251,7 @@ DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
+DECLARE_HANDLER (CC_MAC_MC_IP_OP);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
@@ -293,6 +294,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
+  HANDLER (CC_MAC_MC_IP_OP),
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
@@ -1136,6 +1138,21 @@ DEFINE_HANDLER (CC_MCG_DEL_PORT)
     goto out;
 
   result = mcg_del_port (mcg, pid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_MC_IP_OP)
+{
+  enum status result;
+  struct mc_ip_op_arg arg;
+
+  result = POP_ARG (&arg);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_mc_ip_op (&arg);
 
  out:
   report_status (result);
