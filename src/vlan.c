@@ -196,9 +196,9 @@ vlan_add (vid_t vid)
   vlan_info.mirrToRxAnalyzerEn    = GT_FALSE;
   vlan_info.ipv6IcmpToCpuEn       = GT_FALSE;
   vlan_info.ipCtrlToCpuEn         = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
-  vlan_info.ipv4IpmBrgMode        = CPSS_BRG_IPM_SGV_E;
+  vlan_info.ipv4IpmBrgMode        = CPSS_BRG_IPM_GV_E;
   vlan_info.ipv6IpmBrgMode        = CPSS_BRG_IPM_SGV_E;
-  vlan_info.ipv4IpmBrgEn          = GT_FALSE;
+  vlan_info.ipv4IpmBrgEn          = GT_TRUE;
   vlan_info.ipv6IpmBrgEn          = GT_FALSE;
   vlan_info.ipv6SiteIdMode        = CPSS_IP_SITE_ID_INTERNAL_E;
   vlan_info.ipv4UcastRouteEn      = GT_FALSE;
