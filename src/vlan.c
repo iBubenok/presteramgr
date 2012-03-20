@@ -297,6 +297,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.isStatic = GT_TRUE;
   mac_entry.daCommand = CPSS_MAC_TABLE_FRWRD_E;
   mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+  mac_entry.daRoute = GT_TRUE;
   rc = CRP (cpssDxChBrgFdbMacEntrySet (0, &mac_entry));
   if (rc != GT_OK)
     goto cancel_ip_cntl;
