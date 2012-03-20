@@ -201,7 +201,7 @@ vlan_add (vid_t vid)
   vlan_info.ipv4IpmBrgEn          = GT_TRUE;
   vlan_info.ipv6IpmBrgEn          = GT_FALSE;
   vlan_info.ipv6SiteIdMode        = CPSS_IP_SITE_ID_INTERNAL_E;
-  vlan_info.ipv4UcastRouteEn      = GT_FALSE;
+  vlan_info.ipv4UcastRouteEn      = GT_TRUE;
   vlan_info.ipv4McastRouteEn      = GT_FALSE;
   vlan_info.ipv6UcastRouteEn      = GT_FALSE;
   vlan_info.ipv6McastRouteEn      = GT_FALSE;
