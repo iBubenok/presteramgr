@@ -295,7 +295,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.dstInterface.devPort.devNum = 0;
   mac_entry.dstInterface.devPort.portNum = 63;
   mac_entry.isStatic = GT_TRUE;
-  mac_entry.daCommand = CPSS_MAC_TABLE_CNTL_E;
+  mac_entry.daCommand = CPSS_MAC_TABLE_FRWRD_E;
   mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
   rc = CRP (cpssDxChBrgFdbMacEntrySet (0, &mac_entry));
   if (rc != GT_OK)
