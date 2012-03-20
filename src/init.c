@@ -54,6 +54,11 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 
+/* IP. */
+#include <cpss/dxCh/dxChxGen/ipLpmEngine/cpssDxChIpLpmTypes.h>
+#include <cpss/dxCh/dxChxGen/ipLpmEngine/cpssDxChIpLpm.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
+
 /* OS binding function prototypes. */
 #include <gtOs/gtOsMem.h>
 #include <gtOs/gtOsStr.h>
@@ -198,6 +203,8 @@ logical_init (void)
 {
   CPSS_DXCH_PP_CONFIG_INIT_STC conf;
   GT_STATUS rc;
+
+  INFO ("devFamily: %d (%d)\n", PRV_CPSS_PP_MAC(0)->devFamily, PRV_CPSS_PP_MAC(0)->devFamily == CPSS_PP_FAMILY_DXCH_XCAT2_E);
 
   osMemSet (&conf, 0, sizeof (conf));
 
@@ -521,7 +528,6 @@ trunk_lib_init (void)
   return rc;
 }
 
-#if 0
 static GT_STATUS
 prvDxCh2Ch3IpLibInit (void)
 {
@@ -531,16 +537,15 @@ prvDxCh2Ch3IpLibInit (void)
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC                 ucRouteEntry;
   CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC                 mcRouteEntry;
   CPSS_DXCH_IP_TCAM_SHADOW_TYPE_ENT               shadowType;
-  CPSS_IP_PROTOCOL_STACK_ENT                      protocolStack;
+  CPSS_IP_PROTOCOL_STACK_ENT                      protocolStack = CPSS_IP_PROTOCOL_IPV4V6_E;
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT          defUcLttEntry;
   CPSS_DXCH_IP_LTT_ENTRY_STC                      defMcLttEntry;
   CPSS_DXCH_IP_LPM_VR_CONFIG_STC                  vrConfigInfo;
-  CPSS_DXCH_IP_TCAM_LPM_MANGER_CHEETAH2_VR_SUPPORT_CFG_STC pclTcamCfg;
-  CPSS_DXCH_IP_TCAM_LPM_MANGER_CHEETAH2_VR_SUPPORT_CFG_STC routerTcamCfg;
   GT_BOOL                                         isCh2VrSupported;
   GT_U32                                          lpmDbId = 0;
   GT_U32                                          tcamColumns;
   static GT_BOOL lpmDbInitialized = GT_FALSE;     /* traces after LPM DB creation */
+  GT_U8 devs[] = { 0 };
 
   /* init default UC and MC entries */
   cpssOsMemSet (&defUcLttEntry, 0, sizeof (CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT));
@@ -607,7 +612,7 @@ prvDxCh2Ch3IpLibInit (void)
   /* the device to the lpm db                                         */
   /********************************************************************/
   if (lpmDbInitialized == GT_TRUE) {
-    rc = cpssDxChIpLpmDBDevListAdd (lpmDbId, &dev, 1);
+    rc = cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1);
     if (rc == GT_BAD_PARAM) {
       DEBUG ("cpssDxChIpLpmDBDevListAdd : device not supported\n");
       rc = GT_OK;
@@ -620,81 +625,63 @@ prvDxCh2Ch3IpLibInit (void)
   /*****************/
 
   /* set parameters */
-  cpssLpmDbCapacity.numOfIpv4Prefixes         = sysConfigParamsPtr->maxNumOfIpv4Prefixes;
-  cpssLpmDbCapacity.numOfIpv6Prefixes         = sysConfigParamsPtr->maxNumOfIpv6Prefixes;
-  cpssLpmDbCapacity.numOfIpv4McSourcePrefixes = sysConfigParamsPtr->maxNumOfIpv4McEntries;
-  cpssLpmDbRange.firstIndex                   = sysConfigParamsPtr->lpmDbFirstTcamLine;
-  cpssLpmDbRange.lastIndex                    = sysConfigParamsPtr->lpmDbLastTcamLine;
+  cpssLpmDbCapacity.numOfIpv4Prefixes         = 3920;
+  cpssLpmDbCapacity.numOfIpv6Prefixes         = 100;
+  cpssLpmDbCapacity.numOfIpv4McSourcePrefixes = 100;
+  cpssLpmDbRange.firstIndex                   = 100;
+  cpssLpmDbRange.lastIndex                    = 1204;
 
-    if ((appDemoPpConfigList[dev].devFamily == CPSS_PP_FAMILY_CHEETAH2_E) && (cpssLpmDbRange.lastIndex > 1023))
-    {
-        cpssLpmDbRange.lastIndex = 1023;
+#if 0
+  if ((appDemoPpConfigList[dev].devFamily == CPSS_PP_FAMILY_CHEETAH2_E) && (cpssLpmDbRange.lastIndex > 1023))
+    cpssLpmDbRange.lastIndex = 1023;
+#endif /* 0 */
+
+  CRPR (cpssDxChIpLpmDBCreate (lpmDbId, shadowType,
+                               protocolStack, &cpssLpmDbRange,
+                               GT_TRUE,
+                               &cpssLpmDbCapacity, NULL));
+
+  /* mark the lpm db as created */
+  lpmDbInitialized = GT_TRUE;
+
+  /*******************************/
+  /* add active device to LPM DB */
+  /*******************************/
+  rc = CRP (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+  if (rc != GT_OK) {
+    if(rc == GT_BAD_PARAM) {
+      /* the device not support the router tcam */
+      DEBUG("cpssDxChIpLpmDBDevListAdd : device not supported \n");
+      rc = GT_OK;
     }
+    return  rc;
+  }
 
-    rc = cpssDxChIpLpmDBCreate (lpmDbId, shadowType,
-                                protocolStack, &cpssLpmDbRange,
-                                sysConfigParamsPtr->lpmDbPartitionEnable,
-                                &cpssLpmDbCapacity, NULL);
-        CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChIpLpmDBCreate", rc);
-    }
-    if (rc != GT_OK)
-    {
-        return rc;
-    }
+  /*************************/
+  /* create virtual router */
+  /*************************/
+  if (GT_TRUE == isCh2VrSupported) {
+    CRPR (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
+                                        0,
+                                        &vrConfigInfo));
+    vrConfigInfo.defIpv4UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
+    vrConfigInfo.defIpv6UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
 
-    /* mark the lpm db as created */
-    lpmDbInitialized = GT_TRUE;
+    /*****************************************/
+    /* This the Ch2 with Vr support case, so */
+    /* create another virtual router in PCL  */
+    /*****************************************/
+    rc = CRP (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
+                                            1,
+                                            &vrConfigInfo));
+  } else {
+    rc = CRP (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
+                                            0,
+                                            &vrConfigInfo));
+  }
 
-    /*******************************/
-    /* add active device to LPM DB */
-    /*******************************/
-    rc = cpssDxChIpLpmDBDevListAdd(lpmDbId, &dev, 1);
-    if (rc != GT_OK)
-    {
-        if(rc == GT_BAD_PARAM)
-        {
-            /* the device not support the router tcam */
-            DEBUG("cpssDxChIpLpmDBDevListAdd : device[%d] not supported \n",dev);
-            rc = GT_OK;
-        }
-
-        return  rc;
-    }
-
-    /*************************/
-    /* create virtual router */
-    /*************************/
-    if (GT_TRUE == isCh2VrSupported)
-    {
-        rc = cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                           0,
-                                           &vrConfigInfo);
-        CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChIpLpmVirtualRouterAdd", rc);
-        if (rc != GT_OK)
-        {
-            return  rc;
-        }
-        vrConfigInfo.defIpv4UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
-        vrConfigInfo.defIpv6UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
-
-        /*****************************************/
-        /* This the Ch2 with Vr support case, so */
-        /* create another virtual router in PCL  */
-        /*****************************************/
-        rc = cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                           1,
-                                           &vrConfigInfo);
-    }
-    else
-    {
-        rc = cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                           0,
-                                           &vrConfigInfo);
-    }
-    CPSS_ENABLER_DBG_TRACE_RC_MAC("cpssDxChIpLpmVirtualRouterAdd", rc);
-    return rc;
+  return rc;
 }
-#endif
 
 static GT_STATUS
 lib_init (void)
@@ -732,6 +719,10 @@ lib_init (void)
   DEBUG ("doing trunk library init\n");
   RCC ((rc = trunk_lib_init ()), trunk_lib_init);
   DEBUG ("trunk library init done\n");
+
+  DEBUG ("doing IP library init\n");
+  rc = CRP (prvDxCh2Ch3IpLibInit ());
+  DEBUG ("IP library init done\n");
 
   return GT_OK;
 }
