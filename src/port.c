@@ -23,6 +23,7 @@
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/nst/cpssDxChNstPortIsolation.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
@@ -271,6 +272,10 @@ port_start (void)
     port_setup_stats (port->ldev, port->lport);
     CRP (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet
          (port->ldev, port->lport, 0));
+    CRP (cpssDxChIpPortRoutingEnable
+         (port->ldev, port->lport,
+          CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          GT_TRUE));
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
