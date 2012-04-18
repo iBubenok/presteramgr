@@ -113,11 +113,6 @@ cpss_lib_init (void)
   cpssLpmDbRange.firstIndex                   = 100;
   cpssLpmDbRange.lastIndex                    = 1204;
 
-#if 0
-  if ((appDemoPpConfigList[dev].devFamily == CPSS_PP_FAMILY_CHEETAH2_E) && (cpssLpmDbRange.lastIndex > 1023))
-    cpssLpmDbRange.lastIndex = 1023;
-#endif /* 0 */
-
   CRPR (cpssDxChIpLpmDBCreate (lpmDbId, shadowType,
                                protocolStack, &cpssLpmDbRange,
                                GT_TRUE,
@@ -129,38 +124,12 @@ cpss_lib_init (void)
   /*******************************/
   /* add active device to LPM DB */
   /*******************************/
-  rc = CRP (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
-  if (rc != GT_OK) {
-    if(rc == GT_BAD_PARAM) {
-      /* the device not support the router tcam */
-      DEBUG("cpssDxChIpLpmDBDevListAdd : device not supported \n");
-      rc = GT_OK;
-    }
-    return  rc;
-  }
+  CRPR (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
 
   /*************************/
   /* create virtual router */
   /*************************/
-  if (GT_TRUE == isCh2VrSupported) {
-    CRPR (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                        0,
-                                        &vrConfigInfo));
-    vrConfigInfo.defIpv4UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
-    vrConfigInfo.defIpv6UcNextHopInfo.ipLttEntry.routeEntryBaseIndex = 1;
-
-    /*****************************************/
-    /* This the Ch2 with Vr support case, so */
-    /* create another virtual router in PCL  */
-    /*****************************************/
-    rc = CRP (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                            1,
-                                            &vrConfigInfo));
-  } else {
-    rc = CRP (cpssDxChIpLpmVirtualRouterAdd(lpmDbId,
-                                            0,
-                                            &vrConfigInfo));
-  }
+  rc = CRP (cpssDxChIpLpmVirtualRouterAdd (lpmDbId, 0, &vrConfigInfo));
 
   return rc;
 }
