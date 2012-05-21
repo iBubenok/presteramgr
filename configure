@@ -696,6 +696,7 @@ enable_dependency_tracking
 with_cpss
 with_libnl3_includes
 with_pscp
+enable_variant
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1324,6 +1325,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-dependency-tracking  speeds up one-time build
   --enable-dependency-tracking   do not reject slow dependency extractors
+  --enable-variant        build variant (required)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3581,6 +3583,23 @@ else
 fi
 
 
+
+# Check whether --enable-variant was given.
+if test "${enable_variant+set}" = set; then :
+  enableval=$enable_variant; variant="$enableval"
+else
+  variant="arlan-3424fe"
+fi
+
+case "$variant" in
+     arlan-3424fe)
+$as_echo "#define VARIANT_ARLAN_3424FE 1" >>confdefs.h
+ ;;
+     sm-12f)
+$as_echo "#define VARIANT_SM_12F 1" >>confdefs.h
+ ;;
+     *)            as_fn_error $? "unsupported variant" "$LINENO" 5 ;;
+esac
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5

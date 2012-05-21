@@ -30,6 +30,17 @@ AC_ARG_WITH([pscp],
   [pscp=/usr/include/pscp])
 AC_SUBST([pscp])
 
+AC_ARG_ENABLE([variant],
+  [AS_HELP_STRING([--enable-variant],
+                  [build variant (required)])],
+  [variant="$enableval"],
+  [variant="arlan-3424fe"])
+case "$variant" in
+     arlan-3424fe) AC_DEFINE([VARIANT_ARLAN_3424FE], [1], [Arlan-3424FE variant]) ;;
+     sm-12f)       AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
+     *)            AC_MSG_ERROR([unsupported variant]) ;;
+esac
+
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])
