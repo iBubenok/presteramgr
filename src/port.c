@@ -889,13 +889,12 @@ port_set_duplex_fe (struct port *port, enum port_duplex duplex)
 }
 
 static enum status
-port_shutdown_fe (struct port *port, int shutdown)
+__port_shutdown_fe (GT_U8 dev, GT_U8 port, int shutdown)
 {
   GT_STATUS rc;
   GT_U16 reg;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead (dev, port, 0x00, &reg));
   if (rc != GT_OK)
     goto out;
 
@@ -904,8 +903,7 @@ port_shutdown_fe (struct port *port, int shutdown)
   else
     reg &= ~(1 << 11);
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite (dev, port, 0x00, reg));
 
  out:
   switch (rc) {
@@ -916,12 +914,22 @@ port_shutdown_fe (struct port *port, int shutdown)
 }
 
 static enum status
+port_shutdown_fe (struct port *port, int shutdown)
+{
+  return __port_shutdown_fe (port->ldev, port->lport, shutdown);
+}
+
+static enum status
+__port_setup_fe (GT_U8 dev, GT_U8 port)
+{
+  CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+  return ST_OK;
+}
+
+static enum status
 port_setup_fe (struct port *port)
 {
-  CRP (cpssDxChPhyPortAddrSet
-       (port->ldev, port->lport, (GT_U8) (port->lport % 16)));
-
-  return ST_OK;
+  return __port_setup_fe (port->ldev, port->lport);
 }
 
 static enum status
