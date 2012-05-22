@@ -127,11 +127,7 @@ int
 port_init (void)
 {
   int i;
-  int pmap[NPORTS] = {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-    27, 26, 25, 24
-  };
+  DECLARE_PORT_MAP (pmap);
 
   port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
   assert (port_ids);
@@ -151,20 +147,24 @@ port_init (void)
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
     ports[i].c_protected = 0;
-    if (i < 24) {
+    if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
       ports[i].setup = port_setup_fe;
-    } else {
+    } else if (IS_GE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
+    } else {
+      /* We should never get here. */
+      EMERG ("Port specification error at %d, aborting", i);
+      abort ();
     }
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] =
       ports[i].id;
