@@ -262,6 +262,14 @@ port_start (void)
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 
+#if defined (SM_12F)
+  /* Shut down unused PHYs. */
+  for (i = 8; i < 12; i++) {
+    __port_setup_fe (0, i);
+    __port_shutdown_fe (0, i, 1);
+  }
+#endif /* SM_12F */
+
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
