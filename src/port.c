@@ -264,6 +264,11 @@ port_start (void)
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 
+  for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
+    if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
+        PRV_CPSS_PORT_NOT_EXISTS_E)
+    CRP (cpssDxChPortEnableSet (0, i, GT_FALSE));
+
 #if defined (VARIANT_SM_12F)
   /* Shut down unused PHYs. */
   for (i = 8; i < 12; i++) {
