@@ -44,8 +44,10 @@ static port_id_t *port_ids;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
+static enum status __port_shutdown_fe (GT_U8, GT_U8, int);
 static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
+static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
@@ -262,13 +264,13 @@ port_start (void)
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 
-#if defined (SM_12F)
+#if defined (VARIANT_SM_12F)
   /* Shut down unused PHYs. */
   for (i = 8; i < 12; i++) {
     __port_setup_fe (0, i);
     __port_shutdown_fe (0, i, 1);
   }
-#endif /* SM_12F */
+#endif /* VARIANT_SM_12F */
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
