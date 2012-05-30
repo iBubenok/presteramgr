@@ -5,7 +5,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#if defined (VARIANT_ARLAN_3424_FE)
+#if defined (VARIANT_ARLAN_3424FE)
 #define NDEVS 1
 #define NPORTS 28
 #define DECLARE_PORT_MAP(name)                  \
