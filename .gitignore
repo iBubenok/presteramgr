@@ -11,3 +11,4 @@ Makefile
 /initrd.cpio.gz
 /uInitrd
 /build-stamp
+TAGS
