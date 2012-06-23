@@ -25,6 +25,7 @@ config.status: configure
 		--prefix=/usr \
 		--with-cpss=$(CPSS) \
 		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3 \
+		--enable-variant=$(VARIANT) \
 		$(WITH_PSCP)
 
 build: build-stamp

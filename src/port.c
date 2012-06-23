@@ -45,8 +45,10 @@ static port_id_t *port_ids;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
+static enum status __port_shutdown_fe (GT_U8, GT_U8, int);
 static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
+static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
@@ -128,11 +130,7 @@ int
 port_init (void)
 {
   int i;
-  int pmap[NPORTS] = {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-    27, 26, 25, 24
-  };
+  DECLARE_PORT_MAP (pmap);
 
   port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
   assert (port_ids);
@@ -152,20 +150,24 @@ port_init (void)
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
     ports[i].c_protected = 0;
-    if (i < 24) {
+    if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
       ports[i].setup = port_setup_fe;
-    } else {
+    } else if (IS_GE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
+    } else {
+      /* We should never get here. */
+      EMERG ("Port specification error at %d, aborting", i);
+      abort ();
     }
     port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] =
       ports[i].id;
@@ -262,6 +264,19 @@ port_start (void)
   CRP (cpssDxChPhyAutoPollNumOfPortsSet
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
+
+  for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
+    if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
+        PRV_CPSS_PORT_NOT_EXISTS_E)
+    CRP (cpssDxChPortEnableSet (0, i, GT_FALSE));
+
+#if defined (VARIANT_SM_12F)
+  /* Shut down unused PHYs. */
+  for (i = 8; i < 12; i++) {
+    __port_setup_fe (0, i);
+    __port_shutdown_fe (0, i, 1);
+  }
+#endif /* VARIANT_SM_12F */
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
@@ -894,13 +909,12 @@ port_set_duplex_fe (struct port *port, enum port_duplex duplex)
 }
 
 static enum status
-port_shutdown_fe (struct port *port, int shutdown)
+__port_shutdown_fe (GT_U8 dev, GT_U8 port, int shutdown)
 {
   GT_STATUS rc;
   GT_U16 reg;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead (dev, port, 0x00, &reg));
   if (rc != GT_OK)
     goto out;
 
@@ -909,8 +923,7 @@ port_shutdown_fe (struct port *port, int shutdown)
   else
     reg &= ~(1 << 11);
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite (dev, port, 0x00, reg));
 
  out:
   switch (rc) {
@@ -921,12 +934,22 @@ port_shutdown_fe (struct port *port, int shutdown)
 }
 
 static enum status
+port_shutdown_fe (struct port *port, int shutdown)
+{
+  return __port_shutdown_fe (port->ldev, port->lport, shutdown);
+}
+
+static enum status
+__port_setup_fe (GT_U8 dev, GT_U8 port)
+{
+  CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+  return ST_OK;
+}
+
+static enum status
 port_setup_fe (struct port *port)
 {
-  CRP (cpssDxChPhyPortAddrSet
-       (port->ldev, port->lport, (GT_U8) (port->lport % 16)));
-
-  return ST_OK;
+  return __port_setup_fe (port->ldev, port->lport);
 }
 
 static enum status
