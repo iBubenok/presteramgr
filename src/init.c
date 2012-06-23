@@ -88,6 +88,7 @@
 #include <wnct.h>
 #include <ip.h>
 #include <zcontext.h>
+#include <rtnl.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -703,6 +704,9 @@ cpss_start (void)
 
   INFO ("init mgmt interface\n");
   mgmt_init ();
+
+  INFO ("open rtnetlink\n");
+  rtnl_open ();
 
   INFO ("start control interface\n");
   control_start ();
