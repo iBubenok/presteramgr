@@ -51,6 +51,35 @@ parse_rtattr (struct rtattr *tb[], int max, struct rtattr *rta, int len)
 }
 
 static void
+print_route (struct nlmsghdr *nlh)
+{
+  struct rtmsg *r = NLMSG_DATA (nlh);
+  struct rtattr *a[RTA_MAX+1];
+  unsigned char *p;
+
+  if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*r))) {
+    ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
+    return;
+  }
+
+  parse_rtattr (a, RTA_MAX, RTM_RTA (r),
+                nlh->nlmsg_len - NLMSG_LENGTH (sizeof (*r)));
+
+  if (a[RTA_DST]) {
+    p = RTA_DATA (a[RTA_DST]);
+    INFO ("dst: %d %d.%d.%d.%d/%d",
+          RTA_PAYLOAD (a[RTA_DST]), p[0], p[1], p[2], p[3],
+          r->rtm_dst_len);
+  }
+
+  if (a[RTA_GATEWAY]) {
+    p = RTA_DATA (a[RTA_GATEWAY]);
+    INFO ("via: %d %d.%d.%d.%d",
+          RTA_PAYLOAD (a[RTA_GATEWAY]), p[0], p[1], p[2], p[3]);
+  }
+}
+
+static void
 print_neigh (struct nlmsghdr *nlh)
 {
   struct ndmsg *d = NLMSG_DATA (nlh);
@@ -89,6 +118,14 @@ rtnl_handle_msg (struct nlmsghdr *nlh)
     DEBUG ("deleted neighbour");
     print_neigh (nlh);
     break;
+  case RTM_NEWROUTE:
+    DEBUG ("new route");
+    print_route (nlh);
+    break;
+  case RTM_DELROUTE:
+    DEBUG ("deleted route");
+    print_route (nlh);
+    break;
   default:
     break;
   }
@@ -120,6 +157,7 @@ rtnl_handler (void *unused)
 
     INFO ("got message from kernel, len=%d", rc);
     for (nlh = (struct nlmsghdr*) buf; rc >= sizeof (*nlh); ) {
+      INFO ("processing part, len=%d", rc);
       int len = nlh->nlmsg_len;
       int l = len - sizeof (*nlh);
 
@@ -166,7 +204,7 @@ rtnl_open (void)
   memset (&addr, 0, sizeof (addr));
   addr.nl_family = AF_NETLINK;
   addr.nl_pid = getpid ();
-  addr.nl_groups = nl_mgrp (RTNLGRP_NEIGH);
+  addr.nl_groups = nl_mgrp (RTNLGRP_NEIGH) | nl_mgrp (RTNLGRP_IPV4_ROUTE);
   if (bind (fd, (struct sockaddr*) &addr, sizeof (addr)) < 0) {
     CRIT ("failed to bind rtnetlink socket: %s", strerror (errno));
     goto close_fd;
