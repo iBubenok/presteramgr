@@ -69,11 +69,14 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
   parse_rtattr (a, RTA_MAX, RTM_RTA (r),
                 nlh->nlmsg_len - NLMSG_LENGTH (sizeof (*r)));
 
-  if (!a[RTA_GATEWAY] || RTA_PAYLOAD (a[RTA_GATEWAY]) != 4)
+  if (!a[RTA_GATEWAY] ||
+      RTA_PAYLOAD (a[RTA_GATEWAY]) != 4 ||
+      !a[RTA_OIF])
     return;
 
   memset (&pfx, 0, sizeof (pfx));
   memcpy (&pfx.gw, RTA_DATA (a[RTA_GATEWAY]), 4);
+  pfx.ifindex = *((int *) RTA_DATA (a[RTA_OIF]));
   if (a[RTA_DST] && RTA_PAYLOAD (a[RTA_DST]) == 4) {
     memcpy (&pfx.dst, RTA_DATA (a[RTA_DST]), 4);
     pfx.len = r->rtm_dst_len;
