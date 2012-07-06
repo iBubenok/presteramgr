@@ -20,6 +20,7 @@
 #include <debug.h>
 #include <wnct.h>
 #include <mcg.h>
+#include <route.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -262,6 +263,8 @@ DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
 DECLARE_HANDLER (CC_MCG_ADD_PORT);
 DECLARE_HANDLER (CC_MCG_DEL_PORT);
+DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
+DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -304,7 +307,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MCG_CREATE),
   HANDLER (CC_MCG_DELETE),
   HANDLER (CC_MCG_ADD_PORT),
-  HANDLER (CC_MCG_DEL_PORT)
+  HANDLER (CC_MCG_DEL_PORT),
+  HANDLER (CC_INT_ROUTE_ADD_PREFIX),
+  HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 };
 
 
@@ -1153,6 +1158,36 @@ DEFINE_HANDLER (CC_MAC_MC_IP_OP)
     goto out;
 
   result = mac_mc_ip_op (&arg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
+{
+  enum status result;
+  struct route_pfx pfx;
+
+  result = POP_ARG (&pfx);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_add (&pfx);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
+{
+  enum status result;
+  struct route_pfx pfx;
+
+  result = POP_ARG (&pfx);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_del (&pfx);
 
  out:
   report_status (result);

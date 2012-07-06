@@ -4,6 +4,9 @@
 
 #include <log.h>
 #include <rtnl.h>
+#include <zcontext.h>
+#include <control.h>
+#include <route.h>
 
 #include <sys/socket.h>
 #include <linux/netlink.h>
@@ -19,6 +22,7 @@
 
 static int fd;
 static pthread_t thread;
+static void *inp_sock;
 
 static inline __u32
 nl_mgrp (__u32 group)
@@ -51,11 +55,11 @@ parse_rtattr (struct rtattr *tb[], int max, struct rtattr *rta, int len)
 }
 
 static void
-print_route (struct nlmsghdr *nlh)
+rtnl_handle_route (struct nlmsghdr *nlh, int add)
 {
   struct rtmsg *r = NLMSG_DATA (nlh);
   struct rtattr *a[RTA_MAX+1];
-  unsigned char *p;
+  struct route_pfx pfx;
 
   if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*r))) {
     ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
@@ -65,66 +69,38 @@ print_route (struct nlmsghdr *nlh)
   parse_rtattr (a, RTA_MAX, RTM_RTA (r),
                 nlh->nlmsg_len - NLMSG_LENGTH (sizeof (*r)));
 
-  if (a[RTA_DST]) {
-    p = RTA_DATA (a[RTA_DST]);
-    INFO ("dst: %d %d.%d.%d.%d/%d",
-          RTA_PAYLOAD (a[RTA_DST]), p[0], p[1], p[2], p[3],
-          r->rtm_dst_len);
-  }
-
-  if (a[RTA_GATEWAY]) {
-    p = RTA_DATA (a[RTA_GATEWAY]);
-    INFO ("via: %d %d.%d.%d.%d",
-          RTA_PAYLOAD (a[RTA_GATEWAY]), p[0], p[1], p[2], p[3]);
-  }
-}
-
-static void
-print_neigh (struct nlmsghdr *nlh)
-{
-  struct ndmsg *d = NLMSG_DATA (nlh);
-  struct rtattr *a[NDA_MAX+1];
-  unsigned char *p;
-
-  if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*d))) {
-    ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
-    return;
-  }
-
-  parse_rtattr (a, NDA_MAX, NDA_RTA (d),
-                nlh->nlmsg_len - NLMSG_LENGTH (sizeof (*d)));
-
-  if (!a[NDA_LLADDR] || !a[NDA_DST])
+  if (!a[RTA_GATEWAY] || RTA_PAYLOAD (a[RTA_GATEWAY]) != 4)
     return;
 
-  p = RTA_DATA (a[NDA_DST]);
-  INFO ("dst: %d %d.%d.%d.%d",
-        RTA_PAYLOAD (a[NDA_DST]), p[0], p[1], p[2], p[3]);
+  memset (&pfx, 0, sizeof (pfx));
+  memcpy (&pfx.gw, RTA_DATA (a[RTA_GATEWAY]), 4);
+  if (a[RTA_DST] && RTA_PAYLOAD (a[RTA_DST]) == 4) {
+    memcpy (&pfx.dst, RTA_DATA (a[RTA_DST]), 4);
+    pfx.len = r->rtm_dst_len;
+  }
 
-  p = RTA_DATA (a[NDA_LLADDR]);
-  INFO ("lladdr %d %02X:%02X:%02X:%02X:%02X:%02X",
-        RTA_PAYLOAD (a[NDA_LLADDR]), p[0], p[1], p[2], p[3], p[4], p[5]);
+  zmsg_t *msg = zmsg_new ();
+
+  command_t cmd = add ? CC_INT_ROUTE_ADD_PREFIX : CC_INT_ROUTE_DEL_PREFIX;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &pfx, sizeof (pfx));
+  zmsg_send (&msg, inp_sock);
+
+  msg = zmsg_recv (inp_sock);
+  zmsg_destroy (&msg);
 }
 
 static void
 rtnl_handle_msg (struct nlmsghdr *nlh)
 {
   switch (nlh->nlmsg_type) {
-  case RTM_NEWNEIGH:
-    DEBUG ("new neighbour");
-    print_neigh (nlh);
-    break;
-  case RTM_DELNEIGH:
-    DEBUG ("deleted neighbour");
-    print_neigh (nlh);
-    break;
   case RTM_NEWROUTE:
     DEBUG ("new route");
-    print_route (nlh);
+    rtnl_handle_route (nlh, 1);
     break;
   case RTM_DELROUTE:
     DEBUG ("deleted route");
-    print_route (nlh);
+    rtnl_handle_route (nlh, 0);
     break;
   default:
     break;
@@ -150,9 +126,9 @@ rtnl_handler (void *unused)
   iov.iov_base = buf;
   while (1) {
     iov.iov_len = NLMSG_SPACE (MAX_PAYLOAD);
-    if ((rc = recvmsg (fd, &msg, 0)) < 0) {
+    if ((rc = TEMP_FAILURE_RETRY (recvmsg (fd, &msg, 0))) < 0) {
       ERR ("recvmsg(): %s", strerror (errno));
-      break;
+      continue;
     }
 
     INFO ("got message from kernel, len=%d", rc);
@@ -204,11 +180,19 @@ rtnl_open (void)
   memset (&addr, 0, sizeof (addr));
   addr.nl_family = AF_NETLINK;
   addr.nl_pid = getpid ();
-  addr.nl_groups = nl_mgrp (RTNLGRP_NEIGH) | nl_mgrp (RTNLGRP_IPV4_ROUTE);
+  addr.nl_groups = nl_mgrp (RTNLGRP_IPV4_ROUTE);
   if (bind (fd, (struct sockaddr*) &addr, sizeof (addr)) < 0) {
     CRIT ("failed to bind rtnetlink socket: %s", strerror (errno));
     goto close_fd;
   }
+
+  assert (zcontext);
+  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
+  if (!inp_sock) {
+    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
+    return -1;
+  }
+  zsocket_connect (inp_sock, INP_SOCK_EP);
 
   pthread_create (&thread, NULL, rtnl_handler, NULL);
   DEBUG ("rtnl_open(): all done");

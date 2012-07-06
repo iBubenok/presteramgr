@@ -7,9 +7,12 @@
 #include <cpss/dxCh/dxChxGen/ipLpmEngine/cpssDxChIpLpmTypes.h>
 #include <cpss/dxCh/dxChxGen/ipLpmEngine/cpssDxChIpLpm.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
+#include <cpss/generic/cpssHwInit/cpssHwInit.h>
 
 #include <route.h>
 #include <debug.h>
+
 
 static GT_STATUS
 cpss_lib_init (void)
@@ -132,6 +135,79 @@ cpss_lib_init (void)
   rc = CRP (cpssDxChIpLpmVirtualRouterAdd (lpmDbId, 0, &vrConfigInfo));
 
   return rc;
+}
+
+enum status
+route_test (void)
+{
+  GT_ETHERADDR ea = {
+    .arEther = { 0x00, 0xc0, 0x26, 0xa5, 0x13, 0xce }
+  };
+  GT_ETHERADDR ra = {
+    .arEther = { 0, 0xa, 0xb, 0xc, 0xd, 0xe }
+  };
+  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC re;
+
+  DEBUG ("set router MAC addr");
+  CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
+
+  DEBUG ("add nexthop addr");
+  CRP (cpssDxChIpRouterArpAddrWrite (0, 2, &ea));
+
+  memset (&re, 0, sizeof (re));
+  re.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+  re.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  re.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+  re.entry.regularEntry.nextHopInterface.devPort.devNum = 0;
+  re.entry.regularEntry.nextHopInterface.devPort.portNum = 15;
+  re.entry.regularEntry.nextHopARPPointer = 2;
+  re.entry.regularEntry.nextHopVlanId = 1;
+  DEBUG ("write route entry");
+  CRP (cpssDxChIpUcRouteEntriesWrite (0, 2, &re, 1));
+
+  DEBUG ("enable routing");
+  CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
+
+  return ST_OK;
+}
+
+enum status
+route_add (const struct route_pfx *pfx)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT nh;
+  GT_STATUS rc;
+
+  DEBUG ("add route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
+         pfx->dst.arIP[0], pfx->dst.arIP[1], pfx->dst.arIP[2], pfx->dst.arIP[3], pfx->len,
+         pfx->ifindex,
+         pfx->gw.arIP[0], pfx->gw.arIP[1], pfx->gw.arIP[2], pfx->gw.arIP[3]);
+
+  memset (&nh, 0, sizeof (nh));
+  nh.ipLttEntry.routeEntryBaseIndex = 2;
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, pfx->dst, pfx->len, &nh, GT_TRUE));
+
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
+}
+
+enum status
+route_del (const struct route_pfx *pfx)
+{
+  GT_STATUS rc;
+
+  DEBUG ("delete route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
+         pfx->dst.arIP[0], pfx->dst.arIP[1], pfx->dst.arIP[2], pfx->dst.arIP[3], pfx->len,
+         pfx->ifindex,
+         pfx->gw.arIP[0], pfx->gw.arIP[1], pfx->gw.arIP[2], pfx->gw.arIP[3]);
+
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx->dst, pfx->len));
+
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }
 
 enum status
