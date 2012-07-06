@@ -3619,6 +3619,10 @@ $as_echo "#define VARIANT_SM_12F 1" >>confdefs.h
 esac
 
 
+$as_echo "#define _GNU_SOURCE 1" >>confdefs.h
+
+
+
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5
 $as_echo_n "checking for pthread_create in -lpthread... " >&6; }
 if ${ac_cv_lib_pthread_pthread_create+:} false; then :

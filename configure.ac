@@ -41,6 +41,8 @@ case "$variant" in
      *)            AC_MSG_ERROR([unsupported variant]) ;;
 esac
 
+AC_DEFINE([_GNU_SOURCE], [1], [for TEMP_FAILURE_RETRY() etc.])
+
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])

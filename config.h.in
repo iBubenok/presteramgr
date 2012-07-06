@@ -77,3 +77,6 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* for TEMP_FAILURE_RETRY() etc. */
+#undef _GNU_SOURCE
