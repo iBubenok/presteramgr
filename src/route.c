@@ -11,7 +11,7 @@
 #include <cpss/generic/cpssHwInit/cpssHwInit.h>
 
 #include <route.h>
-#include <nht.h>
+#include <ret.h>
 #include <debug.h>
 
 
@@ -216,7 +216,7 @@ route_del (const struct route *rt)
 enum status
 route_cpss_lib_init (void)
 {
-  nht_init ();
+  ret_init ();
   cpss_lib_init ();
 
   return ST_OK;

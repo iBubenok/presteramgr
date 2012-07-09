@@ -71,7 +71,8 @@ am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	debug.$(OBJEXT) control.$(OBJEXT) data.$(OBJEXT) \
 	sysdeps.$(OBJEXT) mac.$(OBJEXT) qos.$(OBJEXT) pdsa.$(OBJEXT) \
 	wnct.$(OBJEXT) log.$(OBJEXT) zcontext.$(OBJEXT) mcg.$(OBJEXT) \
-	ip.$(OBJEXT) route.$(OBJEXT) rtnl.$(OBJEXT) nht.$(OBJEXT)
+	ip.$(OBJEXT) route.$(OBJEXT) rtnl.$(OBJEXT) nht.$(OBJEXT) \
+	ret.$(OBJEXT)
 nodist_presteramgr_OBJECTS =
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS) \
 	$(nodist_presteramgr_OBJECTS)
@@ -187,7 +188,7 @@ top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
 	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
-	zcontext.c mcg.c ip.c route.c rtnl.c nht.c
+	zcontext.c mcg.c ip.c route.c rtnl.c nht.c ret.c
 
 nodist_presteramgr_SOURCES = control-proto.h
 BUILT_SOURCES = control-proto.h
@@ -346,6 +347,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/port.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/presteractl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/qos.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ret.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/route.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rtnl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sysdeps.Po@am__quote@
