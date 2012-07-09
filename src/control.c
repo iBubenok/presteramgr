@@ -1166,13 +1166,13 @@ DEFINE_HANDLER (CC_MAC_MC_IP_OP)
 DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 {
   enum status result;
-  struct route_pfx pfx;
+  struct route rt;
 
-  result = POP_ARG (&pfx);
+  result = POP_ARG (&rt);
   if (result != ST_OK)
     goto out;
 
-  result = route_add (&pfx);
+  result = route_add (&rt);
 
  out:
   report_status (result);
@@ -1181,13 +1181,13 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 {
   enum status result;
-  struct route_pfx pfx;
+  struct route rt;
 
-  result = POP_ARG (&pfx);
+  result = POP_ARG (&rt);
   if (result != ST_OK)
     goto out;
 
-  result = route_del (&pfx);
+  result = route_del (&rt);
 
  out:
   report_status (result);

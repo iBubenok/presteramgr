@@ -59,7 +59,7 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
 {
   struct rtmsg *r = NLMSG_DATA (nlh);
   struct rtattr *a[RTA_MAX+1];
-  struct route_pfx pfx;
+  struct route rt;
 
   if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*r))) {
     ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
@@ -74,19 +74,19 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
       !a[RTA_OIF])
     return;
 
-  memset (&pfx, 0, sizeof (pfx));
-  memcpy (&pfx.gw, RTA_DATA (a[RTA_GATEWAY]), 4);
-  pfx.ifindex = *((int *) RTA_DATA (a[RTA_OIF]));
+  memset (&rt, 0, sizeof (rt));
+  memcpy (&rt.gw, RTA_DATA (a[RTA_GATEWAY]), 4);
+  rt.ifindex = *((int *) RTA_DATA (a[RTA_OIF]));
   if (a[RTA_DST] && RTA_PAYLOAD (a[RTA_DST]) == 4) {
-    memcpy (&pfx.dst, RTA_DATA (a[RTA_DST]), 4);
-    pfx.len = r->rtm_dst_len;
+    memcpy (&rt.dst, RTA_DATA (a[RTA_DST]), 4);
+    rt.len = r->rtm_dst_len;
   }
 
   zmsg_t *msg = zmsg_new ();
 
   command_t cmd = add ? CC_INT_ROUTE_ADD_PREFIX : CC_INT_ROUTE_DEL_PREFIX;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, &pfx, sizeof (pfx));
+  zmsg_addmem (msg, &rt, sizeof (rt));
   zmsg_send (&msg, inp_sock);
 
   msg = zmsg_recv (inp_sock);

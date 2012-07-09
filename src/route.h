@@ -10,7 +10,7 @@
 
 #include <control-proto.h>
 
-struct route_pfx {
+struct route {
   GT_IPADDR dst;
   int len;
   GT_IPADDR gw;
@@ -19,7 +19,7 @@ struct route_pfx {
 
 extern enum status route_cpss_lib_init (void);
 extern enum status route_test (void);
-extern enum status route_add (const struct route_pfx *);
-extern enum status route_del (const struct route_pfx *);
+extern enum status route_add (const struct route *);
+extern enum status route_del (const struct route *);
 
 #endif /* __ROUTE_H__ */

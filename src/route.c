@@ -172,19 +172,19 @@ route_test (void)
 }
 
 enum status
-route_add (const struct route_pfx *pfx)
+route_add (const struct route *rt)
 {
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT nh;
   GT_STATUS rc;
 
   DEBUG ("add route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
-         pfx->dst.arIP[0], pfx->dst.arIP[1], pfx->dst.arIP[2], pfx->dst.arIP[3], pfx->len,
-         pfx->ifindex,
-         pfx->gw.arIP[0], pfx->gw.arIP[1], pfx->gw.arIP[2], pfx->gw.arIP[3]);
+         rt->dst.arIP[0], rt->dst.arIP[1], rt->dst.arIP[2], rt->dst.arIP[3], rt->len,
+         rt->ifindex,
+         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
   memset (&nh, 0, sizeof (nh));
   nh.ipLttEntry.routeEntryBaseIndex = 2;
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, pfx->dst, pfx->len, &nh, GT_TRUE));
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, rt->dst, rt->len, &nh, GT_TRUE));
 
   switch (rc) {
   case GT_OK: return ST_OK;
@@ -193,16 +193,16 @@ route_add (const struct route_pfx *pfx)
 }
 
 enum status
-route_del (const struct route_pfx *pfx)
+route_del (const struct route *rt)
 {
   GT_STATUS rc;
 
   DEBUG ("delete route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
-         pfx->dst.arIP[0], pfx->dst.arIP[1], pfx->dst.arIP[2], pfx->dst.arIP[3], pfx->len,
-         pfx->ifindex,
-         pfx->gw.arIP[0], pfx->gw.arIP[1], pfx->gw.arIP[2], pfx->gw.arIP[3]);
+         rt->dst.arIP[0], rt->dst.arIP[1], rt->dst.arIP[2], rt->dst.arIP[3], rt->len,
+         rt->ifindex,
+         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx->dst, pfx->len));
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->dst, rt->len));
 
   switch (rc) {
   case GT_OK: return ST_OK;
