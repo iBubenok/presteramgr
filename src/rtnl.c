@@ -78,8 +78,8 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
   memcpy (&rt.gw, RTA_DATA (a[RTA_GATEWAY]), 4);
   rt.ifindex = *((int *) RTA_DATA (a[RTA_OIF]));
   if (a[RTA_DST] && RTA_PAYLOAD (a[RTA_DST]) == 4) {
-    memcpy (&rt.dst, RTA_DATA (a[RTA_DST]), 4);
-    rt.len = r->rtm_dst_len;
+    memcpy (&rt.pfx.addr, RTA_DATA (a[RTA_DST]), 4);
+    rt.pfx.alen = r->rtm_dst_len;
   }
 
   zmsg_t *msg = zmsg_new ();

@@ -10,9 +10,13 @@
 
 #include <control-proto.h>
 
+struct route_pfx {
+  GT_IPADDR addr;
+  int alen;
+};
+
 struct route {
-  GT_IPADDR dst;
-  int len;
+  struct route_pfx pfx;
   GT_IPADDR gw;
   int ifindex;
 };

@@ -178,13 +178,14 @@ route_add (const struct route *rt)
   GT_STATUS rc;
 
   DEBUG ("add route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
-         rt->dst.arIP[0], rt->dst.arIP[1], rt->dst.arIP[2], rt->dst.arIP[3], rt->len,
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
+         rt->pfx.addr.arIP[3], rt->pfx.alen,
          rt->ifindex,
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
   memset (&nh, 0, sizeof (nh));
   nh.ipLttEntry.routeEntryBaseIndex = 2;
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, rt->dst, rt->len, &nh, GT_TRUE));
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, rt->pfx.addr, rt->pfx.alen, &nh, GT_TRUE));
 
   switch (rc) {
   case GT_OK: return ST_OK;
@@ -198,11 +199,12 @@ route_del (const struct route *rt)
   GT_STATUS rc;
 
   DEBUG ("delete route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
-         rt->dst.arIP[0], rt->dst.arIP[1], rt->dst.arIP[2], rt->dst.arIP[3], rt->len,
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
+         rt->pfx.addr.arIP[3], rt->pfx.alen,
          rt->ifindex,
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->dst, rt->len));
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
 
   switch (rc) {
   case GT_OK: return ST_OK;
