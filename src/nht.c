@@ -95,6 +95,9 @@ nht_unref (const GT_ETHERADDR *addr)
     return ST_DOES_NOT_EXIST;
 
   if (--nh->refc == 0) {
+    DEBUG ("last ref to %02x:%02x:%02x:%02x:%02x:%02x dropped, deleting",
+           nh->addr.arEther[0], nh->addr.arEther[1], nh->addr.arEther[2],
+           nh->addr.arEther[3], nh->addr.arEther[4], nh->addr.arEther[5]);
     nhs_push (nh->idx);
     HASH_DEL (nht, nh);
     free (nh);
