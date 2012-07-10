@@ -14,6 +14,38 @@
 #include <ret.h>
 #include <debug.h>
 
+#include <uthash.h>
+
+
+#define HASH_FIND_PFX(head, findpfx, out)                       \
+  HASH_FIND (hh, head, findpfx, sizeof (struct route_pfx), out)
+#define HASH_ADD_PFX(head, pfxfield, add)                       \
+  HASH_ADD (hh, head, pfxfield, sizeof (struct route_pfx), add)
+
+struct gw_by_pfx {
+  struct route_pfx pfx;
+  struct gw gw;
+  UT_hash_handle hh;
+};
+static struct gw_by_pfx *gw_by_pfx;
+
+#define HASH_FIND_GW(head, findgw, out)                 \
+  HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
+#define HASH_ADD_GW(head, gwfield, add)                 \
+  HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
+
+struct pfx_by_pfx {
+  struct route_pfx pfx;
+  UT_hash_handle hh;
+};
+
+struct pfxs_by_gw {
+  struct gw gw;
+  struct pfx_by_pfx *pfxs;
+  UT_hash_handle hh;
+};
+static struct pfxs_by_gw *pfxs_by_gw;
+
 
 static GT_STATUS
 cpss_lib_init (void)
@@ -141,30 +173,12 @@ cpss_lib_init (void)
 enum status
 route_test (void)
 {
-  GT_ETHERADDR ea = {
-    .arEther = { 0x00, 0xc0, 0x26, 0xa5, 0x13, 0xce }
-  };
   GT_ETHERADDR ra = {
     .arEther = { 0, 0xa, 0xb, 0xc, 0xd, 0xe }
   };
-  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC re;
 
   DEBUG ("set router MAC addr");
   CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
-
-  DEBUG ("add nexthop addr");
-  CRP (cpssDxChIpRouterArpAddrWrite (0, 2, &ea));
-
-  memset (&re, 0, sizeof (re));
-  re.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  re.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-  re.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-  re.entry.regularEntry.nextHopInterface.devPort.devNum = 0;
-  re.entry.regularEntry.nextHopInterface.devPort.portNum = 15;
-  re.entry.regularEntry.nextHopARPPointer = 2;
-  re.entry.regularEntry.nextHopVlanId = 1;
-  DEBUG ("write route entry");
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, 2, &re, 1));
 
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
@@ -175,8 +189,10 @@ route_test (void)
 enum status
 route_add (const struct route *rt)
 {
-  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT nh;
-  GT_STATUS rc;
+  struct gw_by_pfx *gbp;
+  struct gw gw;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp;
 
   DEBUG ("add route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
@@ -184,13 +200,65 @@ route_add (const struct route *rt)
          rt->ifindex,
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
-  memset (&nh, 0, sizeof (nh));
-  nh.ipLttEntry.routeEntryBaseIndex = 2;
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, rt->pfx.addr, rt->pfx.alen, &nh, GT_TRUE));
+  memset (&gw, 0, sizeof (gw));
+  gw.addr.u32Ip = rt->gw.u32Ip;
+  gw.vid = 1; /* TODO: determine actual VLAN id. */
 
-  switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
+  HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
+  if (gbp) {
+    /* TODO: what if the prefix already exists? */
+    DEBUG ("route already exists");
+    return ST_OK;
+  }
+  gbp = calloc (1, sizeof (struct gw_by_pfx));
+  memcpy (&gbp->pfx, &rt->pfx, sizeof (struct route_pfx));
+  memcpy (&gbp->gw, &gw, sizeof (struct gw));
+  HASH_ADD_PFX (gw_by_pfx, pfx, gbp);
+
+  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
+  if (!pbg) {
+    pbg = calloc (1, sizeof (struct pfxs_by_gw));
+    memcpy (&pbg->gw, &gw, sizeof (gw));
+    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
+  }
+
+  HASH_FIND_PFX (pbg->pfxs, &rt->pfx, pbp);
+  if (!pbp) {
+    pbp = calloc (1, sizeof (*pbp));
+    memcpy (&pbp->pfx, &rt->pfx, sizeof (rt->pfx));
+    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
+  }
+
+  ret_add (&gw);
+
+  GT_ETHERADDR ea = {
+    .arEther = { 0x00, 0xc0, 0x26, 0xa5, 0x13, 0xce }
+  };
+  ret_set_mac_addr (&gw, &ea);
+
+  return ST_OK;
+}
+
+void
+route_update_table (const struct gw *gw, int idx)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp, *tmp;
+
+  HASH_FIND_GW (pfxs_by_gw, gw, pbg);
+  if (!pbg)
+    return;
+
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = idx;
+  HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
+    DEBUG ("install prefix %d.%d.%d.%d/%d via %d",
+           pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
+           pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
+           pbp->pfx.alen, idx);
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+         (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
   }
 }
 
@@ -206,11 +274,10 @@ route_del (const struct route *rt)
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
+  if (rc != GT_OK)
+    return ST_HEX;
 
-  switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
-  }
+  return ST_OK;
 }
 
 enum status
