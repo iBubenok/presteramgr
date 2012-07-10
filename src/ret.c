@@ -53,14 +53,13 @@ struct re {
   int refc;
   UT_hash_handle hh;
 };
-static struct re *ret;
+static struct re *ret = NULL;
 static int re_cnt = 0;
 
 #define HASH_FIND_GW(head, findgw, out)                 \
   HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
 #define HASH_ADD_GW(head, gwfield, add)                 \
   HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
-
 
 enum status
 ret_add (const struct gw *gw)
@@ -95,7 +94,9 @@ ret_unref (const struct gw *gw)
     return ST_DOES_NOT_EXIST;
 
   if (--re->refc == 0) {
+    DEBUG ("last ref for " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
     HASH_DEL (ret, re);
+    free (re);
     --re_cnt;
   }
 
@@ -144,7 +145,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr)
   re->nh_idx = nh_idx;
   re->valid = 1;
 
-  /* TODO: notify routing code of the new route entry. */
+  route_update_table (gw, idx);
+
   return ST_OK;
 }
 
@@ -157,7 +159,7 @@ ret_init (void)
 
   DEBUG ("populate RE stack");
   for (n = 0; n < MAX_RE; n++)
-    res.data[n] = n;
+    res.data[n] = n + 2; /* Skip 2 default entries. */
   res.sp = 0;
 
   return ST_OK;
