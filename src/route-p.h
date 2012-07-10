@@ -11,6 +11,10 @@ struct gw {
   vid_t vid;
 };
 
+#define GW_FMT "%d.%d.%d.%d:%d"
+#define GW_FMT_ARGS(gw) \
+  gw->addr.arIP[0],gw->addr.arIP[1],gw->addr.arIP[2],gw->addr.arIP[3],gw->vid
+
 static inline void
 route_fill_gw (struct gw *gw, const GT_IPADDR *addr, vid_t vid)
 {
