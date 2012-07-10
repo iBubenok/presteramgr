@@ -265,7 +265,9 @@ route_update_table (const struct gw *gw, int idx)
 enum status
 route_del (const struct route *rt)
 {
-  GT_STATUS rc;
+  struct gw_by_pfx *gbp;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp;
 
   DEBUG ("delete route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
@@ -273,9 +275,38 @@ route_del (const struct route *rt)
          rt->ifindex,
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
-  if (rc != GT_OK)
+  CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
+
+  HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
+  if (!gbp) {
+    DEBUG ("prefix not found!");
     return ST_HEX;
+  }
+
+  HASH_FIND_GW (pfxs_by_gw, &gbp->gw, pbg);
+  if (!pbg) {
+    DEBUG ("gateway not found!");
+    return ST_HEX;
+  }
+
+  HASH_FIND_PFX (pbg->pfxs, &rt->pfx, pbp);
+  if (!pbp) {
+    DEBUG ("prefix not found!");
+    return ST_HEX;
+  }
+  DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
+  HASH_DEL (pbg->pfxs, pbp);
+  free (pbp);
+
+  DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
+  if (HASH_COUNT (pbg->pfxs) == 0) {
+    HASH_DEL (pfxs_by_gw, pbg);
+    ret_unref (&gbp->gw);
+    free (pbg);
+  }
+
+  HASH_DEL (gw_by_pfx, gbp);
+  free (gbp);
 
   return ST_OK;
 }
