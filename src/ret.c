@@ -94,8 +94,10 @@ ret_unref (const struct gw *gw)
     return ST_DOES_NOT_EXIST;
 
   if (--re->refc == 0) {
-    DEBUG ("last ref for " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
+    DEBUG ("last ref to " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
     HASH_DEL (ret, re);
+    if (re->valid)
+      nht_unref (&re->addr);
     free (re);
     --re_cnt;
   }
