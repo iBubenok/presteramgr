@@ -25,7 +25,7 @@ struct nexthop {
 #define HASH_ADD_ETH(head, ethfield, add)                   \
   HASH_ADD (hh, head, ethfield, sizeof (GT_ETHERADDR), add)
 
-static struct nexthop *nht;
+static struct nexthop *nht = NULL;
 
 struct stack {
   int sp;
