@@ -342,9 +342,9 @@ route_del_mgmt_ip (const GT_IPADDR *addr)
 
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, *addr, 32));
   switch (rc) {
-  case GT_OK:      return ST_OK;
-  case GT_NO_SUCH: return ST_DOES_NOT_EXIST;
-  default:         return ST_HEX;
+  case GT_OK:        return ST_OK;
+  case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;
+  default:           return ST_HEX;
   }
 }
 
