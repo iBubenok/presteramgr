@@ -263,6 +263,8 @@ DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
 DECLARE_HANDLER (CC_MCG_ADD_PORT);
 DECLARE_HANDLER (CC_MCG_DEL_PORT);
+DECLARE_HANDLER (CC_MGMT_IP_ADD);
+DECLARE_HANDLER (CC_MGMT_IP_DEL);
 DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
 DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
 
@@ -308,6 +310,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MCG_DELETE),
   HANDLER (CC_MCG_ADD_PORT),
   HANDLER (CC_MCG_DEL_PORT),
+  HANDLER (CC_MGMT_IP_ADD),
+  HANDLER (CC_MGMT_IP_DEL),
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
   HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 };
@@ -1158,6 +1162,36 @@ DEFINE_HANDLER (CC_MAC_MC_IP_OP)
     goto out;
 
   result = mac_mc_ip_op (&arg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MGMT_IP_ADD)
+{
+  enum status result;
+  ip_addr_t addr;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_add_mgmt_ip ((GT_IPADDR *) &addr);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MGMT_IP_DEL)
+{
+  enum status result;
+  ip_addr_t addr;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_del_mgmt_ip ((GT_IPADDR *) &addr);
 
  out:
   report_status (result);
