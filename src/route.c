@@ -229,7 +229,7 @@ route_add (const struct route *rt)
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 
-  ret_add (&gw);
+  ret_add (&gw, rt->pfx.alen == 0);
 
   GT_ETHERADDR ea = {
     .arEther = { 0x00, 0xc0, 0x26, 0xa5, 0x13, 0xce }
@@ -253,12 +253,14 @@ route_update_table (const struct gw *gw, int idx)
   memset (&re, 0, sizeof (re));
   re.ipLttEntry.routeEntryBaseIndex = idx;
   HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
-    DEBUG ("install prefix %d.%d.%d.%d/%d via %d",
-           pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
-           pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
-           pbp->pfx.alen, idx);
-    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
-         (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
+    if (pbp->pfx.alen != 0) {
+      DEBUG ("install prefix %d.%d.%d.%d/%d via %d",
+             pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
+             pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
+             pbp->pfx.alen, idx);
+      CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+           (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
+    }
   }
 }
 
@@ -275,7 +277,8 @@ route_del (const struct route *rt)
          rt->ifindex,
          rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
-  CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
+  if (rt->pfx.alen != 0)
+    CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
 
   HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
   if (!gbp) {
@@ -301,7 +304,7 @@ route_del (const struct route *rt)
   DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
   if (HASH_COUNT (pbg->pfxs) == 0) {
     HASH_DEL (pfxs_by_gw, pbg);
-    ret_unref (&gbp->gw);
+    ret_unref (&gbp->gw, rt->pfx.alen == 0);
     free (pbg);
   }
 

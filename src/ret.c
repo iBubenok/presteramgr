@@ -49,6 +49,7 @@ res_push (uint16_t re)
 struct re {
   struct gw gw;
   int valid;
+  int def;
   uint16_t idx;
   GT_ETHERADDR addr;
   uint16_t nh_idx;
@@ -64,13 +65,31 @@ static int re_cnt = 0;
   HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
 enum status
-ret_add (const struct gw *gw)
+ret_add (const struct gw *gw, int def)
 {
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);
   if (re) {
     ++re->refc;
+    if (def) {
+      re->def = 1;
+      if (re->valid) {
+        CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+        memset (&rt, 0, sizeof (rt));
+        rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+        rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+        /* TODO: set real port info. */
+        rt.entry.regularEntry.nextHopInterface.devPort.devNum = 0;
+        rt.entry.regularEntry.nextHopInterface.devPort.portNum = 15;
+        rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+        rt.entry.regularEntry.nextHopVlanId = gw->vid;
+        DEBUG ("write route entry");
+        CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+      }
+    }
     return ST_OK;
   }
 
@@ -80,6 +99,7 @@ ret_add (const struct gw *gw)
   re = calloc (1, sizeof (*re));
   re->gw = *gw;
   re->refc = 1;
+  re->def = def;
   HASH_ADD_GW (ret, gw, re);
   ++re_cnt;
 
@@ -87,13 +107,26 @@ ret_add (const struct gw *gw)
 }
 
 enum status
-ret_unref (const struct gw *gw)
+ret_unref (const struct gw *gw, int def)
 {
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);
   if (!re)
     return ST_DOES_NOT_EXIST;
+
+  if (def) {
+    re->def = 0;
+    if (re->valid) {
+      CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+      DEBUG ("reset default route entry");
+      memset (&rt, 0, sizeof (rt));
+      rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+  }
 
   if (--re->refc == 0) {
     DEBUG ("last ref to " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
@@ -150,6 +183,10 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr)
     nht_unref (addr);
     res_push (idx);
     return ST_HEX;
+  }
+  if (re->def) {
+    DEBUG ("write default route entry");
+    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
   }
 
   re->idx = idx;
