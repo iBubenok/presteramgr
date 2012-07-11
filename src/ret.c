@@ -14,6 +14,8 @@
 
 #include <uthash.h>
 
+#define NO_ARPD /* FIXME: remove it ASAP. */
+
 
 #define MAX_RE 4094
 
@@ -112,6 +114,14 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr)
   int idx, nh_idx;
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
   GT_STATUS rc;
+
+#ifdef NO_ARPD
+  static int test = 0;
+
+  if (test)
+    return ST_OK;
+  test = 1;
+#endif /* NO_ARPD */
 
   HASH_FIND_GW (ret, gw, re);
   if (!re)
