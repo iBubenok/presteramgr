@@ -189,11 +189,6 @@ route_test (void)
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
 
-  GT_IPADDR ip = {
-    .arIP = { 192, 168, 0, 178 }
-  };
-  route_add_mgmt_ip (&ip);
-
   return ST_OK;
 }
 
