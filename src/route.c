@@ -109,7 +109,7 @@ cpss_lib_init (void)
 
   memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
   ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+  ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
   rc = cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1);
   if (rc != GT_OK) {
     if (rc == GT_OUT_OF_RANGE) {
@@ -124,6 +124,12 @@ cpss_lib_init (void)
   mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
   mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
   CRPR (cpssDxChIpMcRouteEntriesWrite (0, DEFAULT_MC_RE_IDX, &mcRouteEntry));
+
+  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+  memset (&rt, 0, sizeof (rt));
+  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+  CRP (cpssDxChIpUcRouteEntriesWrite (0, MGMT_IP_RE_IDX, &rt, 1));
 
   /********************************************************************/
   /* if lpm db is already created, all that is needed to do is to add */
@@ -182,6 +188,11 @@ route_test (void)
 
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
+
+  GT_IPADDR ip = {
+    .arIP = { 192, 168, 0, 178 }
+  };
+  route_add_mgmt_ip (&ip);
 
   return ST_OK;
 }
@@ -312,6 +323,34 @@ route_del (const struct route *rt)
   free (gbp);
 
   return ST_OK;
+}
+
+enum status
+route_add_mgmt_ip (const GT_IPADDR *addr)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  GT_STATUS rc;
+
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, *addr, 32, &re, GT_TRUE));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
+}
+
+enum status
+route_del_mgmt_ip (const GT_IPADDR *addr)
+{
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, *addr, 32));
+  switch (rc) {
+  case GT_OK:      return ST_OK;
+  case GT_NO_SUCH: return ST_DOES_NOT_EXIST;
+  default:         return ST_HEX;
+  }
 }
 
 enum status

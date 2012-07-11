@@ -123,7 +123,7 @@ ret_unref (const struct gw *gw, int def)
       DEBUG ("reset default route entry");
       memset (&rt, 0, sizeof (rt));
       rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
       CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
     }
   }

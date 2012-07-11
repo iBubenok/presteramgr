@@ -14,6 +14,7 @@ struct gw {
 enum {
   DEFAULT_UC_RE_IDX = 0,
   DEFAULT_MC_RE_IDX,
+  MGMT_IP_RE_IDX,
   FIRST_REGULAR_RE_IDX
 };
 
