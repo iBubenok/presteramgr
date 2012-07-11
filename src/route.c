@@ -72,14 +72,14 @@ cpss_lib_init (void)
 
   defUcLttEntry.ipLttEntry.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
   defUcLttEntry.ipLttEntry.numOfPaths               = 0;
-  defUcLttEntry.ipLttEntry.routeEntryBaseIndex      = 0;
+  defUcLttEntry.ipLttEntry.routeEntryBaseIndex      = DEFAULT_UC_RE_IDX;
   defUcLttEntry.ipLttEntry.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
   defUcLttEntry.ipLttEntry.sipSaCheckMismatchEnable = GT_FALSE;
   defUcLttEntry.ipLttEntry.ucRPFCheckEnable         = GT_FALSE;
 
   defMcLttEntry.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
   defMcLttEntry.numOfPaths               = 0;
-  defMcLttEntry.routeEntryBaseIndex      = 1;
+  defMcLttEntry.routeEntryBaseIndex      = DEFAULT_MC_RE_IDX;
   defMcLttEntry.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
   defMcLttEntry.sipSaCheckMismatchEnable = GT_FALSE;
   defMcLttEntry.ucRPFCheckEnable         = GT_FALSE;
@@ -110,7 +110,7 @@ cpss_lib_init (void)
   memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
   ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
   ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  rc = cpssDxChIpUcRouteEntriesWrite (0, 0, &ucRouteEntry, 1);
+  rc = cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1);
   if (rc != GT_OK) {
     if (rc == GT_OUT_OF_RANGE) {
       /* The device does not support any IP (not router device). */
@@ -123,7 +123,7 @@ cpss_lib_init (void)
   memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
   mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
   mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  CRPR (cpssDxChIpMcRouteEntriesWrite (0, 1, &mcRouteEntry));
+  CRPR (cpssDxChIpMcRouteEntriesWrite (0, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
   /********************************************************************/
   /* if lpm db is already created, all that is needed to do is to add */

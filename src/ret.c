@@ -17,7 +17,7 @@
 #define NO_ARPD /* FIXME: remove it ASAP. */
 
 
-#define MAX_RE 4094
+#define MAX_RE (4096 - FIRST_REGULAR_RE_IDX)
 
 struct stack {
   int sp;
@@ -171,7 +171,7 @@ ret_init (void)
 
   DEBUG ("populate RE stack");
   for (n = 0; n < MAX_RE; n++)
-    res.data[n] = n + 2; /* Skip 2 default entries. */
+    res.data[n] = n + FIRST_REGULAR_RE_IDX;
   res.sp = 0;
 
   return ST_OK;
