@@ -54,6 +54,24 @@ parse_rtattr (struct rtattr *tb[], int max, struct rtattr *rta, int len)
   return 0;
 }
 
+/* static void */
+/* rtnl_handle_link (struct nlmsghdr *nlh, int add) */
+/* { */
+/*   struct ifinfomsg *ifi = NLMSG_DATA (nlh); */
+/*   struct rtattr *a[IFLA_MAX+1]; */
+
+/*   if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*ifi))) { */
+/*     ERR ("invalid nlmsg len %d", nlh->nlmsg_len); */
+/*     return; */
+/*   } */
+
+/*   parse_rtattr (a, IFLA_MAX, IFLA_RTA (ifi), IFLA_PAYLOAD (nlh)); */
+/*   if (!a[IFLA_IFNAME]) */
+/*     return; */
+
+/*   DEBUG ("iface %d is %s", ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME])); */
+/* } */
+
 static void
 rtnl_handle_route (struct nlmsghdr *nlh, int add)
 {
@@ -105,6 +123,14 @@ rtnl_handle_msg (struct nlmsghdr *nlh)
     DEBUG ("deleted route");
     rtnl_handle_route (nlh, 0);
     break;
+  /* case RTM_NEWLINK: */
+  /*   DEBUG ("new link"); */
+  /*   rtnl_handle_link (nlh, 1); */
+  /*   break; */
+  /* case RTM_DELLINK: */
+  /*   DEBUG ("deleted link"); */
+  /*   rtnl_handle_link (nlh, 0); */
+  /*   break; */
   default:
     break;
   }
@@ -183,7 +209,7 @@ rtnl_open (void)
   memset (&addr, 0, sizeof (addr));
   addr.nl_family = AF_NETLINK;
   addr.nl_pid = getpid ();
-  addr.nl_groups = nl_mgrp (RTNLGRP_IPV4_ROUTE);
+  addr.nl_groups = nl_mgrp (RTNLGRP_IPV4_ROUTE); /* | nl_mgrp (RTNLGRP_LINK); */
   if (bind (fd, (struct sockaddr*) &addr, sizeof (addr)) < 0) {
     CRIT ("failed to bind rtnetlink socket: %s", strerror (errno));
     goto close_fd;
