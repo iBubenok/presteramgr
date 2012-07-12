@@ -10,6 +10,8 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/generic/cpssHwInit/cpssHwInit.h>
 
+#include <net/if.h>
+
 #include <route.h>
 #include <ret.h>
 #include <debug.h>
@@ -192,6 +194,24 @@ route_test (void)
   return ST_OK;
 }
 
+static vid_t
+vid_by_ifindex (int ifindex)
+{
+  static const char hdr[] = "pdsa-vlan-";
+#define OFS (sizeof (hdr) - 1)
+  char buf[IFNAMSIZ], *ifname;
+
+  ifname = if_indextoname (ifindex, buf);
+  if (!ifname)
+    return 0;
+
+  if (strncmp (ifname, hdr, OFS))
+    return 0;
+
+  return atoi (ifname + OFS);
+#undef OFS
+}
+
 enum status
 route_add (const struct route *rt)
 {
@@ -199,16 +219,23 @@ route_add (const struct route *rt)
   struct gw gw;
   struct pfxs_by_gw *pbg;
   struct pfx_by_pfx *pbp;
+  vid_t vid;
 
-  DEBUG ("add route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
+  vid = vid_by_ifindex (rt->ifindex);
+  if (vid == 0) {
+    DEBUG ("can't determine output VLAN");
+    return ST_OK;
+  }
+
+  DEBUG ("add route to %d.%d.%d.%d/%d gw %d.%d.%d.%d vlan %d\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
          rt->pfx.addr.arIP[3], rt->pfx.alen,
-         rt->ifindex,
-         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
+         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3],
+         vid);
 
   memset (&gw, 0, sizeof (gw));
   gw.addr.u32Ip = rt->gw.u32Ip;
-  gw.vid = 1; /* TODO: determine actual VLAN id. */
+  gw.vid = vid;
 
   HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
   if (gbp) {
