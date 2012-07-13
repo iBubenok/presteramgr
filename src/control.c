@@ -267,6 +267,7 @@ DECLARE_HANDLER (CC_MGMT_IP_ADD);
 DECLARE_HANDLER (CC_MGMT_IP_DEL);
 DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
 DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
+DECLARE_HANDLER (CC_SEND_FRAME);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -313,7 +314,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MGMT_IP_ADD),
   HANDLER (CC_MGMT_IP_DEL),
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
-  HANDLER (CC_INT_ROUTE_DEL_PREFIX)
+  HANDLER (CC_INT_ROUTE_DEL_PREFIX),
+  HANDLER (CC_SEND_FRAME)
 };
 
 
@@ -1223,6 +1225,35 @@ DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 
   result = route_del (&rt);
 
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SEND_FRAME)
+{
+  vid_t vid;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  mgmt_send_regular_frame (vid, zframe_data (frame), len);
+  result = ST_OK;
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }
