@@ -4,6 +4,7 @@
 #include <cpssdefs.h>
 #include <cpss/extServices/os/gtOs/gtGenTypes.h>
 #include <sys/types.h>
+#include <control-proto.h>
 
 
 /*
@@ -21,6 +22,7 @@ extern void event_enter_loop (void);
  */
 extern int mgmt_init (void);
 extern void mgmt_send_frame (GT_U8, GT_U8, const void *, size_t);
+extern void mgmt_send_regular_frame (vid_t, const void *, size_t);
 
 
 #endif /* __PRESTERAMGR_H__ */

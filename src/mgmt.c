@@ -175,3 +175,17 @@ mgmt_send_frame (GT_U8 dev, GT_U8 port, const void *data, size_t len)
 
   free (frame);
 }
+
+void
+mgmt_send_regular_frame (vid_t vid, const void *data, size_t len)
+{
+  struct pdsa_reg_frame *frame;
+
+  frame = malloc (PDSA_REG_FRAME_SIZE (len));
+  frame->vid = vid;
+  memcpy (frame->data, data, len);
+
+  mgmt_tx (0, PDSA_MGMT_REG_FRAME_TX, frame, PDSA_REG_FRAME_SIZE (len));
+
+  free (frame);
+}
