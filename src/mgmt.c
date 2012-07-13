@@ -183,6 +183,7 @@ mgmt_send_regular_frame (vid_t vid, const void *data, size_t len)
 
   frame = malloc (PDSA_REG_FRAME_SIZE (len));
   frame->vid = vid;
+  frame->len = len;
   memcpy (frame->data, data, len);
 
   mgmt_tx (0, PDSA_MGMT_REG_FRAME_TX, frame, PDSA_REG_FRAME_SIZE (len));
