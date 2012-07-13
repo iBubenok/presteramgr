@@ -14,6 +14,7 @@
 
 #include <route.h>
 #include <ret.h>
+#include <arp.h>
 #include <debug.h>
 
 #include <uthash.h>
@@ -261,6 +262,12 @@ route_add (const struct route *rt)
     memcpy (&pbp->pfx, &rt->pfx, sizeof (rt->pfx));
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
+
+  DEBUG ("sending ARP requests");
+  int i;
+  for (i = 0; i < 3; i++)
+    arp_send_req (vid, gw.addr.arIP);
+  DEBUG ("done sending ARP requests");
 
   ret_add (&gw, rt->pfx.alen == 0);
 

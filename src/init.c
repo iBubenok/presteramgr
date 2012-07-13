@@ -90,6 +90,7 @@
 #include <zcontext.h>
 #include <rtnl.h>
 #include <route.h>
+#include <arp.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -714,6 +715,9 @@ cpss_start (void)
 
   INFO ("init route test");
   route_test ();
+
+  INFO ("start ARP subsystem");
+  arp_start ();
 
   INFO ("start handling events\n");
   event_enter_loop ();
