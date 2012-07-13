@@ -119,6 +119,14 @@ control_notify_spec_frame (port_id_t pid,
     type = CN_IPv4_IGMP_PDU;
     break;
 
+  case CPU_CODE_ARP_BC_TM:
+    type = CN_ARP_BROADCAST;
+    break;
+
+  case CPU_CODE_ARP_REPLY_TO_ME:
+    type = CN_ARP_REPLY_TO_ME;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", code);
     return;
