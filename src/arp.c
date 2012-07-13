@@ -70,7 +70,7 @@ arp_start (void)
   }
   zsocket_connect (inp_sock, INP_SOCK_EP);
 
-  DEBUG ("rtnl_open(): all done");
+  DEBUG ("arp_start(): all done");
   return 0;
 }
 
