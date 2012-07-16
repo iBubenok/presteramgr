@@ -92,52 +92,6 @@ control_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   notify_send (&msg);
 }
 
-void
-control_notify_spec_frame (port_id_t pid,
-                           uint8_t code,
-                           const unsigned char *data,
-                           size_t len)
-{
-  notification_t type;
-
-  switch (code) {
-  case CPU_CODE_IEEE_RES_MC_0_TM:
-    switch (data[5]) {
-    case WNCT_STP:
-      type = CN_BPDU;
-      break;
-    case WNCT_GVRP:
-      type = CN_GVRP_PDU;
-      break;
-    default:
-      DEBUG ("IEEE reserved multicast %02X not supported\n", data[5]);
-      return;
-    }
-    break;
-
-  case CPU_CODE_IPv4_IGMP_TM:
-    type = CN_IPv4_IGMP_PDU;
-    break;
-
-  case CPU_CODE_ARP_BC_TM:
-    type = CN_ARP_BROADCAST;
-    break;
-
-  case CPU_CODE_ARP_REPLY_TO_ME:
-    type = CN_ARP_REPLY_TO_ME;
-    break;
-
-  default:
-    DEBUG ("spec frame code %02X not supported\n", code);
-    return;
-  }
-
-  zmsg_t *msg = make_notify_message (type);
-  put_port_id (msg, pid);
-  zmsg_addmem (msg, data, len);
-  notify_send (&msg);
-}
-
 int
 control_start (void)
 {
@@ -275,6 +229,7 @@ DECLARE_HANDLER (CC_MGMT_IP_ADD);
 DECLARE_HANDLER (CC_MGMT_IP_DEL);
 DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
 DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
+DECLARE_HANDLER (CC_INT_SPEC_FRAME_FORWARD);
 DECLARE_HANDLER (CC_SEND_FRAME);
 
 static cmd_handler_t handlers[] = {
@@ -323,6 +278,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MGMT_IP_DEL),
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
   HANDLER (CC_INT_ROUTE_DEL_PREFIX),
+  HANDLER (CC_INT_SPEC_FRAME_FORWARD),
   HANDLER (CC_SEND_FRAME)
 };
 
@@ -1262,6 +1218,69 @@ DEFINE_HANDLER (CC_SEND_FRAME)
 
  destroy_frame:
   zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
+{
+  enum status result;
+  struct pdsa_spec_frame *frame;
+  notification_t type;
+  port_id_t pid;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
+
+  pid = port_id (frame->dev, frame->port);
+  if (!pid) {
+    result = ST_OK;
+    goto out;
+  }
+
+  switch (frame->code) {
+  case CPU_CODE_IEEE_RES_MC_0_TM:
+    switch (frame->data[5]) {
+    case WNCT_STP:
+      type = CN_BPDU;
+      break;
+    case WNCT_GVRP:
+      type = CN_GVRP_PDU;
+      break;
+    default:
+      DEBUG ("IEEE reserved multicast %02X not supported\n", frame->data[5]);
+      return;
+    }
+    break;
+
+  case CPU_CODE_IPv4_IGMP_TM:
+    type = CN_IPv4_IGMP_PDU;
+    break;
+
+  case CPU_CODE_ARP_BC_TM:
+    type = CN_ARP_BROADCAST;
+    break;
+
+  case CPU_CODE_ARP_REPLY_TO_ME:
+    type = CN_ARP_REPLY_TO_ME;
+    break;
+
+  default:
+    DEBUG ("spec frame code %02X not supported\n", frame->code);
+    return;
+  }
+
+  zmsg_t *msg = make_notify_message (type);
+  put_port_id (msg, pid);
+  zmsg_addmem (msg, frame->data, frame->len);
+  notify_send (&msg);
+
+  result = ST_OK;
+
  out:
   report_status (result);
 }

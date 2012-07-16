@@ -80,7 +80,15 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
     return;
   }
 
-  control_notify_spec_frame (pid, frame->code, frame->data, frame->len);
+  zmsg_t *msg = zmsg_new ();
+
+  command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
+  zmsg_send (&msg, inp_sock);
+
+  msg = zmsg_recv (inp_sock);
+  zmsg_destroy (&msg);
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {
