@@ -341,11 +341,11 @@ route_del (const struct route *rt)
   DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
   if (HASH_COUNT (pbg->pfxs) == 0) {
     HASH_DEL (pfxs_by_gw, pbg);
-    ret_unref (&gbp->gw, rt->pfx.alen == 0);
     free (pbg);
   }
 
   HASH_DEL (gw_by_pfx, gbp);
+  ret_unref (&gbp->gw, rt->pfx.alen == 0);
   free (gbp);
 
   return ST_OK;
