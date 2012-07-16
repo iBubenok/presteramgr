@@ -97,6 +97,14 @@ mgmt_thread (void *unused)
   struct msghdr msg;
   struct iovec iov;
 
+  assert (zcontext);
+  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
+  if (!inp_sock) {
+    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
+    exit (1);
+  }
+  zsocket_connect (inp_sock, INP_SOCK_EP);
+
   iov.iov_base = buf;
   iov.iov_len = NLMSG_SPACE (MAX_PAYLOAD);
 
@@ -146,14 +154,6 @@ mgmt_init (void)
     perror ("bind");
     return -1;
   }
-
-  assert (zcontext);
-  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
-  if (!inp_sock) {
-    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
-    return -1;
-  }
-  zsocket_connect (inp_sock, INP_SOCK_EP);
 
   pthread_create (&thread, NULL, mgmt_thread, NULL);
 
