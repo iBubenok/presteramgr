@@ -8,11 +8,12 @@
 
 #include <zcontext.h>
 #include <control.h>
+#include <control-utils.h>
 #include <arp.h>
 #include <log.h>
 
 
-static void *inp_sock;
+/* static void *inp_sock; */
 
 enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
@@ -59,18 +60,60 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   return ST_OK;
 }
 
+static void *req_sock;
+static void *sub_sock;
+
+static int
+sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
+{
+  zmsg_t *msg = zmsg_recv (sock);
+
+  DEBUG ("got arp reply!!!\r\n");
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
+static void *
+arp_thread (void *dummy)
+{
+  assert (zcontext);
+
+  zloop_t *loop = zloop_new ();
+
+  req_sock = zsocket_new (zcontext, ZMQ_REQ);
+  if (!req_sock) {
+    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
+    exit (1);
+  }
+  zsocket_connect (req_sock, INP_SOCK_EP);
+
+  sub_sock = zsocket_new (zcontext, ZMQ_SUB);
+  if (!sub_sock) {
+    ERR ("failed to create ZMQ socket %s\n", INP_PUB_SOCK_EP);
+    exit (1);
+  }
+  zsocket_connect (sub_sock, INP_PUB_SOCK_EP);
+  zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
+  control_notification_subscribe (sub_sock, CN_ARP_REPLY_TO_ME);
+
+  zmq_pollitem_t sub_pi = { sub_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &sub_pi, sub_handler, sub_sock);
+
+  zloop_start (loop);
+
+  return NULL;
+}
+
 int
 arp_start (void)
 {
-  assert (zcontext);
-  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
-  if (!inp_sock) {
-    ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
-    return -1;
-  }
-  zsocket_connect (inp_sock, INP_SOCK_EP);
+  pthread_t tid;
+
+  pthread_create (&tid, NULL, arp_thread, NULL);
 
   DEBUG ("arp_start(): all done");
+
   return 0;
 }
 
