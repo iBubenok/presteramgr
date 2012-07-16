@@ -11,7 +11,7 @@
 #include <control-utils.h>
 #include <arp.h>
 #include <log.h>
-
+#include <route-p.h>
 
 /* static void *inp_sock; */
 
@@ -63,7 +63,7 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
 }
 
 void
-arp_handle_reply (port_id_t pid, unsigned char *frame, int len)
+arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
 {
   struct arphdr *ah = (struct arphdr *) (frame + ETH_HLEN);
   unsigned char *p = (unsigned char *) (ah + 1);
@@ -78,6 +78,14 @@ arp_handle_reply (port_id_t pid, unsigned char *frame, int len)
 
   DEBUG ("%d.%d.%d.%d is at %02x:%02x:%02x:%02x:%02x:%02x, port %d",
          p[6], p[7], p[8], p[9], p[0], p[1], p[2], p[3], p[4], p[5], pid);
+
+  struct gw gw;
+
+  memset (&gw, 0, sizeof (gw));
+  memcpy (&gw.addr, &p[6], 4);
+  gw.vid = vid;
+
+  ret_set_mac_addr (&gw, p, pid);
 }
 
 static void *req_sock;

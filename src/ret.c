@@ -10,11 +10,10 @@
 #include <control-proto.h>
 #include <nht.h>
 #include <ret.h>
+#include <port.h>
 #include <debug.h>
 
 #include <uthash.h>
-
-#define NO_ARPD /* FIXME: remove it ASAP. */
 
 
 #define MAX_RE (4096 - FIRST_REGULAR_RE_IDX)
@@ -141,24 +140,27 @@ ret_unref (const struct gw *gw, int def)
 }
 
 enum status
-ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr)
+ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
 {
   struct re *re;
   int idx, nh_idx;
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
   GT_STATUS rc;
+  struct port *port = port_ptr (pid);
 
-#ifdef NO_ARPD
-  static int test = 0;
-
-  if (test)
-    return ST_OK;
-  test = 1;
-#endif /* NO_ARPD */
+  if (!port)
+    return ST_HEX;
 
   HASH_FIND_GW (ret, gw, re);
   if (!re)
     return ST_DOES_NOT_EXIST;
+
+  if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
+    DEBUG ("MAC addr is already known");
+    return ST_OK;
+  }
+
+  memcpy (&re->addr, addr, sizeof (*addr));
 
   nh_idx = nht_add (addr);
   if (nh_idx < 0)
@@ -173,8 +175,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr)
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
   rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
   /* TODO: set real port info. */
-  rt.entry.regularEntry.nextHopInterface.devPort.devNum = 0;
-  rt.entry.regularEntry.nextHopInterface.devPort.portNum = 15;
+  rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
   DEBUG ("write route entry");

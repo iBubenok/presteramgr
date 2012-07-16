@@ -271,11 +271,6 @@ route_add (const struct route *rt)
 
   ret_add (&gw, rt->pfx.alen == 0);
 
-  GT_ETHERADDR ea = {
-    .arEther = { 0x00, 0xc0, 0x26, 0xa5, 0x13, 0xce }
-  };
-  ret_set_mac_addr (&gw, &ea);
-
   return ST_OK;
 }
 
