@@ -5,6 +5,7 @@
 #include <control-proto.h>
 
 #define INP_SOCK_EP "inproc://command"
+#define INP_PUB_SOCK_EP "inproc://notify"
 
 extern int control_init (void);
 extern int control_start (void);

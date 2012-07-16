@@ -29,15 +29,39 @@ static unsigned __TASKCONV control_loop (GT_VOID *);
 static void *pub_sock;
 static void *cmd_sock;
 static void *inp_sock;
+static void *inp_pub_sock;
+
+
+static void *
+forwarder_thread (void *dummy)
+{
+  void *inp_sub_sock;
+
+  inp_sub_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (inp_sub_sock);
+  zsocket_connect (inp_sub_sock, INP_PUB_SOCK_EP);
+
+  DEBUG ("start forwarder device");
+  zmq_device (ZMQ_FORWARDER, inp_sub_sock, pub_sock);
+
+  return NULL;
+}
 
 int
 control_init (void)
 {
   int rc;
+  pthread_t tid;
 
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
+
+  inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (inp_pub_sock);
+  rc = zsocket_bind (inp_pub_sock, INP_PUB_SOCK_EP);
+
+  pthread_create (&tid, NULL, forwarder_thread, NULL);
 
   cmd_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (cmd_sock);
@@ -65,7 +89,7 @@ make_notify_message (enum control_notification type)
 static inline void
 notify_send (zmsg_t **msg)
 {
-  zmsg_send (msg, pub_sock);
+  zmsg_send (msg, inp_pub_sock);
 }
 
 static inline void
