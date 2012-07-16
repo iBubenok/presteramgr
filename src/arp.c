@@ -46,6 +46,8 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   memcpy (p, addr, 4);
   p += 4;
 
+  DEBUG ("where is %d.%d.%d.%d?", addr[0], addr[1], addr[2], addr[3]);
+
   mgmt_send_regular_frame (vid, buf, p - buf);
 
   /* zmsg_t *msg = zmsg_new (); */
@@ -58,6 +60,24 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   /* zmsg_destroy (&msg); */
 
   return ST_OK;
+}
+
+void
+arp_handle_reply (port_id_t pid, unsigned char *frame, int len)
+{
+  struct arphdr *ah = (struct arphdr *) (frame + ETH_HLEN);
+  unsigned char *p = (unsigned char *) (ah + 1);
+
+  if (ah->ar_pro != htons (ETH_P_IP) ||
+      ah->ar_op != htons (ARPOP_REPLY) ||
+      ah->ar_hln != 6 ||
+      ah->ar_pln != 4) {
+    DEBUG ("bad ARP reply");
+    return;
+  }
+
+  DEBUG ("%d.%d.%d.%d is at %02x:%02x:%02x:%02x:%02x:%02x, port %d",
+         p[6], p[7], p[8], p[9], p[0], p[1], p[2], p[3], p[4], p[5], pid);
 }
 
 static void *req_sock;

@@ -1210,6 +1210,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
+    arp_handle_reply (pid, frame->data, frame->len);
     break;
 
   default:
