@@ -64,7 +64,7 @@ static int re_cnt = 0;
 #define HASH_ADD_GW(head, gwfield, add)                 \
   HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
-enum status
+int
 ret_add (const struct gw *gw, int def)
 {
   struct re *re;
@@ -90,7 +90,7 @@ ret_add (const struct gw *gw, int def)
         CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
       }
     }
-    return ST_OK;
+    goto out;
   }
 
   if (re_cnt >= MAX_RE)
@@ -103,7 +103,16 @@ ret_add (const struct gw *gw, int def)
   HASH_ADD_GW (ret, gw, re);
   ++re_cnt;
 
-  return ST_OK;
+ out:
+  if (re->valid)
+    return (def ? 0 : re->idx);
+
+  DEBUG ("sending ARP requests");
+  int i;
+  for (i = 0; i < 3; i++)
+    arp_send_req (gw->vid, gw->addr.arIP);
+  DEBUG ("done sending ARP requests");
+  return 0;
 }
 
 enum status

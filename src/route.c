@@ -263,13 +263,15 @@ route_add (const struct route *rt)
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 
-  DEBUG ("sending ARP requests");
-  int i;
-  for (i = 0; i < 3; i++)
-    arp_send_req (vid, gw.addr.arIP);
-  DEBUG ("done sending ARP requests");
+  int idx = ret_add (&gw, rt->pfx.alen == 0);
+  if (idx) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
-  ret_add (&gw, rt->pfx.alen == 0);
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = idx;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+           (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
+  }
 
   return ST_OK;
 }
