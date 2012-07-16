@@ -52,6 +52,7 @@ struct re {
   uint16_t idx;
   GT_ETHERADDR addr;
   uint16_t nh_idx;
+  port_id_t pid;
   int refc;
   UT_hash_handle hh;
 };
@@ -75,17 +76,17 @@ ret_add (const struct gw *gw, int def)
       re->def = 1;
       if (re->valid) {
         CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+        struct port *port = port_ptr (re->pid);
 
         memset (&rt, 0, sizeof (rt));
         rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
         rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
         rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-        /* TODO: set real port info. */
-        rt.entry.regularEntry.nextHopInterface.devPort.devNum = 0;
-        rt.entry.regularEntry.nextHopInterface.devPort.portNum = 15;
+        rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
-        DEBUG ("write route entry");
+        DEBUG ("write default route entry");
         CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
       }
     }
@@ -163,6 +164,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   }
 
   memcpy (&re->addr, addr, sizeof (*addr));
+  re->pid = pid;
 
   nh_idx = nht_add (addr);
   if (nh_idx < 0)
@@ -176,7 +178,6 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
   rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-  /* TODO: set real port info. */
   rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
   rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
