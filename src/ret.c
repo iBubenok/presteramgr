@@ -130,8 +130,10 @@ ret_unref (const struct gw *gw, int def)
   if (--re->refc == 0) {
     DEBUG ("last ref to " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
     HASH_DEL (ret, re);
-    if (re->valid)
+    if (re->valid) {
+      res_push (re->idx);
       nht_unref (&re->addr);
+    }
     free (re);
     --re_cnt;
   }
