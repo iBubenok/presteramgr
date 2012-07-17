@@ -352,14 +352,16 @@ route_del (const struct route *rt)
 }
 
 enum status
-route_add_mgmt_ip (const GT_IPADDR *addr)
+route_add_mgmt_ip (ip_addr_t addr)
 {
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  GT_IPADDR ga;
   GT_STATUS rc;
 
+  memcpy (ga.arIP, addr, 4);
   memset (&re, 0, sizeof (re));
   re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, *addr, 32, &re, GT_TRUE));
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, ga, 32, &re, GT_TRUE));
   switch (rc) {
   case GT_OK: return ST_OK;
   default:    return ST_HEX;
@@ -367,11 +369,13 @@ route_add_mgmt_ip (const GT_IPADDR *addr)
 }
 
 enum status
-route_del_mgmt_ip (const GT_IPADDR *addr)
+route_del_mgmt_ip (ip_addr_t addr)
 {
   GT_STATUS rc;
+  GT_IPADDR ga;
 
-  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, *addr, 32));
+  memcpy (ga.arIP, addr, 4);
+  rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, ga, 32));
   switch (rc) {
   case GT_OK:        return ST_OK;
   case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;

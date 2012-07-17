@@ -174,6 +174,8 @@ DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
 DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
 DECLARE_HANDLER (CC_INT_SPEC_FRAME_FORWARD);
 DECLARE_HANDLER (CC_SEND_FRAME);
+DECLARE_HANDLER (CC_VLAN_SET_IP_ADDR);
+DECLARE_HANDLER (CC_VLAN_DEL_IP_ADDR);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -222,7 +224,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
   HANDLER (CC_INT_ROUTE_DEL_PREFIX),
   HANDLER (CC_INT_SPEC_FRAME_FORWARD),
-  HANDLER (CC_SEND_FRAME)
+  HANDLER (CC_SEND_FRAME),
+  HANDLER (CC_VLAN_SET_IP_ADDR),
+  HANDLER (CC_VLAN_DEL_IP_ADDR)
 };
 
 
@@ -1085,7 +1089,7 @@ DEFINE_HANDLER (CC_MGMT_IP_ADD)
   if (result != ST_OK)
     goto out;
 
-  result = route_add_mgmt_ip ((GT_IPADDR *) &addr);
+  result = route_add_mgmt_ip (addr);
 
  out:
   report_status (result);
@@ -1100,7 +1104,7 @@ DEFINE_HANDLER (CC_MGMT_IP_DEL)
   if (result != ST_OK)
     goto out;
 
-  result = route_del_mgmt_ip ((GT_IPADDR *) &addr);
+  result = route_del_mgmt_ip (addr);
 
  out:
   report_status (result);
@@ -1224,6 +1228,41 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   notify_send (&msg);
 
   result = ST_OK;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_IP_ADDR)
+{
+  vid_t vid;
+  ip_addr_t addr;
+  enum status result;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_ip_addr (vid, addr);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_DEL_IP_ADDR)
+{
+  vid_t vid;
+  enum status result;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_del_ip_addr (vid);
 
  out:
   report_status (result);

@@ -12,6 +12,7 @@
 #include <vlan.h>
 #include <port.h>
 #include <pdsa.h>
+#include <route.h>
 #include <control-proto.h>
 
 struct vlan vlans[4095];
@@ -424,5 +425,44 @@ vlan_get_mac_addr (vid_t vid, mac_addr_t addr)
     return ST_BAD_VALUE;
 
   memcpy (addr, vlans[vid - 1].c_mac_addr, sizeof (mac_addr_t));
+  return ST_OK;
+}
+
+enum status
+vlan_set_ip_addr (vid_t vid, ip_addr_t addr)
+{
+  struct vlan *vlan;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  vlan = &vlans[vid - 1];
+
+  if (vlan->ip_addr_set)
+    route_del_mgmt_ip (vlan->c_ip_addr);
+
+  route_add_mgmt_ip (addr);
+  memcpy (vlan->c_ip_addr, addr, sizeof (addr));
+  vlan->ip_addr_set = 1;
+
+  return ST_OK;
+}
+
+enum status
+vlan_del_ip_addr (vid_t vid)
+{
+  struct vlan *vlan;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  vlan = &vlans[vid - 1];
+
+  if (!vlan->ip_addr_set)
+    return ST_DOES_NOT_EXIST;
+
+  route_del_mgmt_ip (vlan->c_ip_addr);
+  vlan->ip_addr_set = 0;
+
   return ST_OK;
 }

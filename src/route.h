@@ -25,7 +25,7 @@ extern enum status route_cpss_lib_init (void);
 extern enum status route_test (void);
 extern enum status route_add (const struct route *);
 extern enum status route_del (const struct route *);
-extern enum status route_add_mgmt_ip (const GT_IPADDR *);
-extern enum status route_del_mgmt_ip (const GT_IPADDR *);
+extern enum status route_add_mgmt_ip (ip_addr_t);
+extern enum status route_del_mgmt_ip (ip_addr_t);
 
 #endif /* __ROUTE_H__ */
