@@ -19,7 +19,6 @@
 enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
-  ip_addr_t ip = { 192, 168, 0, 178 };
   unsigned char buf[256];
   struct arphdr *ah = (struct arphdr*) (buf + ETH_HLEN);
   unsigned char *p = (unsigned char *) (ah + 1);
@@ -39,7 +38,7 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
 
   vlan_get_mac_addr (vid, p);
   p += ETH_ALEN;
-  memcpy (p, ip, 4);
+  vlan_get_ip_addr (vid, p);
   p += 4;
   memset (p, 0x00, ETH_ALEN);
   p += ETH_ALEN;

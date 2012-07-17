@@ -429,6 +429,16 @@ vlan_get_mac_addr (vid_t vid, mac_addr_t addr)
 }
 
 enum status
+vlan_get_ip_addr (vid_t vid, ip_addr_t addr)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  memcpy (addr, vlans[vid - 1].c_ip_addr, sizeof (ip_addr_t));
+  return ST_OK;
+}
+
+enum status
 vlan_set_ip_addr (vid_t vid, ip_addr_t addr)
 {
   struct vlan *vlan;
