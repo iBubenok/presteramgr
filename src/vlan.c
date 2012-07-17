@@ -416,3 +416,13 @@ vlan_set_fdb_map (const stp_id_t *ids)
 
   return ST_OK;
 }
+
+enum status
+vlan_get_mac_addr (vid_t vid, mac_addr_t addr)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  memcpy (addr, vlans[vid - 1].c_mac_addr, sizeof (mac_addr_t));
+  return ST_OK;
+}

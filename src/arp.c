@@ -10,6 +10,7 @@
 #include <control.h>
 #include <control-utils.h>
 #include <arp.h>
+#include <vlan.h>
 #include <log.h>
 #include <route-p.h>
 
@@ -18,7 +19,6 @@
 enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
-  static const unsigned char mac[] = { 0x00, 0x50, 0x43, 0xA3, 0xDD, 0x5F };
   ip_addr_t ip = { 192, 168, 0, 178 };
   unsigned char buf[256];
   struct arphdr *ah = (struct arphdr*) (buf + ETH_HLEN);
@@ -27,7 +27,7 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   memset (buf, 0, sizeof (buf));
 
   memset (buf, 0xFF, ETH_ALEN);
-  memcpy (buf + ETH_ALEN, mac, ETH_ALEN);
+  vlan_get_mac_addr (vid, buf + ETH_ALEN);
   buf[2 * ETH_ALEN] = 0x08;
   buf[2 * ETH_ALEN + 1] = 0x06;
 
@@ -37,7 +37,7 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   ah->ar_pln = 4;
   ah->ar_op  = htons (ARPOP_REQUEST);
 
-  memcpy (p, mac, ETH_ALEN);
+  vlan_get_mac_addr (vid, p);
   p += ETH_ALEN;
   memcpy (p, ip, 4);
   p += 4;
