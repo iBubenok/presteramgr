@@ -180,6 +180,20 @@ cpss_lib_init (void)
 }
 
 enum status
+route_set_router_mac_addr (mac_addr_t addr)
+{
+  GT_ETHERADDR ra;
+  GT_STATUS rc;
+
+  memcpy (ra.arEther, addr, sizeof (addr));
+  rc = CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
+}
+
+enum status
 route_test (void)
 {
   GT_ETHERADDR ra = {
