@@ -261,9 +261,11 @@ port_start (void)
 {
   int i;
 
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_SM_12F)
   CRP (cpssDxChPhyAutoPollNumOfPortsSet
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
+#endif /* VARIANT_ARLAN_3424FE || VARIANT_SM_12F */
 
   for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
     if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
@@ -316,6 +318,7 @@ port_start (void)
   return ST_OK;
 }
 
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_SM_12F)
 static GT_STATUS
 port_set_sgmii_mode (const struct port *port)
 {
@@ -329,6 +332,7 @@ port_set_sgmii_mode (const struct port *port)
 
   return GT_OK;
 }
+#endif /* VARIANT_ARLAN_3424FE || VARIANT_SM_12F */
 
 int
 port_exists (GT_U8 dev, GT_U8 port)
@@ -1360,6 +1364,7 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
   }
 }
 
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_SM_12F)
 static enum status
 port_setup_ge (struct port *port)
 {
@@ -1442,6 +1447,25 @@ port_setup_ge (struct port *port)
 
   return ST_OK;
 }
+#elif defined (VARIANT_ARLAN_3424GE)
+static enum status
+port_setup_ge (struct port *port)
+{
+  CRP (cpssDxChPhyPortSmiInterfaceSet
+       (port->ldev, port->lport,
+        (port->lport < 12)
+        ? CPSS_PHY_SMI_INTERFACE_0_E
+        : CPSS_PHY_SMI_INTERFACE_1_E));
+
+  CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x04 + (port->lport % 12)));
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x0));
+
+  return ST_OK;
+}
+#endif /* VARIANT */
 
 enum status
 port_set_protected (port_id_t pid, bool_t protected)
