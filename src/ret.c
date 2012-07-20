@@ -11,6 +11,8 @@
 #include <nht.h>
 #include <ret.h>
 #include <port.h>
+#include <arp.h>
+#include <route.h>
 #include <debug.h>
 
 #include <uthash.h>

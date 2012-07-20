@@ -12,6 +12,8 @@
 #include <arp.h>
 #include <vlan.h>
 #include <log.h>
+#include <presteramgr.h>
+#include <ret.h>
 #include <route-p.h>
 
 /* static void *inp_sock; */
@@ -84,7 +86,7 @@ arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
   memcpy (&gw.addr, &p[6], 4);
   gw.vid = vid;
 
-  ret_set_mac_addr (&gw, p, pid);
+  ret_set_mac_addr (&gw, (const GT_ETHERADDR *) p, pid);
 }
 
 static void *req_sock;

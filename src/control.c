@@ -21,6 +21,7 @@
 #include <wnct.h>
 #include <mcg.h>
 #include <route.h>
+#include <arp.h>
 #include <control-utils.h>
 
 #include <gtOs/gtOsTask.h>

@@ -9,6 +9,7 @@
 #include <cpss/generic/cpssTypes.h>
 
 #include <control-proto.h>
+#include <route-p.h>
 
 struct route_pfx {
   GT_IPADDR addr;
@@ -27,5 +28,7 @@ extern enum status route_add (const struct route *);
 extern enum status route_del (const struct route *);
 extern enum status route_add_mgmt_ip (ip_addr_t);
 extern enum status route_del_mgmt_ip (ip_addr_t);
+extern void route_update_table (const struct gw *, int);
+
 
 #endif /* __ROUTE_H__ */
