@@ -2,6 +2,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <cpssdefs.h>
+#include <sysdeps.h>
+
 #include <presteramgr.h>
 #include <debug.h>
 #include <log.h>
@@ -111,8 +114,8 @@ extern GT_STATUS extDrvUartInit (void);
 static GT_STATUS
 init_pci (CPSS_DXCH_PP_PHASE1_INIT_INFO_STC *info)
 {
-  GT_U16 did = (CPSS_98DX2122_CNS >> 16) & 0xFFFF;
-  GT_U16 vid = CPSS_98DX2122_CNS & 0xFFFF;
+  GT_U16 did = (DEVICE_ID >> 16) & 0xFFFF;
+  GT_U16 vid = DEVICE_ID & 0xFFFF;
   GT_U32 ins = 0, bus_no = 0, dev_sel = 0, func_no = 0;
   GT_UINTPTR pci_base_addr, internal_pci_base;
   void *int_vec;

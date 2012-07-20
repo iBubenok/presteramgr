@@ -5,7 +5,11 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <cpssdefs.h>
+#include <cpss/generic/cpssTypes.h>
+
 #if defined (VARIANT_ARLAN_3424FE)
+#define DEVICE_ID CPSS_98DX2122_CNS
 #define NDEVS 1
 #define NPORTS 28
 #define DECLARE_PORT_MAP(name)                  \
@@ -26,6 +30,7 @@ static inline int IS_GE_PORT (int n)
 }
 
 #elif defined (VARIANT_SM_12F)
+#define DEVICE_ID CPSS_98DX2122_CNS
 #define NDEVS 1
 #define NPORTS 16
 #define DECLARE_PORT_MAP(name)                      \
@@ -45,6 +50,7 @@ static inline int IS_GE_PORT (int n)
 }
 
 #elif defined (VARIANT_ARLAN_3424GE)
+#define DEVICE_ID CPSS_98DX4122_CNS
 #define NDEVS 1
 #define NPORTS 24
 #define DECLARE_PORT_MAP(name)                  \
@@ -60,7 +66,7 @@ static inline int IS_FE_PORT (int n)
 
 static inline int IS_GE_PORT (int n)
 {
-  return n >= 1 && n <= 24;
+  return n >= 0 && n < 24;
 }
 
 #else
