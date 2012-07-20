@@ -44,6 +44,25 @@ static inline int IS_GE_PORT (int n)
   return n >= 12 && n < 16;
 }
 
+#elif defined (VARIANT_ARLAN_3424GE)
+#define NDEVS 1
+#define NPORTS 24
+#define DECLARE_PORT_MAP(name)                  \
+  int name[NPORTS] = {                          \
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,   \
+    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23  \
+  }
+
+static inline int IS_FE_PORT (int n)
+{
+  return 0;
+}
+
+static inline int IS_GE_PORT (int n)
+{
+  return n >= 1 && n <= 24;
+}
+
 #else
 #error Undefined or unsupported variant.
 #endif /* VARIANT_* */

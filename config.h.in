@@ -72,6 +72,9 @@
 /* Arlan-3424FE variant */
 #undef VARIANT_ARLAN_3424FE
 
+/* Arlan-3424GE variant */
+#undef VARIANT_ARLAN_3424GE
+
 /* Switch Module 12F variant */
 #undef VARIANT_SM_12F
 
