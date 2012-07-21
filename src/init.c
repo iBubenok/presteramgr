@@ -94,6 +94,7 @@
 #include <rtnl.h>
 #include <route.h>
 #include <arp.h>
+#include <qt2025-phy.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -610,6 +611,9 @@ rate_limit_init (void)
 static GT_STATUS
 after_init (void)
 {
+#if defined (VARIANT_ARLAN_3424GE)
+  qt2025_phy_load_fw ();
+#endif /* VARIANT_ARLAN_3424GE */
   mac_start ();
   vlan_init ();
   wnct_start ();
