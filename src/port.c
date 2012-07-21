@@ -55,6 +55,12 @@ static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
+static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
+static enum status port_set_duplex_xg (struct port *, enum port_duplex);
+static enum status port_shutdown_xg (struct port *, int);
+static enum status port_set_mdix_auto_xg (struct port *, int);
+static enum status port_setup_xg (struct port *);
+
 
 static inline void
 port_lock (void)
@@ -164,6 +170,13 @@ port_init (void)
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
+    } else if (IS_XG_PORT (i)) {
+      ports[i].max_speed = PORT_SPEED_10000;
+      ports[i].set_speed = port_set_speed_xg;
+      ports[i].set_duplex = port_set_duplex_xg;
+      ports[i].shutdown = port_shutdown_xg;
+      ports[i].set_mdix_auto = port_set_mdix_auto_xg;
+      ports[i].setup = port_setup_xg;
     } else {
       /* We should never get here. */
       EMERG ("Port specification error at %d, aborting", i);
@@ -1002,6 +1015,27 @@ port_shutdown_ge (struct port *port, int shutdown)
   }
 }
 
+static enum status
+port_set_speed_xg (struct port *port, const struct port_speed_arg *psa)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_set_duplex_xg (struct port *port, enum port_duplex duplex)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_shutdown_xg (struct port *port, int shutdown)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
 enum status
 port_set_speed (port_id_t pid, const struct port_speed_arg *psa)
 {
@@ -1141,6 +1175,13 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
   case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
   default:               return ST_HEX;
   }
+}
+
+static enum status
+port_set_mdix_auto_xg (struct port *port, int mdix_auto)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
 }
 
 enum status
@@ -1466,6 +1507,13 @@ port_setup_ge (struct port *port)
   return ST_OK;
 }
 #endif /* VARIANT */
+
+static enum status
+port_setup_xg (struct port *port)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
 
 enum status
 port_set_protected (port_id_t pid, bool_t protected)
