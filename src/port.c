@@ -27,6 +27,7 @@
 #include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/generic/smi/cpssGenSmi.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -1511,7 +1512,15 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_xg (struct port *port)
 {
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  CRP (cpssDxChPortInterfaceModeSet
+       (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
+  CRP (cpssDxChPortSpeedSet
+       (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
+  CRP (cpssDxChPortSerdesPowerStatusSet
+       (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
+  CRP (cpssXsmiPortGroupRegisterWrite
+       (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
+
   return ST_OK;
 }
 
