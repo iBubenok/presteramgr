@@ -50,7 +50,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 sbin_PROGRAMS = presteramgr$(EXEEXT)
-bin_PROGRAMS = presteractl$(EXEEXT)
+bin_PROGRAMS = presteractl$(EXEEXT) fanctl$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -63,6 +63,9 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(bin_PROGRAMS) $(sbin_PROGRAMS)
+am_fanctl_OBJECTS = fanctl.$(OBJEXT)
+fanctl_OBJECTS = $(am_fanctl_OBJECTS)
+fanctl_LDADD = $(LDADD)
 am_presteractl_OBJECTS = presteractl.$(OBJEXT)
 presteractl_OBJECTS = $(am_presteractl_OBJECTS)
 presteractl_LDADD = $(LDADD)
@@ -86,9 +89,10 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(presteractl_SOURCES) $(presteramgr_SOURCES) \
-	$(nodist_presteramgr_SOURCES)
-DIST_SOURCES = $(presteractl_SOURCES) $(presteramgr_SOURCES)
+SOURCES = $(fanctl_SOURCES) $(presteractl_SOURCES) \
+	$(presteramgr_SOURCES) $(nodist_presteramgr_SOURCES)
+DIST_SOURCES = $(fanctl_SOURCES) $(presteractl_SOURCES) \
+	$(presteramgr_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -202,6 +206,7 @@ AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 
 AM_CFLAGS = -Wall
 presteractl_SOURCES = presteractl.c
+fanctl_SOURCES = fanctl.c
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -317,6 +322,9 @@ uninstall-sbinPROGRAMS:
 
 clean-sbinPROGRAMS:
 	-test -z "$(sbin_PROGRAMS)" || rm -f $(sbin_PROGRAMS)
+fanctl$(EXEEXT): $(fanctl_OBJECTS) $(fanctl_DEPENDENCIES) $(EXTRA_fanctl_DEPENDENCIES) 
+	@rm -f fanctl$(EXEEXT)
+	$(LINK) $(fanctl_OBJECTS) $(fanctl_LDADD) $(LIBS)
 presteractl$(EXEEXT): $(presteractl_OBJECTS) $(presteractl_DEPENDENCIES) $(EXTRA_presteractl_DEPENDENCIES) 
 	@rm -f presteractl$(EXEEXT)
 	$(LINK) $(presteractl_OBJECTS) $(presteractl_LDADD) $(LIBS)
@@ -336,6 +344,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/extsvc.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fanctl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/init.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ip.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
