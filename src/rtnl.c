@@ -160,36 +160,28 @@ rtnl_handler (void *unused)
       continue;
     }
 
-    INFO ("got message from kernel, len=%d", rc);
-    for (nlh = (struct nlmsghdr*) buf; rc >= sizeof (*nlh); ) {
-      INFO ("processing part, len=%d", rc);
+    for (nlh = (struct nlmsghdr *) buf; rc >= sizeof (*nlh); ) {
       int len = nlh->nlmsg_len;
       int l = len - sizeof (*nlh);
 
       if (l < 0 || len > rc) {
-        if (msg.msg_flags & MSG_TRUNC)
-          ERR ("truncated message");
-        else
-          ERR ("malformed message: len=%d", len);
-        exit (1);
+        if (!(msg.msg_flags & MSG_TRUNC))
+          ERR ("malformed message");
+        break;
       }
 
-      INFO ("processing payload");
       rtnl_handle_msg (nlh);
-
       rc -= NLMSG_ALIGN (len);
       nlh = (struct nlmsghdr*) ((char*) nlh + NLMSG_ALIGN (len));
     }
 
     if (msg.msg_flags & MSG_TRUNC) {
-      INFO ("message truncated\n");
+      INFO ("message truncated");
       continue;
     }
 
-    if (rc) {
-      ERR ("remnant of size %d\n", rc);
-      exit (1);
-	}
+    if (rc)
+      ERR ("remnant of size %d", rc);
   }
 
   return NULL;
