@@ -42,6 +42,17 @@ nl_mgrp (__u32 group)
 	((struct rtattr*) (((char*) (r)) + NLMSG_ALIGN (sizeof (struct ndmsg))))
 #endif
 
+enum status
+rtnl_control (zmsg_t **msg)
+{
+  zmsg_send (msg, inp_sock);
+
+  zmsg_t *rep = zmsg_recv (inp_sock);
+  zmsg_destroy (&rep);
+
+  return ST_OK;
+}
+
 static int
 parse_rtattr (struct rtattr *tb[], int max, struct rtattr *rta, int len)
 {
@@ -72,9 +83,9 @@ rtnl_handle_link (struct nlmsghdr *nlh, int add)
     return;
 
   if (add)
-    ift_add (ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME]));
+    ift_add (ifi, (char *) RTA_DATA (a[IFLA_IFNAME]));
   else
-    ift_del (ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME]));
+    ift_del (ifi, (char *) RTA_DATA (a[IFLA_IFNAME]));
 }
 
 static void
@@ -110,10 +121,7 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
   command_t cmd = add ? CC_INT_ROUTE_ADD_PREFIX : CC_INT_ROUTE_DEL_PREFIX;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, &rt, sizeof (rt));
-  zmsg_send (&msg, inp_sock);
-
-  msg = zmsg_recv (inp_sock);
-  zmsg_destroy (&msg);
+  rtnl_control (&msg);
 }
 
 static void
