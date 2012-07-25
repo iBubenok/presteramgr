@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include <ift.h>
+
 #define MAX_PAYLOAD (1024 * 1024)
 
 static int fd;
@@ -54,23 +56,26 @@ parse_rtattr (struct rtattr *tb[], int max, struct rtattr *rta, int len)
   return 0;
 }
 
-/* static void */
-/* rtnl_handle_link (struct nlmsghdr *nlh, int add) */
-/* { */
-/*   struct ifinfomsg *ifi = NLMSG_DATA (nlh); */
-/*   struct rtattr *a[IFLA_MAX+1]; */
+static void
+rtnl_handle_link (struct nlmsghdr *nlh, int add)
+{
+  struct ifinfomsg *ifi = NLMSG_DATA (nlh);
+  struct rtattr *a[IFLA_MAX+1];
 
-/*   if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*ifi))) { */
-/*     ERR ("invalid nlmsg len %d", nlh->nlmsg_len); */
-/*     return; */
-/*   } */
+  if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*ifi))) {
+    ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
+    return;
+  }
 
-/*   parse_rtattr (a, IFLA_MAX, IFLA_RTA (ifi), IFLA_PAYLOAD (nlh)); */
-/*   if (!a[IFLA_IFNAME]) */
-/*     return; */
+  parse_rtattr (a, IFLA_MAX, IFLA_RTA (ifi), IFLA_PAYLOAD (nlh));
+  if (!a[IFLA_IFNAME])
+    return;
 
-/*   DEBUG ("iface %d is %s", ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME])); */
-/* } */
+  if (add)
+    ift_add (ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME]));
+  else
+    ift_del (ifi->ifi_index, (char *) RTA_DATA (a[IFLA_IFNAME]));
+}
 
 static void
 rtnl_handle_route (struct nlmsghdr *nlh, int add)
@@ -112,25 +117,58 @@ rtnl_handle_route (struct nlmsghdr *nlh, int add)
 }
 
 static void
+rtnl_handle_addr (struct nlmsghdr *nlh, int add)
+{
+  struct ifaddrmsg *ifa = NLMSG_DATA (nlh);
+  struct rtattr *a[IFA_MAX + 1];
+  uint8_t *p;
+
+  if (nlh->nlmsg_len < NLMSG_LENGTH (sizeof (*ifa))) {
+    ERR ("invalid nlmsg len %d", nlh->nlmsg_len);
+    return;
+  }
+
+  if (ifa->ifa_family != AF_INET)
+    return;
+
+  memset (a, 0, sizeof (a));
+  parse_rtattr (a, IFA_MAX, IFA_RTA (ifa),
+                nlh->nlmsg_len - NLMSG_LENGTH (sizeof (*ifa)));
+
+  if (!a[IFA_LOCAL])
+    a[IFA_LOCAL] = a[IFA_ADDRESS];
+  if (!a[IFA_LOCAL])
+    return;
+
+  p = RTA_DATA (a[IFA_LOCAL]);
+  if (add)
+    ift_add_addr (ifa->ifa_index, p);
+  else
+    ift_del_addr (ifa->ifa_index, p);
+}
+
+static void
 rtnl_handle_msg (struct nlmsghdr *nlh)
 {
   switch (nlh->nlmsg_type) {
   case RTM_NEWROUTE:
-    DEBUG ("new route");
     rtnl_handle_route (nlh, 1);
     break;
   case RTM_DELROUTE:
-    DEBUG ("deleted route");
     rtnl_handle_route (nlh, 0);
     break;
-  /* case RTM_NEWLINK: */
-  /*   DEBUG ("new link"); */
-  /*   rtnl_handle_link (nlh, 1); */
-  /*   break; */
-  /* case RTM_DELLINK: */
-  /*   DEBUG ("deleted link"); */
-  /*   rtnl_handle_link (nlh, 0); */
-  /*   break; */
+  case RTM_NEWADDR:
+    rtnl_handle_addr (nlh, 1);
+    break;
+  case RTM_DELADDR:
+    rtnl_handle_addr (nlh, 0);
+    break;
+  case RTM_NEWLINK:
+    rtnl_handle_link (nlh, 1);
+    break;
+  case RTM_DELLINK:
+    rtnl_handle_link (nlh, 0);
+    break;
   default:
     break;
   }
@@ -201,7 +239,10 @@ rtnl_open (void)
   memset (&addr, 0, sizeof (addr));
   addr.nl_family = AF_NETLINK;
   addr.nl_pid = getpid ();
-  addr.nl_groups = nl_mgrp (RTNLGRP_IPV4_ROUTE); /* | nl_mgrp (RTNLGRP_LINK); */
+  addr.nl_groups =
+    nl_mgrp (RTNLGRP_IPV4_ROUTE) |
+    nl_mgrp (RTNLGRP_IPV4_IFADDR) |
+    nl_mgrp (RTNLGRP_LINK);
   if (bind (fd, (struct sockaddr*) &addr, sizeof (addr)) < 0) {
     CRIT ("failed to bind rtnetlink socket: %s", strerror (errno));
     goto close_fd;
