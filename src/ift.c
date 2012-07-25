@@ -30,7 +30,7 @@ struct iface {
 
 static struct iface *ift = NULL;
 
-static const char vlan_if_hdr[] = "pdsa-vlan-";
+static const char vlan_if_hdr[] = "pv-";
 #define VLAN_IF_HDR_LEN (sizeof (vlan_if_hdr) - 1)
 
 static void

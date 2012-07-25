@@ -212,7 +212,7 @@ route_test (void)
 static vid_t
 vid_by_ifindex (int ifindex)
 {
-  static const char hdr[] = "pdsa-vlan-";
+  static const char hdr[] = "pv-";
 #define OFS (sizeof (hdr) - 1)
   char buf[IFNAMSIZ], *ifname;
 
