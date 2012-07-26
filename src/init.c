@@ -622,6 +622,7 @@ after_init (void)
   rate_limit_init ();
   port_start ();
   pdsa_init ();
+  ip_start ();
   return cpssDxChCfgDevEnable (0, GT_TRUE);
 }
 

@@ -4,5 +4,6 @@
 #include <control-proto.h>
 
 extern enum status ip_cpss_lib_init (void);
+extern enum status ip_start (void);
 
 #endif /* __IP_H__ */
