@@ -4,8 +4,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 
 #include <control-proto.h>
+#include <sysdeps.h>
 
-#define FDB_MAX_ADDRS 16384
 extern CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
 extern GT_U32 fdb_naddrs;
 

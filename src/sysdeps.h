@@ -8,6 +8,8 @@
 #include <cpssdefs.h>
 #include <cpss/generic/cpssTypes.h>
 
+#define FDB_MAX_ADDRS 16384
+
 #if defined (VARIANT_ARLAN_3424FE)
 #define DEVICE_ID CPSS_98DX2122_CNS
 #define NDEVS 1

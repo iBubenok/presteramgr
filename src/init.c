@@ -99,7 +99,6 @@
 
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
-#define AU_DESC_NUM_DEF         2048
 #define RX_BUFF_SIZE_DEF        1536
 #define RX_BUFF_ALIGN_DEF       1
 
@@ -182,8 +181,8 @@ phase2_init (void)
   info.newDevNum = 0;
 
   cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
-  info.auqCfg.auDescBlockSize = au_desc_size * AU_DESC_NUM_DEF;
-  info.auqCfg.auDescBlock = osCacheDmaMalloc ((au_desc_size + 1) * AU_DESC_NUM_DEF);
+  info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS;
+  info.auqCfg.auDescBlock = osCacheDmaMalloc (au_desc_size * (FDB_MAX_ADDRS + 1));
   if (!info.auqCfg.auDescBlock) {
     ERR ("failed to allocate AU desc memory\n");
     return GT_OUT_OF_CPU_MEM;
