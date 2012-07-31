@@ -13,6 +13,8 @@
  * TODO: maintain shadow FDB.
  */
 
+#undef DEBUG_LIST_MACS
+
 static enum status
 mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
 {
@@ -286,5 +288,23 @@ mac_start (void)
     .port = ALL_PORTS
   };
 
+#ifdef DEBUG_LIST_MACS
+  int i, j;
+  for (i = 0; i < 250; i++) {
+    for (j = 0; j < 250; j++) {
+      struct mac_op_arg arg = {
+        .vid = 1,
+        .port = 10,
+        .drop = 0,
+        .delete = 0,
+        .mac = { 0, 1, 2, 3, i, j }
+      };
+      mac_add (&arg);
+    }
+  }
+
+  return mac_flush (&arg, GT_FALSE);
+#else /* !DEBUG_LIST_MACS */
   return mac_flush (&arg, GT_TRUE);
+#endif /* DEBUG_LIST_MACS */
 }
