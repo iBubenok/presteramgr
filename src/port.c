@@ -1392,7 +1392,7 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
   else {
     rc = CRP (cpssDxChPortTxShaperProfileSet
               (port->ldev, port->lport, 1, &rate));
-    ON_GT_ERROR (rc, goto out);
+    ON_GT_ERROR (rc) goto out;
 
     rc = CRP (cpssDxChPortTxShaperEnableSet
               (port->ldev, port->lport, GT_TRUE));
