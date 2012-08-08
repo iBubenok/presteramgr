@@ -79,11 +79,12 @@ rtnl_handle_link (struct nlmsghdr *nlh, int add)
   }
 
   parse_rtattr (a, IFLA_MAX, IFLA_RTA (ifi), IFLA_PAYLOAD (nlh));
-  if (!a[IFLA_IFNAME])
+  if (!a[IFLA_IFNAME] || !a[IFLA_ADDRESS])
     return;
 
   if (add)
-    ift_add (ifi, (char *) RTA_DATA (a[IFLA_IFNAME]));
+    ift_add (ifi, (char *) RTA_DATA (a[IFLA_IFNAME]),
+             (uint8_t *) (RTA_DATA (a[IFLA_ADDRESS])));
   else
     ift_del (ifi, (char *) RTA_DATA (a[IFLA_IFNAME]));
 }

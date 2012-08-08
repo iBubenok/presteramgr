@@ -24,6 +24,7 @@ struct iface {
   int index;
   unsigned flags;
   char name[IFNAMSIZ];
+  mac_addr_t hwaddr;
   struct ifaddr *addrs;
   UT_hash_handle hh;
 };
@@ -34,40 +35,49 @@ static const char vlan_if_hdr[] = "pv-";
 #define VLAN_IF_HDR_LEN (sizeof (vlan_if_hdr) - 1)
 
 static void
-ift_ip_addr_op (const struct ifaddr *ifaddr, int add)
+ift_ip_addr_op (const struct ifaddr *ifaddr, int up)
 {
   zmsg_t *msg = zmsg_new ();
 
-  command_t cmd = add ? CC_MGMT_IP_ADD : CC_MGMT_IP_DEL;
+  command_t cmd = up ? CC_MGMT_IP_ADD : CC_MGMT_IP_DEL;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, ifaddr->addr, sizeof (ifaddr->addr));
   rtnl_control (&msg);
 }
 
 static void
-ift_if_ip_addrs_op (struct iface *iface, int add)
+ift_if_ip_addrs_op (struct iface *iface, int up)
 {
   struct ifaddr *ifaddr, *tmp;
 
   DEBUG ("%s brought %s, %s addresses",
-         iface->name, add ? "up" : "down", add ? "adding" : "deleting");
+         iface->name, up ? "up" : "down", up ? "adding" : "deleting");
   HASH_ITER (hh, iface->addrs, ifaddr, tmp) {
     DEBUG ("%d.%d.%d.%d",
            ifaddr->addr[0], ifaddr->addr[1],
            ifaddr->addr[2], ifaddr->addr[3]);
-    ift_ip_addr_op (ifaddr, add);
+    ift_ip_addr_op (ifaddr, up);
   }
 }
 
+static void
+ift_if_hw_addr_op (struct iface *iface, int up, mac_addr_t addr)
+{
+  DEBUG ("%s(): %s", __PRETTY_FUNCTION__, up ? "up" : "down");
+}
+
 enum status
-ift_add (const struct ifinfomsg *ifi, const char *name)
+ift_add (const struct ifinfomsg *ifi, const char *name, mac_addr_t addr)
 {
   struct iface *iface;
 
   HASH_FIND_INT (ift, &ifi->ifi_index, iface);
   if (iface) {
-    if (ifi->ifi_change & IFF_UP)
-      ift_if_ip_addrs_op (iface, ifi->ifi_flags & IFF_UP);
+    if (ifi->ifi_change & IFF_UP) {
+      int up = ifi->ifi_flags & IFF_UP;
+      ift_if_hw_addr_op (iface, up, addr);
+      ift_if_ip_addrs_op (iface, up);
+    }
     iface->flags = ifi->ifi_flags;
     return ST_OK;
   }
@@ -77,6 +87,7 @@ ift_add (const struct ifinfomsg *ifi, const char *name)
     iface->index = ifi->ifi_index;
     iface->flags = ifi->ifi_flags;
     strncpy (iface->name, name, IFNAMSIZ);
+    memcpy (iface->hwaddr, addr, sizeof (addr));
     HASH_ADD_INT (ift, index, iface);
     DEBUG ("add iface %d (%s)", ifi->ifi_index, name);
   }
@@ -152,8 +163,10 @@ ift_del (const struct ifinfomsg *ifi, const char *name)
 
   HASH_DEL (ift, iface);
 
-  if (iface->flags & IFF_UP)
+  if (iface->flags & IFF_UP) {
+    ift_if_hw_addr_op (iface, 0, iface->hwaddr);
     ift_if_ip_addrs_op (iface, 0);
+  }
 
   HASH_ITER (hh, iface->addrs, ifaddr, tmp) {
     HASH_DEL (iface->addrs, ifaddr);
