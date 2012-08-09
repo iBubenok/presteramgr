@@ -278,6 +278,17 @@ vlan_init (void)
   return rc != GT_OK;
 }
 
+static void
+vlan_clear_mac_addr (struct vlan *vlan)
+{
+  if (vlan->mac_addr_set) {
+    DEBUG ("invalidate FDB entry at %d", vlan->mac_idx);
+    CRP (cpssDxChBrgFdbMacEntryInvalidate (0, vlan->mac_idx));
+    vlan->mac_idx = 0;
+    vlan->mac_addr_set = 0;
+  }
+}
+
 #define VLAN_MAC_ENTRY 1
 
 GT_STATUS
@@ -286,6 +297,8 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   CPSS_MAC_ENTRY_EXT_STC mac_entry;
   GT_STATUS rc;
   GT_U32 idx, best_idx, i, score;
+
+  vlan_clear_mac_addr (&vlans[vid - 1]);
 
   rc = CRP (cpssDxChBrgVlanIpCntlToCpuSet
             (0, vid, CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E));
@@ -370,6 +383,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 
   memcpy (vlans[vid - 1].c_mac_addr, addr, 6);
   vlans[vid - 1].mac_addr_set = 1;
+  vlans[vid - 1].mac_idx = best_idx;
 
   return GT_OK;
 
@@ -422,23 +436,6 @@ vlan_set_dot1q_tag_native (int value)
     return ST_HW_ERROR;
   default:
     return ST_HEX;
-  }
-}
-
-static void
-vlan_clear_mac_addr (struct vlan *vlan)
-{
-  if (vlan->mac_addr_set) {
-    CPSS_MAC_ENTRY_EXT_KEY_STC key;
-
-    key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-    key.key.macVlan.vlanId = vlan->vid;
-    memcpy (key.key.macVlan.macAddr.arEther, vlan->c_mac_addr, 6);
-    CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
-    CRP (cpssDxChBrgVlanIpCntlToCpuSet
-         (0, vlan->vid, CPSS_DXCH_BRG_IP_CTRL_NONE_E));
-
-    vlan->mac_addr_set = 0;
   }
 }
 
