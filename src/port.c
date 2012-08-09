@@ -319,6 +319,7 @@ port_start (void)
   CRP (cpssDxChCscdPortTypeSet
        (0, CPSS_CPU_PORT_NUM_CNS,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
+  CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 9000));
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
