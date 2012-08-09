@@ -268,6 +268,7 @@ vlan_init (void)
   }
 
   CRP (cpssDxChBrgVlanTableInvalidate (0));
+  CRP (cpssDxChBrgVlanMruProfileValueSet (0, 0, 9000));
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
 
