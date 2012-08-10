@@ -28,6 +28,7 @@
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 #include <cpss/generic/smi/cpssGenSmi.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -61,7 +62,6 @@ static enum status port_set_duplex_xg (struct port *, enum port_duplex);
 static enum status port_shutdown_xg (struct port *, int);
 static enum status port_set_mdix_auto_xg (struct port *, int);
 static enum status port_setup_xg (struct port *);
-
 
 static inline void
 port_lock (void)
@@ -301,6 +301,7 @@ port_start (void)
     port_set_vid (port);
     port_update_qos_trust (port);
     port_setup_stats (port->ldev, port->lport);
+    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet
          (port->ldev, port->lport, 0));
     CRP (cpssDxChIpPortRoutingEnable
@@ -320,6 +321,7 @@ port_start (void)
        (0, CPSS_CPU_PORT_NUM_CNS,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
   CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 10000));
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet (0, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
