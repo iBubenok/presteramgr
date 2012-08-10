@@ -178,6 +178,7 @@ DECLARE_HANDLER (CC_SEND_FRAME);
 DECLARE_HANDLER (CC_VLAN_SET_IP_ADDR);
 DECLARE_HANDLER (CC_VLAN_DEL_IP_ADDR);
 DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
+DECLARE_HANDLER (CC_PORT_SET_MRU);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -229,7 +230,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SEND_FRAME),
   HANDLER (CC_VLAN_SET_IP_ADDR),
   HANDLER (CC_VLAN_DEL_IP_ADDR),
-  HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR)
+  HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR),
+  HANDLER (CC_PORT_SET_MRU)
 };
 
 
@@ -1281,6 +1283,21 @@ DEFINE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR)
     goto out;
 
   result = route_set_router_mac_addr (addr);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_MRU)
+{
+  uint16_t mru;
+  enum status result;
+
+  result = POP_ARG (&mru);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_mru (mru);
 
  out:
   report_status (result);

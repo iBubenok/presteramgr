@@ -315,6 +315,7 @@ port_start (void)
 #endif /* PRESTERAMGR_FUTURE_LION */
   }
 
+  port_set_mru (1526);
   port_setup_isolation ();
   port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
   CRP (cpssDxChCscdPortTypeSet
@@ -1559,4 +1560,18 @@ port_set_igmp_snoop (port_id_t pid, bool_t enable)
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
+}
+
+enum status
+port_set_mru (uint16_t mru)
+{
+  int i;
+
+  if (mru > 16382 || mru % 2)
+    return ST_BAD_VALUE;
+
+  for (i = 0; i < NPORTS; i++)
+    CRP (cpssDxChPortMruSet (ports[i].ldev, ports[i].lport, mru));
+
+  return ST_OK;
 }
