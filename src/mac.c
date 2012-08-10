@@ -179,8 +179,9 @@ mac_list (void)
   GT_U32 s_act_dev, s_act_dev_mask;
   GT_U16 s_act_vid, s_act_vid_mask;
   GT_U32 s_is_trunk, s_is_trunk_mask;
-  GT_U32 s_port, s_port_mask;
-  GT_BOOL done = GT_FALSE;
+  GT_U32 s_port, s_port_mask, num, total;
+  GT_BOOL done = GT_FALSE, end;
+  CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
 
   CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
   CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
@@ -196,10 +197,12 @@ mac_list (void)
   CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
 
   /* FIXME: use event system instead of polling. */
-  do {
+  while (1) {
     CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
+    if (done)
+      break;
     usleep (100);
-  } while (!done);
+  };
 
   CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_FALSE));
   CRP (cpssDxChBrgFdbActionActiveInterfaceSet
@@ -210,9 +213,22 @@ mac_list (void)
   CRP (cpssDxChBrgFdbMacTriggerModeSet (0, s_mac_mode));
   CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
 
-  fdb_naddrs = FDB_MAX_ADDRS;
-  CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &fdb_naddrs, fdb_addrs));
-  DEBUG ("got %lu MAC addrs\r\n", fdb_naddrs);
+  CRP (cpssDxChBrgFdbAuqFuqMessagesNumberGet
+       (0, CPSS_DXCH_FDB_QUEUE_TYPE_FU_E, &total, &end));
+  DEBUG ("FU entries: %lu, end: %d\r", total, end);
+
+  num = total;
+  CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
+  fdb_naddrs = num;
+  DEBUG ("got %lu MAC addrs\r\n", num);
+  if (num < total) {
+    ptr += num;
+    num = total - num;
+    CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
+    DEBUG ("got %lu MAC addrs more\r\n", num);
+    fdb_naddrs += num;
+  }
+  DEBUG ("got %lu MAC addrs total\r\n", fdb_naddrs);
 
   return ST_OK;
 }
@@ -247,8 +263,6 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
     port = port_ptr (arg->port)->lport;
     port_mask = 0x0000007F;
   }
-
-  CRP (cpssDxChBrgFdbAAandTAToCpuSet (0, GT_FALSE));
 
   CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
   CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
@@ -287,6 +301,9 @@ mac_start (void)
     .vid = ALL_VLANS,
     .port = ALL_PORTS
   };
+
+  CRP (cpssDxChBrgFdbAAandTAToCpuSet (0, GT_FALSE));
+  CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (0, GT_FALSE));
 
 #ifdef DEBUG_LIST_MACS
   int i, j;

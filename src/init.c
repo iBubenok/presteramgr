@@ -181,13 +181,15 @@ phase2_init (void)
   info.newDevNum = 0;
 
   cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
-  info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS;
-  info.auqCfg.auDescBlock = osCacheDmaMalloc (au_desc_size * (FDB_MAX_ADDRS + 1));
+  info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS * 2;
+  info.auqCfg.auDescBlock =
+    osCacheDmaMalloc (au_desc_size * (FDB_MAX_ADDRS * 2 + 1));
   if (!info.auqCfg.auDescBlock) {
     ERR ("failed to allocate AU desc memory\n");
     return GT_OUT_OF_CPU_MEM;
   }
 
+  info.useDoubleAuq = GT_TRUE;
   info.fuqUseSeparate = GT_FALSE;
   info.useSecondaryAuq = GT_FALSE;
   info.netifSdmaPortGroupId = 0;
