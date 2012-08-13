@@ -3612,6 +3612,9 @@ case "$variant" in
      arlan-3424fe)
 $as_echo "#define VARIANT_ARLAN_3424FE 1" >>confdefs.h
  ;;
+     tamotator)
+$as_echo "#define VARIANT_ARLAN_3424FE 1" >>confdefs.h
+ ;;
      arlan-3424ge)
 $as_echo "#define VARIANT_ARLAN_3424GE 1" >>confdefs.h
  ;;
