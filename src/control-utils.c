@@ -16,8 +16,6 @@ control_handler (zloop_t *loop, zmq_pollitem_t *pi, void *handler_data)
   enum status result;
   struct handler_data *hdata = handler_data;
 
-  DEBUG ("we're here");
-
   msg = zmsg_recv (hdata->sock);
 
   result = pop_size (&cmd, msg, sizeof (cmd), 0);
