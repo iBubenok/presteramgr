@@ -30,4 +30,6 @@ route_fill_gw (struct gw *gw, const GT_IPADDR *addr, vid_t vid)
   gw->vid = vid;
 }
 
+extern void *arpc_sock;
+
 #endif /* __ROUTE_P_H__ */

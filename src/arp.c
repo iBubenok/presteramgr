@@ -15,8 +15,7 @@
 #include <presteramgr.h>
 #include <ret.h>
 #include <route-p.h>
-
-/* static void *inp_sock; */
+#include <utils.h>
 
 enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
@@ -91,6 +90,14 @@ arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
 
 static void *req_sock;
 static void *sub_sock;
+static void *ctl_sock;
+
+
+DECLARE_HANDLER (AC_ADD_IP);
+
+static cmd_handler_t handlers[] = {
+  HANDLER (AC_ADD_IP)
+};
 
 static int
 sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
@@ -125,9 +132,18 @@ arp_thread (void *dummy)
   zsocket_connect (sub_sock, INP_PUB_SOCK_EP);
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
   control_notification_subscribe (sub_sock, CN_ARP_REPLY_TO_ME);
-
   zmq_pollitem_t sub_pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &sub_pi, sub_handler, sub_sock);
+
+  ctl_sock = zsocket_new (zcontext, ZMQ_REP);
+  if (!ctl_sock) {
+    ERR ("failed to create ZMQ socket %s\n", ARPD_CTL_EP);
+    exit (1);
+  }
+  zsocket_bind (ctl_sock, ARPD_CTL_EP);
+  zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
+  struct handler_data ctl_hd = { ctl_sock, handlers, ARRAY_SIZE (handlers) };
+  zloop_poller (loop, &ctl_pi, control_handler, &ctl_hd);
 
   zloop_start (loop);
 
@@ -146,3 +162,52 @@ arp_start (void)
   return 0;
 }
 
+
+void *
+arp_ctl_connect (void)
+{
+  void *sock = zsocket_new (zcontext, ZMQ_REQ);
+  zsocket_connect (sock, ARPD_CTL_EP);
+  return sock;
+}
+
+DEFINE_HANDLER (AC_ADD_IP)
+{
+  ip_addr_t addr;
+  vid_t vid;
+  enum status result;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  DEBUG ("add IP %d.%d.%d.%d on VLAN %d\r\n",
+         addr[0], addr[1], addr[2], addr[3], vid);
+  result = ST_OK;
+
+ out:
+  report_status (result);
+}
+
+enum status
+arp_add_ip (void *sock, vid_t vid, const ip_addr_t addr)
+{
+  zmsg_t *msg = zmsg_new ();
+  status_t result;
+  command_t cmd = AC_ADD_IP;
+
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &vid, sizeof (vid));
+  zmsg_addmem (msg, addr, sizeof (addr));
+  zmsg_send (&msg, sock);
+
+  msg = zmsg_recv (sock);
+  result = *((status_t *) zframe_data (zmsg_first (msg)));
+  zmsg_destroy (&msg);
+
+  return result;
+}

@@ -20,6 +20,8 @@
 #include <uthash.h>
 
 
+void *arpc_sock;
+
 #define HASH_FIND_PFX(head, findpfx, out)                       \
   HASH_FIND (hh, head, findpfx, sizeof (struct route_pfx), out)
 #define HASH_ADD_PFX(head, pfxfield, add)                       \
@@ -205,6 +207,8 @@ route_test (void)
 
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
+
+  arpc_sock = arp_ctl_connect ();
 
   return ST_OK;
 }

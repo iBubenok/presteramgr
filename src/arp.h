@@ -3,8 +3,17 @@
 
 #include <control-proto.h>
 
+#define ARPD_CTL_EP "inproc://arpd-ctl"
+
+enum arpd_cmd {
+  AC_ADD_IP
+};
+
 extern int arp_start (void);
 extern enum status arp_send_req (vid_t, const ip_addr_t);
 extern void arp_handle_reply (vid_t, port_id_t, unsigned char *, int);
+
+extern void *arp_ctl_connect (void);
+extern enum status arp_add_ip (void *, vid_t, const ip_addr_t);
 
 #endif /* __ARP_H__ */

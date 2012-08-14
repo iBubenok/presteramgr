@@ -722,11 +722,11 @@ cpss_start (void)
   INFO ("start control interface\n");
   control_start ();
 
-  INFO ("init route test");
-  route_test ();
-
   INFO ("start ARP subsystem");
   arp_start ();
+
+  INFO ("init route test");
+  route_test ();
 
   INFO ("start handling events\n");
   event_enter_loop ();
