@@ -6,10 +6,17 @@
 
 #include <control-proto.h>
 
+#include <uthash.h>
+
 struct gw {
   GT_IPADDR addr;
   vid_t vid;
 };
+
+#define HASH_FIND_GW(head, findgw, out)                 \
+  HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
+#define HASH_ADD_GW(head, gwfield, add)                 \
+  HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
 enum {
   DEFAULT_UC_RE_IDX = 0,

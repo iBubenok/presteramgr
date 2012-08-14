@@ -17,6 +17,16 @@
 #include <route-p.h>
 #include <utils.h>
 
+
+struct arp_entry {
+  struct gw gw;
+  mac_addr_t addr;
+  port_id_t pid;
+  UT_hash_handle hh;
+};
+
+static struct arp_entry *valid = NULL, *invalid = NULL;
+
 enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
@@ -176,6 +186,8 @@ DEFINE_HANDLER (AC_ADD_IP)
   ip_addr_t addr;
   vid_t vid;
   enum status result;
+  struct gw gw;
+  struct arp_entry *entry;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -185,9 +197,30 @@ DEFINE_HANDLER (AC_ADD_IP)
   if (result != ST_OK)
     goto out;
 
-  DEBUG ("add IP %d.%d.%d.%d on VLAN %d\r\n",
+  memcpy (gw.addr.arIP, addr, sizeof (addr));
+  gw.vid = vid;
+
+  HASH_FIND_GW (valid, &gw, entry);
+  if (entry) {
+    DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already known\r\n",
+           addr[0], addr[1], addr[2], addr[3], vid);
+    result = ST_OK;
+    goto out;
+  }
+
+  HASH_FIND_GW (invalid, &gw, entry);
+  if (entry) {
+    DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already queued\r\n",
+           addr[0], addr[1], addr[2], addr[3], vid);
+    result = ST_OK;
+    goto out;
+  }
+
+  DEBUG ("queueing MAC addr for IP %d.%d.%d.%d on VLAN %d\r\n",
          addr[0], addr[1], addr[2], addr[3], vid);
-  result = ST_OK;
+  entry = calloc (1, sizeof (*entry));
+  memcpy (&entry->gw, &gw, sizeof (gw));
+  HASH_ADD_GW (invalid, gw, entry);
 
  out:
   report_status (result);

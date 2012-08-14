@@ -14,6 +14,7 @@
 #include <arp.h>
 #include <route.h>
 #include <debug.h>
+#include <route-p.h>
 
 #include <uthash.h>
 
@@ -60,11 +61,6 @@ struct re {
 };
 static struct re *ret = NULL;
 static int re_cnt = 0;
-
-#define HASH_FIND_GW(head, findgw, out)                 \
-  HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
-#define HASH_ADD_GW(head, gwfield, add)                 \
-  HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
 int
 ret_add (const struct gw *gw, int def)
