@@ -234,45 +234,18 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MRU)
 };
 
-
-static int
-cmd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
-{
-  zmsg_t *msg;
-  command_t cmd;
-  cmd_handler_t handler;
-  enum status result;
-
-  msg = zmsg_recv (sock);
-
-  result = pop_size (&cmd, msg, sizeof (cmd), 0);
-  if (result != ST_OK) {
-    __report_status (result, sock);
-    goto out;
-  }
-
-  if (cmd >= ARRAY_SIZE (handlers) ||
-      (handler = handlers[cmd]) == NULL) {
-    __report_status (ST_BAD_REQUEST, sock);
-    goto out;
-  }
-  handler (msg, sock);
-
- out:
-  zmsg_destroy (&msg);
-  return 0;
-}
-
 static unsigned __TASKCONV
 control_loop (GT_VOID *dummy)
 {
   zloop_t *loop = zloop_new ();
 
   zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &cmd_pi, cmd_handler, cmd_sock);
+  struct handler_data cmd_hd = { cmd_sock, handlers, ARRAY_SIZE (handlers) };
+  zloop_poller (loop, &cmd_pi, control_handler, &cmd_hd);
 
   zmq_pollitem_t inp_pi = { inp_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &inp_pi, cmd_handler, inp_sock);
+  struct handler_data inp_hd = { inp_sock, handlers, ARRAY_SIZE (handlers) };
+  zloop_poller (loop, &inp_pi, control_handler, &inp_hd);
 
   zloop_start (loop);
 

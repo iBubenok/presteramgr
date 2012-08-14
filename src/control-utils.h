@@ -83,4 +83,14 @@ typedef void (*cmd_handler_t) (zmsg_t *, void *);
 
 #define FIRST_ARG (zmsg_first (__args))
 
+
+struct handler_data {
+  void *sock;
+  cmd_handler_t *handlers;
+  int nhandlers;
+};
+
+extern int control_handler (zloop_t *, zmq_pollitem_t *, void *);
+
+
 #endif /* __CONTROL_UTILS_H__ */
