@@ -10,7 +10,6 @@ enum arpd_cmd {
 };
 
 extern int arp_start (void);
-extern enum status arp_send_req (vid_t, const ip_addr_t);
 extern void arp_handle_reply (vid_t, port_id_t, unsigned char *, int);
 
 extern void *arp_ctl_connect (void);

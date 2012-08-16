@@ -107,9 +107,9 @@ ret_add (const struct gw *gw, int def)
 
   DEBUG ("sending ARP requests");
   arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP);
-  int i;
-  for (i = 0; i < 3; i++)
-    arp_send_req (gw->vid, gw->addr.arIP);
+  /* int i; */
+  /* for (i = 0; i < 3; i++) */
+  /*   arp_send_req (gw->vid, gw->addr.arIP); */
   DEBUG ("done sending ARP requests");
   return 0;
 }

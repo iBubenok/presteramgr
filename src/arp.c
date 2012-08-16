@@ -17,17 +17,22 @@
 #include <route-p.h>
 #include <utils.h>
 
+static void *req_sock;
+static void *sub_sock;
+static void *ctl_sock;
 
 struct arp_entry {
   struct gw gw;
   mac_addr_t addr;
   port_id_t pid;
+  int reqs_sent;
+  struct arp_entry *prev, *next;
   UT_hash_handle hh;
 };
 
 static struct arp_entry *valid = NULL, *invalid = NULL;
 
-enum status
+static enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
   unsigned char buf[256];
@@ -56,20 +61,99 @@ arp_send_req (vid_t vid, const ip_addr_t addr)
   memcpy (p, addr, 4);
   p += 4;
 
-  DEBUG ("where is %d.%d.%d.%d?", addr[0], addr[1], addr[2], addr[3]);
-
-  mgmt_send_regular_frame (vid, buf, p - buf);
-
-  /* zmsg_t *msg = zmsg_new (); */
-  /* command_t cmd = CC_SEND_FRAME; */
-  /* zmsg_addmem (msg, &cmd, sizeof (cmd)); */
-  /* zmsg_addmem (msg, buf, p - buf); */
-  /* /\* zmsg_send (&msg, inp_sock); *\/ */
-
-  /* /\* msg = zmsg_recv (inp_sock); *\/ */
-  /* zmsg_destroy (&msg); */
+  zmsg_t *msg = zmsg_new ();
+  command_t cmd = CC_SEND_FRAME;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &vid, sizeof (vid));
+  zmsg_addmem (msg, buf, p - buf);
+  zmsg_send (&msg, req_sock);
+  msg = zmsg_recv (req_sock);
+  zmsg_destroy (&msg);
 
   return ST_OK;
+}
+
+struct aelh {
+  struct arp_entry *head, *cur;
+  int len;
+};
+
+static void
+aelist_add (struct aelh *h, struct arp_entry *e)
+{
+  if (!h->head) {
+    e->prev = e->next = h->cur = h->head = e;
+  } else {
+    e->prev = h->head->prev;
+    e->next = h->head;
+    h->head->prev = e->prev->next = e;
+  }
+
+  h->len += 1;
+}
+
+static void
+aelist_del (struct aelh *h, struct arp_entry *e)
+{
+  if (h->len == 1) {
+    h->head = h->cur = NULL;
+  } else {
+    if (h->head == e)
+      h->head = e->next;
+    if (h->cur == e)
+      h->cur = e->next;
+    e->prev->next = e->next;
+    e->next->prev = e->prev;
+  }
+
+  h->len -= 1;
+  e->prev = e->next = NULL;
+}
+
+static struct arp_entry *
+aelist_cur (struct aelh *h)
+{
+  return h->cur;
+}
+
+static void
+aelist_next (struct aelh *h)
+{
+  if (h->cur)
+    h->cur = h->cur->next;
+}
+
+static struct aelh unk = {
+  .head = NULL,
+  .cur  = NULL,
+  .len  = 0
+};
+
+static int
+arp_fast_timer (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  int i = 0;
+
+  while (i < 10 && i < unk.len) {
+    struct arp_entry *e = aelist_cur (&unk);
+    if (!e)
+      break;
+
+    if (e->reqs_sent >= 3) {
+      aelist_del (&unk, e);
+      continue;
+    }
+
+    DEBUG ("sending req #%d for IP %d.%d.%d.%d on VLAN %d\r\n",
+           ++e->reqs_sent, e->gw.addr.arIP[0], e->gw.addr.arIP[1],
+           e->gw.addr.arIP[2], e->gw.addr.arIP[3], e->gw.vid);
+    arp_send_req (e->gw.vid, e->gw.addr.arIP);
+
+    i += 1;
+    aelist_next (&unk);
+  }
+
+  return 0;
 }
 
 void
@@ -98,10 +182,6 @@ arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
   ret_set_mac_addr (&gw, (const GT_ETHERADDR *) p, pid);
 }
 
-static void *req_sock;
-static void *sub_sock;
-static void *ctl_sock;
-
 
 DECLARE_HANDLER (AC_ADD_IP);
 
@@ -113,9 +193,42 @@ static int
 sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
   zmsg_t *msg = zmsg_recv (sock);
+  zframe_t *frame = zmsg_first (msg);
+  struct gw gw;
 
-  DEBUG ("got arp reply!!!\r\n");
+  memset (&gw, 0, sizeof (gw));
 
+  frame = zmsg_next (msg);
+  gw.vid = *((vid_t *) zframe_data (frame));
+
+  zmsg_next (msg); /* Skip port id. */
+
+  frame = zmsg_next (msg);
+
+  struct arphdr *ah = (struct arphdr *) (zframe_data (frame) + ETH_HLEN);
+  unsigned char *p = (unsigned char *) (ah + 1);
+  if (ah->ar_pro != htons (ETH_P_IP) ||
+      ah->ar_op != htons (ARPOP_REPLY) ||
+      ah->ar_hln != 6 ||
+      ah->ar_pln != 4)
+    goto out;
+
+  p += ETH_ALEN;
+  memcpy (gw.addr.arIP, p, 4);
+
+  DEBUG ("got arp reply for %d.%d.%d.%d at VLAN %d\r\n",
+         p[0], p[1], p[2], p[3], gw.vid);
+
+  struct arp_entry *e;
+  HASH_FIND_GW (invalid, &gw, e);
+  if (e) {
+    DEBUG ("removing entry\r\n");
+    HASH_DEL (invalid, e);
+    aelist_del (&unk, e);
+    free (e);
+  }
+
+ out:
   zmsg_destroy (&msg);
   return 0;
 }
@@ -154,6 +267,8 @@ arp_thread (void *dummy)
   zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
   struct handler_data ctl_hd = { ctl_sock, handlers, ARRAY_SIZE (handlers) };
   zloop_poller (loop, &ctl_pi, control_handler, &ctl_hd);
+
+  zloop_timer (loop, 100, 0, arp_fast_timer, NULL);
 
   zloop_start (loop);
 
@@ -197,6 +312,7 @@ DEFINE_HANDLER (AC_ADD_IP)
   if (result != ST_OK)
     goto out;
 
+  memset (&gw, 0, sizeof (gw));
   memcpy (gw.addr.arIP, addr, sizeof (addr));
   gw.vid = vid;
 
@@ -221,6 +337,8 @@ DEFINE_HANDLER (AC_ADD_IP)
   entry = calloc (1, sizeof (*entry));
   memcpy (&entry->gw, &gw, sizeof (gw));
   HASH_ADD_GW (invalid, gw, entry);
+
+  aelist_add (&unk, entry);
 
  out:
   report_status (result);

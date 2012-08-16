@@ -100,6 +100,12 @@ put_port_id (zmsg_t *msg, port_id_t pid)
   zmsg_addmem (msg, &pid, sizeof (pid));
 }
 
+static inline void
+put_vlan_id (zmsg_t *msg, vid_t vid)
+{
+  zmsg_addmem (msg, &vid, sizeof (vid));
+}
+
 static void
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -1192,7 +1198,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
-    arp_handle_reply (frame->vid, pid, frame->data, frame->len);
     break;
 
   default:
@@ -1201,9 +1206,14 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   }
 
   zmsg_t *msg = make_notify_message (type);
+  if (type == CN_ARP_REPLY_TO_ME)
+    put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
   zmsg_addmem (msg, frame->data, frame->len);
   notify_send (&msg);
+
+  if (type == CN_ARP_REPLY_TO_ME)
+    arp_handle_reply (frame->vid, pid, frame->data, frame->len);
 
   result = ST_OK;
 
