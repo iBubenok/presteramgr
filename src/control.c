@@ -32,6 +32,7 @@ static void *pub_sock;
 static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
+static void *evt_sock;
 
 
 static void *
@@ -72,6 +73,11 @@ control_init (void)
   inp_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (inp_sock);
   rc = zsocket_bind (inp_sock, INP_SOCK_EP);
+
+  evt_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (evt_sock);
+  rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
+  DEBUG ("connect returned %d\r\n", rc);
 
   return 0;
 }
@@ -256,6 +262,15 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MRU)
 };
 
+static int
+evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  DEBUG ("relay event\r\n");
+  zmsg_t *msg = zmsg_recv (evt_sock);
+  notify_send (&msg);
+  return 0;
+}
+
 static unsigned __TASKCONV
 control_loop (GT_VOID *dummy)
 {
@@ -268,6 +283,9 @@ control_loop (GT_VOID *dummy)
   zmq_pollitem_t inp_pi = { inp_sock, 0, ZMQ_POLLIN };
   struct handler_data inp_hd = { inp_sock, handlers, ARRAY_SIZE (handlers) };
   zloop_poller (loop, &inp_pi, control_handler, &inp_hd);
+
+  zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &evt_pi, evt_handler, NULL);
 
   zloop_start (loop);
 

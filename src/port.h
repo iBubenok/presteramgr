@@ -50,7 +50,7 @@ extern int port_init (void);
 extern enum status port_start (void);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_id (GT_U8, GT_U8);
-extern void port_handle_link_change (GT_U8, GT_U8);
+extern enum status port_handle_link_change (GT_U8, GT_U8, port_id_t *, CPSS_PORT_ATTRIBUTES_STC *);
 extern enum status port_get_state (port_id_t, struct port_link_state *);
 extern enum status port_set_stp_state (port_id_t, stp_id_t, enum port_stp_state);
 extern enum status port_set_mode (port_id_t, enum port_mode);

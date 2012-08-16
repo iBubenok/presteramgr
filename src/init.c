@@ -710,6 +710,8 @@ cpss_start (void)
 
   init_cpss ();
 
+  event_init ();
+
   INFO ("init control interface\n");
   control_init ();
 

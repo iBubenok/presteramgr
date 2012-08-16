@@ -359,39 +359,40 @@ port_exists (GT_U8 dev, GT_U8 port)
     (&(PRV_CPSS_PP_MAC (dev)->existingPorts), port);
 }
 
-void
-port_handle_link_change (GT_U8 ldev, GT_U8 lport)
+enum status
+port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-  CPSS_PORT_ATTRIBUTES_STC attrs;
+  struct port *port;
   GT_STATUS rc;
-  port_id_t pid = port_id (ldev, lport);
-  struct port *port = port_ptr (pid);
 
+  *pid = port_id (ldev, lport);
+  port = port_ptr (*pid);
   if (!port)
-    return;
+    return ST_DOES_NOT_EXIST;
 
-  rc = CRP (cpssDxChPortAttributesOnPortGet (port->ldev, port->lport, &attrs));
+  rc = CRP (cpssDxChPortAttributesOnPortGet (port->ldev, port->lport, attrs));
   if (rc != GT_OK)
-    return;
+    return ST_HEX;
 
   port_lock ();
 
-  if (attrs.portLinkUp    != port->state.attrs.portLinkUp ||
-      attrs.portSpeed     != port->state.attrs.portSpeed  ||
-      attrs.portDuplexity != port->state.attrs.portDuplexity) {
-    control_notify_port_state (pid, &attrs);
-    port->state.attrs = attrs;
+  if (attrs->portLinkUp    != port->state.attrs.portLinkUp ||
+      attrs->portSpeed     != port->state.attrs.portSpeed  ||
+      attrs->portDuplexity != port->state.attrs.portDuplexity) {
+    port->state.attrs = *attrs;
 #ifdef DEBUG_STATE
-    if (attrs.portLinkUp)
+    if (attrs->portLinkUp)
       osPrintSync ("port %2d link up at %s, %s\n", n,
-                   SHOW (CPSS_PORT_SPEED_ENT, attrs.portSpeed),
-                   SHOW (CPSS_PORT_DUPLEX_ENT, attrs.portDuplexity));
+                   SHOW (CPSS_PORT_SPEED_ENT, attrs->portSpeed),
+                   SHOW (CPSS_PORT_DUPLEX_ENT, attrs->portDuplexity));
     else
       osPrintSync ("port %2d link down\n", n);
 #endif /* DEBUG_STATE */
   }
 
   port_unlock ();
+
+  return ST_OK;
 }
 
 enum status
