@@ -118,24 +118,6 @@ put_stp_state (zmsg_t *msg, stp_state_t state)
 }
 
 static void
-put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
-{
-  struct port_link_state state;
-
-  data_encode_port_state (&state, attrs);
-  zmsg_addmem (msg, &state, sizeof (state));
-}
-
-void
-control_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
-{
-  zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
-  put_port_id (msg, pid);
-  put_port_state (msg, attrs);
-  notify_send (&msg);
-}
-
-static void
 control_notify_stp_state (port_id_t pid, enum port_stp_state state)
 {
   zmsg_t *msg = make_notify_message (CN_STP_STATE);
