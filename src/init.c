@@ -700,15 +700,15 @@ init_cpss (void)
 void
 cpss_start (void)
 {
+  INFO ("init ZMQ context\n");
+  zcontext_init ();
+
   if (osWrapperOpen (NULL) != GT_OK) {
     ALERT ("osWrapper initialization failure!\n");
     return;
   }
 
   init_cpss ();
-
-  INFO ("init ZMQ context\n");
-  zcontext_init ();
 
   INFO ("init control interface\n");
   control_init ();

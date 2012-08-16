@@ -105,12 +105,7 @@ ret_add (const struct gw *gw, int def)
   if (re->valid)
     return (def ? 0 : re->idx);
 
-  DEBUG ("sending ARP requests");
   arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP);
-  /* int i; */
-  /* for (i = 0; i < 3; i++) */
-  /*   arp_send_req (gw->vid, gw->addr.arIP); */
-  DEBUG ("done sending ARP requests");
   return 0;
 }
 
@@ -143,6 +138,7 @@ ret_unref (const struct gw *gw, int def)
       res_push (re->idx);
       nht_unref (&re->addr);
     }
+    arp_del_ip (arpc_sock, re->gw.vid, re->gw.addr.arIP);
     free (re);
     --re_cnt;
   }
@@ -167,7 +163,29 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     return ST_DOES_NOT_EXIST;
 
   if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
-    DEBUG ("MAC addr is already known");
+    if (pid == re->pid) {
+      DEBUG ("MAC addr is already known");
+      return ST_OK;
+    }
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+    rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+    rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+    rt.entry.regularEntry.nextHopVlanId = gw->vid;
+    DEBUG ("write route entry");
+    rc = CRP (cpssDxChIpUcRouteEntriesWrite (0, re->idx, &rt, 1));
+    if (rc != ST_OK)
+      return ST_HEX;
+
+    if (re->def) {
+      DEBUG ("write default route entry");
+      CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+
     return ST_OK;
   }
 

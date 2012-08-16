@@ -95,6 +95,9 @@ aelist_add (struct aelh *h, struct arp_entry *e)
 static void
 aelist_del (struct aelh *h, struct arp_entry *e)
 {
+  if (h->len == 0)
+    return;
+
   if (h->len == 1) {
     h->head = h->cur = NULL;
   } else {
@@ -139,10 +142,10 @@ arp_fast_timer (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     if (!e)
       break;
 
-    if (e->reqs_sent >= 3) {
-      aelist_del (&unk, e);
-      continue;
-    }
+    /* if (e->reqs_sent >= 3) { */
+    /*   aelist_del (&unk, e); */
+    /*   continue; */
+    /* } */
 
     DEBUG ("sending req #%d for IP %d.%d.%d.%d on VLAN %d\r\n",
            ++e->reqs_sent, e->gw.addr.arIP[0], e->gw.addr.arIP[1],
@@ -184,24 +187,27 @@ arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
 
 
 DECLARE_HANDLER (AC_ADD_IP);
+DECLARE_HANDLER (AC_DEL_IP);
 
 static cmd_handler_t handlers[] = {
-  HANDLER (AC_ADD_IP)
+  HANDLER (AC_ADD_IP),
+  HANDLER (AC_DEL_IP)
 };
 
-static int
-sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
+static void
+arp_reply_handler (zmsg_t *msg)
 {
-  zmsg_t *msg = zmsg_recv (sock);
-  zframe_t *frame = zmsg_first (msg);
+  zframe_t *frame;
   struct gw gw;
+  port_id_t pid;
 
   memset (&gw, 0, sizeof (gw));
 
   frame = zmsg_next (msg);
   gw.vid = *((vid_t *) zframe_data (frame));
 
-  zmsg_next (msg); /* Skip port id. */
+  frame = zmsg_next (msg);
+  pid = *((port_id_t *) zframe_data (frame));
 
   frame = zmsg_next (msg);
 
@@ -211,7 +217,7 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
       ah->ar_op != htons (ARPOP_REPLY) ||
       ah->ar_hln != 6 ||
       ah->ar_pln != 4)
-    goto out;
+    return;
 
   p += ETH_ALEN;
   memcpy (gw.addr.arIP, p, 4);
@@ -222,13 +228,58 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   struct arp_entry *e;
   HASH_FIND_GW (aes, &gw, e);
   if (e) {
-    DEBUG ("removing entry\r\n");
-    HASH_DEL (aes, e);
+    DEBUG ("found entry\r\n");
+    e->pid = pid;
     aelist_del (&unk, e);
-    free (e);
+  }
+}
+
+static void
+stp_state_handler (zmsg_t *msg)
+{
+  zframe_t *frame;
+  port_id_t pid;
+  stp_state_t state;
+
+  frame = zmsg_next (msg);
+  pid = *((port_id_t *) zframe_data (frame));
+
+  frame = zmsg_next (msg);
+  state = *((stp_state_t *) zframe_data (frame));
+
+  DEBUG ("STP STATE %d for port %d\r\n", state, pid);
+
+  if (state != STP_STATE_FORWARDING) {
+    struct arp_entry *e, *tmp;
+    DEBUG ("port %d is not forwarding\r\n", pid);
+    HASH_ITER (hh, aes, e, tmp) {
+      if (e->pid == pid) {
+        e->pid = 0;
+        aelist_add (&unk, e);
+      }
+    }
+  }
+}
+
+static int
+sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
+{
+  zmsg_t *msg = zmsg_recv (sock);
+  zframe_t *frame = zmsg_first (msg);
+  notification_t n = *((notification_t *) zframe_data (frame));
+
+  DEBUG ("got notification %d\r\n", n);
+  switch (n) {
+  case CN_ARP_REPLY_TO_ME:
+    arp_reply_handler (msg);
+    break;
+  case CN_STP_STATE:
+    stp_state_handler (msg);
+    break;
+  default:
+    break;
   }
 
- out:
   zmsg_destroy (&msg);
   return 0;
 }
@@ -255,6 +306,7 @@ arp_thread (void *dummy)
   zsocket_connect (sub_sock, INP_PUB_SOCK_EP);
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
   control_notification_subscribe (sub_sock, CN_ARP_REPLY_TO_ME);
+  control_notification_subscribe (sub_sock, CN_STP_STATE);
   zmq_pollitem_t sub_pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &sub_pi, sub_handler, sub_sock);
 
@@ -341,6 +393,64 @@ arp_add_ip (void *sock, vid_t vid, const ip_addr_t addr)
   zmsg_t *msg = zmsg_new ();
   status_t result;
   command_t cmd = AC_ADD_IP;
+
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &vid, sizeof (vid));
+  zmsg_addmem (msg, addr, sizeof (addr));
+  zmsg_send (&msg, sock);
+
+  msg = zmsg_recv (sock);
+  result = *((status_t *) zframe_data (zmsg_first (msg)));
+  zmsg_destroy (&msg);
+
+  return result;
+}
+
+DEFINE_HANDLER (AC_DEL_IP)
+{
+  ip_addr_t addr;
+  vid_t vid;
+  enum status result;
+  struct gw gw;
+  struct arp_entry *entry;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  memset (&gw, 0, sizeof (gw));
+  memcpy (gw.addr.arIP, addr, sizeof (addr));
+  gw.vid = vid;
+
+  HASH_FIND_GW (aes, &gw, entry);
+  if (!entry) {
+    DEBUG ("no ARPd entry for IP %d.%d.%d.%d on VLAN %d\r\n",
+           addr[0], addr[1], addr[2], addr[3], vid);
+    result = ST_DOES_NOT_EXIST;
+    goto out;
+  }
+
+  DEBUG ("deleting ARPd entry for IP %d.%d.%d.%d on VLAN %d\r\n",
+         addr[0], addr[1], addr[2], addr[3], vid);
+  HASH_DEL (aes, entry);
+  aelist_del (&unk, entry);
+  free (entry);
+  result = ST_OK;
+
+ out:
+  report_status (result);
+}
+
+enum status
+arp_del_ip (void *sock, vid_t vid, const ip_addr_t addr)
+{
+  zmsg_t *msg = zmsg_new ();
+  status_t result;
+  command_t cmd = AC_DEL_IP;
 
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, &vid, sizeof (vid));

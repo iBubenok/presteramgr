@@ -106,6 +106,12 @@ put_vlan_id (zmsg_t *msg, vid_t vid)
   zmsg_addmem (msg, &vid, sizeof (vid));
 }
 
+static inline void
+put_stp_state (zmsg_t *msg, stp_state_t state)
+{
+  zmsg_addmem (msg, &state, sizeof (state));
+}
+
 static void
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
@@ -122,6 +128,16 @@ control_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   put_port_id (msg, pid);
   put_port_state (msg, attrs);
   notify_send (&msg);
+}
+
+static void
+control_notify_stp_state (port_id_t pid, enum port_stp_state state)
+{
+  zmsg_t *msg = make_notify_message (CN_STP_STATE);
+  put_port_id (msg, pid);
+  put_stp_state (msg, state);
+  notify_send (&msg);
+  DEBUG ("sent STP state notification\r\n");
 }
 
 int
@@ -315,6 +331,9 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   default:
     break;
   }
+
+  if (result == ST_OK)
+    control_notify_stp_state (pid, state);
 
  out:
   report_status (result);
