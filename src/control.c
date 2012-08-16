@@ -22,6 +22,7 @@
 #include <mcg.h>
 #include <route.h>
 #include <arp.h>
+#include <ret.h>
 #include <control-utils.h>
 
 #include <gtOs/gtOsTask.h>
@@ -187,6 +188,7 @@ DECLARE_HANDLER (CC_VLAN_SET_IP_ADDR);
 DECLARE_HANDLER (CC_VLAN_DEL_IP_ADDR);
 DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_MRU);
+DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -239,7 +241,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_SET_IP_ADDR),
   HANDLER (CC_VLAN_DEL_IP_ADDR),
   HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR),
-  HANDLER (CC_PORT_SET_MRU)
+  HANDLER (CC_PORT_SET_MRU),
+  HANDLER (CC_INT_RET_SET_MAC_ADDR)
 };
 
 static int
@@ -1228,9 +1231,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   zmsg_addmem (msg, frame->data, frame->len);
   notify_send (&msg);
 
-  if (type == CN_ARP_REPLY_TO_ME)
-    arp_handle_reply (frame->vid, pid, frame->data, frame->len);
-
   result = ST_OK;
 
  out:
@@ -1297,6 +1297,30 @@ DEFINE_HANDLER (CC_PORT_SET_MRU)
     goto out;
 
   result = port_set_mru (mru);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_RET_SET_MAC_ADDR)
+{
+  enum status result;
+  struct gw gw;
+  port_id_t pid;
+  zframe_t *frame;
+
+  result = POP_ARG (&gw);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  frame = FIRST_ARG;
+
+  result = ret_set_mac_addr
+    (&gw, (const GT_ETHERADDR *) zframe_data (frame), pid);
 
  out:
   report_status (result);

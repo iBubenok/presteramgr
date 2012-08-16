@@ -159,32 +159,6 @@ arp_fast_timer (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
-void
-arp_handle_reply (vid_t vid, port_id_t pid, unsigned char *frame, int len)
-{
-  struct arphdr *ah = (struct arphdr *) (frame + ETH_HLEN);
-  unsigned char *p = (unsigned char *) (ah + 1);
-
-  if (ah->ar_pro != htons (ETH_P_IP) ||
-      ah->ar_op != htons (ARPOP_REPLY) ||
-      ah->ar_hln != 6 ||
-      ah->ar_pln != 4) {
-    DEBUG ("bad ARP reply");
-    return;
-  }
-
-  DEBUG ("%d.%d.%d.%d is at %02x:%02x:%02x:%02x:%02x:%02x, port %d",
-         p[6], p[7], p[8], p[9], p[0], p[1], p[2], p[3], p[4], p[5], pid);
-
-  struct gw gw;
-
-  memset (&gw, 0, sizeof (gw));
-  memcpy (&gw.addr, &p[6], 4);
-  gw.vid = vid;
-
-  ret_set_mac_addr (&gw, (const GT_ETHERADDR *) p, pid);
-}
-
 
 DECLARE_HANDLER (AC_ADD_IP);
 DECLARE_HANDLER (AC_DEL_IP);
@@ -219,11 +193,7 @@ arp_reply_handler (zmsg_t *msg)
       ah->ar_pln != 4)
     return;
 
-  p += ETH_ALEN;
-  memcpy (gw.addr.arIP, p, 4);
-
-  DEBUG ("got arp reply for %d.%d.%d.%d at VLAN %d\r\n",
-         p[0], p[1], p[2], p[3], gw.vid);
+  memcpy (gw.addr.arIP, p + ETH_ALEN, 4);
 
   struct arp_entry *e;
   HASH_FIND_GW (aes, &gw, e);
@@ -232,6 +202,16 @@ arp_reply_handler (zmsg_t *msg)
     e->pid = pid;
     aelist_del (&unk, e);
   }
+
+  zmsg_t *tmp = zmsg_new ();
+  command_t cmd = CC_INT_RET_SET_MAC_ADDR;
+  zmsg_addmem (tmp, &cmd, sizeof (cmd));
+  zmsg_addmem (tmp, &gw, sizeof (gw));
+  zmsg_addmem (tmp, &pid, sizeof (pid));
+  zmsg_addmem (tmp, p, ETH_ALEN);
+  zmsg_send (&tmp, req_sock);
+  tmp = zmsg_recv (req_sock);
+  zmsg_destroy (&tmp);
 }
 
 static void
