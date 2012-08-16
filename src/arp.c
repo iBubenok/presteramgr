@@ -247,11 +247,8 @@ stp_state_handler (zmsg_t *msg)
   frame = zmsg_next (msg);
   state = *((stp_state_t *) zframe_data (frame));
 
-  DEBUG ("STP STATE %d for port %d\r\n", state, pid);
-
   if (state != STP_STATE_FORWARDING) {
     struct arp_entry *e, *tmp;
-    DEBUG ("port %d is not forwarding\r\n", pid);
     HASH_ITER (hh, aes, e, tmp) {
       if (e->pid == pid) {
         e->pid = 0;
@@ -268,7 +265,6 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   zframe_t *frame = zmsg_first (msg);
   notification_t n = *((notification_t *) zframe_data (frame));
 
-  DEBUG ("got notification %d\r\n", n);
   switch (n) {
   case CN_ARP_REPLY_TO_ME:
     arp_reply_handler (msg);

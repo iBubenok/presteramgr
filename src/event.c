@@ -67,7 +67,6 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 static void
 notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-  DEBUG ("port %d state changed\r\n", pid);
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_id (msg, pid);
   put_port_state (msg, attrs);
@@ -194,6 +193,5 @@ event_init (void)
 {
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
-  int rc = zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
-  DEBUG ("bind returned %d\r\n", rc);
+  zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
 }

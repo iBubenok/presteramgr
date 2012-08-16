@@ -77,7 +77,6 @@ control_init (void)
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
-  DEBUG ("connect returned %d\r\n", rc);
 
   return 0;
 }
@@ -143,7 +142,6 @@ control_notify_stp_state (port_id_t pid, enum port_stp_state state)
   put_port_id (msg, pid);
   put_stp_state (msg, state);
   notify_send (&msg);
-  DEBUG ("sent STP state notification\r\n");
 }
 
 int
@@ -265,7 +263,6 @@ static cmd_handler_t handlers[] = {
 static int
 evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
-  DEBUG ("relay event\r\n");
   zmsg_t *msg = zmsg_recv (evt_sock);
   notify_send (&msg);
   return 0;
