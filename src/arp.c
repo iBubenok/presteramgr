@@ -30,7 +30,7 @@ struct arp_entry {
   UT_hash_handle hh;
 };
 
-static struct arp_entry *valid = NULL, *invalid = NULL;
+static struct arp_entry *aes;
 
 static enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
@@ -220,10 +220,10 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
          p[0], p[1], p[2], p[3], gw.vid);
 
   struct arp_entry *e;
-  HASH_FIND_GW (invalid, &gw, e);
+  HASH_FIND_GW (aes, &gw, e);
   if (e) {
     DEBUG ("removing entry\r\n");
-    HASH_DEL (invalid, e);
+    HASH_DEL (aes, e);
     aelist_del (&unk, e);
     free (e);
   }
@@ -316,28 +316,19 @@ DEFINE_HANDLER (AC_ADD_IP)
   memcpy (gw.addr.arIP, addr, sizeof (addr));
   gw.vid = vid;
 
-  HASH_FIND_GW (valid, &gw, entry);
+  HASH_FIND_GW (aes, &gw, entry);
   if (entry) {
-    DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already known\r\n",
+    DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already in list\r\n",
            addr[0], addr[1], addr[2], addr[3], vid);
     result = ST_OK;
     goto out;
   }
 
-  HASH_FIND_GW (invalid, &gw, entry);
-  if (entry) {
-    DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already queued\r\n",
-           addr[0], addr[1], addr[2], addr[3], vid);
-    result = ST_OK;
-    goto out;
-  }
-
-  DEBUG ("queueing MAC addr for IP %d.%d.%d.%d on VLAN %d\r\n",
+  DEBUG ("adding MAC addr for IP %d.%d.%d.%d on VLAN %d\r\n",
          addr[0], addr[1], addr[2], addr[3], vid);
   entry = calloc (1, sizeof (*entry));
   memcpy (&entry->gw, &gw, sizeof (gw));
-  HASH_ADD_GW (invalid, gw, entry);
-
+  HASH_ADD_GW (aes, gw, entry);
   aelist_add (&unk, entry);
 
  out:
