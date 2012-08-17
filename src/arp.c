@@ -227,7 +227,7 @@ stp_state_handler (zmsg_t *msg)
   frame = zmsg_next (msg);
   state = *((stp_state_t *) zframe_data (frame));
 
-  if (state != STP_STATE_FORWARDING) {
+  if (state == STP_STATE_DISCARDING) {
     struct arp_entry *e, *tmp;
     HASH_ITER (hh, aes, e, tmp) {
       if (e->pid == pid) {
