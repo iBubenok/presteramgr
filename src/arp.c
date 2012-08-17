@@ -232,6 +232,7 @@ stp_state_handler (zmsg_t *msg)
     HASH_ITER (hh, aes, e, tmp) {
       if (e->pid == pid) {
         e->pid = 0;
+        e->reqs_sent = 0;
         aelist_add (&unk, e);
       }
     }
