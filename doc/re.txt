@@ -1,0 +1,31 @@
+RE is alive when:
+ 1. RE port has link, AND
+ 2. RE port is FORWARDING on RE VLAN.
+
+Thus RE becomes dead when:
+ 1. RE port loses link, OR
+ 2. RE port loses membership in RE VLAN, OR
+ 3. RE port STP state on RE VLAN becomes not FORWARDING.
+
+This means that to know RE state we need to monitor:
+ 1. RE port link state.
+ 2. RE port mode:
+    1. ACCESS means that the port is a member of its access VLAN only,
+       so we also need to monitor port access VLAN.
+    2. TRUNK means that the port is a member of all VLANs.
+ 3. RE VLAN STG membership.
+ 4. RE port/STG STP state.
+
+VLAN is alive when at least 1 member port:
+ 1. Has link, AND
+ 2. Is FORWARDING on VLAN.
+
+This means that to know VLAN state we need to monitor:
+ 1. Port modes:
+    1. ACCESS means that the port is a member of its access VLAN only,
+       so we also need to monitor port access VLAN.
+    2. TRUNK means that the port is a member of all VLANs.
+ 2. Port link states.
+ 3. VLAN STG membership.
+ 4. Port/STG STP state.
+
