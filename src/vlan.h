@@ -43,6 +43,7 @@ extern enum status vlan_get_mac_addr (vid_t, mac_addr_t);
 extern enum status vlan_get_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_set_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_del_ip_addr (vid_t);
+extern int stg_is_active (stp_id_t);
 
 
 #endif /* __VLAN_H__ */

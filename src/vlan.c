@@ -136,6 +136,28 @@ vlan_dump (vid_t vid)
   return ST_OK;
 }
 
+static uint32_t stgs[256 / sizeof (uint32_t)];
+#define STG_IDX(stg) (stg / sizeof (uint32_t))
+#define STG_BIT(stg) (1 << (stg % sizeof (uint32_t)))
+
+static inline void
+stgs_clear (void)
+{
+  memset (stgs, 0, sizeof (stgs));
+}
+
+int
+stg_is_active (stp_id_t stg)
+{
+  return stgs[STG_IDX (stg)] & STG_BIT (stg);
+}
+
+static inline void
+stg_set_active (stp_id_t stg)
+{
+  stgs[STG_IDX (stg)] |= STG_BIT (stg);
+}
+
 int vlan_dot1q_tag_native = 0;
 
 static void
@@ -471,8 +493,10 @@ vlan_set_fdb_map (const stp_id_t *ids)
     if (ids[i] > 255)
       return ST_BAD_VALUE;
 
+  stgs_clear ();
   for (i = 0; i < 4095; i++) {
     vlans[i].stp_id = ids[i];
+    stg_set_active (ids[i]);
     if (vlans[i].state == VS_ACTIVE)
       CRP (cpssDxChBrgVlanToStpIdBind (0, i + 1, ids[i]));
   }

@@ -320,14 +320,11 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   result = POP_OPT_ARG (&stp_id);
   switch (result) {
   case ST_OK:
-    result = port_set_stp_state (pid, stp_id, state);
+    result = port_set_stp_state (pid, stp_id, 0, state);
     break;
-
   case ST_DOES_NOT_EXIST:
-    /* FIXME: set state for all STGs. */
-    result = port_set_stp_state (pid, 0, state);
+    result = port_set_stp_state (pid, 0, 1, state);
     break;
-
   default:
     break;
   }

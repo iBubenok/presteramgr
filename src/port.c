@@ -416,10 +416,9 @@ port_get_state (port_id_t pid, struct port_link_state *state)
 
 enum status
 port_set_stp_state (port_id_t pid, stp_id_t stp_id,
-                    enum port_stp_state state)
+                    int all, enum port_stp_state state)
 {
   CPSS_STP_STATE_ENT cs;
-  GT_STATUS rc;
   enum status result;
   struct port *port;
 
@@ -430,14 +429,18 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   if (result != ST_OK)
     return result;
 
-  rc = CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
-  switch (rc) {
-  case GT_OK:                    return ST_OK;
-  case GT_HW_ERROR:              return ST_HW_ERROR;
-  case GT_BAD_PARAM:             return ST_BAD_VALUE;
-  case GT_NOT_APPLICABLE_DEVICE: return ST_NOT_SUPPORTED;
-  default:                       return ST_HEX;
-  }
+  if (all) {
+    stp_id_t stg;
+    /* FIXME: suboptimal code. */
+    for (stg = 0; stg < 256; stg++)
+      if (stg_is_active (stg)) {
+        DEBUG ("set STP state for port %d id %d\r\n", pid, stg);
+        CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stg, cs));
+      }
+  } else
+    CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
+
+  return ST_OK;
 }
 
 
