@@ -20,4 +20,11 @@ enum control_int_command {
 
 #define ALL_STP_IDS 0xFFFF
 
+enum control_int_notification {
+  CN_INT_PORT_VID_SET = CN_MAX,
+  CN_INT_MAX
+};
+
+extern void cn_port_vid_set (port_id_t, vid_t);
+
 #endif /* __CONTROL_H__ */

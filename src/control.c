@@ -135,6 +135,15 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
   notify_send (&msg);
 }
 
+void
+cn_port_vid_set (port_id_t pid, vid_t vid)
+{
+  zmsg_t *msg = make_notify_message (CN_INT_PORT_VID_SET);
+  put_port_id (msg, pid);
+  put_vlan_id (msg, vid);
+  notify_send (&msg);
+}
+
 int
 control_start (void)
 {

@@ -474,6 +474,8 @@ port_set_access_vid (port_id_t pid, vid_t vid)
     rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
     if (rc != GT_OK)
       goto out;
+
+    cn_port_vid_set (pid, vid);
   }
 
   port->access_vid = vid;
@@ -530,6 +532,8 @@ port_set_native_vid (port_id_t pid, vid_t vid)
     rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
     if (rc != GT_OK)
       goto out;
+
+    cn_port_vid_set (pid, vid);
   }
 
   port->native_vid = vid;
@@ -566,8 +570,7 @@ port_vlan_bulk_op (struct port *port,
                rest_member,
                rest_tag,
                rest_tag_cmd));
-    if (rc != GT_OK)
-      goto out;
+    ON_GT_ERROR (rc) goto err;
   }
 
   rc = CRP (cpssDxChBrgVlanMemberSet
@@ -577,16 +580,20 @@ port_vlan_bulk_op (struct port *port,
              GT_TRUE,
              vid_tag,
              vid_tag_cmd));
-  if (rc != GT_OK)
-    goto out;
+  ON_GT_ERROR (rc) goto err;
 
   rc = CRP (cpssDxChBrgVlanPortVidSet
             (port->ldev,
              port->lport,
              vid));
- out:
+  ON_GT_ERROR (rc) goto err;
+
+  cn_port_vid_set (port->id, vid);
+
+  return ST_OK;
+
+ err:
   switch (rc) {
-  case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
