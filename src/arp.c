@@ -32,6 +32,8 @@ struct arp_entry {
 
 static struct arp_entry *aes;
 
+static stp_id_t stp_id_map[4096];
+
 static enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
@@ -219,18 +221,24 @@ stp_state_handler (zmsg_t *msg)
 {
   zframe_t *frame;
   port_id_t pid;
+  stp_id_t stp_id;
   stp_state_t state;
 
   frame = zmsg_next (msg);
   pid = *((port_id_t *) zframe_data (frame));
 
   frame = zmsg_next (msg);
+  stp_id = *((stp_id_t *) zframe_data (frame));
+
+  frame = zmsg_next (msg);
   state = *((stp_state_t *) zframe_data (frame));
 
   if (state == STP_STATE_DISCARDING) {
     struct arp_entry *e, *tmp;
+    DEBUG ("port %d is DISCARDING on %d\r\n", pid, stp_id);
     HASH_ITER (hh, aes, e, tmp) {
-      if (e->pid == pid) {
+      if (e->pid == pid &&
+          (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid])) {
         e->pid = 0;
         e->reqs_sent = 0;
         aelist_add (&unk, e);
@@ -308,6 +316,8 @@ int
 arp_start (void)
 {
   pthread_t tid;
+
+  memset (stp_id_map, 0, sizeof (stp_id_map));
 
   pthread_create (&tid, NULL, arp_thread, NULL);
 
