@@ -34,10 +34,37 @@ static struct arp_entry *aes;
 
 static stp_id_t stp_id_map[4096];
 
+typedef uint32_t stp_state_map[256 / 32];
+
+static inline int
+ss_get_fwd (uint32_t *ssm, stp_id_t id)
+{
+  return GET_BIT (ssm, id);
+}
+
+static inline void
+ss_set_fwd (uint32_t *ssm, stp_id_t id)
+{
+  if (id == ALL_STP_IDS)
+    memset (ssm, 0xFF, sizeof (stp_state_map));
+  else
+    SET_BIT (ssm, id);
+}
+
+static inline void
+ss_clr_fwd (uint32_t *ssm, stp_id_t id)
+{
+  if (id == ALL_STP_IDS)
+    memset (ssm, 0x00, sizeof (stp_state_map));
+  else
+    CLR_BIT (ssm, id);
+}
+
 struct port_info {
   int pid; /* int to use HASH_*_INT() macros. */
   vid_t vid;
   int has_link;
+  stp_state_map ssm;
   UT_hash_handle hh;
 };
 
