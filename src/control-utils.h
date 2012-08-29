@@ -83,6 +83,18 @@ typedef void (*cmd_handler_t) (zmsg_t *, void *);
 
 #define FIRST_ARG (zmsg_first (__args))
 
+#define GET_FROM_FRAME(val, frame)                              \
+  ({                                                            \
+    zframe_t *__f = (frame);                                    \
+    typeof (val) *__v = &(val);                                 \
+    int __r = 0;                                                \
+    if (__f) {                                                  \
+      *__v = *((typeof (__v)) zframe_data (__f));               \
+      __r = 1;                                                  \
+    }                                                           \
+    __r;                                                        \
+  })
+
 
 struct handler_data {
   void *sock;
