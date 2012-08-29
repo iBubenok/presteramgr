@@ -37,6 +37,7 @@ static stp_id_t stp_id_map[4096];
 struct port_info {
   int pid; /* int to use HASH_*_INT() macros. */
   vid_t vid;
+  int has_link;
   UT_hash_handle hh;
 };
 
@@ -293,6 +294,26 @@ port_vid_handler (zmsg_t *msg)
   }
 }
 
+static void
+link_state_handler (zmsg_t *msg)
+{
+  port_id_t pid = 0;
+  struct port_link_state *ls;
+  struct port_info *pi;
+  int has_link;
+
+  GET_FROM_FRAME (pid, zmsg_next (msg));
+  ls = (struct port_link_state *) zframe_data (zmsg_next (msg));
+  has_link = !!ls->link;
+
+  pi = pi_get (pid);
+  if (pi->has_link != has_link) {
+    /* TODO: update other state. */
+    DEBUG ("port %d link is %s\r\n", pid, has_link ? "up" : "down");
+    pi->has_link = has_link;
+  }
+}
+
 static int
 sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
@@ -306,6 +327,9 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
     break;
   case CN_STP_STATE:
     stp_state_handler (msg);
+    break;
+  case CN_PORT_LINK_STATE:
+    link_state_handler (msg);
     break;
   case CN_INT_PORT_VID_SET:
     port_vid_handler (msg);
@@ -340,6 +364,7 @@ arp_thread (void *dummy)
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
   control_notification_subscribe (sub_sock, CN_ARP_REPLY_TO_ME);
   control_notification_subscribe (sub_sock, CN_STP_STATE);
+  control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
   control_notification_subscribe (sub_sock, CN_INT_PORT_VID_SET);
   zmq_pollitem_t sub_pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &sub_pi, sub_handler, sub_sock);
