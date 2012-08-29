@@ -18,4 +18,6 @@ enum control_int_command {
   CC_INT_MAX
 };
 
+#define ALL_STP_IDS 0xFFFF
+
 #endif /* __CONTROL_H__ */

@@ -107,6 +107,12 @@ put_port_id (zmsg_t *msg, port_id_t pid)
 }
 
 static inline void
+put_stp_id (zmsg_t *msg, stp_id_t stp_id)
+{
+  zmsg_addmem (msg, &stp_id, sizeof (stp_id));
+}
+
+static inline void
 put_vlan_id (zmsg_t *msg, vid_t vid)
 {
   zmsg_addmem (msg, &vid, sizeof (vid));
@@ -119,10 +125,12 @@ put_stp_state (zmsg_t *msg, stp_state_t state)
 }
 
 static void
-control_notify_stp_state (port_id_t pid, enum port_stp_state state)
+control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
+                          enum port_stp_state state)
 {
   zmsg_t *msg = make_notify_message (CN_STP_STATE);
   put_port_id (msg, pid);
+  put_stp_id (msg, stp_id);
   put_stp_state (msg, state);
   notify_send (&msg);
 }
@@ -323,6 +331,7 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
     result = port_set_stp_state (pid, stp_id, 0, state);
     break;
   case ST_DOES_NOT_EXIST:
+    stp_id = ALL_STP_IDS;
     result = port_set_stp_state (pid, 0, 1, state);
     break;
   default:
@@ -330,7 +339,7 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   }
 
   if (result == ST_OK)
-    control_notify_stp_state (pid, state);
+    control_notify_stp_state (pid, stp_id, state);
 
  out:
   report_status (result);
