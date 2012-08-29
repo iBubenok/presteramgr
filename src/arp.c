@@ -34,6 +34,34 @@ static struct arp_entry *aes;
 
 static stp_id_t stp_id_map[4096];
 
+struct port_info {
+  int pid; /* int to use HASH_*_INT() macros. */
+  vid_t vid;
+  UT_hash_handle hh;
+};
+
+static struct port_info *pis = NULL;
+
+static struct port_info *
+pi_add (port_id_t pid)
+{
+  struct port_info *pi = calloc (1, sizeof (*pi));
+  pi->pid = pid;
+  pi->vid = 1;
+  HASH_ADD_INT (pis, pid, pi);
+  return pi;
+}
+
+static struct port_info *
+pi_get (port_id_t pid)
+{
+  struct port_info *pi;
+  int key = pid;
+
+  HASH_FIND_INT (pis, &key, pi);
+  return pi ? : pi_add (pid);
+}
+
 static enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
@@ -247,6 +275,24 @@ stp_state_handler (zmsg_t *msg)
   }
 }
 
+static void
+port_vid_handler (zmsg_t *msg)
+{
+  port_id_t pid = 0;
+  vid_t vid = 0;
+  struct port_info *pi;
+
+  GET_FROM_FRAME (pid, zmsg_next (msg));
+  GET_FROM_FRAME (vid, zmsg_next (msg));
+
+  pi = pi_get (pid);
+  if (pi->vid != vid) {
+    /* TODO: update route entries for port. */
+    DEBUG ("port %d vid changed from %d to %d\r\n", pid, pi->vid, vid);
+    pi->vid = vid;
+  }
+}
+
 static int
 sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
 {
@@ -261,6 +307,8 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   case CN_STP_STATE:
     stp_state_handler (msg);
     break;
+  case CN_INT_PORT_VID_SET:
+    port_vid_handler (msg);
   default:
     break;
   }
@@ -292,6 +340,7 @@ arp_thread (void *dummy)
   zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
   control_notification_subscribe (sub_sock, CN_ARP_REPLY_TO_ME);
   control_notification_subscribe (sub_sock, CN_STP_STATE);
+  control_notification_subscribe (sub_sock, CN_INT_PORT_VID_SET);
   zmq_pollitem_t sub_pi = { sub_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &sub_pi, sub_handler, sub_sock);
 
