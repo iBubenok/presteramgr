@@ -472,11 +472,12 @@ DEFINE_HANDLER (AC_ADD_IP)
   memcpy (gw.addr.arIP, addr, sizeof (addr));
   gw.vid = vid;
 
+  result = ST_OK;
+
   HASH_FIND_GW (aes, &gw, entry);
   if (entry) {
     DEBUG ("MAC addr for IP %d.%d.%d.%d on VLAN %d is already in list\r\n",
            addr[0], addr[1], addr[2], addr[3], vid);
-    result = ST_OK;
     goto out;
   }
 
@@ -485,7 +486,8 @@ DEFINE_HANDLER (AC_ADD_IP)
   entry = calloc (1, sizeof (*entry));
   memcpy (&entry->gw, &gw, sizeof (gw));
   HASH_ADD_GW (aes, gw, entry);
-  aelist_add (&unk, entry);
+  if (n_fwd_ports[stp_id_map[gw.vid]])
+    aelist_add (&unk, entry);
 
  out:
   report_status (result);
