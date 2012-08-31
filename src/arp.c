@@ -93,6 +93,8 @@ pi_get (port_id_t pid)
   return pi ? : pi_add (pid);
 }
 
+static uint16_t n_fwd_ports[256];
+
 static enum status
 arp_send_req (vid_t vid, const ip_addr_t addr)
 {
@@ -286,23 +288,32 @@ stp_state_handler (zmsg_t *msg)
   GET_FROM_FRAME (state, zmsg_next (msg));
 
   pi = pi_get (pid);
-  if (state == STP_STATE_DISCARDING) {
-    struct arp_entry *e, *t;
-    DEBUG ("port %d is DISCARDING on %d\r\n", pid, stp_id);
-    LIST_FOREACH_SAFE (struct arp_entry, plh, pi->entries, e, t) {
-      if (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]) {
-        e->pid = 0;
-        e->reqs_sent = 0;
-        LIST_DELETE (struct arp_entry, plh, pi->entries, e);
+  stp_id = 0; /* TODO: support ALL_STP_IDS */
+
+  if (state == STP_STATE_FORWARDING) {
+    if (!ss_get_fwd (pi->ssm, stp_id)) {
+      ss_set_fwd (pi->ssm, stp_id);
+      n_fwd_ports[stp_id] += 1;
+      struct arp_entry *e, *t;
+      DEBUG ("port %d is FORWARDING on %d\r\n", pid, stp_id);
+      HASH_ITER (hh, aes, e, t) {
+        if (e->pid == 0 && stp_id == stp_id_map[e->gw.vid])
+          aelist_add (&unk, e);
       }
     }
-  } else if (state == STP_STATE_FORWARDING) {
-    struct arp_entry *e, *t;
-    DEBUG ("port %d is FORWARDING on %d\r\n", pid, stp_id);
-    HASH_ITER (hh, aes, e, t) {
-      if (e->pid == 0 &&
-          (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]))
-        aelist_add (&unk, e);
+  } else {
+    if (ss_get_fwd (pi->ssm, stp_id)) {
+      ss_clr_fwd (pi->ssm, stp_id);
+      n_fwd_ports[stp_id] -= 1;
+      struct arp_entry *e, *t;
+      DEBUG ("port %d is DISCARDING on %d\r\n", pid, stp_id);
+      LIST_FOREACH_SAFE (struct arp_entry, plh, pi->entries, e, t) {
+        if (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]) {
+          e->pid = 0;
+          e->reqs_sent = 0;
+          LIST_DELETE (struct arp_entry, plh, pi->entries, e);
+        }
+      }
     }
   }
 }
@@ -423,6 +434,7 @@ arp_start (void)
   pthread_t tid;
 
   memset (stp_id_map, 0, sizeof (stp_id_map));
+  memset (n_fwd_ports, 0, sizeof (n_fwd_ports));
 
   pthread_create (&tid, NULL, arp_thread, NULL);
 
