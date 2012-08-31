@@ -16,6 +16,7 @@
 #include <ret.h>
 #include <route-p.h>
 #include <utils.h>
+#include <list.h>
 
 static void *req_sock;
 static void *sub_sock;
@@ -26,6 +27,7 @@ struct arp_entry {
   mac_addr_t addr;
   port_id_t pid;
   int reqs_sent;
+  LIST_HANDLE plh;
   struct arp_entry *prev, *next;
   UT_hash_handle hh;
 };
@@ -65,6 +67,7 @@ struct port_info {
   vid_t vid;
   int has_link;
   stp_state_map ssm;
+  struct arp_entry *entries;
   UT_hash_handle hh;
 };
 
@@ -231,18 +234,14 @@ arp_reply_handler (zmsg_t *msg)
 {
   zframe_t *frame;
   struct gw gw;
-  port_id_t pid;
+  port_id_t pid = 0;
 
   memset (&gw, 0, sizeof (gw));
 
-  frame = zmsg_next (msg);
-  gw.vid = *((vid_t *) zframe_data (frame));
+  GET_FROM_FRAME (gw.vid, zmsg_next (msg));
+  GET_FROM_FRAME (pid, zmsg_next (msg));
 
   frame = zmsg_next (msg);
-  pid = *((port_id_t *) zframe_data (frame));
-
-  frame = zmsg_next (msg);
-
   struct arphdr *ah = (struct arphdr *) (zframe_data (frame) + ETH_HLEN);
   unsigned char *p = (unsigned char *) (ah + 1);
   if (ah->ar_pro != htons (ETH_P_IP) ||
@@ -256,7 +255,9 @@ arp_reply_handler (zmsg_t *msg)
   struct arp_entry *e;
   HASH_FIND_GW (aes, &gw, e);
   if (e) {
+    struct port_info *pi = pi_get (pid);
     DEBUG ("found entry\r\n");
+    LIST_APPEND (struct arp_entry, plh, pi->entries, e);
     e->pid = pid;
     aelist_del (&unk, e);
   }
@@ -275,30 +276,33 @@ arp_reply_handler (zmsg_t *msg)
 static void
 stp_state_handler (zmsg_t *msg)
 {
-  zframe_t *frame;
-  port_id_t pid;
-  stp_id_t stp_id;
-  stp_state_t state;
+  port_id_t pid = 0;
+  stp_id_t stp_id = 0;
+  stp_state_t state = 0;
+  struct port_info *pi;
 
-  frame = zmsg_next (msg);
-  pid = *((port_id_t *) zframe_data (frame));
+  GET_FROM_FRAME (pid, zmsg_next (msg));
+  GET_FROM_FRAME (stp_id, zmsg_next (msg));
+  GET_FROM_FRAME (state, zmsg_next (msg));
 
-  frame = zmsg_next (msg);
-  stp_id = *((stp_id_t *) zframe_data (frame));
-
-  frame = zmsg_next (msg);
-  state = *((stp_state_t *) zframe_data (frame));
-
+  pi = pi_get (pid);
   if (state == STP_STATE_DISCARDING) {
-    struct arp_entry *e, *tmp;
+    struct arp_entry *e, *t;
     DEBUG ("port %d is DISCARDING on %d\r\n", pid, stp_id);
-    HASH_ITER (hh, aes, e, tmp) {
-      if (e->pid == pid &&
-          (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid])) {
+    LIST_FOREACH_SAFE (struct arp_entry, plh, pi->entries, e, t) {
+      if (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]) {
         e->pid = 0;
         e->reqs_sent = 0;
-        aelist_add (&unk, e);
+        LIST_DELETE (struct arp_entry, plh, pi->entries, e);
       }
+    }
+  } else if (state == STP_STATE_FORWARDING) {
+    struct arp_entry *e, *t;
+    DEBUG ("port %d is FORWARDING on %d\r\n", pid, stp_id);
+    HASH_ITER (hh, aes, e, t) {
+      if (e->pid == 0 &&
+          (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]))
+        aelist_add (&unk, e);
     }
   }
 }
