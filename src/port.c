@@ -433,10 +433,8 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
-      if (stg_is_active (stg)) {
-        DEBUG ("set STP state for port %d id %d\r\n", pid, stg);
+      if (stg_is_active (stg))
         CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stg, cs));
-      }
   } else
     CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
 
