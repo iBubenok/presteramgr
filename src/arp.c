@@ -383,6 +383,19 @@ sub_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sock)
   return 0;
 }
 
+static int
+c_handler (zloop_t *loop, zmq_pollitem_t *pi, void *arg)
+{
+  int result;
+
+  DEBUG ("*** entering %s()\r\n", __PRETTY_FUNCTION__);
+  result =  control_handler (loop, pi, arg);
+  DEBUG ("*** %s(): returning %d\r\n", __PRETTY_FUNCTION__, result);
+
+  return result;
+}
+
+
 static void *
 arp_thread (void *dummy)
 {
@@ -419,7 +432,7 @@ arp_thread (void *dummy)
   zsocket_bind (ctl_sock, ARPD_CTL_EP);
   zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
   struct handler_data ctl_hd = { ctl_sock, handlers, ARRAY_SIZE (handlers) };
-  zloop_poller (loop, &ctl_pi, control_handler, &ctl_hd);
+  zloop_poller (loop, &ctl_pi, c_handler, &ctl_hd);
 
   zloop_timer (loop, 100, 0, arp_fast_timer, NULL);
 
