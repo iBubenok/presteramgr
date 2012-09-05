@@ -27,7 +27,7 @@
 
 #include <gtOs/gtOsTask.h>
 
-static unsigned __TASKCONV control_loop (GT_VOID *);
+static void *control_loop (void *);
 
 static void *pub_sock;
 static void *cmd_sock;
@@ -147,10 +147,10 @@ cn_port_vid_set (port_id_t pid, vid_t vid)
 int
 control_start (void)
 {
-  GT_TASK control_loop_tid;
+  pthread_t tid;
 
-  osTaskCreate ("control", 0, sysdeps_default_stack_size,
-                control_loop, NULL, &control_loop_tid);
+  pthread_create (&tid, NULL, control_loop, NULL);
+
   return 0;
 }
 
@@ -270,8 +270,8 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
-static unsigned __TASKCONV
-control_loop (GT_VOID *dummy)
+static void *
+control_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
 
@@ -288,7 +288,7 @@ control_loop (GT_VOID *dummy)
 
   zloop_start (loop);
 
-  return 0; /* Make the compiler happy. */
+  return NULL;
 }
 
 
