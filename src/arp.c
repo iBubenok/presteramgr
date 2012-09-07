@@ -276,6 +276,34 @@ arp_reply_handler (zmsg_t *msg)
 }
 
 static void
+up_port (struct port_info *pi, stp_id_t stp_id)
+{
+  struct arp_entry *e, *t;
+
+  n_fwd_ports[stp_id] += 1;
+  HASH_ITER (hh, aes, e, t) {
+    if (e->pid == 0 && stp_id == stp_id_map[e->gw.vid])
+      aelist_add (&unk, e);
+  }
+}
+
+static void
+down_port (struct port_info *pi, stp_id_t stp_id)
+{
+  struct arp_entry *e, *t;
+
+  n_fwd_ports[stp_id] -= 1;
+  LIST_FOREACH_SAFE (struct arp_entry, plh, pi->entries, e, t) {
+    if (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]) {
+      e->pid = 0;
+      e->reqs_sent = 0;
+      LIST_DELETE (struct arp_entry, plh, pi->entries, e);
+      /* TODO: schedule ARP request if there are FWD ports. */
+    }
+  }
+}
+
+static void
 stp_state_handler (zmsg_t *msg)
 {
   port_id_t pid = 0;
@@ -293,27 +321,14 @@ stp_state_handler (zmsg_t *msg)
   if (state == STP_STATE_FORWARDING) {
     if (!ss_get_fwd (pi->ssm, stp_id)) {
       ss_set_fwd (pi->ssm, stp_id);
-      n_fwd_ports[stp_id] += 1;
-      struct arp_entry *e, *t;
-      DEBUG ("port %d is FORWARDING on %d\r\n", pid, stp_id);
-      HASH_ITER (hh, aes, e, t) {
-        if (e->pid == 0 && stp_id == stp_id_map[e->gw.vid])
-          aelist_add (&unk, e);
-      }
+      if (pi->has_link)
+        up_port (pi, stp_id);
     }
   } else {
     if (ss_get_fwd (pi->ssm, stp_id)) {
       ss_clr_fwd (pi->ssm, stp_id);
-      n_fwd_ports[stp_id] -= 1;
-      struct arp_entry *e, *t;
-      DEBUG ("port %d is DISCARDING on %d\r\n", pid, stp_id);
-      LIST_FOREACH_SAFE (struct arp_entry, plh, pi->entries, e, t) {
-        if (stp_id == ALL_STP_IDS || stp_id == stp_id_map[e->gw.vid]) {
-          e->pid = 0;
-          e->reqs_sent = 0;
-          LIST_DELETE (struct arp_entry, plh, pi->entries, e);
-        }
-      }
+      if (pi->has_link)
+        down_port (pi, stp_id);
     }
   }
 }
@@ -343,6 +358,7 @@ link_state_handler (zmsg_t *msg)
   struct port_link_state *ls;
   struct port_info *pi;
   int has_link;
+  stp_id_t stp_id;
 
   GET_FROM_FRAME (pid, zmsg_next (msg));
   ls = (struct port_link_state *) zframe_data (zmsg_next (msg));
@@ -350,9 +366,16 @@ link_state_handler (zmsg_t *msg)
 
   pi = pi_get (pid);
   if (pi->has_link != has_link) {
-    /* TODO: update other state. */
+    /* TODO: handle all STP IDs. */
     DEBUG ("port %d link is %s\r\n", pid, has_link ? "up" : "down");
     pi->has_link = has_link;
+    stp_id = stp_id_map[pi->vid];
+    if (ss_get_fwd (pi->ssm, stp_id)) {
+      if (has_link)
+        up_port (pi, stp_id);
+      else
+        down_port (pi, stp_id);
+    }
   }
 }
 
