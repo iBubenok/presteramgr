@@ -23,12 +23,14 @@ struct vlan {
   enum vlan_state state;
 };
 
-extern struct vlan vlans[4095];
+#define NVLANS 4094
+
+extern struct vlan vlans[NVLANS];
 
 static inline int
 vlan_valid (vid_t vid)
 {
-  return vid > 0 && vid < 4096;
+  return vid > 0 && vid < 4095;
 }
 
 extern int vlan_init (void);

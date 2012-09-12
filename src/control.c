@@ -454,7 +454,7 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
   enum status result = ST_BAD_FORMAT;
   zframe_t *frame = FIRST_ARG;
 
-  if (zframe_size (frame) != sizeof (stp_id_t) * 4096)
+  if (zframe_size (frame) != sizeof (stp_id_t) * NVLANS)
     goto out;
 
   result = vlan_set_fdb_map ((stp_id_t *) zframe_data (frame));

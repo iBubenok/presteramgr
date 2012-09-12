@@ -16,7 +16,7 @@
 #include <route.h>
 #include <control-proto.h>
 
-struct vlan vlans[4095];
+struct vlan vlans[NVLANS];
 
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
@@ -281,7 +281,7 @@ vlan_init (void)
   GT_STATUS rc;
   int i;
 
-  for (i = 0; i < 4095; i++) {
+  for (i = 0; i < NVLANS; i++) {
     vlans[i].vid = i + 1;
     vlans[i].stp_id = 0;
     vlans[i].c_cpu = 0;
@@ -294,7 +294,7 @@ vlan_init (void)
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   vlan_add (1);
 
-  static stp_id_t ids[4096];
+  static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
 
@@ -489,12 +489,12 @@ vlan_set_fdb_map (const stp_id_t *ids)
 {
   int i;
 
-  for (i = 0; i < 4095; i++)
+  for (i = 0; i < NVLANS; i++)
     if (ids[i] > 255)
       return ST_BAD_VALUE;
 
   stgs_clear ();
-  for (i = 0; i < 4095; i++) {
+  for (i = 0; i < NVLANS; i++) {
     vlans[i].stp_id = ids[i];
     stg_set_active (ids[i]);
     if (vlans[i].state == VS_ACTIVE)

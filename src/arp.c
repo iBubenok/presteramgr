@@ -34,7 +34,7 @@ struct arp_entry {
 
 static struct arp_entry *aes;
 
-static stp_id_t stp_id_map[4096];
+static stp_id_t stp_id_map[NVLANS];
 
 typedef uint32_t stp_state_map[256 / 32];
 

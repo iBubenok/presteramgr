@@ -557,7 +557,7 @@ port_vlan_bulk_op (struct port *port,
   GT_STATUS rc;
   int i;
 
-  for (i = 0; i < 4095; i++) {
+  for (i = 0; i < NVLANS; i++) {
     if (vlans[i].state == VS_DELETED || vid == i + 1)
       continue;
 
