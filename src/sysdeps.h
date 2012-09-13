@@ -14,11 +14,11 @@
 #define DEVICE_ID CPSS_98DX2122_CNS
 #define NDEVS 1
 #define NPORTS 28
-#define DECLARE_PORT_MAP(name)                  \
-  int name[NPORTS] = {                          \
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,   \
-    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, \
-    27, 26, 25, 24                              \
+#define DECLARE_PORT_MAP(name)                   \
+  int name[NPORTS] = {                           \
+    1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13,    \
+    12, 15, 14, 17, 16, 19, 18, 21, 20, 23, 22,  \
+    26, 27, 24, 25                               \
   }
 
 static inline int IS_FE_PORT (int n)
