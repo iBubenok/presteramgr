@@ -20,6 +20,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgPrvEdgeVlan.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/nst/cpssDxChNstPortIsolation.h>
@@ -323,6 +324,8 @@ port_start (void)
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
   CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 10000));
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet (0, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+
+  CRP (cpssDxChBrgPrvEdgeVlanEnable (0, GT_TRUE));
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
@@ -1583,4 +1586,34 @@ port_set_mru (uint16_t mru)
     CRP (cpssDxChPortMruSet (ports[i].ldev, ports[i].lport, mru));
 
   return ST_OK;
+}
+
+enum status
+port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
+{
+  struct port *src = port_ptr (spid);
+  GT_STATUS rc;
+
+  if (!src)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    struct port *dst = port_ptr (dpid);
+
+    if (!dst)
+      return ST_BAD_VALUE;
+
+    rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
+              (src->ldev, src->lport, !!enable,
+               dst->lport, dst->ldev, GT_FALSE));
+  } else {
+    rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
+              (src->ldev, src->lport, !!enable, 0, 0, GT_FALSE));
+  }
+
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
 }

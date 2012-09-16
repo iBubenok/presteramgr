@@ -4,7 +4,6 @@
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
 
-
 struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
 };
@@ -70,6 +69,6 @@ extern enum status port_set_bandwidth_limit (port_id_t, bps_t);
 extern enum status port_set_protected (port_id_t, bool_t);
 extern enum status port_set_igmp_snoop (port_id_t, bool_t);
 extern enum status port_set_mru (uint16_t);
-
+extern enum status port_set_pve_dst (port_id_t, port_id_t, int);
 
 #endif /* __PORT_H__ */

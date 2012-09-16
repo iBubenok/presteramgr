@@ -206,6 +206,7 @@ DECLARE_HANDLER (CC_VLAN_DEL_IP_ADDR);
 DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_MRU);
 DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
+DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -259,7 +260,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_DEL_IP_ADDR),
   HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR),
   HANDLER (CC_PORT_SET_MRU),
-  HANDLER (CC_INT_RET_SET_MAC_ADDR)
+  HANDLER (CC_INT_RET_SET_MAC_ADDR),
+  HANDLER (CC_PORT_SET_PVE_DST)
 };
 
 static int
@@ -1336,6 +1338,30 @@ DEFINE_HANDLER (CC_INT_RET_SET_MAC_ADDR)
 
   result = ret_set_mac_addr
     (&gw, (const GT_ETHERADDR *) zframe_data (frame), pid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
+{
+  enum status result;
+  port_id_t spid, dpid;
+  bool_t enable;
+
+  result = POP_ARG (&spid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&dpid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_pve_dst (spid, dpid, enable);
 
  out:
   report_status (result);
