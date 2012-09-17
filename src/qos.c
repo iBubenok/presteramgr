@@ -13,6 +13,9 @@
 #include <port.h>
 
 int mls_qos_trust = 0;
+const uint8_t qos_default_wrr_weights[8] = {
+  1, 2, 4, 8, 16, 32, 64, 128
+};
 
 static int prioq_num = 8;
 
@@ -80,6 +83,7 @@ qos_start (void)
   qos_set_cos_prio (cos_map);
 
   qos_set_prioq_num (8);
+  qos_set_wrr_queue_weights (qos_default_wrr_weights);
 
   return ST_OK;
 }
@@ -134,6 +138,23 @@ qos_set_prioq_num (int num)
     CRP (cpssDxChPortTxQArbGroupSet
          (0, i, CPSS_PORT_TX_SP_ARB_GROUP_E,
           CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+
+  return ST_OK;
+}
+
+enum status
+qos_set_wrr_queue_weights (const uint8_t *weights)
+{
+  int i;
+
+  DEBUG ("%s({ %d, %d, %d, %d, %d, %d, %d, %d })\r\n",
+         __PRETTY_FUNCTION__,
+         weights[0], weights[1], weights[2], weights[3],
+         weights[4], weights[5], weights[6], weights[7]);
+
+  for (i = 0; i < 8; i++)
+    CRP (cpssDxChPortTxQWrrProfileSet
+         (0, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
