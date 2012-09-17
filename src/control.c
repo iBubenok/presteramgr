@@ -208,6 +208,7 @@ DECLARE_HANDLER (CC_PORT_SET_MRU);
 DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
+DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -263,7 +264,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MRU),
   HANDLER (CC_INT_RET_SET_MAC_ADDR),
   HANDLER (CC_PORT_SET_PVE_DST),
-  HANDLER (CC_QOS_SET_PRIOQ_NUM)
+  HANDLER (CC_QOS_SET_PRIOQ_NUM),
+  HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
 };
 
 static int
@@ -1379,6 +1381,23 @@ DEFINE_HANDLER (CC_QOS_SET_PRIOQ_NUM)
     goto out;
 
   result = qos_set_prioq_num (num);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
+{
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG;
+
+  if (frame) {
+    if (zframe_size (frame) != 8)
+      goto out;
+
+    result = qos_set_wrr_queue_weights (zframe_data (frame));
+  } else
+    result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
 
  out:
   report_status (result);
