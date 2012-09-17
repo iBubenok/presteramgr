@@ -207,6 +207,7 @@ DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_MRU);
 DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
+DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -261,7 +262,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR),
   HANDLER (CC_PORT_SET_MRU),
   HANDLER (CC_INT_RET_SET_MAC_ADDR),
-  HANDLER (CC_PORT_SET_PVE_DST)
+  HANDLER (CC_PORT_SET_PVE_DST),
+  HANDLER (CC_QOS_SET_PRIOQ_NUM)
 };
 
 static int
@@ -1362,6 +1364,21 @@ DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
     goto out;
 
   result = port_set_pve_dst (spid, dpid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_PRIOQ_NUM)
+{
+  enum status result;
+  uint8_t num;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_prioq_num (num);
 
  out:
   report_status (result);

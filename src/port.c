@@ -309,6 +309,8 @@ port_start (void)
          (port->ldev, port->lport,
           CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
           GT_TRUE));
+    CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+         (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
