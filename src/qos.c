@@ -2,7 +2,10 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
+#include <cpss/generic/port/cpssPortTx.h>
+#include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 
 #include <presteramgr.h>
 #include <debug.h>
@@ -10,6 +13,8 @@
 #include <port.h>
 
 int mls_qos_trust = 0;
+
+static int prioq_num = 8;
 
 enum status
 qos_set_mls_qos_trust (int trust)
@@ -74,6 +79,8 @@ qos_start (void)
 
   qos_set_cos_prio (cos_map);
 
+  qos_set_prioq_num (8);
+
   return ST_OK;
 }
 
@@ -105,6 +112,28 @@ qos_set_cos_prio (const queue_id_t *map)
     CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 0, map[i]));
     CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 1, map[i]));
   }
+
+  return ST_OK;
+}
+
+enum status
+qos_set_prioq_num (int num)
+{
+  int i;
+
+  if (num < 0 || num > 8)
+    return ST_BAD_VALUE;
+
+  prioq_num = num;
+
+  for (i = 0; i < 8 - num; i++)
+    CRP (cpssDxChPortTxQArbGroupSet
+         (0, i, CPSS_PORT_TX_WRR_ARB_GROUP_0_E,
+          CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+  for ( ; i < 8; i++)
+    CRP (cpssDxChPortTxQArbGroupSet
+         (0, i, CPSS_PORT_TX_SP_ARB_GROUP_E,
+          CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
