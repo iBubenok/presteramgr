@@ -23,6 +23,7 @@
 #include <route.h>
 #include <arp.h>
 #include <ret.h>
+#include <monitor.h>
 #include <control-utils.h>
 
 #include <gtOs/gtOsTask.h>
@@ -212,6 +213,9 @@ DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
+DECLARE_HANDLER (CC_MON_SESSION_ADD);
+DECLARE_HANDLER (CC_MON_SESSION_ENABLE);
+DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 
 static cmd_handler_t handlers[] = {
@@ -273,6 +277,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
+  HANDLER (CC_MON_SESSION_ADD),
+  HANDLER (CC_MON_SESSION_ENABLE),
+  HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
 };
 
@@ -1483,6 +1490,56 @@ DEFINE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
     goto out;
 
   result = port_set_customer_vid (pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MON_SESSION_ADD)
+{
+  enum status result;
+  mon_session_t num;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  result = mon_session_add (num);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MON_SESSION_ENABLE)
+{
+  enum status result;
+  mon_session_t num;
+  bool_t enable;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = mon_session_enable (num, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MON_SESSION_DEL)
+{
+  enum status result;
+  mon_session_t num;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  result = mon_session_del (num);
 
  out:
   report_status (result);
