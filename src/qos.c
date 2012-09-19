@@ -147,11 +147,6 @@ qos_set_wrr_queue_weights (const uint8_t *weights)
 {
   int i;
 
-  DEBUG ("%s({ %d, %d, %d, %d, %d, %d, %d, %d })\r\n",
-         __PRETTY_FUNCTION__,
-         weights[0], weights[1], weights[2], weights[3],
-         weights[4], weights[5], weights[6], weights[7]);
-
   for (i = 0; i < 8; i++)
     CRP (cpssDxChPortTxQWrrProfileSet
          (0, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
