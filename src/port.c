@@ -79,9 +79,12 @@ port_unlock (void)
 int
 port_id (GT_U8 ldev, GT_U8 lport)
 {
-  assert (ldev < NDEVS);
-  assert (lport < CPSS_MAX_PORTS_NUM_CNS);
-  assert (port_ids);
+  if (!((ldev < NDEVS) &&
+        (lport < CPSS_MAX_PORTS_NUM_CNS))) {
+    ERR ("ldev = %d, lport = %d\r\n", ldev, lport);
+    return 0;
+  }
+
   return port_ids[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
 }
 
