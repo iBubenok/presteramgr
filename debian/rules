@@ -46,6 +46,9 @@ install:
 	dh_clean -k
 	dh_installdirs
 	$(MAKE) DESTDIR=$(CURDIR)/debian/install install
+	mkdir -p $(CURDIR)/debian/install/etc/init.d.2
+	cp $(CURDIR)/debian/15_fanctl $(CURDIR)/debian/install/etc/init.d.2
+	chmod +x $(CURDIR)/debian/install/etc/init.d.2/15_fanctl
 	dh_install --sourcedir=$(CURDIR)/debian/install
 
 binary: build install
