@@ -1338,6 +1338,7 @@ enum status
 port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
 {
   struct port *port = port_ptr (pid);
+  uint32_t div;
   GT_STATUS rc;
   CPSS_DXCH_BRG_GEN_RATE_LIMIT_PORT_STC cfg = {
     .enableMcReg = GT_FALSE,
@@ -1370,7 +1371,8 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       cfg.enableUcUnk = GT_FALSE;
     }
 
-    cfg.rateLimit = (rl->limit / 512000) ? : 1;
+    div = IS_XG_PORT (pid - 1) ? 5120 : 51200;
+    cfg.rateLimit = (rl->limit / div) ? : 1;
   } else {
     cfg.enableBc = GT_FALSE;
     cfg.enableMc = GT_FALSE;
