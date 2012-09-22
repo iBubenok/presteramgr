@@ -332,9 +332,14 @@ port_start (void)
 
   CRP (cpssDxChBrgPrvEdgeVlanEnable (0, GT_TRUE));
 
+  CRP (cpssDxChPortTxShaperGlobalParamsSet (0, 15, 15, 1));
+  CRP (cpssDxChPortTxByteCountChangeEnableSet
+       (0, CPSS_DXCH_PORT_TX_BC_CHANGE_ENABLE_SHAPER_ONLY_E));
+
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
+    CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
     CRP (cpssDxChBrgStpStateSet
          (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
@@ -1395,7 +1400,7 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
   struct port *port = port_ptr (pid);
   uint64_t max;
   GT_STATUS rc;
-  GT_U32 rate;
+  GT_U32 rate, zero = 0;
 
   if (!port)
     return ST_BAD_VALUE;
@@ -1413,6 +1418,8 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
     rc = CRP (cpssDxChPortTxShaperEnableSet
               (port->ldev, port->lport, GT_FALSE));
   else {
+    CRP (cpssDxChPortTxShaperProfileSet
+         (port->ldev, port->lport, 1, &zero));
     rc = CRP (cpssDxChPortTxShaperProfileSet
               (port->ldev, port->lport, 1, &rate));
     ON_GT_ERROR (rc) goto out;
