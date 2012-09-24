@@ -278,6 +278,8 @@ dxChPortBufMgInit (IN GT_U8 dev)
     }
   };
 
+  CRP (cpssDxChPortBuffersModeSet (0, CPSS_DXCH_PORT_BUFFERS_MODE_DIVIDED_E));
+
   /* CPSS should config profile 0 and 1. */
   /* Set default settings for Flow Control Profiles: */
   for (profile = CPSS_PORT_RX_FC_PROFILE_1_E ; profile <= CPSS_PORT_RX_FC_PROFILE_4_E ; profile++) {
