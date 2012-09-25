@@ -314,6 +314,19 @@ port_start (void)
           GT_TRUE));
     CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
          (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+
+    /* QoS initial setup. */
+    CRP (cpssDxChCosPortReMapDSCPSet (port->ldev, port->lport, GT_FALSE));
+    CRP (cpssDxChPortDefaultUPSet (port->ldev, port->lport, 0));
+    CPSS_QOS_ENTRY_STC qe = {
+      .qosProfileId = 0,
+      .assignPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E,
+      .enableModifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E,
+      .enableModifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E
+    };
+    CRP (cpssDxChCosPortQosConfigSet (port->ldev, port->lport, &qe));
+
+    CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
@@ -339,7 +352,6 @@ port_start (void)
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
-    CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
     CRP (cpssDxChBrgStpStateSet
          (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
