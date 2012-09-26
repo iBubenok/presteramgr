@@ -86,7 +86,7 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
         fdb_addrs[i].updType == CPSS_FU_E &&
         (fdb_addrs[i].aging || fdb_addrs[i].macEntry.isStatic) &&
         fdb_addrs[i].macEntry.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
-        fdb_addrs[i].macEntry.key.key.macVlan.vlanId == vid &&
+        (vid == ALL_VLANS || fdb_addrs[i].macEntry.key.key.macVlan.vlanId == vid) &&
         fdb_addrs[i].macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E &&
         (pid = port_id (fdb_addrs[i].macEntry.dstInterface.devPort.devNum,
                         fdb_addrs[i].macEntry.dstInterface.devPort.portNum))) {
@@ -96,6 +96,7 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
       } __attribute__ ((packed)) tmp;
 
       memcpy (tmp.me.mac, fdb_addrs[i].macEntry.key.key.macVlan.macAddr.arEther, 6);
+      tmp.me.vid = fdb_addrs[i].macEntry.key.key.macVlan.vlanId;
       tmp.me.dynamic = !fdb_addrs[i].macEntry.isStatic;
       tmp.ports[0] = pid;
 

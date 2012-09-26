@@ -693,7 +693,7 @@ DEFINE_HANDLER (CC_MAC_LIST)
   if (result != ST_OK)
     goto err;
 
-  if (!vlan_valid (vid)) {
+  if (!(vid == ALL_VLANS || vlan_valid (vid))) {
     result = ST_BAD_VALUE;
     goto err;
   }
