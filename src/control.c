@@ -209,6 +209,8 @@ DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
+DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
+DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -265,7 +267,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INT_RET_SET_MAC_ADDR),
   HANDLER (CC_PORT_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
-  HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
+  HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
+  HANDLER (CC_PORT_TDR_TEST_START),
+  HANDLER (CC_PORT_TDR_TEST_GET_RESULT)
 };
 
 static int
@@ -1400,5 +1404,42 @@ DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
     result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
 
  out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_TDR_TEST_START)
+{
+  enum status result;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_tdr_test_start (pid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT)
+{
+  enum status result;
+  struct vct_cable_status cs;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_tdr_test_get_result (pid, &cs);
+  if (result == ST_OK) {
+    zmsg_t *reply = make_reply (ST_OK);
+    zmsg_addmem (reply, &cs, sizeof (cs));
+    send_reply (reply);
+    return;
+  }
+
+ err:
   report_status (result);
 }

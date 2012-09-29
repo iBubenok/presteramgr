@@ -29,6 +29,7 @@
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 #include <cpss/generic/smi/cpssGenSmi.h>
+#include <cpss/generic/phy/cpssGenPhyVct.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 
 #include <stdlib.h>
@@ -1641,5 +1642,50 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
+  }
+}
+
+enum status
+port_tdr_test_start (port_id_t pid)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_VCT_CABLE_STATUS_STC st;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssVctCableStatusGet
+            (port->ldev, port->lport, CPSS_VCT_START_E, &st));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_VCT_CABLE_STATUS_STC st;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = cpssVctCableStatusGet (port->ldev, port->lport,
+                              CPSS_VCT_GET_RES_E, &st);
+  switch (rc) {
+  case GT_OK:
+    data_encode_vct_cable_status (cs, &st, IS_FE_PORT (pid - 1));
+    return ST_OK;
+  case GT_NOT_READY:
+    return ST_NOT_READY;
+  case GT_HW_ERROR:
+    return ST_HW_ERROR;
+  default:
+    CRP (rc);
+    return ST_HEX;
   }
 }

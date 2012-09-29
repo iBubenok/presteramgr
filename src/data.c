@@ -5,6 +5,7 @@
 #include <data.h>
 #include <mac.h>
 #include <port.h>
+#include <log.h>
 
 enum status
 data_encode_port_state (struct port_link_state *state,
@@ -102,5 +103,54 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
 
       zmsg_addmem (msg, &tmp, sizeof (tmp));
     }
+  }
+}
+
+void
+data_encode_vct_cable_status (struct vct_cable_status *d,
+                              const CPSS_VCT_CABLE_STATUS_STC *s,
+                              int fe)
+{
+  int i, num = fe ? 2 : 4;
+  static const uint8_t tsm[] = {
+    [CPSS_VCT_TEST_FAIL_E]          = VS_TEST_FAILED,
+    [CPSS_VCT_NORMAL_CABLE_E]       = VS_NORMAL_CABLE,
+    [CPSS_VCT_OPEN_CABLE_E]         = VS_OPEN_CABLE,
+    [CPSS_VCT_SHORT_CABLE_E]        = VS_SHORT_CABLE,
+    [CPSS_VCT_IMPEDANCE_MISMATCH_E] = VS_IMPEDANCE_MISMATCH,
+    [CPSS_VCT_SHORT_WITH_PAIR0_E]   = VS_SHORT_WITH_PAIR0,
+    [CPSS_VCT_SHORT_WITH_PAIR1_E]   = VS_SHORT_WITH_PAIR1,
+    [CPSS_VCT_SHORT_WITH_PAIR2_E]   = VS_SHORT_WITH_PAIR2,
+    [CPSS_VCT_SHORT_WITH_PAIR3_E]   = VS_SHORT_WITH_PAIR3
+  };
+  static const uint8_t clm[] = {
+    [CPSS_VCT_LESS_THAN_50M_E] = CL_LESS_THAN_50M,
+    [CPSS_VCT_50M_80M_E]       = CL_50M_80M,
+    [CPSS_VCT_80M_110M_E]      = CL_80M_110M,
+    [CPSS_VCT_110M_140M_E]     = CL_110M_140M,
+    [CPSS_VCT_MORE_THAN_140_E] = CL_MORE_THAN_140M,
+    [CPSS_VCT_UNKNOWN_LEN_E]   = CL_UNKNOWN
+  };
+
+  d->ok = 1;
+  d->npairs = num;
+  for (i = 0; i < num; i++) {
+    d->pair_status[i].status = tsm[s->cableStatus[i].testStatus];
+    d->pair_status[i].length = s->cableStatus[i].errCableLen;
+    if (s->cableStatus[i].testStatus != CPSS_VCT_NORMAL_CABLE_E)
+      d->ok = 0;
+  }
+
+  d->length = d->ok ? clm[s->normalCableLen] : CL_UNKNOWN;
+
+  switch (s->phyType) {
+  case CPSS_VCT_PHY_100M_E:
+    d->phy_type = PT_100;
+    break;
+  case  CPSS_VCT_PHY_10000M_E:
+    d->phy_type = PT_10000;
+    break;
+  default:
+    d->phy_type = PT_1000;
   }
 }

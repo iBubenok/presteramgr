@@ -70,5 +70,7 @@ extern enum status port_set_protected (port_id_t, bool_t);
 extern enum status port_set_igmp_snoop (port_id_t, bool_t);
 extern enum status port_set_mru (uint16_t);
 extern enum status port_set_pve_dst (port_id_t, port_id_t, int);
+extern enum status port_tdr_test_start (port_id_t);
+extern enum status port_tdr_test_get_result (port_id_t, struct vct_cable_status *);
 
 #endif /* __PORT_H__ */
