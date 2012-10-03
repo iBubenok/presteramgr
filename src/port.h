@@ -21,6 +21,9 @@ struct port {
   int c_speed_auto;
   enum port_duplex c_duplex;
   int c_protected;
+  int c_prot_comm;
+  CPSS_PORTS_BMP_STC iso_bmp;
+  int iso_bmp_changed;
   struct port_state state;
   enum port_speed max_speed;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
@@ -67,6 +70,7 @@ extern enum status port_get_stats (port_id_t, void *);
 extern enum status port_set_rate_limit (port_id_t, const struct rate_limit *);
 extern enum status port_set_bandwidth_limit (port_id_t, bps_t);
 extern enum status port_set_protected (port_id_t, bool_t);
+extern enum status port_set_comm (port_id_t, port_comm_t);
 extern enum status port_set_igmp_snoop (port_id_t, bool_t);
 extern enum status port_set_mru (uint16_t);
 extern enum status port_set_pve_dst (port_id_t, port_id_t, int);

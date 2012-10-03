@@ -47,6 +47,8 @@ int nports = 0;
 
 static port_id_t *port_ids;
 
+static CPSS_PORTS_BMP_STC all_ports_bmp;
+
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
 static enum status __port_shutdown_fe (GT_U8, GT_U8, int);
@@ -141,14 +143,17 @@ port_setup_stats (GT_U8 ldev, GT_U8 lport)
 int
 port_init (void)
 {
-  int i;
   DECLARE_PORT_MAP (pmap);
+  int i;
 
   port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
   assert (port_ids);
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
+
+  memset (&all_ports_bmp, 0, sizeof (all_ports_bmp));
+
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
     ports[i].ldev = 0;
@@ -162,6 +167,8 @@ port_init (void)
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
     ports[i].c_protected = 0;
+    ports[i].c_prot_comm = 0;
+    CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
@@ -197,82 +204,115 @@ port_init (void)
   return 0;
 }
 
-static enum status
-port_update_isolation (const struct port *port)
+static void
+port_set_iso_bmp (struct port *port)
 {
-  CPSS_INTERFACE_INFO_STC t_iface = {
-    .type = CPSS_INTERFACE_PORT_E,
-    .devPort = {
-      .devNum = port->ldev,
-      .portNum = port->lport
-    }
-  };
-  GT_STATUS (*isolation_op)
-    (GT_U8,
-     CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_ENT,
-     CPSS_INTERFACE_INFO_STC,
-     GT_U8) = port->c_protected
-    ? cpssDxChNstPortIsolationPortDelete
-    : cpssDxChNstPortIsolationPortAdd;
-  int i;
-
-  for (i = 0; i < nports; i++) {
-    CPSS_INTERFACE_INFO_STC o_iface = {
-      .type = CPSS_INTERFACE_PORT_E,
-      .devPort = {
-        .devNum = ports[i].ldev,
-        .portNum = ports[i].lport
-      }
-    };
-
-    if (ports[i].id == port->id || !ports[i].c_protected)
-      continue;
-
-    CRP (isolation_op
-         (port->ldev,
-          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
-          o_iface,
-          port->lport));
-    CRP (isolation_op
-         (ports[i].ldev,
-          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
-          t_iface,
-          ports[i].lport));
-  }
-
-  return ST_OK;
-}
-
-static enum status
-port_setup_isolation (void)
-{
-  int i;
-  CPSS_PORTS_BMP_STC pbmp;
-
-  CRP (cpssDxChNstPortIsolationEnableSet (0, GT_TRUE));
-
-  memset (&pbmp, 0, sizeof (pbmp));
-  for (i = 0; i < nports; i++)
-    CPSS_PORTS_BMP_PORT_SET_MAC (&pbmp, ports[i].lport);
-
-  for (i = 0; i < nports; i++) {
+  if (port->iso_bmp_changed) {
     CPSS_INTERFACE_INFO_STC iface = {
       .type = CPSS_INTERFACE_PORT_E,
       .devPort = {
-        .devNum = ports[i].ldev,
-        .portNum = ports[i].lport
+        .devNum = port->ldev,
+        .portNum = port->lport
       }
     };
 
     CRP (cpssDxChNstPortIsolationTableEntrySet
-         (ports[i].ldev,
+         (port->ldev,
           CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L2_E,
           iface,
           GT_TRUE,
-          &pbmp));
+          &port->iso_bmp));
+    CRP (cpssDxChNstPortIsolationTableEntrySet
+         (port->ldev,
+          CPSS_DXCH_NST_PORT_ISOLATION_TRAFFIC_TYPE_L3_E,
+          iface,
+          GT_TRUE,
+          &port->iso_bmp));
+    port->iso_bmp_changed = 0;
+  }
+}
+
+static int
+__port_set_comm (struct port *t, uint8_t comm)
+{
+  int i;
+
+  if (t->c_prot_comm == comm)
+    return 0;
+
+  if (t->c_protected) {
+    for (i = 0; i < nports; i++) {
+      struct port *o = &ports[i];
+
+      if (!o->c_protected)
+        continue;
+
+      if (o->id == t->id)
+        continue;
+
+      if (t->c_prot_comm && t->c_prot_comm == o->c_prot_comm) {
+        CPSS_PORTS_BMP_PORT_CLEAR_MAC (&t->iso_bmp, o->lport);
+        t->iso_bmp_changed = 1;
+        CPSS_PORTS_BMP_PORT_CLEAR_MAC (&o->iso_bmp, t->lport);
+        o->iso_bmp_changed = 1;
+      }
+
+      if (comm && comm == o->c_prot_comm) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (&t->iso_bmp, o->lport);
+        t->iso_bmp_changed = 1;
+        CPSS_PORTS_BMP_PORT_SET_MAC (&o->iso_bmp, t->lport);
+        o->iso_bmp_changed = 1;
+      }
+    }
   }
 
-  return ST_OK;
+  t->c_prot_comm = comm;
+  return t->c_protected;
+}
+
+static int
+__port_set_prot (struct port *t, int prot)
+{
+  int i;
+
+  if (t->c_protected == prot)
+    return 0;
+
+  for (i = 0; i < nports; i++) {
+    struct port *o = &ports[i];
+
+    if (o->id == t->id)
+      continue;
+
+    if (prot) {
+      if (o->c_protected) {
+        if (t->c_prot_comm && o->c_prot_comm == t->c_prot_comm) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (&t->iso_bmp, o->lport);
+          t->iso_bmp_changed = 1;
+          CPSS_PORTS_BMP_PORT_SET_MAC (&o->iso_bmp, t->lport);
+          o->iso_bmp_changed = 1;
+        } else {
+          CPSS_PORTS_BMP_PORT_CLEAR_MAC (&t->iso_bmp, o->lport);
+          t->iso_bmp_changed = 1;
+          CPSS_PORTS_BMP_PORT_CLEAR_MAC (&o->iso_bmp, t->lport);
+          o->iso_bmp_changed = 1;
+        }
+      } else {
+        CPSS_PORTS_BMP_PORT_SET_MAC (&t->iso_bmp, o->lport);
+        t->iso_bmp_changed = 1;
+        CPSS_PORTS_BMP_PORT_SET_MAC (&o->iso_bmp, t->lport);
+        o->iso_bmp_changed = 1;
+      }
+    } else {
+      CPSS_PORTS_BMP_PORT_SET_MAC (&t->iso_bmp, o->lport);
+      t->iso_bmp_changed = 1;
+      CPSS_PORTS_BMP_PORT_SET_MAC (&o->iso_bmp, t->lport);
+      o->iso_bmp_changed = 1;
+    }
+  }
+
+  t->c_protected = prot;
+  return 1;
 }
 
 enum status
@@ -298,6 +338,8 @@ port_start (void)
     __port_shutdown_fe (0, i, 1);
   }
 #endif /* VARIANT_SM_12F */
+
+  CRP (cpssDxChNstPortIsolationEnableSet (0, GT_TRUE));
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
@@ -328,6 +370,11 @@ port_start (void)
     CRP (cpssDxChCosPortQosConfigSet (port->ldev, port->lport, &qe));
 
     CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
+
+    port->iso_bmp = all_ports_bmp;
+    port->iso_bmp_changed = 1;
+    port_set_iso_bmp (port);
+
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
@@ -336,7 +383,6 @@ port_start (void)
   }
 
   port_set_mru (1526);
-  port_setup_isolation ();
   port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
   CRP (cpssDxChCscdPortTypeSet
        (0, CPSS_CPU_PORT_NUM_CNS,
@@ -1567,6 +1613,15 @@ port_setup_xg (struct port *port)
   return ST_OK;
 }
 
+static void
+port_update_iso (void)
+{
+  int i;
+
+  for (i = 0; i < nports; i++)
+    port_set_iso_bmp (&ports[i]);
+}
+
 enum status
 port_set_protected (port_id_t pid, bool_t protected)
 {
@@ -1575,12 +1630,24 @@ port_set_protected (port_id_t pid, bool_t protected)
   if (!port)
     return ST_BAD_VALUE;
 
-  protected = !!protected;
-  if (port->c_protected == protected)
-    return ST_OK;
+  if (__port_set_prot (port, !!protected))
+    port_update_iso ();
 
-  port->c_protected = protected;
-  return port_update_isolation (port);
+  return ST_OK;
+}
+
+enum status
+port_set_comm (port_id_t pid, port_comm_t comm)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (__port_set_comm (port, comm))
+    port_update_iso ();
+
+  return ST_OK;
 }
 
 enum status
