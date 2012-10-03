@@ -211,6 +211,7 @@ DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
+DECLARE_HANDLER (CC_PORT_SET_COMM);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -269,7 +270,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
   HANDLER (CC_PORT_TDR_TEST_START),
-  HANDLER (CC_PORT_TDR_TEST_GET_RESULT)
+  HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
+  HANDLER (CC_PORT_SET_COMM)
 };
 
 static int
@@ -1441,5 +1443,25 @@ DEFINE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT)
   }
 
  err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_COMM)
+{
+  enum status result;
+  port_id_t pid;
+  port_comm_t comm;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&comm);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_comm (pid, comm);
+
+ out:
   report_status (result);
 }
