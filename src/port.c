@@ -166,8 +166,10 @@ port_init (void)
     ports[i].c_speed = PORT_SPEED_AUTO;
     ports[i].c_speed_auto = 1;
     ports[i].c_duplex = PORT_DUPLEX_AUTO;
+    ports[i].c_shutdown = 0;
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
+    ports[i].tdr_test_in_progress = 0;
     CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
@@ -742,6 +744,13 @@ port_shutdown (port_id_t pid, int shutdown)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  shutdown = !!shutdown;
+
+  if (port->c_shutdown == shutdown)
+    return ST_OK;
+
+  port->c_shutdown = shutdown;
 
   return port->shutdown (port, shutdown);
 }
@@ -1722,12 +1731,23 @@ port_tdr_test_start (port_id_t pid)
   if (!port)
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssVctCableStatusGet
-            (port->ldev, port->lport, CPSS_VCT_START_E, &st));
+  if (port->tdr_test_in_progress)
+    return ST_NOT_READY;
+
+  if (port->c_shutdown)
+    return ST_BAD_STATE;
+
+  rc = cpssVctCableStatusGet
+    (port->ldev, port->lport, CPSS_VCT_START_E, &st);
   switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
+  case GT_OK:
+    port->tdr_test_in_progress = 1;
+    return ST_OK;
+  case GT_HW_ERROR:
+    return ST_HW_ERROR;
+  default:
+    CRP (rc);
+    return ST_HEX;
   }
 }
 
@@ -1741,10 +1761,16 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (!port->tdr_test_in_progress)
+    return ST_BAD_STATE;
+  else if (port->c_shutdown)
+    return ST_NOT_READY;
+
   rc = cpssVctCableStatusGet (port->ldev, port->lport,
                               CPSS_VCT_GET_RES_E, &st);
   switch (rc) {
   case GT_OK:
+    port->tdr_test_in_progress = 0;
     data_encode_vct_cable_status (cs, &st, IS_FE_PORT (pid - 1));
     return ST_OK;
   case GT_NOT_READY:

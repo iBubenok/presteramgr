@@ -20,10 +20,12 @@ struct port {
   enum port_speed c_speed;
   int c_speed_auto;
   enum port_duplex c_duplex;
+  int c_shutdown;
   int c_protected;
   int c_prot_comm;
   CPSS_PORTS_BMP_STC iso_bmp;
   int iso_bmp_changed;
+  int tdr_test_in_progress;
   struct port_state state;
   enum port_speed max_speed;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
