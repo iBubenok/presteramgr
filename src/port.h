@@ -15,6 +15,7 @@ struct port {
   enum port_mode mode;
   vid_t access_vid;
   vid_t native_vid;
+  vid_t customer_vid;
   int trust_cos;
   int trust_dscp;
   enum port_speed c_speed;
@@ -78,5 +79,6 @@ extern enum status port_set_mru (uint16_t);
 extern enum status port_set_pve_dst (port_id_t, port_id_t, int);
 extern enum status port_tdr_test_start (port_id_t);
 extern enum status port_tdr_test_get_result (port_id_t, struct vct_cable_status *);
+extern enum status port_set_customer_vid (port_id_t, vid_t);
 
 #endif /* __PORT_H__ */

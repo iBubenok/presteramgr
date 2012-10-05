@@ -212,6 +212,7 @@ DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
+DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -271,7 +272,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
-  HANDLER (CC_PORT_SET_COMM)
+  HANDLER (CC_PORT_SET_COMM),
+  HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
 };
 
 static int
@@ -1461,6 +1463,26 @@ DEFINE_HANDLER (CC_PORT_SET_COMM)
     goto out;
 
   result = port_set_comm (pid, comm);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
+{
+  enum status result;
+  port_id_t pid;
+  vid_t vid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_customer_vid (pid, vid);
 
  out:
   report_status (result);

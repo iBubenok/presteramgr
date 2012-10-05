@@ -97,8 +97,9 @@ port_set_vid (struct port *port)
   vid_t vid = 0; /* Make the compiler happy. */
 
   switch (port->mode) {
-  case PM_ACCESS: vid = port->access_vid; break;
-  case PM_TRUNK:  vid = port->native_vid; break;
+  case PM_ACCESS:   vid = port->access_vid;   break;
+  case PM_TRUNK:    vid = port->native_vid;   break;
+  case PM_CUSTOMER: vid = port->customer_vid; break;
   }
   CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
 }
@@ -618,11 +619,53 @@ port_set_native_vid (port_id_t pid, vid_t vid)
   }
 }
 
+enum status
+port_set_customer_vid (port_id_t pid, vid_t vid)
+{
+  struct port *port = port_ptr (pid);
+  GT_STATUS rc = GT_OK;
+
+  if (!(port && vlan_valid (vid)))
+    return ST_BAD_VALUE;
+
+  if (port->mode == PM_CUSTOMER) {
+    rc = CRP (cpssDxChBrgVlanPortDelete
+              (port->ldev,
+               port->customer_vid,
+               port->lport));
+    ON_GT_ERROR (rc) goto out;
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               vid,
+               port->lport,
+               GT_TRUE,
+               GT_TRUE,
+               CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E));
+    ON_GT_ERROR (rc) goto out;
+
+    rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
+    ON_GT_ERROR (rc) goto out;
+
+    cn_port_vid_set (pid, vid);
+  }
+
+  port->customer_vid = vid;
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 static enum status
 port_vlan_bulk_op (struct port *port,
                    vid_t vid,
                    GT_BOOL vid_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT vid_tag_cmd,
+                   GT_BOOL force_pvid,
                    GT_BOOL rest_member,
                    GT_BOOL rest_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT rest_tag_cmd)
@@ -660,6 +703,11 @@ port_vlan_bulk_op (struct port *port,
              vid));
   ON_GT_ERROR (rc) goto err;
 
+  rc = CRP (cpssDxChBrgVlanForcePvidEnable
+            (port->ldev,
+             port->lport,
+             force_pvid));
+
   cn_port_vid_set (port->id, vid);
 
   return ST_OK;
@@ -689,6 +737,7 @@ port_set_trunk_mode (struct port *port)
                             port->native_vid,
                             tag,
                             cmd,
+                            GT_FALSE,
                             GT_TRUE,
                             GT_TRUE,
                             CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E);
@@ -703,7 +752,23 @@ port_set_access_mode (struct port *port)
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
                             GT_FALSE,
                             GT_FALSE,
+                            GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
+}
+
+static enum status
+port_set_customer_mode (struct port *port)
+{
+  port_vlan_bulk_op (port,
+                     port->customer_vid,
+                     GT_TRUE,
+                     CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E,
+                     GT_TRUE,
+                     GT_FALSE,
+                     GT_FALSE,
+                     CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
+
+  return ST_OK;
 }
 
 enum status
@@ -725,6 +790,10 @@ port_set_mode (port_id_t pid, enum port_mode mode)
 
   case PM_TRUNK:
     result = port_set_trunk_mode (port);
+    break;
+
+  case PM_CUSTOMER:
+    result = port_set_customer_mode (port);
     break;
 
   default:

@@ -193,6 +193,15 @@ setup_tagging (vid_t vid,
       } else
         tagging_cmd->portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      break;
+
+    case PM_CUSTOMER:
+      if (port->customer_vid == vid) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+        tagging_cmd->portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E;
+      }
+      break;
     }
   }
 }
