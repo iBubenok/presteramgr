@@ -577,7 +577,7 @@ port_set_native_vid (port_id_t pid, vid_t vid)
 
     if (vlan_dot1q_tag_native) {
       tag_native = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
     } else {
       tag_native = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -589,7 +589,7 @@ port_set_native_vid (port_id_t pid, vid_t vid)
                port->lport,
                GT_TRUE,
                GT_TRUE,
-               CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E));
+               CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
     if (rc != GT_OK)
       goto out;
 

@@ -189,7 +189,7 @@ setup_tagging (vid_t vid,
       if (port->native_vid != vid || vlan_dot1q_tag_native) {
         CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
         tagging_cmd->portsCmd[port->lport] =
-          CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
       } else
         tagging_cmd->portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -301,6 +301,8 @@ vlan_init (void)
   CRP (cpssDxChBrgVlanTableInvalidate (0));
   CRP (cpssDxChBrgVlanMruProfileValueSet (0, 0, 10000));
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
+  CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+       (0, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
   vlan_add (1);
 
   static stp_id_t ids[NVLANS];
