@@ -31,6 +31,7 @@
 #include <cpss/generic/smi/cpssGenSmi.h>
 #include <cpss/generic/phy/cpssGenPhyVct.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -666,10 +667,10 @@ port_vlan_bulk_op (struct port *port,
                    GT_BOOL vid_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT vid_tag_cmd,
                    GT_BOOL force_pvid,
+                   GT_BOOL nest_vlan,
                    GT_BOOL rest_member,
                    GT_BOOL rest_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT rest_tag_cmd)
-
 {
   GT_STATUS rc;
   int i;
@@ -707,6 +708,13 @@ port_vlan_bulk_op (struct port *port,
             (port->ldev,
              port->lport,
              force_pvid));
+  ON_GT_ERROR (rc) goto err;
+
+  rc = CRP (cpssDxChBrgNestVlanAccessPortSet
+            (port->ldev,
+             port->lport,
+             nest_vlan));
+  ON_GT_ERROR (rc) goto err;
 
   cn_port_vid_set (port->id, vid);
 
@@ -738,6 +746,7 @@ port_set_trunk_mode (struct port *port)
                             tag,
                             cmd,
                             GT_FALSE,
+                            GT_FALSE,
                             GT_TRUE,
                             GT_TRUE,
                             CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E);
@@ -753,6 +762,7 @@ port_set_access_mode (struct port *port)
                             GT_FALSE,
                             GT_FALSE,
                             GT_FALSE,
+                            GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
 }
 
@@ -763,6 +773,7 @@ port_set_customer_mode (struct port *port)
                      port->customer_vid,
                      GT_TRUE,
                      CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E,
+                     GT_TRUE,
                      GT_TRUE,
                      GT_FALSE,
                      GT_FALSE,
