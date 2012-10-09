@@ -14,13 +14,16 @@
 
 #include <uthash.h>
 
+#define RX_DST_IX 0
+#define TX_DST_IX 1
 
 struct session {
   int num;
   int enabled;
   int nsrcs;
   struct mon_if *src;
-  struct mon_if dst;
+  port_id_t dst_pid;
+  vid_t dst_vid;
   int rx;
   int tx;
   UT_hash_handle hh;
@@ -28,6 +31,8 @@ struct session {
 
 static struct session *sessions = NULL;
 static struct session *en_rx = NULL, *en_tx = NULL;
+
+static struct session *other_enabled_session (const struct session *);
 
 static inline int
 s_add (int num)
@@ -54,19 +59,80 @@ s_get (int num)
   return s;
 }
 
-static inline int
-s_del (int num)
+static inline void
+s_del (struct session *s)
 {
-  struct session *s;
-
-  HASH_FIND_INT (sessions, &num, s);
-  if (s) {
-    HASH_DEL (sessions, s);
-    return 1;
-  } else
-    return 0;
+  HASH_DEL (sessions, s);
+  if (s->src)
+    free (s->src);
+  free (s);
 }
 
+static void
+mon_configure_dst (struct session *s)
+{
+  struct port *port = port_ptr (s->dst_pid);
+  CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC iface;
+  int tag = vlan_valid (s->dst_vid);
+  CPSS_DXCH_MIRROR_ANALYZER_VLAN_TAG_CFG_STC cfg;
+
+  if (!port)
+    return;
+
+  iface.interface.type = CPSS_INTERFACE_PORT_E;
+  iface.interface.devPort.devNum = port->ldev;
+  iface.interface.devPort.portNum = port->lport;
+
+  if (tag) {
+    cfg.etherType = 0x8100;
+    cfg.vpt = 0;
+    cfg.cfi = 0;
+    cfg.vid = s->dst_vid;
+    CRP (cpssDxChMirrorAnalyzerVlanTagEnable
+         (port->ldev, port->lport, GT_TRUE));
+  };
+
+  if (s->rx) {
+    if (tag)
+      CRP (cpssDxChMirrorRxAnalyzerVlanTagConfig (0, &cfg));
+    CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, RX_DST_IX, &iface));
+    CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
+         (0, GT_TRUE, RX_DST_IX));
+  }
+
+  if (s->tx) {
+    if (tag)
+      CRP (cpssDxChMirrorTxAnalyzerVlanTagConfig (0, &cfg));
+    CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, TX_DST_IX, &iface));
+    CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
+         (0, GT_TRUE, TX_DST_IX));
+  }
+}
+
+static void
+mon_deconfigure_dst (struct session *s)
+{
+  struct port *port = port_ptr (s->dst_pid);
+
+  if (!port)
+    /* Destination is not configured. */
+    return;
+
+  if (s->rx)
+    CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
+         (0, GT_FALSE, RX_DST_IX));
+
+  if (s->tx)
+    CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
+         (0, GT_FALSE, TX_DST_IX));
+
+  if (vlan_valid (s->dst_vid)) {
+    struct session *o = other_enabled_session (s);
+    if (!o || (o->dst_pid != s->dst_pid))
+      CRP (cpssDxChMirrorAnalyzerVlanTagEnable
+           (port->ldev, port->lport, GT_FALSE));
+  }
+}
 
 static void
 mon_configure_srcs (struct session *s)
@@ -129,6 +195,35 @@ mon_session_add (mon_session_t num)
   return s_add (num) ? ST_OK : ST_ALREADY_EXISTS;
 }
 
+static enum status
+__mon_session_enable (struct session *s, int enable)
+{
+  if (enable && !s->enabled) {
+    if ((s->rx && en_rx) || (s->tx && en_tx))
+      return ST_BUSY;
+
+    if (s->rx)
+      en_rx = s;
+    if (s->tx)
+      en_tx = s;
+
+    mon_configure_dst (s);
+    mon_configure_srcs (s);
+    s->enabled = 1;
+  } else if (s->enabled && !enable) {
+    if (s->rx)
+      en_rx = NULL;
+    if (s->tx)
+      en_tx = NULL;
+
+    mon_deconfigure_srcs (s);
+    mon_deconfigure_dst (s);
+    s->enabled = 0;
+  }
+
+  return ST_OK;
+}
+
 enum status
 mon_session_enable (mon_session_t num, int enable)
 {
@@ -137,37 +232,21 @@ mon_session_enable (mon_session_t num, int enable)
   if (!s)
     return ST_DOES_NOT_EXIST;
 
-  if (enable && !s->enabled) {
-    if ((s->rx && en_rx) || (s->tx && en_tx))
-      return ST_BUSY;
-
-    /* TODO: configure destination. */
-
-    if (s->rx)
-      en_rx = s;
-    if (s->tx)
-      en_tx = s;
-
-    mon_configure_srcs (s);
-    s->enabled = 1;
-  } else if (s->enabled && !enable) {
-    /* TODO: deconfigure destination. */
-    if (s->rx)
-      en_rx = NULL;
-    if (s->tx)
-      en_tx = NULL;
-
-    mon_deconfigure_srcs (s);
-    s->enabled = 0;
-  }
-
-  return ST_OK;
+  return __mon_session_enable (s, enable);
 }
 
 enum status
 mon_session_del (mon_session_t num)
 {
-  return s_del (num) ? ST_OK : ST_DOES_NOT_EXIST;
+  struct session *s = s_get (num);
+
+  if (!s)
+    return ST_DOES_NOT_EXIST;
+
+  __mon_session_enable (s, 0);
+  s_del (s);
+
+  return ST_OK;
 }
 
 enum status
@@ -240,28 +319,94 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
   return ST_OK;
 }
 
+static int
+dst_compat (const struct session *s, port_id_t dst_pid, vid_t dst_vid)
+{
+  if (!s)
+    return 1;
+
+  if (!port_valid (s->dst_pid) || !port_valid (dst_pid))
+    return 1;
+
+  /* If two sessions share the destination port, their
+     output VLAN setup must be identical. */
+  if (s->dst_pid == dst_pid)
+    return s->dst_vid == dst_vid;
+
+  return 1;
+}
+
+struct session *
+other_enabled_session (const struct session *session)
+{
+  if (session == en_rx)
+    return (session == en_tx) ? NULL : en_tx;
+  else
+    return (session == en_rx) ? NULL : en_rx;
+}
+
 enum status
-mon_session_set_dst (mon_session_t num, const struct mon_if *dst)
+mon_session_set_dst (mon_session_t num, port_id_t dst_pid, vid_t dst_vid)
 {
   struct session *s = s_get (num);
 
   if (!s)
     return ST_DOES_NOT_EXIST;
 
-  switch (dst->type) {
-  case MI_DST_VLAN:
-    if (!vlan_valid (dst->id))
-      return ST_BAD_VALUE;
-    break;
-  case MI_DST_PORT:
-    if (!port_valid (dst->id))
-      return ST_BAD_VALUE;
-    break;
-  default:
+  if (!((dst_pid == 0 || port_valid (dst_pid)) &&
+        (dst_vid == 0 || vlan_valid (dst_vid))))
     return ST_BAD_VALUE;
+
+  if (s->enabled) {
+    if (!dst_compat (other_enabled_session (s), dst_pid, dst_vid))
+      return ST_BUSY;
+
+    mon_deconfigure_dst (s);
+    s->dst_pid = dst_pid;
+    s->dst_vid = dst_vid;
+    mon_configure_dst (s);
+  } else {
+    s->dst_pid = dst_pid;
+    s->dst_vid = dst_vid;
   }
 
-  s->dst = *dst;
-
   return ST_OK;
+}
+
+void
+mon_cpss_lib_init (void)
+{
+  CRP (cpssDxChMirrorToAnalyzerForwardingModeSet
+       (0, CPSS_DXCH_MIRROR_TO_ANALYZER_FORWARDING_HOP_BY_HOP_E));
+}
+
+void
+mon_test (void)
+{
+  struct port *port;
+  CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC iface;
+
+  DEBUG ("%s()\r\n", __PRETTY_FUNCTION__);
+
+  port = port_ptr (14);
+  CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_TRUE, 0));
+
+  port = port_ptr (3);
+  iface.interface.type = CPSS_INTERFACE_PORT_E;
+  iface.interface.devPort.devNum = port->ldev;
+  iface.interface.devPort.portNum = port->lport;
+  CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, RX_DST_IX, &iface));
+  CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
+       (0, GT_TRUE, RX_DST_IX));
+
+  CPSS_DXCH_MIRROR_ANALYZER_VLAN_TAG_CFG_STC cfg = {
+    .etherType = 0x8100,
+    .vpt = 0,
+    .cfi = 0,
+    .vid = 27
+  };
+  CRP (cpssDxChMirrorRxAnalyzerVlanTagConfig (0, &cfg));
+  CRP (cpssDxChMirrorAnalyzerVlanTagEnable
+       (port->ldev, port->lport, GT_TRUE));
+
 }

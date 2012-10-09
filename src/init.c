@@ -95,6 +95,7 @@
 #include <route.h>
 #include <arp.h>
 #include <qt2025-phy.h>
+#include <monitor.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -477,28 +478,6 @@ pcl_lib_init (void)
 }
 
 static GT_STATUS
-mirror_lib_init (void)
-{
-  GT_STATUS rc;
-  GT_U8 hw_dev;
-  CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC interface;
-
-  RCC ((rc = cpssDxChCfgHwDevNumGet (0, &hw_dev)),
-       cpssDxChCfgHwDevNumGet);
-
-  interface.interface.type = CPSS_INTERFACE_PORT_E;
-  interface.interface.devPort.devNum = hw_dev;
-  interface.interface.devPort.portNum = 0;
-
-  RCC ((rc = cpssDxChMirrorAnalyzerInterfaceSet (0, 0, &interface)),
-       cpssDxChMirrorAnalyzerInterfaceSet);
-  RCC ((rc = cpssDxChMirrorAnalyzerInterfaceSet (0, 1, &interface)),
-       cpssDxChMirrorAnalyzerInterfaceSet);
-
-  return GT_OK;
-}
-
-static GT_STATUS
 policer_lib_init (void)
 {
   GT_STATUS rc;
@@ -555,9 +534,9 @@ lib_init (void)
   RCC ((rc = netif_lib_init ()), netif_lib_init);
   DEBUG ("netif library init done\n");
 
-  DEBUG ("doing mirror library init\n");
-  RCC ((rc = mirror_lib_init ()), mirror_lib_init);
-  DEBUG ("mirror library init done\n");
+  DEBUG ("doing monitor init\n");
+  mon_cpss_lib_init ();
+  DEBUG ("monitor init done\n");
 
   DEBUG ("doing pcl library init\n");
   RCC ((rc = pcl_lib_init ()), pcl_lib_init);
@@ -731,6 +710,8 @@ cpss_start (void)
 
   INFO ("init route test");
   route_test ();
+
+  mon_test ();
 
   INFO ("start handling events\n");
   event_enter_loop ();
