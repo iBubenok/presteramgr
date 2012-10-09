@@ -380,35 +380,3 @@ mon_cpss_lib_init (void)
   CRP (cpssDxChMirrorToAnalyzerForwardingModeSet
        (0, CPSS_DXCH_MIRROR_TO_ANALYZER_FORWARDING_HOP_BY_HOP_E));
 }
-
-void
-mon_test (void)
-{
-#ifdef DO_MON_TEST
-  struct mon_if ifs[] = {
-    {
-      .id   = 11,
-      .type = MI_SRC_PORT_BOTH
-    },
-    {
-      .id   = 13,
-      .type = MI_SRC_PORT_RX
-    },
-    {
-      .id   = 23,
-      .type = MI_SRC_PORT_TX
-    },
-    {
-      .id   = 25,
-      .type = MI_SRC_VLAN
-    }
-  };
-
-  DEBUG ("%s()\r\n", __PRETTY_FUNCTION__);
-
-  mon_session_add (1);
-  mon_session_set_src (1, ARRAY_SIZE (ifs), ifs);
-  mon_session_set_dst (1, 1, 0);
-  mon_session_enable (1, 1);
-#endif /* DO_MON_TEST */
-}

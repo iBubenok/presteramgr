@@ -711,8 +711,6 @@ cpss_start (void)
   INFO ("init route test");
   route_test ();
 
-  mon_test ();
-
   INFO ("start handling events\n");
   event_enter_loop ();
 }
