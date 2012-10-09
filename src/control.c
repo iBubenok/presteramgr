@@ -217,6 +217,8 @@ DECLARE_HANDLER (CC_MON_SESSION_ADD);
 DECLARE_HANDLER (CC_MON_SESSION_ENABLE);
 DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
+DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
+DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -280,7 +282,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_ADD),
   HANDLER (CC_MON_SESSION_ENABLE),
   HANDLER (CC_MON_SESSION_DEL),
-  HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
+  HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
+  HANDLER (CC_MON_SESSION_SET_SRCS),
+  HANDLER (CC_MON_SESSION_SET_DST)
 };
 
 static int
@@ -1540,6 +1544,56 @@ DEFINE_HANDLER (CC_MON_SESSION_DEL)
     goto out;
 
   result = mon_session_del (num);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MON_SESSION_SET_SRCS)
+{
+  enum status result;
+  mon_session_t num;
+  zframe_t *frame;
+  int nsrcs;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  frame = FIRST_ARG;
+  if (!frame || ((nsrcs = zframe_size (frame)) % sizeof (struct mon_if))) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = mon_session_set_src
+    (num, nsrcs / sizeof (struct mon_if),
+     (const struct mon_if *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MON_SESSION_SET_DST)
+{
+  enum status result;
+  mon_session_t num;
+  port_id_t pid;
+  vid_t vid;
+
+  result = POP_ARG (&num);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = mon_session_set_dst (num, pid, vid);
 
  out:
   report_status (result);
