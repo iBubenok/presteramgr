@@ -161,6 +161,11 @@ mon_configure_srcs (struct session *s)
       CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_TRUE, 0));
     }
   }
+
+  if (s->rx)
+    en_rx = s;
+  if (s->tx)
+    en_tx = s;
 }
 
 static void
@@ -188,8 +193,12 @@ mon_deconfigure_srcs (struct session *s)
       CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_FALSE, 0));
     }
   }
-}
 
+  if (s->rx)
+    en_rx = NULL;
+  if (s->tx)
+    en_tx = NULL;
+}
 
 enum status
 mon_session_add (mon_session_t num)
@@ -207,20 +216,10 @@ __mon_session_enable (struct session *s, int enable)
     if ((n_en_s > 1) || (s->rx && en_rx) || (s->tx && en_tx))
       return ST_BUSY;
 
-    if (s->rx)
-      en_rx = s;
-    if (s->tx)
-      en_tx = s;
-
     mon_configure_dst (s);
     mon_configure_srcs (s);
     n_en_s++;
   } else {
-    if (s->rx)
-      en_rx = NULL;
-    if (s->tx)
-      en_tx = NULL;
-
     mon_deconfigure_srcs (s);
     mon_deconfigure_dst (s);
     n_en_s--;
@@ -294,14 +293,15 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
     }
 
     if (s->enabled) {
-      if ((rx && en_rx && en_rx != s) ||
-          (tx && en_tx && en_tx != s))
+      if ((rx && en_rx && (en_rx != s)) ||
+          (tx && en_tx && (en_tx != s)))
         return ST_BUSY;
     }
   }
 
   if (s->src) {
     if (s->enabled) {
+      mon_deconfigure_dst (s);
       mon_deconfigure_srcs (s);
     }
     free (s->src);
@@ -319,6 +319,7 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
     s->tx = tx;
     if (s->enabled) {
       mon_configure_srcs (s);
+      mon_configure_dst (s);
     }
   }
 
@@ -348,7 +349,7 @@ other_enabled_session (const struct session *session)
   if (session == en_rx)
     return (session == en_tx) ? NULL : en_tx;
   else
-    return (session == en_rx) ? NULL : en_rx;
+    return en_rx;
 }
 
 enum status
