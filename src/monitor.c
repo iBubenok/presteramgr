@@ -32,6 +32,7 @@ struct session {
 
 static struct session *sessions = NULL;
 static struct session *en_rx = NULL, *en_tx = NULL;
+static int n_en_s = 0;
 
 static struct session *other_enabled_session (const struct session *);
 
@@ -199,8 +200,11 @@ mon_session_add (mon_session_t num)
 static enum status
 __mon_session_enable (struct session *s, int enable)
 {
-  if (enable && !s->enabled) {
-    if ((s->rx && en_rx) || (s->tx && en_tx))
+  if (s->enabled == enable)
+    return ST_OK;
+
+  if (enable) {
+    if ((n_en_s > 1) || (s->rx && en_rx) || (s->tx && en_tx))
       return ST_BUSY;
 
     if (s->rx)
@@ -210,8 +214,8 @@ __mon_session_enable (struct session *s, int enable)
 
     mon_configure_dst (s);
     mon_configure_srcs (s);
-    s->enabled = 1;
-  } else if (s->enabled && !enable) {
+    n_en_s++;
+  } else {
     if (s->rx)
       en_rx = NULL;
     if (s->tx)
@@ -219,8 +223,9 @@ __mon_session_enable (struct session *s, int enable)
 
     mon_deconfigure_srcs (s);
     mon_deconfigure_dst (s);
-    s->enabled = 0;
+    n_en_s--;
   }
+  s->enabled = enable;
 
   return ST_OK;
 }
@@ -233,7 +238,7 @@ mon_session_enable (mon_session_t num, int enable)
   if (!s)
     return ST_DOES_NOT_EXIST;
 
-  return __mon_session_enable (s, enable);
+  return __mon_session_enable (s, !!enable);
 }
 
 enum status
