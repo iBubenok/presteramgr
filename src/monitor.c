@@ -11,6 +11,7 @@
 #include <port.h>
 #include <monitor.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -383,30 +384,31 @@ mon_cpss_lib_init (void)
 void
 mon_test (void)
 {
-  struct port *port;
-  CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC iface;
+#ifdef DO_MON_TEST
+  struct mon_if ifs[] = {
+    {
+      .id   = 11,
+      .type = MI_SRC_PORT_BOTH
+    },
+    {
+      .id   = 13,
+      .type = MI_SRC_PORT_RX
+    },
+    {
+      .id   = 23,
+      .type = MI_SRC_PORT_TX
+    },
+    {
+      .id   = 25,
+      .type = MI_SRC_VLAN
+    }
+  };
 
   DEBUG ("%s()\r\n", __PRETTY_FUNCTION__);
 
-  port = port_ptr (14);
-  CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_TRUE, 0));
-
-  port = port_ptr (3);
-  iface.interface.type = CPSS_INTERFACE_PORT_E;
-  iface.interface.devPort.devNum = port->ldev;
-  iface.interface.devPort.portNum = port->lport;
-  CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, RX_DST_IX, &iface));
-  CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
-       (0, GT_TRUE, RX_DST_IX));
-
-  CPSS_DXCH_MIRROR_ANALYZER_VLAN_TAG_CFG_STC cfg = {
-    .etherType = 0x8100,
-    .vpt = 0,
-    .cfi = 0,
-    .vid = 27
-  };
-  CRP (cpssDxChMirrorRxAnalyzerVlanTagConfig (0, &cfg));
-  CRP (cpssDxChMirrorAnalyzerVlanTagEnable
-       (port->ldev, port->lport, GT_TRUE));
-
+  mon_session_add (1);
+  mon_session_set_src (1, ARRAY_SIZE (ifs), ifs);
+  mon_session_set_dst (1, 1, 0);
+  mon_session_enable (1, 1);
+#endif /* DO_MON_TEST */
 }
