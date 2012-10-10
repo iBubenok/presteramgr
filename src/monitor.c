@@ -34,7 +34,8 @@ static struct session *sessions = NULL;
 static struct session *en_rx = NULL, *en_tx = NULL;
 static int n_en_s = 0;
 
-static struct session *other_enabled_session (const struct session *);
+static int dst_compat (const struct session *, port_id_t, vid_t);
+static struct session *other_active_session (const struct session *);
 
 static inline int
 s_add (int num)
@@ -129,7 +130,7 @@ mon_deconfigure_dst (struct session *s)
          (0, GT_FALSE, TX_DST_IX));
 
   if (vlan_valid (s->dst_vid)) {
-    struct session *o = other_enabled_session (s);
+    struct session *o = other_active_session (s);
     if (!o || (o->dst_pid != s->dst_pid))
       CRP (cpssDxChMirrorAnalyzerVlanTagEnable
            (port->ldev, port->lport, GT_FALSE));
@@ -213,7 +214,10 @@ __mon_session_enable (struct session *s, int enable)
     return ST_OK;
 
   if (enable) {
-    if ((n_en_s > 1) || (s->rx && en_rx) || (s->tx && en_tx))
+    if ((n_en_s > 1) ||
+        (s->rx && en_rx) ||
+        (s->tx && en_tx) ||
+        !dst_compat (other_active_session (s), s->dst_pid, s->dst_vid))
       return ST_BUSY;
 
     mon_configure_dst (s);
@@ -294,7 +298,8 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
 
     if (s->enabled) {
       if ((rx && en_rx && (en_rx != s)) ||
-          (tx && en_tx && (en_tx != s)))
+          (tx && en_tx && (en_tx != s)) ||
+          !dst_compat (other_active_session (s), s->dst_pid, s->dst_vid))
         return ST_BUSY;
     }
   }
@@ -335,16 +340,17 @@ dst_compat (const struct session *s, port_id_t dst_pid, vid_t dst_vid)
   if (!port_valid (s->dst_pid) || !port_valid (dst_pid))
     return 1;
 
-  /* If two sessions share the destination port, their
-     output VLAN setup must be identical. */
+  /* If two sessions share the destination port, both of them
+     must use tagged or untagged output. */
   if (s->dst_pid == dst_pid)
-    return s->dst_vid == dst_vid;
+    return ((vlan_valid (s->dst_vid) && vlan_valid (dst_vid)) ||
+            (!vlan_valid (s->dst_vid) && !vlan_valid (dst_vid)));
 
   return 1;
 }
 
 struct session *
-other_enabled_session (const struct session *session)
+other_active_session (const struct session *session)
 {
   if (session == en_rx)
     return (session == en_tx) ? NULL : en_tx;
@@ -365,7 +371,7 @@ mon_session_set_dst (mon_session_t num, port_id_t dst_pid, vid_t dst_vid)
     return ST_BAD_VALUE;
 
   if (s->enabled) {
-    if (!dst_compat (other_enabled_session (s), dst_pid, dst_vid))
+    if (!dst_compat (other_active_session (s), dst_pid, dst_vid))
       return ST_BUSY;
 
     mon_deconfigure_dst (s);
