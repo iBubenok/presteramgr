@@ -31,6 +31,7 @@ struct port {
   enum port_speed max_speed;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
+  enum status (*update_sd) (struct port *);
   enum status (*shutdown) (struct port *, int);
   enum status (*set_mdix_auto) (struct port *, int);
   enum status (*setup) (struct port *);

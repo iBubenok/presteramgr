@@ -52,6 +52,7 @@ static CPSS_PORTS_BMP_STC all_ports_bmp;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
+static enum status port_update_sd_fe (struct port *);
 static enum status __port_shutdown_fe (GT_U8, GT_U8, int);
 static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
@@ -59,11 +60,13 @@ static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
+static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
+static enum status port_update_sd_xg (struct port *);
 static enum status port_shutdown_xg (struct port *, int);
 static enum status port_set_mdix_auto_xg (struct port *, int);
 static enum status port_setup_xg (struct port *);
@@ -177,6 +180,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
+      ports[i].update_sd = port_update_sd_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
       ports[i].setup = port_setup_fe;
@@ -184,6 +188,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
+      ports[i].update_sd = port_update_sd_ge;
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
@@ -191,6 +196,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_10000;
       ports[i].set_speed = port_set_speed_xg;
       ports[i].set_duplex = port_set_duplex_xg;
+      ports[i].update_sd = port_update_sd_xg;
       ports[i].shutdown = port_shutdown_xg;
       ports[i].set_mdix_auto = port_set_mdix_auto_xg;
       ports[i].setup = port_setup_xg;
@@ -406,6 +412,8 @@ port_start (void)
     CRP (cpssDxChBrgStpStateSet
          (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
+    port->shutdown (port, 0);
+    port->update_sd (port);
   };
   CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
@@ -878,7 +886,7 @@ port_block (port_id_t pid, const struct port_block *what)
 }
 
 static enum status
-port_update_sd_ge (const struct port *port)
+port_update_sd_ge (struct port *port)
 {
   GT_STATUS rc;
   GT_U16 reg, reg1;
@@ -996,7 +1004,7 @@ port_update_sd_ge (const struct port *port)
 
 
 static enum status
-port_update_sd_fe (const struct port *port)
+port_update_sd_fe (struct port *port)
 {
   GT_STATUS rc;
   GT_U16 reg;
@@ -1199,6 +1207,13 @@ port_set_speed_xg (struct port *port, const struct port_speed_arg *psa)
 
 static enum status
 port_set_duplex_xg (struct port *port, enum port_duplex duplex)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_update_sd_xg (struct port *port)
 {
   DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
   return ST_OK;
