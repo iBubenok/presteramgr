@@ -334,11 +334,6 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 
   vlan_clear_mac_addr (&vlans[vid - 1]);
 
-  rc = CRP (cpssDxChBrgVlanIpCntlToCpuSet
-            (0, vid, CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E));
-  if (rc != GT_OK)
-    goto err;
-
   memset (&mac_entry, 0, sizeof (mac_entry));
   mac_entry.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   mac_entry.key.key.macVlan.vlanId = vid;
@@ -355,7 +350,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 
   rc = CRP (cpssDxChBrgFdbHashCalc (0, &mac_entry.key, &idx));
   if (rc != GT_OK)
-    goto cancel_ip_cntl;
+    goto out;
 
   best_idx = idx;
   score = 10;
@@ -408,11 +403,11 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
     rc = CRP (cpssDxChBrgFdbMacEntryWrite
               (0, best_idx, GT_FALSE, &mac_entry));
     if (rc != GT_OK)
-      goto cancel_ip_cntl;
+      goto out;
   } else {
     DEBUG ("no room for VLAN FDB entry");
     rc = GT_NOT_FOUND;
-    goto cancel_ip_cntl;
+    goto out;
   }
 
   memcpy (vlans[vid - 1].c_mac_addr, addr, 6);
@@ -421,9 +416,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 
   return GT_OK;
 
- cancel_ip_cntl:
-  CRP (cpssDxChBrgVlanIpCntlToCpuSet (0, vid, CPSS_DXCH_BRG_IP_CTRL_NONE_E));
- err:
+ out:
   return rc;
 }
 
@@ -473,6 +466,27 @@ vlan_set_dot1q_tag_native (int value)
   }
 }
 
+static void
+vlan_reconf_cpu (vid_t vid, bool_t cpu)
+{
+  CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
+  CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
+  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
+  GT_BOOL valid;
+
+  CRP (cpssDxChBrgVlanEntryRead
+       (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+  if (cpu) {
+    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
+    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+  } else {
+    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
+    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+  }
+  CRP (cpssDxChBrgVlanEntryWrite
+       (0, vid, &members, &tagging, &vlan_info, &tagging_cmd));
+}
+
 enum status
 vlan_set_cpu (vid_t vid, bool_t cpu)
 {
@@ -488,6 +502,8 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
     return ST_OK;
 
   vlan->c_cpu = cpu;
+
+  vlan_reconf_cpu (vid, cpu);
 
   if (!cpu)
     vlan_clear_mac_addr (vlan);
