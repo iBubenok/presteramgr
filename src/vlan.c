@@ -509,12 +509,11 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
   vlan = &vlans[vid - 1];
 
   cpu = !!cpu;
+  vlan_reconf_cpu (vid, cpu);
   if (vlan->c_cpu == cpu)
     return ST_OK;
 
   vlan->c_cpu = cpu;
-
-  vlan_reconf_cpu (vid, cpu);
 
   if (!cpu)
     vlan_clear_mac_addr (vlan);
