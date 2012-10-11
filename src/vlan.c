@@ -303,6 +303,17 @@ vlan_init (void)
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
        (0, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
+
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+
   vlan_add (1);
 
   static stp_id_t ids[NVLANS];

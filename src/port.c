@@ -385,6 +385,13 @@ port_start (void)
     port->iso_bmp_changed = 1;
     port_set_iso_bmp (port);
 
+    CRP (cpssDxChBrgVlanPortEgressTpidSet
+         (port->ldev, port->lport,
+          CPSS_VLAN_ETHERTYPE0_E, VLAN_TPID_IDX));
+    CRP (cpssDxChBrgVlanPortEgressTpidSet
+         (port->ldev, port->lport,
+          CPSS_VLAN_ETHERTYPE1_E, VLAN_TPID_IDX));
+
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
@@ -675,7 +682,7 @@ port_vlan_bulk_op (struct port *port,
                    GT_BOOL vid_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT vid_tag_cmd,
                    GT_BOOL force_pvid,
-                   GT_BOOL nest_vlan,
+                   int tpid_idx,
                    GT_BOOL rest_member,
                    GT_BOOL rest_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT rest_tag_cmd)
@@ -718,10 +725,13 @@ port_vlan_bulk_op (struct port *port,
              force_pvid));
   ON_GT_ERROR (rc) goto err;
 
-  rc = CRP (cpssDxChBrgNestVlanAccessPortSet
-            (port->ldev,
-             port->lport,
-             nest_vlan));
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE0_E, 1 << tpid_idx));
+  ON_GT_ERROR (rc) goto err;
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE1_E, 1 << tpid_idx));
   ON_GT_ERROR (rc) goto err;
 
   cn_port_vid_set (port->id, vid);
@@ -754,7 +764,7 @@ port_set_trunk_mode (struct port *port)
                             tag,
                             cmd,
                             GT_FALSE,
-                            GT_FALSE,
+                            VLAN_TPID_IDX,
                             GT_TRUE,
                             GT_TRUE,
                             CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E);
@@ -768,7 +778,7 @@ port_set_access_mode (struct port *port)
                             GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
                             GT_FALSE,
-                            GT_FALSE,
+                            VLAN_TPID_IDX,
                             GT_FALSE,
                             GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
@@ -782,7 +792,7 @@ port_set_customer_mode (struct port *port)
                      GT_TRUE,
                      CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E,
                      GT_TRUE,
-                     GT_TRUE,
+                     FAKE_TPID_IDX,
                      GT_FALSE,
                      GT_FALSE,
                      CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
