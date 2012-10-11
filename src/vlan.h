@@ -33,6 +33,11 @@ vlan_valid (vid_t vid)
   return vid > 0 && vid < 4095;
 }
 
+#define VLAN_TPID 0x8100
+#define VLAN_TPID_IDX 0
+#define FAKE_TPID 0xFFFF
+#define FAKE_TPID_IDX 7
+
 extern int vlan_init (void);
 extern enum status vlan_dump (vid_t);
 extern enum status vlan_add (vid_t);

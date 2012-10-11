@@ -52,6 +52,7 @@ static CPSS_PORTS_BMP_STC all_ports_bmp;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
+static enum status port_update_sd_fe (struct port *);
 static enum status __port_shutdown_fe (GT_U8, GT_U8, int);
 static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
@@ -59,11 +60,13 @@ static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
+static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
+static enum status port_update_sd_xg (struct port *);
 static enum status port_shutdown_xg (struct port *, int);
 static enum status port_set_mdix_auto_xg (struct port *, int);
 static enum status port_setup_xg (struct port *);
@@ -177,6 +180,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
       ports[i].set_duplex = port_set_duplex_fe;
+      ports[i].update_sd = port_update_sd_fe;
       ports[i].shutdown = port_shutdown_fe;
       ports[i].set_mdix_auto = port_set_mdix_auto_fe;
       ports[i].setup = port_setup_fe;
@@ -184,6 +188,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_1000;
       ports[i].set_speed = port_set_speed_ge;
       ports[i].set_duplex = port_set_duplex_ge;
+      ports[i].update_sd = port_update_sd_ge;
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
@@ -191,6 +196,7 @@ port_init (void)
       ports[i].max_speed = PORT_SPEED_10000;
       ports[i].set_speed = port_set_speed_xg;
       ports[i].set_duplex = port_set_duplex_xg;
+      ports[i].update_sd = port_update_sd_xg;
       ports[i].shutdown = port_shutdown_xg;
       ports[i].set_mdix_auto = port_set_mdix_auto_xg;
       ports[i].setup = port_setup_xg;
@@ -379,6 +385,13 @@ port_start (void)
     port->iso_bmp_changed = 1;
     port_set_iso_bmp (port);
 
+    CRP (cpssDxChBrgVlanPortEgressTpidSet
+         (port->ldev, port->lport,
+          CPSS_VLAN_ETHERTYPE0_E, VLAN_TPID_IDX));
+    CRP (cpssDxChBrgVlanPortEgressTpidSet
+         (port->ldev, port->lport,
+          CPSS_VLAN_ETHERTYPE1_E, VLAN_TPID_IDX));
+
 #ifdef PRESTERAMGR_FUTURE_LION
     CRP (cpssDxChPortTxShaperModeSet
          (ports->ldev, port->lport,
@@ -406,6 +419,8 @@ port_start (void)
     CRP (cpssDxChBrgStpStateSet
          (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
+    port->shutdown (port, 0);
+    port->update_sd (port);
   };
   CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
@@ -667,7 +682,7 @@ port_vlan_bulk_op (struct port *port,
                    GT_BOOL vid_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT vid_tag_cmd,
                    GT_BOOL force_pvid,
-                   GT_BOOL nest_vlan,
+                   int tpid_idx,
                    GT_BOOL rest_member,
                    GT_BOOL rest_tag,
                    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT rest_tag_cmd)
@@ -710,10 +725,13 @@ port_vlan_bulk_op (struct port *port,
              force_pvid));
   ON_GT_ERROR (rc) goto err;
 
-  rc = CRP (cpssDxChBrgNestVlanAccessPortSet
-            (port->ldev,
-             port->lport,
-             nest_vlan));
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE0_E, 1 << tpid_idx));
+  ON_GT_ERROR (rc) goto err;
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE1_E, 1 << tpid_idx));
   ON_GT_ERROR (rc) goto err;
 
   cn_port_vid_set (port->id, vid);
@@ -735,7 +753,7 @@ port_set_trunk_mode (struct port *port)
 
   if (vlan_dot1q_tag_native) {
     tag = GT_TRUE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
   } else {
     tag = GT_FALSE;
     cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -746,10 +764,10 @@ port_set_trunk_mode (struct port *port)
                             tag,
                             cmd,
                             GT_FALSE,
-                            GT_FALSE,
+                            VLAN_TPID_IDX,
                             GT_TRUE,
                             GT_TRUE,
-                            CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E);
+                            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E);
 }
 
 static enum status
@@ -760,7 +778,7 @@ port_set_access_mode (struct port *port)
                             GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
                             GT_FALSE,
-                            GT_FALSE,
+                            VLAN_TPID_IDX,
                             GT_FALSE,
                             GT_FALSE,
                             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
@@ -774,7 +792,7 @@ port_set_customer_mode (struct port *port)
                      GT_TRUE,
                      CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E,
                      GT_TRUE,
-                     GT_TRUE,
+                     FAKE_TPID_IDX,
                      GT_FALSE,
                      GT_FALSE,
                      CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
@@ -878,7 +896,7 @@ port_block (port_id_t pid, const struct port_block *what)
 }
 
 static enum status
-port_update_sd_ge (const struct port *port)
+port_update_sd_ge (struct port *port)
 {
   GT_STATUS rc;
   GT_U16 reg, reg1;
@@ -996,7 +1014,7 @@ port_update_sd_ge (const struct port *port)
 
 
 static enum status
-port_update_sd_fe (const struct port *port)
+port_update_sd_fe (struct port *port)
 {
   GT_STATUS rc;
   GT_U16 reg;
@@ -1199,6 +1217,13 @@ port_set_speed_xg (struct port *port, const struct port_speed_arg *psa)
 
 static enum status
 port_set_duplex_xg (struct port *port, enum port_duplex duplex)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_update_sd_xg (struct port *port)
 {
   DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
   return ST_OK;

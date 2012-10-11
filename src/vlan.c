@@ -303,6 +303,17 @@ vlan_init (void)
   rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
   CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
        (0, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
+
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+  CRP (cpssDxChBrgVlanTpidEntrySet
+       (0, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+
   vlan_add (1);
 
   static stp_id_t ids[NVLANS];
@@ -432,7 +443,7 @@ vlan_set_dot1q_tag_native (int value)
 
     if (value) {
       tag = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
     } else {
       tag = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -498,12 +509,11 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
   vlan = &vlans[vid - 1];
 
   cpu = !!cpu;
+  vlan_reconf_cpu (vid, cpu);
   if (vlan->c_cpu == cpu)
     return ST_OK;
 
   vlan->c_cpu = cpu;
-
-  vlan_reconf_cpu (vid, cpu);
 
   if (!cpu)
     vlan_clear_mac_addr (vlan);
