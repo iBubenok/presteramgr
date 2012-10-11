@@ -743,7 +743,7 @@ port_set_trunk_mode (struct port *port)
 
   if (vlan_dot1q_tag_native) {
     tag = GT_TRUE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
   } else {
     tag = GT_FALSE;
     cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -757,7 +757,7 @@ port_set_trunk_mode (struct port *port)
                             GT_FALSE,
                             GT_TRUE,
                             GT_TRUE,
-                            CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E);
+                            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E);
 }
 
 static enum status

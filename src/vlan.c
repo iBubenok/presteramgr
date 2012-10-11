@@ -432,7 +432,7 @@ vlan_set_dot1q_tag_native (int value)
 
     if (value) {
       tag = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
     } else {
       tag = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
