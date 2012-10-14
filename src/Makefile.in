@@ -50,7 +50,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 sbin_PROGRAMS = presteramgr$(EXEEXT) presterarst$(EXEEXT)
-bin_PROGRAMS = presteractl$(EXEEXT) fanctl$(EXEEXT)
+bin_PROGRAMS = presteractl$(EXEEXT) fanctl$(EXEEXT) sfpctl$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -89,6 +89,9 @@ presterarst_OBJECTS = $(am_presterarst_OBJECTS) \
 	$(nodist_presterarst_OBJECTS)
 presterarst_DEPENDENCIES = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
+am_sfpctl_OBJECTS = sfpctl.$(OBJEXT)
+sfpctl_OBJECTS = $(am_sfpctl_OBJECTS)
+sfpctl_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -99,9 +102,11 @@ CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(fanctl_SOURCES) $(presteractl_SOURCES) \
 	$(presteramgr_SOURCES) $(nodist_presteramgr_SOURCES) \
-	$(presterarst_SOURCES) $(nodist_presterarst_SOURCES)
+	$(presterarst_SOURCES) $(nodist_presterarst_SOURCES) \
+	$(sfpctl_SOURCES)
 DIST_SOURCES = $(fanctl_SOURCES) $(presteractl_SOURCES) \
-	$(presteramgr_SOURCES) $(presterarst_SOURCES)
+	$(presteramgr_SOURCES) $(presterarst_SOURCES) \
+	$(sfpctl_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -222,6 +227,7 @@ AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 AM_CFLAGS = -Wall
 presteractl_SOURCES = presteractl.c
 fanctl_SOURCES = fanctl.c
+sfpctl_SOURCES = sfpctl.c
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -349,6 +355,9 @@ presteramgr$(EXEEXT): $(presteramgr_OBJECTS) $(presteramgr_DEPENDENCIES) $(EXTRA
 presterarst$(EXEEXT): $(presterarst_OBJECTS) $(presterarst_DEPENDENCIES) $(EXTRA_presterarst_DEPENDENCIES) 
 	@rm -f presterarst$(EXEEXT)
 	$(LINK) $(presterarst_OBJECTS) $(presterarst_LDADD) $(LIBS)
+sfpctl$(EXEEXT): $(sfpctl_OBJECTS) $(sfpctl_DEPENDENCIES) $(EXTRA_sfpctl_DEPENDENCIES) 
+	@rm -f sfpctl$(EXEEXT)
+	$(LINK) $(sfpctl_OBJECTS) $(sfpctl_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -382,6 +391,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ret.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/route.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rtnl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sfpctl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sysdeps.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vlan.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wnct.Po@am__quote@

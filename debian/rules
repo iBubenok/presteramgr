@@ -49,6 +49,8 @@ install:
 	mkdir -p $(CURDIR)/debian/install/etc/init.d.2
 	cp $(CURDIR)/debian/15_fanctl $(CURDIR)/debian/install/etc/init.d.2
 	chmod +x $(CURDIR)/debian/install/etc/init.d.2/15_fanctl
+	cp $(CURDIR)/debian/16_sfpctl $(CURDIR)/debian/install/etc/init.d.2
+	chmod +x $(CURDIR)/debian/install/etc/init.d.2/16_sfpctl
 	dh_install --sourcedir=$(CURDIR)/debian/install
 
 binary: build install

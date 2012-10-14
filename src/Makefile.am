@@ -20,9 +20,10 @@ AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h -I @cpss@/compilation_root
 AM_CFLAGS = -Wall
 
-bin_PROGRAMS = presteractl fanctl
+bin_PROGRAMS = presteractl fanctl sfpctl
 presteractl_SOURCES = presteractl.c
 fanctl_SOURCES = fanctl.c
+sfpctl_SOURCES = sfpctl.c
 
 %.h: @pscp@/%.ecg
 	ecgen -lc -o$@ $<

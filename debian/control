@@ -21,3 +21,9 @@ Architecture: any
 Section: admin
 Description: Arlan-3424GE fan control utility
  Arlan-3424GE fan control utility.
+
+Package: sfpctl
+Architecture: any
+Section: admin
+Description: SFP control utility
+ SFP control utility.
