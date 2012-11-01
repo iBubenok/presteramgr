@@ -1261,7 +1261,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
-    return;
+    result = ST_BAD_VALUE;
+    goto out;
   }
 
   zmsg_t *msg = make_notify_message (type);
