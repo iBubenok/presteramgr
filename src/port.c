@@ -11,6 +11,7 @@
 #include <vlan.h>
 #include <qos.h>
 #include <utils.h>
+#include <env.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -1705,8 +1706,70 @@ port_setup_ge (struct port *port)
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x04 + (port->lport % 12)));
 
-  CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x16, 0x0));
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0006));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x14, 0x8202));
+    usleep (10000);
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x00FD));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x11, 0x2299));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x00FF));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x18, 0x2800));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x00FF));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x17, 0x2001));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1D, 0x0010));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1E, 0x4018));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1D, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1D, 0x0003));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1E, 0x0002));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1D, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0001));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x04, 0x0061));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+    break;
+
+  default:
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 6));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0));
+  }
 
   return ST_OK;
 }

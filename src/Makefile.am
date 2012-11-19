@@ -3,7 +3,7 @@ presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
 	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
 	zcontext.c mcg.c ip.c route.c rtnl.c nht.c ret.c arp.c qt2025-phy.c \
-	ift.c control-utils.c monitor.c
+	ift.c control-utils.c monitor.c env.c
 nodist_presteramgr_SOURCES = control-proto.h
 BUILT_SOURCES = control-proto.h
 CLEANFILES = control-proto.h

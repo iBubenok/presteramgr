@@ -6,6 +6,7 @@
 #include <sysdeps.h>
 
 #include <presteramgr.h>
+#include <env.h>
 #include <debug.h>
 #include <log.h>
 
@@ -681,6 +682,9 @@ init_cpss (void)
 void
 cpss_start (void)
 {
+  INFO ("init environment");
+  env_init ();
+
   INFO ("init ZMQ context\n");
   zcontext_init ();
 
