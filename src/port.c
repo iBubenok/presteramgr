@@ -1779,6 +1779,17 @@ port_setup_ge (struct port *port)
 }
 #endif /* VARIANT */
 
+static void __attribute__ ((unused))
+dump_xg_reg (const struct port *port, GT_U32 dev, GT_U32 reg)
+{
+  GT_U16 val;
+
+  CRP (cpssXsmiPortGroupRegisterRead
+       (port->ldev, 1, 0x18 + port->lport - 24, reg, dev, &val));
+  DEBUG ("port %d (%d) reg %d.%04X: 0x%04X\n",
+         port->id, port->lport, dev, reg, val);
+}
+
 static enum status
 port_setup_xg (struct port *port)
 {
@@ -1790,7 +1801,14 @@ port_setup_xg (struct port *port)
        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
   CRP (cpssXsmiPortGroupRegisterWrite
        (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
-
+  /*
+  dump_xg_reg (port, 1, 0xC319);
+  dump_xg_reg (port, 1, 0xC31A);
+  dump_xg_reg (port, 3, 0x0026);
+  dump_xg_reg (port, 3, 0x0027);
+  dump_xg_reg (port, 3, 0x0028);
+  dump_xg_reg (port, 3, 0x0029);
+  */
   return ST_OK;
 }
 
