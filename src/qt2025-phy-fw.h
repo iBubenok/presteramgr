@@ -51,9 +51,9 @@ typedef struct
 
 static GT_PHY_REG27 reg27RxTxLossArray_Lion_B0[] =
 {
-    {3, 3},
     {2, 2},
-    {3, 3},
+    {1, 1},
+    {2, 2},
     {1, 1},
     {2, 3},
     {1, 1},
@@ -70,7 +70,7 @@ static GT_QT2025_FW phyDataPhase1[] = {
   {4, 0xC05F, 0x0000},
   {4, 0xC05F, 0x3C00},
   {1, 0xC302, 0x0004},
-  {1, 0xC319, 0x0008},
+  {1, 0xC319, 0x0038},
   {1, 0xC31A, 0x0098},
   {3, 0x0026, 0x0E00},
   {3, 0x0027, 0x0892},
