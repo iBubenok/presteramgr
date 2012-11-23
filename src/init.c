@@ -42,9 +42,6 @@
 /* Netif library. */
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
-/* PCL library. */
-#include <cpss/dxCh/dxChxGen/pcl/cpssDxChPcl.h>
-
 /* Mirror library. */
 #include <cpss/dxCh/dxChxGen/mirror/cpssDxChMirror.h>
 
@@ -97,6 +94,7 @@
 #include <arp.h>
 #include <qt2025-phy.h>
 #include <monitor.h>
+#include <pcl.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -466,19 +464,6 @@ netif_lib_init (void)
 }
 
 static GT_STATUS
-pcl_lib_init (void)
-{
-  GT_STATUS rc;
-
-  RCC ((rc = cpssDxChPclInit (0)),
-       cpssDxChPclInit);
-  RCC ((rc = cpssDxChPclIngressPolicyEnable (0, GT_TRUE)),
-       cpssDxChPclIngressPolicyEnable);
-
-  return GT_OK;
-}
-
-static GT_STATUS
 policer_lib_init (void)
 {
   GT_STATUS rc;
@@ -540,7 +525,7 @@ lib_init (void)
   DEBUG ("monitor init done\n");
 
   DEBUG ("doing pcl library init\n");
-  RCC ((rc = pcl_lib_init ()), pcl_lib_init);
+  pcl_cpss_lib_init ();
   DEBUG ("pcl library init done\n");
 
   DEBUG ("doing policer library init\n");
