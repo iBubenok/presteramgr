@@ -12,6 +12,7 @@
 #include <qos.h>
 #include <utils.h>
 #include <env.h>
+#include <pcl.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -398,6 +399,8 @@ port_start (void)
          (ports->ldev, port->lport,
           CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
 #endif /* PRESTERAMGR_FUTURE_LION */
+
+    pcl_port_enable (port->id, 1);
   }
 
   port_set_mru (1526);

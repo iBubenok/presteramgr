@@ -700,6 +700,9 @@ cpss_start (void)
   INFO ("init route test");
   route_test ();
 
+  INFO ("init PCL test");
+  pcl_test ();
+
   INFO ("start handling events\n");
   event_enter_loop ();
 }

@@ -1259,6 +1259,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     type = CN_ARP_REPLY_TO_ME;
     break;
 
+  case CPU_CODE_USER_DEFINED (0):
+    type = CN_LBD_PDU;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     result = ST_BAD_VALUE;
