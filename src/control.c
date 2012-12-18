@@ -25,6 +25,7 @@
 #include <ret.h>
 #include <monitor.h>
 #include <control-utils.h>
+#include <mgmt.h>
 
 #include <gtOs/gtOsTask.h>
 

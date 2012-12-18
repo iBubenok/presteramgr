@@ -95,6 +95,7 @@
 #include <qt2025-phy.h>
 #include <monitor.h>
 #include <pcl.h>
+#include <mgmt.h>
 
 
 #define RX_DESC_NUM_DEF         200
