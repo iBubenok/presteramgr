@@ -400,7 +400,8 @@ port_start (void)
           CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
 #endif /* PRESTERAMGR_FUTURE_LION */
 
-    pcl_port_enable (port->id, 1);
+    pcl_port_setup (port->id);
+    pcl_enable_lbd_trap (port->id);
   }
 
   port_set_mru (1526);
