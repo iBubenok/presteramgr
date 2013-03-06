@@ -11,7 +11,6 @@
 #include <nht.h>
 #include <ret.h>
 #include <port.h>
-#include <arp.h>
 #include <route.h>
 #include <debug.h>
 #include <route-p.h>
@@ -105,7 +104,7 @@ ret_add (const struct gw *gw, int def)
   if (re->valid)
     return (def ? 0 : re->idx);
 
-  arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP);
+  /* FIXME: replace it! arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP); */
   return 0;
 }
 
@@ -138,7 +137,7 @@ ret_unref (const struct gw *gw, int def)
       res_push (re->idx);
       nht_unref (&re->addr);
     }
-    arp_del_ip (arpc_sock, re->gw.vid, re->gw.addr.arIP);
+    /* FIXME: replace it! arp_del_ip (arpc_sock, re->gw.vid, re->gw.addr.arIP); */
     free (re);
     --re_cnt;
   }

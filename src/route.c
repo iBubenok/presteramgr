@@ -14,7 +14,6 @@
 
 #include <route.h>
 #include <ret.h>
-#include <arp.h>
 #include <debug.h>
 
 #include <uthash.h>
@@ -207,8 +206,6 @@ route_test (void)
 
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
-
-  arpc_sock = arp_ctl_connect ();
 
   return ST_OK;
 }

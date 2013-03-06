@@ -89,9 +89,7 @@
 #include <wnct.h>
 #include <ip.h>
 #include <zcontext.h>
-#include <rtnl.h>
 #include <route.h>
-#include <arp.h>
 #include <qt2025-phy.h>
 #include <monitor.h>
 #include <pcl.h>
@@ -689,14 +687,8 @@ cpss_start (void)
   INFO ("init mgmt interface\n");
   mgmt_init ();
 
-  INFO ("open rtnetlink\n");
-  rtnl_open ();
-
   INFO ("start control interface\n");
   control_start ();
-
-  INFO ("start ARP subsystem");
-  arp_start ();
 
   INFO ("init route test");
   route_test ();

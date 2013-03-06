@@ -74,10 +74,9 @@ am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	debug.$(OBJEXT) control.$(OBJEXT) data.$(OBJEXT) \
 	sysdeps.$(OBJEXT) mac.$(OBJEXT) qos.$(OBJEXT) pdsa.$(OBJEXT) \
 	wnct.$(OBJEXT) log.$(OBJEXT) zcontext.$(OBJEXT) mcg.$(OBJEXT) \
-	ip.$(OBJEXT) route.$(OBJEXT) rtnl.$(OBJEXT) nht.$(OBJEXT) \
-	ret.$(OBJEXT) arp.$(OBJEXT) qt2025-phy.$(OBJEXT) ift.$(OBJEXT) \
-	control-utils.$(OBJEXT) monitor.$(OBJEXT) env.$(OBJEXT) \
-	pcl.$(OBJEXT)
+	ip.$(OBJEXT) route.$(OBJEXT) nht.$(OBJEXT) ret.$(OBJEXT) \
+	qt2025-phy.$(OBJEXT) control-utils.$(OBJEXT) monitor.$(OBJEXT) \
+	env.$(OBJEXT) pcl.$(OBJEXT)
 nodist_presteramgr_OBJECTS =
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS) \
 	$(nodist_presteramgr_OBJECTS)
@@ -207,8 +206,8 @@ top_srcdir = @top_srcdir@
 presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
 	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
-	zcontext.c mcg.c ip.c route.c rtnl.c nht.c ret.c arp.c qt2025-phy.c \
-	ift.c control-utils.c monitor.c env.c pcl.c
+	zcontext.c mcg.c ip.c route.c nht.c ret.c qt2025-phy.c \
+	control-utils.c monitor.c env.c pcl.c
 
 nodist_presteramgr_SOURCES = control-proto.h
 BUILT_SOURCES = control-proto.h
@@ -366,7 +365,6 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control-utils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/data.Po@am__quote@
@@ -375,7 +373,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/extsvc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fanctl.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ift.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/init.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ip.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
@@ -394,7 +391,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/qt2025-phy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ret.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/route.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rtnl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sfpctl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sysdeps.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vlan.Po@am__quote@

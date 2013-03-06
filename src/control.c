@@ -21,7 +21,6 @@
 #include <wnct.h>
 #include <mcg.h>
 #include <route.h>
-#include <arp.h>
 #include <ret.h>
 #include <monitor.h>
 #include <control-utils.h>
