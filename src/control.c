@@ -1263,6 +1263,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     type = CN_LBD_PDU;
     break;
 
+  case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+    route_handle_udt (frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     result = ST_BAD_VALUE;
