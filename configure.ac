@@ -30,6 +30,13 @@ AC_ARG_WITH([pscp],
   [pscp=/usr/include/pscp])
 AC_SUBST([pscp])
 
+AC_ARG_WITH([rtbd],
+  [AS_HELP_STRING([--with-rtbd=PATH],
+                  [specify the RTBD templates location])],
+  [rtbd=`readlink -f $withval`],
+  [rtbd=/usr/include/rtbd])
+AC_SUBST([rtbd])
+
 AC_ARG_ENABLE([variant],
   [AS_HELP_STRING([--enable-variant],
                   [build variant (required)])],

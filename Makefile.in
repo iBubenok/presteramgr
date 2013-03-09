@@ -204,6 +204,7 @@ prefix = @prefix@
 program_transform_name = @program_transform_name@
 pscp = @pscp@
 psdir = @psdir@
+rtbd = @rtbd@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@

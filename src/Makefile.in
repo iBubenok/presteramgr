@@ -195,6 +195,7 @@ prefix = @prefix@
 program_transform_name = @program_transform_name@
 pscp = @pscp@
 psdir = @psdir@
+rtbd = @rtbd@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
@@ -209,13 +210,13 @@ presteramgr_SOURCES = main.c init.c event.c port.c \
 	zcontext.c mcg.c ip.c route.c nht.c ret.c qt2025-phy.c \
 	control-utils.c monitor.c env.c pcl.c fib.c
 
-nodist_presteramgr_SOURCES = control-proto.h
-BUILT_SOURCES = control-proto.h
-CLEANFILES = control-proto.h
+nodist_presteramgr_SOURCES = control-proto.h rtbd.h
+BUILT_SOURCES = control-proto.h rtbd.h
+CLEANFILES = control-proto.h rtbd.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
-nodist_presterarst_SOURCES = control-proto.h
+nodist_presterarst_SOURCES = control-proto.h rtbd.h
 presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c
 presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -623,6 +624,9 @@ uninstall-am: uninstall-binPROGRAMS uninstall-sbinPROGRAMS
 
 
 %.h: @pscp@/%.ecg
+	ecgen -lc -o$@ $<
+
+%.h: @rtbd@/%.ecg
 	ecgen -lc -o$@ $<
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

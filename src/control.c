@@ -25,6 +25,7 @@
 #include <monitor.h>
 #include <control-utils.h>
 #include <mgmt.h>
+#include <rtbd.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -35,6 +36,7 @@ static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
 static void *evt_sock;
+static void *rtbd_sock;
 
 
 static void *
@@ -79,6 +81,10 @@ control_init (void)
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
+
+  rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (rtbd_sock);
+  zsocket_connect (rtbd_sock, RTBD_NOTIFY_EP);
 
   return 0;
 }
@@ -295,6 +301,38 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+static int
+rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (rtbd_sock);
+
+  zframe_t *frame = zmsg_first (msg);
+  rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  switch (notif) {
+  case RCN_IP_ADDR:
+    frame = zmsg_next (msg);
+    struct rtbd_ip_addr_msg *msg = (struct rtbd_ip_addr_msg *) zframe_data (frame);
+    ip_addr_t addr;
+    memcpy (&addr, &msg->addr, 4);
+    switch (msg->op) {
+    case RIAO_ADD:
+      route_add_mgmt_ip (addr);
+      break;
+    case RIAO_DEL:
+      route_del_mgmt_ip (addr);
+      break;
+    default:
+      break;
+    }
+    break;
+  default:
+    break;
+  }
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
 static void *
 control_loop (void *dummy)
 {
@@ -310,6 +348,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &evt_pi, evt_handler, NULL);
+
+  zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);
 
   zloop_start (loop);
 

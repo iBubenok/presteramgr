@@ -7,3 +7,4 @@ control-proto.h
 control-proto.hrl
 fanctl
 sfpctl
+rtbd.h

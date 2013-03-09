@@ -4,13 +4,13 @@ presteramgr_SOURCES = main.c init.c event.c port.c \
 	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
 	zcontext.c mcg.c ip.c route.c nht.c ret.c qt2025-phy.c \
 	control-utils.c monitor.c env.c pcl.c fib.c
-nodist_presteramgr_SOURCES = control-proto.h
-BUILT_SOURCES = control-proto.h
-CLEANFILES = control-proto.h
+nodist_presteramgr_SOURCES = control-proto.h rtbd.h
+BUILT_SOURCES = control-proto.h rtbd.h
+CLEANFILES = control-proto.h rtbd.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
-nodist_presterarst_SOURCES = control-proto.h
+nodist_presterarst_SOURCES = control-proto.h rtbd.h
 presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c
 presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
@@ -26,4 +26,7 @@ fanctl_SOURCES = fanctl.c
 sfpctl_SOURCES = sfpctl.c
 
 %.h: @pscp@/%.ecg
+	ecgen -lc -o$@ $<
+
+%.h: @rtbd@/%.ecg
 	ecgen -lc -o$@ $<
