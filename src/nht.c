@@ -82,7 +82,7 @@ nht_add (const GT_ETHERADDR *addr)
   nh->refc = 1;
   HASH_ADD_ETH (nht, addr, nh);
 
-  return ST_OK;
+  return idx;
 }
 
 enum status
