@@ -311,10 +311,10 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   switch (notif) {
   case RCN_IP_ADDR:
     frame = zmsg_next (msg);
-    struct rtbd_ip_addr_msg *msg = (struct rtbd_ip_addr_msg *) zframe_data (frame);
+    struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
     ip_addr_t addr;
-    memcpy (&addr, &msg->addr, 4);
-    switch (msg->op) {
+    memcpy (&addr, &am->addr, 4);
+    switch (am->op) {
     case RIAO_ADD:
       route_add_mgmt_ip (addr);
       break;
@@ -325,6 +325,26 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
       break;
     }
     break;
+
+  case RCN_ROUTE:
+    frame = zmsg_next (msg);
+    struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
+    struct route rt;
+    rt.pfx.addr.u32Ip = rm->dst;
+    rt.pfx.alen = rm->dst_len;
+    rt.gw.u32Ip = rm->gw;
+    rt.vid = rm->vid;
+    switch (rm->op) {
+    case RRTO_ADD:
+      route_add (&rt);
+      break;
+    case RRTO_DEL:
+      break;
+    default:
+      break;
+    }
+    break;
+
   default:
     break;
   }

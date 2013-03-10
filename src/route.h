@@ -19,7 +19,8 @@ struct route_pfx {
 struct route {
   struct route_pfx pfx;
   GT_IPADDR gw;
-  int ifindex;
+  vid_t vid;
+  //  int ifindex;
 };
 
 extern enum status route_cpss_lib_init (void);
@@ -30,6 +31,7 @@ extern enum status route_add_mgmt_ip (ip_addr_t);
 extern enum status route_del_mgmt_ip (ip_addr_t);
 extern enum status route_set_router_mac_addr (mac_addr_t);
 extern void route_update_table (const struct gw *, int);
+extern void route_handle_udt (const uint8_t *, int);
 
 
 #endif /* __ROUTE_H__ */

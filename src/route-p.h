@@ -21,6 +21,8 @@ struct gw {
 enum {
   DEFAULT_UC_RE_IDX = 0,
   DEFAULT_MC_RE_IDX,
+  TRAP_RE_IDX,
+  DROP_RE_IDX,
   MGMT_IP_RE_IDX,
   FIRST_REGULAR_RE_IDX
 };
@@ -36,7 +38,5 @@ route_fill_gw (struct gw *gw, const GT_IPADDR *addr, vid_t vid)
   gw->addr.u32Ip = addr->u32Ip;
   gw->vid = vid;
 }
-
-extern void *arpc_sock;
 
 #endif /* __ROUTE_P_H__ */

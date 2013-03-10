@@ -14,6 +14,8 @@
 
 #include <route.h>
 #include <ret.h>
+#include <vlan.h>
+#include <fib.h>
 #include <debug.h>
 
 #include <uthash.h>
@@ -135,6 +137,14 @@ cpss_lib_init (void)
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
   CRP (cpssDxChIpUcRouteEntriesWrite (0, MGMT_IP_RE_IDX, &rt, 1));
 
+  /* Set up the unknown dst trap entry. */
+  rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+  CRP (cpssDxChIpUcRouteEntriesWrite (0, TRAP_RE_IDX, &rt, 1));
+
+  /* Set up the unknown dst drop entry. */
+  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+  CRP (cpssDxChIpUcRouteEntriesWrite (0, DROP_RE_IDX, &rt, 1));
+
   /********************************************************************/
   /* if lpm db is already created, all that is needed to do is to add */
   /* the device to the lpm db                                         */
@@ -210,83 +220,24 @@ route_test (void)
   return ST_OK;
 }
 
-static vid_t
-vid_by_ifindex (int ifindex)
-{
-  static const char hdr[] = "pv-";
-#define OFS (sizeof (hdr) - 1)
-  char buf[IFNAMSIZ], *ifname;
-
-  ifname = if_indextoname (ifindex, buf);
-  if (!ifname)
-    return 0;
-
-  if (strncmp (ifname, hdr, OFS))
-    return 0;
-
-  return atoi (ifname + OFS);
-#undef OFS
-}
-
 enum status
 route_add (const struct route *rt)
 {
-  struct gw_by_pfx *gbp;
-  struct gw gw;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp;
-  vid_t vid;
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
-  vid = vid_by_ifindex (rt->ifindex);
-  if (vid == 0) {
-    DEBUG ("can't determine output VLAN");
-    return ST_OK;
+  memset (&re, 0, sizeof (re));
+  if (rt->gw.u32Ip == 0) {
+    /* Connected route. */
+    fib_add (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, 0);
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+  } else {
+    /* Via gateway. */
+    fib_add (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
   }
 
-  DEBUG ("add route to %d.%d.%d.%d/%d gw %d.%d.%d.%d vlan %d\r\n",
-         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
-         rt->pfx.addr.arIP[3], rt->pfx.alen,
-         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3],
-         vid);
-
-  memset (&gw, 0, sizeof (gw));
-  gw.addr.u32Ip = rt->gw.u32Ip;
-  gw.vid = vid;
-
-  HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
-  if (gbp) {
-    /* TODO: what if the prefix already exists? */
-    DEBUG ("route already exists");
-    return ST_OK;
-  }
-  gbp = calloc (1, sizeof (struct gw_by_pfx));
-  memcpy (&gbp->pfx, &rt->pfx, sizeof (struct route_pfx));
-  memcpy (&gbp->gw, &gw, sizeof (struct gw));
-  HASH_ADD_PFX (gw_by_pfx, pfx, gbp);
-
-  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
-  if (!pbg) {
-    pbg = calloc (1, sizeof (struct pfxs_by_gw));
-    memcpy (&pbg->gw, &gw, sizeof (gw));
-    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
-  }
-
-  HASH_FIND_PFX (pbg->pfxs, &rt->pfx, pbp);
-  if (!pbp) {
-    pbp = calloc (1, sizeof (*pbp));
-    memcpy (&pbp->pfx, &rt->pfx, sizeof (rt->pfx));
-    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
-  }
-
-  int idx = ret_add (&gw, rt->pfx.alen == 0);
-  if (idx) {
-    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-
-    memset (&re, 0, sizeof (re));
-    re.ipLttEntry.routeEntryBaseIndex = idx;
-    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
-           (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
-  }
+  CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+       (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
 
   return ST_OK;
 }
@@ -322,12 +273,6 @@ route_del (const struct route *rt)
   struct gw_by_pfx *gbp;
   struct pfxs_by_gw *pbg;
   struct pfx_by_pfx *pbp;
-
-  DEBUG ("delete route to %d.%d.%d.%d/%d via %d gw %d.%d.%d.%d\r\n",
-         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1], rt->pfx.addr.arIP[2],
-         rt->pfx.addr.arIP[3], rt->pfx.alen,
-         rt->ifindex,
-         rt->gw.arIP[0], rt->gw.arIP[1], rt->gw.arIP[2], rt->gw.arIP[3]);
 
   if (rt->pfx.alen != 0)
     CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
@@ -405,4 +350,40 @@ route_cpss_lib_init (void)
   cpss_lib_init ();
 
   return ST_OK;
+}
+
+#define MIN_IPv4_PKT_LEN (12 + 2 + 20)
+
+void
+route_handle_udt (const uint8_t *data, int len)
+{
+  uint32_t daddr, rt;
+  const struct fib_entry *e;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x08) ||
+      (data[13] != 0x00)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  daddr = ntohl (*((uint32_t *) (data + 30)));
+  e = fib_route (daddr);
+  if (!e) {
+    DEBUG ("can't route for %d.%d.%d.%d\r\n",
+           (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
+           (daddr >> 8) & 0xFF, daddr & 0xFF);
+    return;
+  }
+
+  rt = fib_entry_get_gw (e) ? : daddr;
+  DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
+         (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
+         (daddr >> 8) & 0xFF, daddr & 0xFF,
+         (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
+         (rt >> 8) & 0xFF, rt & 0xFF);
 }
