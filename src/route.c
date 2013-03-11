@@ -365,6 +365,32 @@ route_prefix_set_drop (uint32_t ip, int len)
   CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
 }
 
+static void
+route_request_mac_addr (uint32_t ip, int alen, vid_t vid)
+{
+  struct gw gw;
+  GT_IPADDR addr;
+  int ix;
+
+  addr.u32Ip = htonl (ip);
+  route_fill_gw (&gw, &addr, vid);
+  ix = ret_add (&gw, alen == 0);
+  DEBUG ("route entry index %d\r\n", ix);
+  if (ix >= 0) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = ix;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE));
+  } else {
+    /* FIXME: for testing only! */
+    GT_ETHERADDR ea = {
+      .arEther = { 0x90, 0x2b, 0x34, 0x54, 0x2b, 0x4f }
+    };
+    ret_set_mac_addr (&gw, &ea, 1);
+  }
+}
+
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
@@ -402,6 +428,8 @@ route_handle_udt (const uint8_t *data, int len)
     alen = 32;
   }
   route_prefix_set_drop (rt, alen);
+
+  route_request_mac_addr (rt, alen, fib_entry_get_vid (e));
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
          (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,

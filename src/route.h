@@ -20,7 +20,6 @@ struct route {
   struct route_pfx pfx;
   GT_IPADDR gw;
   vid_t vid;
-  //  int ifindex;
 };
 
 extern enum status route_cpss_lib_init (void);

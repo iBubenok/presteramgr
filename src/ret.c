@@ -102,10 +102,10 @@ ret_add (const struct gw *gw, int def)
 
  out:
   if (re->valid)
-    return (def ? 0 : re->idx);
+    return (def ? DEFAULT_UC_RE_IDX : re->idx);
 
   /* FIXME: replace it! arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP); */
-  return 0;
+  return -1;
 }
 
 enum status
