@@ -83,7 +83,7 @@ ret_add (const struct gw *gw, int def)
         rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
-        DEBUG ("write default route entry");
+        DEBUG ("write default route entry\r\n");
         CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
       }
     }
@@ -102,9 +102,8 @@ ret_add (const struct gw *gw, int def)
 
  out:
   if (re->valid)
-    return (def ? DEFAULT_UC_RE_IDX : re->idx);
+    return re->idx;
 
-  /* FIXME: replace it! arp_add_ip (arpc_sock, gw->vid, gw->addr.arIP); */
   return -1;
 }
 

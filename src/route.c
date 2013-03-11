@@ -223,21 +223,35 @@ route_test (void)
 enum status
 route_add (const struct route *rt)
 {
-  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  fib_add (ntohl (rt->pfx.addr.u32Ip),
+           rt->pfx.alen,
+           rt->vid,
+           ntohl (rt->gw.u32Ip));
 
-  memset (&re, 0, sizeof (re));
-  if (rt->gw.u32Ip == 0) {
-    /* Connected route. */
-    fib_add (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, 0);
-    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+  DEBUG ("add route to %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+         rt->pfx.alen,
+         rt->gw.arIP[0], rt->gw.arIP[1],
+         rt->gw.arIP[2], rt->gw.arIP[3]);
+
+  if (rt->pfx.alen == 0) {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
   } else {
-    /* Via gateway. */
-    fib_add (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
-    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
-  }
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
-  CRP (cpssDxChIpLpmIpv4UcPrefixAdd
-       (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+         (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
+  }
 
   return ST_OK;
 }
@@ -257,7 +271,7 @@ route_update_table (const struct gw *gw, int idx)
   re.ipLttEntry.routeEntryBaseIndex = idx;
   HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
     if (pbp->pfx.alen != 0) {
-      DEBUG ("install prefix %d.%d.%d.%d/%d via %d",
+      DEBUG ("install prefix %d.%d.%d.%d/%d via %d\r\n",
              pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
              pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
              pbp->pfx.alen, idx);
@@ -356,38 +370,78 @@ route_cpss_lib_init (void)
 static void
 route_prefix_set_drop (uint32_t ip, int len)
 {
-  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-  GT_IPADDR addr;
+  if (len) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPADDR addr;
 
-  addr.u32Ip = htonl (ip);
-  memset (&re, 0, sizeof (re));
-  re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
-  CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+    addr.u32Ip = htonl (ip);
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+  } else {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
 }
 
 static void
-route_request_mac_addr (uint32_t ip, int alen, vid_t vid)
+route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 {
   struct gw gw;
-  GT_IPADDR addr;
+  GT_IPADDR gwaddr;
   int ix;
 
-  addr.u32Ip = htonl (ip);
-  route_fill_gw (&gw, &addr, vid);
+  gwaddr.u32Ip = htonl (gwip);
+  route_fill_gw (&gw, &gwaddr, vid);
   ix = ret_add (&gw, alen == 0);
   DEBUG ("route entry index %d\r\n", ix);
-  if (ix >= 0) {
+  if (ix < 0) {
+    /* FIXME: for testing only! */
+    GT_ETHERADDR ea = {
+      .arEther = { 0x90, 0x2b, 0x34, 0x54, 0xdb, 0x41 }
+    };
+    ret_set_mac_addr (&gw, &ea, 1);
+  } else if (alen != 0) {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPADDR addr;
 
     memset (&re, 0, sizeof (re));
     re.ipLttEntry.routeEntryBaseIndex = ix;
+    addr.u32Ip = htonl (ip);
     CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE));
-  } else {
-    /* FIXME: for testing only! */
-    GT_ETHERADDR ea = {
-      .arEther = { 0x90, 0x2b, 0x34, 0x54, 0x2b, 0x4f }
-    };
-    ret_set_mac_addr (&gw, &ea, 1);
+  }
+}
+
+static void
+route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+{
+  GT_IPADDR ip;
+  struct gw gw;
+  struct route_pfx pfx;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp;
+
+  ip.u32Ip = htonl (gwaddr);
+  route_fill_gw (&gw, &ip, vid);
+  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
+  if (!pbg) {
+    pbg = calloc (1, sizeof (*pbg));
+    pbg->gw = gw;
+    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
+  }
+
+  pfx.addr.u32Ip = htonl (addr);
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp) {
+    pbp = calloc (1, sizeof (*pbp));
+    pbp->pfx = pfx;
+    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 }
 
@@ -427,9 +481,9 @@ route_handle_udt (const uint8_t *data, int len)
     rt = daddr;
     alen = 32;
   }
-  route_prefix_set_drop (rt, alen);
-
-  route_request_mac_addr (rt, alen, fib_entry_get_vid (e));
+  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
+  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e));
+  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen);
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
          (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
