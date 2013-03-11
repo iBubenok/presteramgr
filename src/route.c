@@ -426,6 +426,17 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
   struct pfxs_by_gw *pbg;
   struct pfx_by_pfx *pbp;
 
+  DEBUG ("pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
+         (addr >> 24) & 0xFF,
+         (addr >> 16) & 0xFF,
+         (addr >> 8) & 0xFF,
+         addr & 0xFF,
+         alen,
+         (gwaddr >> 24) & 0xFF,
+         (gwaddr >> 16) & 0xFF,
+         (gwaddr >> 8) & 0xFF,
+         gwaddr & 0xFF);
+
   ip.u32Ip = htonl (gwaddr);
   route_fill_gw (&gw, &ip, vid);
   HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
