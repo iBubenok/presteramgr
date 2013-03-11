@@ -131,7 +131,7 @@ fib_route (uint32_t addr)
         if (!c) {
           c = fib_entry_new ();
           c->addr = addr;
-          c->pfx  = pfx;
+          c->pfx  = addr;
           c->vid  = e->vid;
           c->gw   = addr;
           c->len  = 32;
