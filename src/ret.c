@@ -206,7 +206,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
-  DEBUG ("write route entry");
+  DEBUG ("write route entry at %d\r\n", idx);
   rc = CRP (cpssDxChIpUcRouteEntriesWrite (0, idx, &rt, 1));
   if (rc != ST_OK) {
     nht_unref (addr);
@@ -214,7 +214,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     return ST_HEX;
   }
   if (re->def) {
-    DEBUG ("write default route entry");
+    DEBUG ("write default route entry\r\n");
     CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
   }
 
