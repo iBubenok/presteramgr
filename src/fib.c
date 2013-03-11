@@ -11,6 +11,7 @@ struct fib_entry {
   uint32_t addr; /* To use HASH_*_INT(). */
   uint32_t gw;
   vid_t vid;
+  int len;
   UT_hash_handle hh;
 };
 
@@ -24,6 +25,12 @@ uint32_t
 fib_entry_get_gw (const struct fib_entry *e)
 {
   return e->gw;
+}
+
+int
+fib_entry_get_len (const struct fib_entry *e)
+{
+  return e->len;
 }
 
 static struct fib_entry *
@@ -52,8 +59,9 @@ fib_add (uint32_t addr, uint8_t len, vid_t vid, uint32_t gw)
     if (fib.e[0] == NULL)
       fib.e[0] = fib_entry_new ();
     fib.e[0]->addr = addr;
-    fib.e[0]->vid = vid;
-    fib.e[0]->gw = gw;
+    fib.e[0]->vid  = vid;
+    fib.e[0]->gw   = gw;
+    fib.e[0]->len  = len;
   } else {
     struct fib_entry *e;
 
@@ -62,8 +70,9 @@ fib_add (uint32_t addr, uint8_t len, vid_t vid, uint32_t gw)
     if (!e) {
       e = fib_entry_new ();
       e->addr = addr;
-      e->vid = vid;
-      e->gw = gw;
+      e->vid  = vid;
+      e->gw   = gw;
+      e->len  = len;
       HASH_ADD_INT (fib.e[len], addr, e);
     }
   }

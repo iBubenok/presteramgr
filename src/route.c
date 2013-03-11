@@ -352,12 +352,26 @@ route_cpss_lib_init (void)
   return ST_OK;
 }
 
+
+static void
+route_prefix_set_drop (uint32_t ip, int len)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  GT_IPADDR addr;
+
+  addr.u32Ip = htonl (ip);
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+  CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+}
+
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
 route_handle_udt (const uint8_t *data, int len)
 {
   uint32_t daddr, rt;
+  int alen;
   const struct fib_entry *e;
 
   if (len < MIN_IPv4_PKT_LEN) {
@@ -380,7 +394,15 @@ route_handle_udt (const uint8_t *data, int len)
     return;
   }
 
-  rt = fib_entry_get_gw (e) ? : daddr;
+  rt = fib_entry_get_gw (e);
+  if (rt)
+    alen = fib_entry_get_len (e);
+  else {
+    rt = daddr;
+    alen = 32;
+  }
+  route_prefix_set_drop (rt, alen);
+
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
          (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
          (daddr >> 8) & 0xFF, daddr & 0xFF,
