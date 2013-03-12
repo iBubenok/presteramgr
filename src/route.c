@@ -196,15 +196,8 @@ route_set_router_mac_addr (mac_addr_t addr)
 }
 
 enum status
-route_test (void)
+route_start (void)
 {
-  GT_ETHERADDR ra = {
-    .arEther = { 0, 0xa, 0xb, 0xc, 0xd, 0xe }
-  };
-
-  DEBUG ("set router MAC addr");
-  CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
-
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
 
