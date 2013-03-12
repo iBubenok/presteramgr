@@ -76,7 +76,7 @@ am_presteramgr_OBJECTS = main.$(OBJEXT) init.$(OBJEXT) event.$(OBJEXT) \
 	wnct.$(OBJEXT) log.$(OBJEXT) zcontext.$(OBJEXT) mcg.$(OBJEXT) \
 	ip.$(OBJEXT) route.$(OBJEXT) nht.$(OBJEXT) ret.$(OBJEXT) \
 	qt2025-phy.$(OBJEXT) control-utils.$(OBJEXT) monitor.$(OBJEXT) \
-	env.$(OBJEXT) pcl.$(OBJEXT) fib.$(OBJEXT)
+	env.$(OBJEXT) pcl.$(OBJEXT) fib.$(OBJEXT) arpc.$(OBJEXT)
 nodist_presteramgr_OBJECTS =
 presteramgr_OBJECTS = $(am_presteramgr_OBJECTS) \
 	$(nodist_presteramgr_OBJECTS)
@@ -169,6 +169,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+arpd = @arpd@
 bindir = @bindir@
 build_alias = @build_alias@
 builddir = @builddir@
@@ -208,11 +209,11 @@ presteramgr_SOURCES = main.c init.c event.c port.c \
 	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
 	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
 	zcontext.c mcg.c ip.c route.c nht.c ret.c qt2025-phy.c \
-	control-utils.c monitor.c env.c pcl.c fib.c
+	control-utils.c monitor.c env.c pcl.c fib.c arpc.c
 
-nodist_presteramgr_SOURCES = control-proto.h rtbd.h
-BUILT_SOURCES = control-proto.h rtbd.h
-CLEANFILES = control-proto.h rtbd.h
+nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
+BUILT_SOURCES = control-proto.h rtbd.h arpd.h
+CLEANFILES = control-proto.h rtbd.h arpd.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
@@ -366,6 +367,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arpc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control-utils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/control.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/data.Po@am__quote@
@@ -627,6 +629,9 @@ uninstall-am: uninstall-binPROGRAMS uninstall-sbinPROGRAMS
 	ecgen -lc -o$@ $<
 
 %.h: @rtbd@/%.ecg
+	ecgen -lc -o$@ $<
+
+%.h: @arpd@/%.ecg
 	ecgen -lc -o$@ $<
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

@@ -37,6 +37,13 @@ AC_ARG_WITH([rtbd],
   [rtbd=/usr/include/rtbd])
 AC_SUBST([rtbd])
 
+AC_ARG_WITH([arpd],
+  [AS_HELP_STRING([--with-arpd=PATH],
+                  [specify the ARPD templates location])],
+  [arpd=`readlink -f $withval`],
+  [arpd=/usr/include/arpd])
+AC_SUBST([arpd])
+
 AC_ARG_ENABLE([variant],
   [AS_HELP_STRING([--enable-variant],
                   [build variant (required)])],

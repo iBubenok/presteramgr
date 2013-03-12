@@ -10,6 +10,7 @@
 #include <control-proto.h>
 #include <nht.h>
 #include <ret.h>
+#include <arpc.h>
 #include <port.h>
 #include <route.h>
 #include <debug.h>
@@ -100,6 +101,8 @@ ret_add (const struct gw *gw, int def)
   HASH_ADD_GW (ret, gw, re);
   ++re_cnt;
 
+  arpc_request_addr (gw);
+
  out:
   DEBUG ("refc = %d\r\n", re->refc);
 
@@ -138,7 +141,7 @@ ret_unref (const struct gw *gw, int def)
       res_push (re->idx);
       nht_unref (&re->addr);
     }
-    /* FIXME: replace it! arp_del_ip (arpc_sock, re->gw.vid, re->gw.addr.arIP); */
+    arpc_release_addr (gw);
     free (re);
     --re_cnt;
   }

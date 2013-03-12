@@ -16,6 +16,7 @@
 #include <ret.h>
 #include <vlan.h>
 #include <fib.h>
+#include <arpc.h>
 #include <debug.h>
 
 #include <uthash.h>
@@ -198,6 +199,8 @@ route_set_router_mac_addr (mac_addr_t addr)
 enum status
 route_start (void)
 {
+  arpc_start ();
+
   DEBUG ("enable routing");
   CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
 
@@ -458,13 +461,7 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
   route_fill_gw (&gw, &gwaddr, vid);
   ix = ret_add (&gw, alen == 0);
   DEBUG ("route entry index %d\r\n", ix);
-  if (ix < 0) {
-    /* FIXME: for testing only! */
-    GT_ETHERADDR ea = {
-      .arEther = { 0x90, 0x2b, 0x34, 0x54, 0xdb, 0x41 }
-    };
-    ret_set_mac_addr (&gw, &ea, 1);
-  } else if (alen != 0) {
+  if ((ix >= 0) && (alen != 0)) {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
     GT_IPADDR addr;
 

@@ -629,6 +629,7 @@ LIBOBJS
 EGREP
 GREP
 CPP
+arpd
 rtbd
 pscp
 cpss
@@ -718,6 +719,7 @@ with_cpss
 with_libnl3_includes
 with_pscp
 with_rtbd
+with_arpd
 enable_variant
 '
       ac_precious_vars='build_alias
@@ -1355,6 +1357,7 @@ Optional Packages:
                           specify the libnl3 headers location
   --with-pscp=PATH        specify the PSCP templates location
   --with-rtbd=PATH        specify the RTBD templates location
+  --with-arpd=PATH        specify the ARPD templates location
 
 Some influential environment variables:
   CC          C compiler command
@@ -3610,6 +3613,16 @@ if test "${with_rtbd+set}" = set; then :
   withval=$with_rtbd; rtbd=`readlink -f $withval`
 else
   rtbd=/usr/include/rtbd
+fi
+
+
+
+
+# Check whether --with-arpd was given.
+if test "${with_arpd+set}" = set; then :
+  withval=$with_arpd; arpd=`readlink -f $withval`
+else
+  arpd=/usr/include/arpd
 fi
 
 

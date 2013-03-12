@@ -8,3 +8,4 @@ control-proto.hrl
 fanctl
 sfpctl
 rtbd.h
+arpd.h

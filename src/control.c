@@ -26,6 +26,8 @@
 #include <control-utils.h>
 #include <mgmt.h>
 #include <rtbd.h>
+#include <arpc.h>
+#include <arpd.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -37,6 +39,7 @@ static void *inp_sock;
 static void *inp_pub_sock;
 static void *evt_sock;
 static void *rtbd_sock;
+static void *arpd_sock;
 
 
 static void *
@@ -85,6 +88,10 @@ control_init (void)
   rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (rtbd_sock);
   zsocket_connect (rtbd_sock, RTBD_NOTIFY_EP);
+
+  arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (arpd_sock);
+  /* TODO: zsocket_connect (arpd_sock, ARPD_NOTIFY_EP); */
 
   return 0;
 }
@@ -354,6 +361,30 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+static int
+arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (rtbd_sock);
+
+  zframe_t *frame = zmsg_first (msg);
+  rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  switch (notif) {
+  case ARPD_CN_IP_ADDR:
+    frame = zmsg_next (msg);
+    struct arpd_ip_addr_msg *iam =
+      (struct arpd_ip_addr_msg *) zframe_data (frame);
+    arpc_set_mac_addr
+      (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
+    break;
+
+  default:
+    break;
+  }
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
 static void *
 control_loop (void *dummy)
 {
@@ -372,6 +403,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);
+
+  zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
 
   zloop_start (loop);
 
