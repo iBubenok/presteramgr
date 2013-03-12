@@ -101,6 +101,8 @@ ret_add (const struct gw *gw, int def)
   ++re_cnt;
 
  out:
+  DEBUG ("refc = %d\r\n", re->refc);
+
   if (re->valid)
     return re->idx;
 
@@ -130,7 +132,7 @@ ret_unref (const struct gw *gw, int def)
   }
 
   if (--re->refc == 0) {
-    DEBUG ("last ref to " GW_FMT " dropped, deleting", GW_FMT_ARGS (gw));
+    DEBUG ("last ref to " GW_FMT " dropped, deleting\r\n", GW_FMT_ARGS (gw));
     HASH_DEL (ret, re);
     if (re->valid) {
       res_push (re->idx);
@@ -140,6 +142,7 @@ ret_unref (const struct gw *gw, int def)
     free (re);
     --re_cnt;
   }
+  DEBUG ("refc = %d\r\n", re->refc);
 
   return ST_OK;
 }

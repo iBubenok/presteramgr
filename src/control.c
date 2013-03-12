@@ -339,6 +339,7 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
       route_add (&rt);
       break;
     case RRTO_DEL:
+      route_del (&rt);
       break;
     default:
       break;

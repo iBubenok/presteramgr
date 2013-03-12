@@ -21,19 +21,10 @@
 #include <uthash.h>
 
 
-void *arpc_sock;
-
 #define HASH_FIND_PFX(head, findpfx, out)                       \
   HASH_FIND (hh, head, findpfx, sizeof (struct route_pfx), out)
 #define HASH_ADD_PFX(head, pfxfield, add)                       \
   HASH_ADD (hh, head, pfxfield, sizeof (struct route_pfx), add)
-
-struct gw_by_pfx {
-  struct route_pfx pfx;
-  struct gw gw;
-  UT_hash_handle hh;
-};
-static struct gw_by_pfx *gw_by_pfx;
 
 #define HASH_FIND_GW(head, findgw, out)                 \
   HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
@@ -220,6 +211,88 @@ route_test (void)
   return ST_OK;
 }
 
+static void
+route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+{
+  GT_IPADDR ip;
+  struct gw gw;
+  struct route_pfx pfx;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp;
+
+  DEBUG ("register pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
+         (addr >> 24) & 0xFF,
+         (addr >> 16) & 0xFF,
+         (addr >> 8) & 0xFF,
+         addr & 0xFF,
+         alen,
+         (gwaddr >> 24) & 0xFF,
+         (gwaddr >> 16) & 0xFF,
+         (gwaddr >> 8) & 0xFF,
+         gwaddr & 0xFF);
+
+  ip.u32Ip = htonl (gwaddr);
+  route_fill_gw (&gw, &ip, vid);
+  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
+  if (!pbg) {
+    pbg = calloc (1, sizeof (*pbg));
+    pbg->gw = gw;
+    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
+  }
+
+  pfx.addr.u32Ip = htonl (addr);
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp) {
+    pbp = calloc (1, sizeof (*pbp));
+    pbp->pfx = pfx;
+    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
+  }
+}
+
+static void
+route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+{
+  GT_IPADDR ip;
+  struct gw gw;
+  struct route_pfx pfx;
+  struct pfxs_by_gw *pbg;
+  struct pfx_by_pfx *pbp;
+
+  DEBUG ("unregister pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
+         (addr >> 24) & 0xFF,
+         (addr >> 16) & 0xFF,
+         (addr >> 8) & 0xFF,
+         addr & 0xFF,
+         alen,
+         (gwaddr >> 24) & 0xFF,
+         (gwaddr >> 16) & 0xFF,
+         (gwaddr >> 8) & 0xFF,
+         gwaddr & 0xFF);
+
+  ip.u32Ip = htonl (gwaddr);
+  route_fill_gw (&gw, &ip, vid);
+  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
+  if (!pbg)
+    return;
+
+  pfx.addr.u32Ip = htonl (addr);
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp)
+    return;
+
+  HASH_DEL (pbg->pfxs, pbp);
+  free (pbp);
+
+  ret_unref (&gw, alen == 0);
+
+  if (!pbg->pfxs) {
+    HASH_DEL (pfxs_by_gw, pbg);
+    free (pbg);
+  }
+}
+
 enum status
 route_add (const struct route *rt)
 {
@@ -284,43 +357,30 @@ route_update_table (const struct gw *gw, int idx)
 enum status
 route_del (const struct route *rt)
 {
-  struct gw_by_pfx *gbp;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp;
+  struct fib_entry *e;
+  GT_IPADDR gwip;
+
+  e = fib_get (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen);
+  if (!e) {
+    DEBUG ("can't find route!\r\n");
+    return ST_DOES_NOT_EXIST;
+  }
+  gwip.u32Ip = htonl (fib_entry_get_gw (e));
+
+  DEBUG ("delete prefix %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+         rt->pfx.alen,
+         gwip.arIP[0], gwip.arIP[1],
+         gwip.arIP[2], gwip.arIP[3]);
 
   if (rt->pfx.alen != 0)
     CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
 
-  HASH_FIND_PFX (gw_by_pfx, &rt->pfx, gbp);
-  if (!gbp) {
-    DEBUG ("prefix not found!");
-    return ST_HEX;
-  }
+  route_unregister (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen,
+                    fib_entry_get_gw (e), fib_entry_get_vid (e));
 
-  HASH_FIND_GW (pfxs_by_gw, &gbp->gw, pbg);
-  if (!pbg) {
-    DEBUG ("gateway not found!");
-    return ST_HEX;
-  }
-
-  HASH_FIND_PFX (pbg->pfxs, &rt->pfx, pbp);
-  if (!pbp) {
-    DEBUG ("prefix not found!");
-    return ST_HEX;
-  }
-  DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
-  HASH_DEL (pbg->pfxs, pbp);
-  free (pbp);
-
-  DEBUG ("%d prefixes for gateway", HASH_COUNT (pbg->pfxs));
-  if (HASH_COUNT (pbg->pfxs) == 0) {
-    HASH_DEL (pfxs_by_gw, pbg);
-    free (pbg);
-  }
-
-  HASH_DEL (gw_by_pfx, gbp);
-  ret_unref (&gbp->gw, rt->pfx.alen == 0);
-  free (gbp);
+  DEBUG ("done\r\n");
 
   return ST_OK;
 }
@@ -414,45 +474,6 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
     re.ipLttEntry.routeEntryBaseIndex = ix;
     addr.u32Ip = htonl (ip);
     CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE));
-  }
-}
-
-static void
-route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
-{
-  GT_IPADDR ip;
-  struct gw gw;
-  struct route_pfx pfx;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp;
-
-  DEBUG ("pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
-         (addr >> 24) & 0xFF,
-         (addr >> 16) & 0xFF,
-         (addr >> 8) & 0xFF,
-         addr & 0xFF,
-         alen,
-         (gwaddr >> 24) & 0xFF,
-         (gwaddr >> 16) & 0xFF,
-         (gwaddr >> 8) & 0xFF,
-         gwaddr & 0xFF);
-
-  ip.u32Ip = htonl (gwaddr);
-  route_fill_gw (&gw, &ip, vid);
-  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
-  if (!pbg) {
-    pbg = calloc (1, sizeof (*pbg));
-    pbg->gw = gw;
-    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
-  }
-
-  pfx.addr.u32Ip = htonl (addr);
-  pfx.alen = alen;
-  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
-  if (!pbp) {
-    pbp = calloc (1, sizeof (*pbp));
-    pbp->pfx = pfx;
-    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 }
 

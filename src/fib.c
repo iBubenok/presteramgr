@@ -112,6 +112,22 @@ fib_del (uint32_t addr, uint8_t len)
   }
 }
 
+struct fib_entry *
+fib_get (uint32_t addr, uint8_t len)
+{
+  assert (len < 33);
+
+  if (len == 0)
+    return fib.e[0];
+  else {
+    struct fib_entry *e;
+
+    addr &= mkmask (len);
+    HASH_FIND_INT (fib.e[len], &addr, e);
+    return e;
+  }
+}
+
 const struct fib_entry *
 fib_route (uint32_t addr)
 {
