@@ -17,6 +17,18 @@ else
 WITH_PSCP := --with-pscp=$(PSCP)
 endif
 
+ifeq ($(RTBD),)
+WITH_RTBD :=
+else
+WITH_RTBD := --with-rtbd=$(RTBD)
+endif
+
+ifeq ($(ARPD),)
+WITH_ARPD :=
+else
+WITH_ARPD := --with-arpd=$(ARPD)
+endif
+
 config.status: configure
 	dh_testdir
 	./configure \
@@ -26,7 +38,9 @@ config.status: configure
 		--with-cpss=$(CPSS) \
 		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3 \
 		--enable-variant=$(VARIANT) \
-		$(WITH_PSCP)
+		$(WITH_PSCP) \
+		$(WITH_RTBD) \
+		$(WITH_ARPD)
 
 build: build-stamp
 build-stamp: config.status
