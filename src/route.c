@@ -354,33 +354,41 @@ route_update_table (const struct gw *gw, int idx)
   }
 }
 
+void
+route_del_fib_entry (struct fib_entry *e)
+{
+  GT_IPADDR pfx, gwip;
+
+  pfx.u32Ip = htonl (fib_entry_get_pfx (e));
+  gwip.u32Ip = htonl (fib_entry_get_gw (e));
+
+  DEBUG ("delete prefix %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
+         pfx.arIP[0], pfx.arIP[1],
+         pfx.arIP[2], pfx.arIP[3],
+         fib_entry_get_len (e),
+         gwip.arIP[0], gwip.arIP[1],
+         gwip.arIP[2], gwip.arIP[3]);
+
+  if (fib_entry_get_len (e) != 0)
+    CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx, fib_entry_get_len (e)));
+
+  route_unregister (fib_entry_get_pfx (e), fib_entry_get_len (e),
+                    fib_entry_get_gw (e), fib_entry_get_vid (e));
+
+  DEBUG ("done\r\n");
+}
+
 enum status
 route_del (const struct route *rt)
 {
   struct fib_entry *e;
-  GT_IPADDR gwip;
 
   e = fib_get (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen);
   if (!e) {
     DEBUG ("can't find route!\r\n");
     return ST_DOES_NOT_EXIST;
   }
-  gwip.u32Ip = htonl (fib_entry_get_gw (e));
-
-  DEBUG ("delete prefix %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
-         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
-         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
-         rt->pfx.alen,
-         gwip.arIP[0], gwip.arIP[1],
-         gwip.arIP[2], gwip.arIP[3]);
-
-  if (rt->pfx.alen != 0)
-    CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, rt->pfx.addr, rt->pfx.alen));
-
-  route_unregister (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen,
-                    fib_entry_get_gw (e), fib_entry_get_vid (e));
-
-  DEBUG ("done\r\n");
+  route_del_fib_entry (e);
 
   return ST_OK;
 }
