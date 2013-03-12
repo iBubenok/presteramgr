@@ -89,15 +89,32 @@ fib_add (uint32_t addr, uint8_t len, vid_t vid, uint32_t gw)
   }
 }
 
-void
+extern void route_del_fib_entry (struct fib_entry *);
+
+static void
+fib_del_entry_with_children (struct fib_entry *e)
+{
+  struct fib_entry *c, *tmp;
+
+  route_del_fib_entry (e);
+  HASH_ITER (hh, e->children, c, tmp) {
+    route_del_fib_entry (c);
+    HASH_DEL (e->children, c);
+    free (c);
+  }
+  free (e);
+}
+
+int
 fib_del (uint32_t addr, uint8_t len)
 {
   assert (len < 33);
 
   if (len == 0) {
     if (fib.e[0]) {
-      free (fib.e[0]);
+      fib_del_entry_with_children (fib.e[0]);
       fib.e[0] = NULL;
+      return 1;
     }
   } else {
     struct fib_entry *e;
@@ -105,11 +122,13 @@ fib_del (uint32_t addr, uint8_t len)
     addr &= mkmask (len);
     HASH_FIND_INT (fib.e[len], &addr, e);
     if (e) {
-      /* TODO: delete all children. */
       HASH_DEL (fib.e[len], e);
-      free (e);
+      fib_del_entry_with_children (e);
+      return 1;
     }
   }
+
+  return 0;
 }
 
 struct fib_entry *

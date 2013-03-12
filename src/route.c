@@ -381,14 +381,11 @@ route_del_fib_entry (struct fib_entry *e)
 enum status
 route_del (const struct route *rt)
 {
-  struct fib_entry *e;
-
-  e = fib_get (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen);
-  if (!e) {
-    DEBUG ("can't find route!\r\n");
-    return ST_DOES_NOT_EXIST;
-  }
-  route_del_fib_entry (e);
+  if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
+    DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+         rt->pfx.alen);
 
   return ST_OK;
 }
