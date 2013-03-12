@@ -91,7 +91,7 @@ control_init (void)
 
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
-  /* TODO: zsocket_connect (arpd_sock, ARPD_NOTIFY_EP); */
+  zsocket_connect (arpd_sock, ARPD_NOTIFY_EP);
 
   return 0;
 }
@@ -364,7 +364,7 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 static int
 arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
-  zmsg_t *msg = zmsg_recv (rtbd_sock);
+  zmsg_t *msg = zmsg_recv (arpd_sock);
 
   zframe_t *frame = zmsg_first (msg);
   rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
