@@ -10,15 +10,14 @@
 #include <arpc.h>
 #include <ret.h>
 #include <zcontext.h>
-
-#define ARPD_DOES_NOT_WORK
+#include <debug.h>
 
 static void *arpd_sock;
 
 void
 arpc_start (void)
 {
-  arpd_sock = zsocket_new (zcontext, ZMQ_REQ);
+  arpd_sock = zsocket_new (zcontext, ZMQ_PUSH);
   zsocket_connect (arpd_sock, ARPD_COMMAND_EP);
 }
 
@@ -34,22 +33,12 @@ arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd)
   zmsg_addmem (msg, &ip, sizeof (ip));
 
   zmsg_send (&msg, arpd_sock);
-
-  msg = zmsg_recv (arpd_sock);
-  zmsg_destroy (&msg);
 }
 
 void
 arpc_request_addr (const struct gw *gw)
 {
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_ADD);
-
-#ifdef ARPD_DOES_NOT_WORK
-  GT_ETHERADDR ea = {
-    .arEther = { 0x90, 0x2b, 0x34, 0x54, 0xdb, 0x41 }
-  };
-  ret_set_mac_addr (gw, &ea, 1);
-#endif /* ARPD_DOES_NOT_WORK */
 }
 
 void
