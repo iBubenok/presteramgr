@@ -12,3 +12,10 @@ Makefile
 /uInitrd
 /build-stamp
 TAGS
+/Makefile.in
+/aclocal.m4
+/config.h.in
+/configure
+/depcomp
+/install-sh
+/missing

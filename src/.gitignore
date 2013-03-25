@@ -9,3 +9,4 @@ fanctl
 sfpctl
 rtbd.h
 arpd.h
+/Makefile.in

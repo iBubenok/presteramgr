@@ -29,6 +29,10 @@ else
 WITH_ARPD := --with-arpd=$(ARPD)
 endif
 
+configure: configure.ac
+	dh_testdir
+	./autogen.sh
+
 config.status: configure
 	dh_testdir
 	./configure \
