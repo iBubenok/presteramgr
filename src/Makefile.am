@@ -18,7 +18,7 @@ presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 AM_CPPFLAGS = -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h -I @cpss@/compilation_root
-AM_CFLAGS = -Wall
+AM_CFLAGS = -Wall -Werror
 
 bin_PROGRAMS = presteractl fanctl sfpctl
 presteractl_SOURCES = presteractl.c
