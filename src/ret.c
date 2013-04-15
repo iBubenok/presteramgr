@@ -15,6 +15,7 @@
 #include <route.h>
 #include <debug.h>
 #include <route-p.h>
+#include <dev.h>
 
 #include <uthash.h>
 
@@ -80,7 +81,7 @@ ret_add (const struct gw *gw, int def)
         rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
         rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
         rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-        rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
         rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
@@ -176,7 +177,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
     rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-    rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
     rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
     rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
     rt.entry.regularEntry.nextHopVlanId = gw->vid;
@@ -208,7 +209,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
   rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-  rt.entry.regularEntry.nextHopInterface.devPort.devNum = port->ldev;
+  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
   rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;

@@ -5,6 +5,7 @@
 #include <mac.h>
 #include <port.h>
 #include <vlan.h>
+#include <dev.h>
 #include <debug.h>
 #include <log.h>
 
@@ -106,7 +107,7 @@ mac_add (const struct mac_op_arg *arg)
       return ST_BAD_VALUE;
 
     me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-    me.dstInterface.devPort.devNum = port->ldev;
+    me.dstInterface.devPort.devNum = phys_dev (port->ldev);
     me.dstInterface.devPort.portNum = port->lport;
 
     me.daCommand = CPSS_MAC_TABLE_FRWRD_E;

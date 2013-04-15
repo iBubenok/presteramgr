@@ -14,6 +14,7 @@
 #include <port.h>
 #include <pdsa.h>
 #include <route.h>
+#include <dev.h>
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
@@ -350,7 +351,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.key.key.macVlan.vlanId = vid;
   memcpy (mac_entry.key.key.macVlan.macAddr.arEther, addr, 6);
   mac_entry.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  mac_entry.dstInterface.devPort.devNum = 0;
+  mac_entry.dstInterface.devPort.devNum = phys_dev (0);
   mac_entry.dstInterface.devPort.portNum = 63;
   mac_entry.appSpecificCpuCode = GT_TRUE;
   mac_entry.isStatic = GT_TRUE;
