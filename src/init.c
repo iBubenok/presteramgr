@@ -94,6 +94,7 @@
 #include <monitor.h>
 #include <pcl.h>
 #include <mgmt.h>
+#include <stack.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -102,9 +103,9 @@
 #define RX_BUFF_ALIGN_DEF       1
 
 #define RCC(rc, name) ({                                                \
-  GT_STATUS __rc = CRP (rc);                                            \
-  if (__rc != GT_OK)                                                    \
-    return __rc;                                                        \
+      GT_STATUS __rc = CRP (rc);                                        \
+      if (__rc != GT_OK)                                                \
+        return __rc;                                                    \
     })
 
 extern GT_STATUS extDrvUartInit (void);
@@ -177,7 +178,7 @@ phase2_init (void)
 
   osMemSet (&info, 0, sizeof (info));
 
-  info.newDevNum = 0;
+  info.newDevNum = stack_id;
 
   cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
   info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS * 2;
@@ -614,7 +615,7 @@ init_cpss (void)
 
   osMemSet (&ph1_info, 0, sizeof (ph1_info));
 
-  ph1_info.devNum = 0;
+  ph1_info.devNum = stack_id;
   ph1_info.coreClock = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS;
   ph1_info.mngInterfaceType = CPSS_CHANNEL_PEX_E;
   ph1_info.ppHAState = CPSS_SYS_HA_MODE_ACTIVE_E;
