@@ -11,6 +11,7 @@
 
 #include <presteramgr.h>
 #include <utils.h>
+#include <stack.h>
 #include <debug.h>
 #include <log.h>
 
@@ -36,17 +37,19 @@ int
 main (int argc, char **argv)
 {
   int daemonize = 1, debug = 0;
+  char *endptr;
 
   while (1) {
     int c, option_index = 0;
     static struct option opts[] = {
-      {"angel", 0, NULL, 'a'},
-      {"debug", 0, NULL, 'd'},
-      {"log-cpss-errors", 0, NULL, 'c'},
+      {"angel",           no_argument,       NULL, 'a'},
+      {"debug",           no_argument,       NULL, 'd'},
+      {"log-cpss-errors", no_argument,       NULL, 'c'},
+      {"stack-id",        required_argument, NULL, 'i'},
       {NULL, 0, NULL, 0}
     };
 
-    c = getopt_long (argc, argv, "adc", opts, &option_index);
+    c = getopt_long (argc, argv, "adci:", opts, &option_index);
     if (c == -1)
       break;
 
@@ -59,6 +62,11 @@ main (int argc, char **argv)
       break;
     case 'c':
       log_cpss_errors = 1;
+      break;
+    case 'i':
+      stack_id = strtol (optarg, &endptr, 10);
+      if (*endptr || stack_id > 31)
+        fprintf (stderr, "invalid command line arguments\n");
       break;
     default:
       fprintf (stderr, "invalid command line arguments\n");
