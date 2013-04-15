@@ -7,6 +7,7 @@
 
 #include <pcl.h>
 #include <port.h>
+#include <dev.h>
 #include <log.h>
 #include <debug.h>
 
@@ -71,7 +72,7 @@ pcl_enable_lbd_trap (port_id_t pid)
   CPSS_INTERFACE_INFO_STC iface = {
     .type    = CPSS_INTERFACE_PORT_E,
     .devPort = {
-      .devNum  = port->ldev,
+      .devNum  = phys_dev (port->ldev),
       .portNum = port->lport
     }
   };

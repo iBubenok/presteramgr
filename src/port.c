@@ -13,6 +13,7 @@
 #include <utils.h>
 #include <env.h>
 #include <pcl.h>
+#include <dev.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -223,7 +224,7 @@ port_set_iso_bmp (struct port *port)
     CPSS_INTERFACE_INFO_STC iface = {
       .type = CPSS_INTERFACE_PORT_E,
       .devPort = {
-        .devNum = port->ldev,
+        .devNum = phys_dev (port->ldev),
         .portNum = port->lport
       }
     };
