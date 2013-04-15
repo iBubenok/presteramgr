@@ -202,7 +202,8 @@ cpssGetDefaultExtDrvFuncs (OUT CPSS_EXT_DRV_FUNC_BIND_STC  *extDrvFuncBindInfoPt
   extDrvFuncBindInfoPtr->extDrvEthPortBindInfo.extDrvLinuxModeGetFunc  = extDrvLinuxModeGet;
   extDrvFuncBindInfoPtr->extDrvEthPortBindInfo.extDrvEthRawSocketRxHookAddFunc = extDrvEthRawSocketRxHookAdd;
 
-  extDrvFuncBindInfoPtr->extDrvHsuDrvBindInfo.extDrvHsuMemBaseAddrGetFunc = extDrvHsuMemBaseAddrGet;
+  extDrvFuncBindInfoPtr->extDrvHsuDrvBindInfo.extDrvHsuMemBaseAddrGetFunc =
+    (CPSS_EXTDRV_HSU_MEM_BASE_ADDR_GET_FUNC) extDrvHsuMemBaseAddrGet;
   extDrvFuncBindInfoPtr->extDrvHsuDrvBindInfo.extDrvHsuWarmRestartFunc = extDrvHsuWarmRestart;
 
 #if defined (XCAT_DRV)
