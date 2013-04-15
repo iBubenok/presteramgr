@@ -95,6 +95,7 @@
 #include <pcl.h>
 #include <mgmt.h>
 #include <stack.h>
+#include <dev.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -674,6 +675,8 @@ cpss_start (void)
     ALERT ("osWrapper initialization failure!\n");
     return;
   }
+
+  dev_set_map (0, stack_id);
 
   init_cpss ();
 
