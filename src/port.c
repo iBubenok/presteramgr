@@ -49,7 +49,8 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 struct port *ports = NULL;
 int nports = 0;
 
-static port_id_t *port_ids;
+typedef port_id_t dev_ports_t[CPSS_MAX_PORTS_NUM_CNS];
+static dev_ports_t dev_ports[32];
 
 static CPSS_PORTS_BMP_STC all_ports_bmp;
 
@@ -87,15 +88,12 @@ port_unlock (void)
 }
 
 int
-port_id (GT_U8 ldev, GT_U8 lport)
+port_id (GT_U8 hdev, GT_U8 hport)
 {
-  if (!((ldev < NDEVS) &&
-        (lport < CPSS_MAX_PORTS_NUM_CNS))) {
-    ERR ("ldev = %d, lport = %d\r\n", ldev, lport);
+  if (hdev > 31 || hport >= CPSS_MAX_PORTS_NUM_CNS)
     return 0;
-  }
 
-  return port_ids[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
+  return dev_ports[hdev][hport];
 }
 
 static void
@@ -154,8 +152,7 @@ port_init (void)
   DECLARE_PORT_MAP (pmap);
   int i;
 
-  port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
-  assert (port_ids);
+  memset (dev_ports, 0, sizeof (dev_ports));
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
@@ -208,8 +205,7 @@ port_init (void)
       EMERG ("Port specification error at %d, aborting", i);
       abort ();
     }
-    port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] =
-      ports[i].id;
+    dev_ports[phys_dev (ports[i].ldev)][ports[i].lport] = ports[i].id;
   }
 
   nports = NPORTS;
