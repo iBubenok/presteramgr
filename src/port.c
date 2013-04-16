@@ -175,6 +175,7 @@ port_init (void)
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
+    ports[i].stack_role = PORT_STACK_ROLE (i);
     CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
