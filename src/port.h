@@ -3,9 +3,16 @@
 
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
+#include <stack.h>
 
 struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
+};
+
+enum port_stack_role {
+  PSR_NONE = 0,
+  PSR_PRIMARY,
+  PSR_SECONDARY
 };
 
 struct port {
@@ -29,6 +36,7 @@ struct port {
   int tdr_test_in_progress;
   struct port_state state;
   enum port_speed max_speed;
+  enum port_stack_role stack_role;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
@@ -50,6 +58,12 @@ static inline struct port *
 port_ptr (port_id_t n)
 {
   return port_valid (n) ? &ports[n - 1] : NULL;
+}
+
+static inline int
+is_stack_port (const struct port *port)
+{
+  return stack_active () && (port->stack_role != PSR_NONE);
 }
 
 extern int port_init (void);
