@@ -1909,7 +1909,7 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
 
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
               (src->ldev, src->lport, !!enable,
-               dst->lport, dst->ldev, GT_FALSE));
+               dst->lport, phys_dev (dst->ldev), GT_FALSE));
   } else {
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
               (src->ldev, src->lport, !!enable, 0, 0, GT_FALSE));
