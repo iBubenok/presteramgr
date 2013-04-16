@@ -179,7 +179,7 @@ phase2_init (void)
 
   osMemSet (&info, 0, sizeof (info));
 
-  info.newDevNum = stack_id;
+  info.newDevNum = 0;
 
   cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
   info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS * 2;
@@ -197,6 +197,8 @@ phase2_init (void)
 
   extDrvSetIntLockUnlock (INTR_MODE_LOCK, &int_key);
   rc = cpssDxChHwPpPhase2Init (0, &info);
+  CRP (cpssDxChCfgHwDevNumSet (0, stack_id));
+  dev_set_map (0, stack_id);
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);
 
@@ -616,7 +618,7 @@ init_cpss (void)
 
   osMemSet (&ph1_info, 0, sizeof (ph1_info));
 
-  ph1_info.devNum = stack_id;
+  ph1_info.devNum = 0;
   ph1_info.coreClock = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS;
   ph1_info.mngInterfaceType = CPSS_CHANNEL_PEX_E;
   ph1_info.ppHAState = CPSS_SYS_HA_MODE_ACTIVE_E;
@@ -678,8 +680,6 @@ cpss_start (void)
     ALERT ("osWrapper initialization failure!\n");
     return;
   }
-
-  dev_set_map (0, stack_id);
 
   init_cpss ();
 
