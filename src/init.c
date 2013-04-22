@@ -549,8 +549,8 @@ lib_init (void)
 static GT_STATUS
 after_phase2 (void)
 {
-  CRP (cpssDxChCscdDsaSrcDevFilterSet (0, GT_FALSE));
-
+  CRP (cpssDxChCscdDsaSrcDevFilterSet
+       (0, stack_active () ? GT_TRUE : GT_FALSE));
   return GT_OK;
 }
 
