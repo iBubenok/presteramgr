@@ -550,14 +550,11 @@ after_phase2 (void)
   return GT_OK;
 }
 
-static GT_STATUS
+static void
 linux_ip_setup (GT_U8 dev)
 {
-  GT_STATUS rc;
-
-  CRPR ((rc = cpssDxChBrgGenArpBcastToCpuCmdSet (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E)));
-
-  return rc;
+  CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
+       (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
 }
 
 static void
