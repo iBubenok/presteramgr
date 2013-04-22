@@ -26,6 +26,7 @@ mcg_create (mcg_t mcg)
   GT_STATUS rc;
   struct mcast_group *group;
   int key = mcg;
+  int i;
 
   HASH_FIND_INT (groups, &key, group);
   if (group)
@@ -33,6 +34,11 @@ mcg_create (mcg_t mcg)
 
   group = calloc (1, sizeof (struct mcast_group));
   group->key = key;
+  for (i = 0; i < nports; i++) {
+    struct port *port = port_ptr (i + 1);
+    if (is_stack_port (port))
+      CPSS_PORTS_BMP_PORT_SET_MAC (&group->ports, port->lport);
+  }
   rc = CRP (cpssDxChBrgMcEntryWrite (0, mcg, &group->ports));
   if (rc == GT_OK) {
     HASH_ADD_INT (groups, key, group);
