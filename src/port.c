@@ -325,6 +325,16 @@ __port_set_prot (struct port *t, int prot)
   return 1;
 }
 
+static void
+port_setup_stack (struct port *port)
+{
+  port->setup (port);
+  CRP (cpssDxChCscdPortTypeSet
+       (port->ldev, port->lport,
+        CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
+  CRP (cpssDxChPortMruSet (port->ldev, port->lport, 10000));
+}
+
 enum status
 port_start (void)
 {
@@ -353,6 +363,11 @@ port_start (void)
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
+
+    if (is_stack_port (port)) {
+      port_setup_stack (port);
+      continue;
+    }
 
     port->setup (port);
     port_set_vid (port);
@@ -420,7 +435,8 @@ port_start (void)
     struct port *port = &ports[i];
 
     CRP (cpssDxChBrgStpStateSet
-         (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
+         (port->ldev, port->lport, 0,
+          is_stack_port (port) ? CPSS_STP_FRWRD_E : CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
     port->shutdown (port, 0);
     port->update_sd (port);
