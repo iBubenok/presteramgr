@@ -176,6 +176,13 @@ setup_tagging (vid_t vid,
   for (i = 0; i < nports; i++) {
     struct port *port = port_ptr (i + 1);
 
+    if (is_stack_port (port)) {
+      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+      tagging_cmd->portsCmd[port->lport] =
+        CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      continue;
+    }
+
     switch (port->mode) {
     case PM_ACCESS:
       if (port->access_vid == vid) {
