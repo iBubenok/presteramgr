@@ -427,6 +427,14 @@ port_start (void)
     port->shutdown (port, 0);
     port->update_sd (port);
   };
+
+  CRP (cpssDxChPortTxToCpuShaperModeSet
+       (0, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
+
+  GT_U32 rate = 5000;
+  CRP (cpssDxChPortTxShaperProfileSet (0, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
+  CRP (cpssDxChPortTxShaperEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+
   CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
   return ST_OK;
