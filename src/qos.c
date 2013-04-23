@@ -74,6 +74,11 @@ qos_start (void)
     CRP (cpssDxChCosProfileEntrySet (0, i, &prof));
   }
 
+  CRP (cpssDxChPortTxWrrGlobalParamSet
+       (0,
+        CPSS_PORT_TX_WRR_BYTE_MODE_E,
+        CPSS_PORT_TX_WRR_MTU_2K_E));
+
   for (i = 0; i < 64; i++) {
     dscp_map[i].dscp = i;
     dscp_map[i].queue = i / 8;

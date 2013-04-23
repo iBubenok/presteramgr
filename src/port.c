@@ -380,6 +380,8 @@ port_start (void)
       .enableModifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E
     };
     CRP (cpssDxChCosPortQosConfigSet (port->ldev, port->lport, &qe));
+    CRP (cpssDxChCosL2TrustModeVlanTagSelectSet
+         (port->ldev, port->lport, CPSS_VLAN_TAG0_E));
 
     CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
 
