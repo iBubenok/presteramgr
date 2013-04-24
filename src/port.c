@@ -335,7 +335,7 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChCscdPortTypeSet
        (port->ldev, port->lport,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
-  CRP (cpssDxChPortMruSet (port->ldev, port->lport, 10000));
+  CRP (cpssDxChPortMruSet (port->ldev, port->lport, 16382));
 }
 
 enum status
