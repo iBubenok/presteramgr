@@ -139,3 +139,18 @@ mcg_del_port (mcg_t mcg, port_id_t pid)
   default:          return ST_HEX;
   }
 }
+
+void
+mcg_stack_setup (void)
+{
+  CPSS_PORTS_BMP_STC bmp;
+  int i;
+
+  memset (&bmp, 0, sizeof (bmp));
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+    if (is_stack_port (port))
+      CPSS_PORTS_BMP_PORT_SET_MAC (&bmp, port->lport);
+  }
+  CRP (cpssDxChBrgMcEntryWrite (0, STACK_MCG, &bmp));
+}
