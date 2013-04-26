@@ -90,6 +90,10 @@ port_unlock (void)
 int
 port_id (GT_U8 hdev, GT_U8 hport)
 {
+  /* FIXME: that's not really the way to do it. */
+  if (hdev == 0)
+    hdev = stack_id;
+
   if (hdev > 31 || hport >= CPSS_MAX_PORTS_NUM_CNS)
     return 0;
 
