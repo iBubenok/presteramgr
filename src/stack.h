@@ -3,6 +3,8 @@
 
 extern int stack_id;
 
+extern void stack_start (void);
+
 static inline int
 stack_active (void)
 {

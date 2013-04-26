@@ -588,6 +588,7 @@ after_init (void)
   linux_ip_setup (0);
   qos_start ();
   rate_limit_init ();
+  stack_start ();
   port_start ();
   pdsa_init ();
   ip_start ();
