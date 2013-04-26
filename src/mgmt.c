@@ -13,6 +13,7 @@
 #include <port.h>
 #include <control.h>
 #include <vlan.h>
+#include <stack.h>
 #include <zcontext.h>
 #include <debug.h>
 #include <log.h>
@@ -123,6 +124,13 @@ mgmt_thread (void *unused)
 
   DEBUG ("registering pdsa manager\r\n");
   if (mgmt_tx (0, PDSA_MGMT_SET_MGR, NULL, 0) < 0) {
+    ERR ("mgmt_tx(): %s\r\n", strerror (errno));
+    return NULL;
+  }
+
+  DEBUG ("configuring device number %d\r\n", stack_id);
+  struct pdsa_dev_num devnum = { .num = stack_id };
+  if (mgmt_tx (0, PDSA_MGMT_SET_DEV_NUM, &devnum, sizeof (devnum)) < 0) {
     ERR ("mgmt_tx(): %s\r\n", strerror (errno));
     return NULL;
   }
