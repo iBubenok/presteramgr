@@ -15,6 +15,7 @@
 #include <vlan.h>
 #include <stack.h>
 #include <zcontext.h>
+#include <dev.h>
 #include <debug.h>
 #include <log.h>
 
@@ -182,7 +183,7 @@ mgmt_send_frame (GT_U8 dev, GT_U8 port, const void *data, size_t len)
   struct pdsa_spec_frame *frame;
 
   frame = malloc (PDSA_SPEC_FRAME_SIZE (len));
-  frame->dev = dev;
+  frame->dev = phys_dev (dev);
   frame->port = port;
   frame->len = len;
   memcpy (frame->data, data, len);
