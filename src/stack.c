@@ -6,6 +6,7 @@
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
 #include <stack.h>
+#include <vlan.h>
 #include <mcg.h>
 #include <log.h>
 #include <debug.h>
@@ -16,6 +17,7 @@ void
 stack_start (void)
 {
   DEBUG ("doing stack setup\r\n");
+  vlan_stack_setup ();
   mcg_stack_setup ();
   DEBUG ("done stack setup\r\n");
 
@@ -24,7 +26,7 @@ stack_start (void)
 
   memset (&tp, 0, sizeof (tp));
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
-  //tp.commonParams.vid = 1;
+  tp.commonParams.vid = 4095;
   tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
   tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
   tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = 1;
@@ -45,7 +47,7 @@ stack_start (void)
 
   memset (&tp, 0, sizeof (tp));
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
-  //tp.commonParams.vid = 1;
+  tp.commonParams.vid = 4095;
   tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
   tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
   tp.dsaInfo.fromCpu.dstInterface.vidx = 4094;

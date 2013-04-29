@@ -214,16 +214,15 @@ setup_tagging (vid_t vid,
   }
 }
 
-enum status
-vlan_add (vid_t vid)
+
+
+static enum status
+__vlan_add (vid_t vid)
 {
   CPSS_PORTS_BMP_STC members, tagging;
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_STATUS rc;
-
-  if (!vlan_valid (vid))
-    return ST_BAD_VALUE;
 
   memset (&vlan_info, 0, sizeof (vlan_info));
   vlan_info.unkSrcAddrSecBreach   = GT_FALSE;
@@ -272,6 +271,15 @@ vlan_add (vid_t vid)
   default:
     return ST_HEX;
   }
+}
+
+enum status
+vlan_add (vid_t vid)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  return __vlan_add (vid);
 }
 
 enum status
@@ -606,4 +614,10 @@ vlan_del_ip_addr (vid_t vid)
   vlan->ip_addr_set = 0;
 
   return ST_OK;
+}
+
+void
+vlan_stack_setup (void)
+{
+  __vlan_add (4095);
 }

@@ -51,6 +51,7 @@ extern enum status vlan_get_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_set_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_del_ip_addr (vid_t);
 extern int stg_is_active (stp_id_t);
+extern void vlan_stack_setup (void);
 
 
 #endif /* __VLAN_H__ */
