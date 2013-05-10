@@ -65,8 +65,10 @@ main (int argc, char **argv)
       break;
     case 'i':
       stack_id = strtol (optarg, &endptr, 10);
-      if (*endptr || stack_id > 31)
+      if (*endptr || stack_id > 31) {
         fprintf (stderr, "invalid command line arguments\n");
+        exit (EXIT_FAILURE);
+      }
       break;
     default:
       fprintf (stderr, "invalid command line arguments\n");
