@@ -207,3 +207,19 @@ mgmt_send_regular_frame (vid_t vid, const void *data, size_t len)
 
   free (frame);
 }
+
+void
+mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
+{
+  struct pdsa_gen_frame *frame;
+
+  frame = malloc (PDSA_GEN_FRAME_SIZE (len));
+  frame->len = len;
+  memcpy (frame->data, data, 12);
+  memcpy (frame->data + 12, tag, 8);
+  memcpy (frame->data + 20, data + 12, len - 12);
+
+  mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (len));
+
+  free (frame);
+}
