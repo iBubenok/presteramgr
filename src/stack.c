@@ -16,6 +16,7 @@
 #include <debug.h>
 
 int stack_id = 0;
+struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 
 enum status
 stack_set_dev_map (uint8_t tdev, uint8_t port)

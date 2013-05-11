@@ -214,6 +214,27 @@ port_init (void)
       abort ();
     }
     dev_ports[phys_dev (ports[i].ldev)][ports[i].lport] = ports[i].id;
+
+    switch (ports[i].stack_role) {
+    case PSR_PRIMARY:
+      if (stack_pri_port) {
+        /* We should never get here. */
+        EMERG ("Port specification error at %d, aborting", i);
+        abort ();
+      }
+      stack_pri_port = &ports[i];
+      break;
+    case PSR_SECONDARY:
+      if (stack_sec_port) {
+        /* We should never get here. */
+        EMERG ("Port specification error at %d, aborting", i);
+        abort ();
+      }
+      stack_sec_port = &ports[i];
+      break;
+    default:
+      break;
+    }
   }
 
   nports = NPORTS;
