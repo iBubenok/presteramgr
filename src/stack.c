@@ -12,6 +12,7 @@
 #include <mcg.h>
 #include <dev.h>
 #include <port.h>
+#include <mgmt.h>
 #include <log.h>
 #include <debug.h>
 
@@ -110,4 +111,44 @@ stack_start (void)
          tag[0], tag[1], tag[2], tag[3],
          tag[4], tag[5], tag[6], tag[7]);
 
+}
+
+enum status
+stack_mail (enum port_stack_role role, void *data, size_t len)
+{
+  struct port *port;
+  uint8_t tag[8];
+  CPSS_DXCH_NET_DSA_PARAMS_STC tp;
+
+  if (!stack_active ())
+    return ST_BAD_STATE;
+
+  switch (role) {
+  case PSR_PRIMARY:
+    port = stack_pri_port;
+    break;
+  case PSR_SECONDARY:
+    port = stack_sec_port;
+    break;
+  default:
+    return ST_BAD_VALUE;
+  }
+
+  if (!port)
+    return ST_BAD_STATE;
+
+  memset (&tp, 0, sizeof (tp));
+  tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
+  tp.commonParams.vid = 4095;
+  tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+  tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
+  tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = phys_dev (port->ldev);
+  tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = port->lport;
+  tp.dsaInfo.fromCpu.cascadeControl = GT_TRUE;
+  tp.dsaInfo.fromCpu.extDestInfo.devPort.mailBoxToNeighborCPU = GT_TRUE;
+  CRP (cpssDxChNetIfDsaTagBuild (port->ldev, &tp, tag));
+
+  mgmt_send_gen_frame (tag, data, len);
+
+  return ST_OK;
 }

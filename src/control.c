@@ -232,6 +232,7 @@ DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
+DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -297,7 +298,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
-  HANDLER (CC_MON_SESSION_SET_DST)
+  HANDLER (CC_MON_SESSION_SET_DST),
+  HANDLER (CC_MAIL_TO_NEIGHBOR)
 };
 
 static int
@@ -1701,6 +1703,34 @@ DEFINE_HANDLER (CC_MON_SESSION_SET_DST)
 
   result = mon_session_set_dst (num, pid, vid);
 
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
+{
+  port_stack_role_t role;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&role);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  result = stack_mail (role, zframe_data (frame), len);
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }
