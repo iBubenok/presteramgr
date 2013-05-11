@@ -9,12 +9,6 @@ struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
 };
 
-enum port_stack_role {
-  PSR_NONE = 0,
-  PSR_PRIMARY,
-  PSR_SECONDARY
-};
-
 struct port {
   port_id_t id;
   GT_U8 ldev;
