@@ -17,6 +17,7 @@ struct port;
 extern struct port *stack_pri_port, *stack_sec_port;
 
 extern enum status stack_mail (enum port_stack_role, void *, size_t);
+extern void stack_handle_mail (port_id_t, uint8_t *, size_t);
 
 
 #endif /* __STACK_H__ */

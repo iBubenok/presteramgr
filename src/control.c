@@ -158,6 +158,15 @@ cn_port_vid_set (port_id_t pid, vid_t vid)
   notify_send (&msg);
 }
 
+void
+cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
+{
+  zmsg_t *msg = make_notify_message (CN_MAIL);
+  zmsg_addmem (msg, &role, sizeof (role));
+  zmsg_addmem (msg, data, len);
+  notify_send (&msg);
+}
+
 int
 control_start (void)
 {
@@ -1363,6 +1372,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+
+  case CPU_CODE_MAIL:
+    stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
 

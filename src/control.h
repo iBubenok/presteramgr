@@ -26,5 +26,6 @@ enum control_int_notification {
 };
 
 extern void cn_port_vid_set (port_id_t, vid_t);
+extern void cn_mail (port_stack_role_t, uint8_t *, size_t);
 
 #endif /* __CONTROL_H__ */

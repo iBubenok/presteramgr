@@ -13,6 +13,7 @@
 #include <dev.h>
 #include <port.h>
 #include <mgmt.h>
+#include <control.h>
 #include <log.h>
 #include <debug.h>
 
@@ -151,4 +152,15 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   mgmt_send_gen_frame (tag, data, len);
 
   return ST_OK;
+}
+
+void
+stack_handle_mail (port_id_t pid, uint8_t *data, size_t len)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port || !is_stack_port (port))
+    return;
+
+  cn_mail (port->stack_role, data, len);
 }
