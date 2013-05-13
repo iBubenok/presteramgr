@@ -71,6 +71,16 @@ notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   put_port_id (msg, pid);
   put_port_state (msg, attrs);
   notify_send (&msg);
+
+  struct port *port = port_ptr (pid);
+  if (is_stack_port (port)) {
+    zmsg_t *msg = make_notify_message (CN_STACK_PORT_STATE);
+    port_stack_role_t role = port->stack_role;
+    zmsg_addmem (msg, &role, sizeof (role));
+    uint8_t link = attrs->portLinkUp;
+    zmsg_addmem (msg, &link, sizeof (link));
+    notify_send (&msg);
+  }
 }
 
 
