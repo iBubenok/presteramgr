@@ -212,14 +212,15 @@ void
 mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
 {
   struct pdsa_gen_frame *frame;
+  size_t full_len = len + 8;
 
-  frame = malloc (PDSA_GEN_FRAME_SIZE (len));
-  frame->len = len;
+  frame = malloc (PDSA_GEN_FRAME_SIZE (full_len));
+  frame->len = full_len;
   memcpy (frame->data, data, 12);
   memcpy (frame->data + 12, tag, 8);
   memcpy (frame->data + 20, data + 12, len - 12);
 
-  mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (len));
+  mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (full_len));
 
   free (frame);
 }
