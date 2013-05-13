@@ -242,6 +242,7 @@ DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
 DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
+DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -308,7 +309,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
   HANDLER (CC_MON_SESSION_SET_DST),
-  HANDLER (CC_MAIL_TO_NEIGHBOR)
+  HANDLER (CC_MAIL_TO_NEIGHBOR),
+  HANDLER (CC_STACK_PORT_GET_STATE)
 };
 
 static int
@@ -1747,4 +1749,22 @@ DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
   zframe_destroy (&frame);
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
+{
+   port_stack_role_t role;
+   enum status result;
+   uint8_t state;
+
+   result = POP_ARG (&role);
+   if (result != ST_OK) {
+     report_status (result);
+     return;
+   }
+
+   zmsg_t *reply = make_reply (ST_OK);
+   state = stack_port_get_state (role);
+   zmsg_addmem (reply, &state, sizeof (state));
+   send_reply (reply);
 }

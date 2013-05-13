@@ -164,3 +164,19 @@ stack_handle_mail (port_id_t pid, uint8_t *data, size_t len)
 
   cn_mail (port->stack_role, data, len);
 }
+
+uint8_t
+stack_port_get_state (enum port_stack_role role)
+{
+  if (!stack_active ())
+    return 0;
+
+  switch (role) {
+  case PSR_PRIMARY:
+    return stack_pri_port->state.attrs.portLinkUp == GT_TRUE;
+  case PSR_SECONDARY:
+    return stack_sec_port->state.attrs.portLinkUp == GT_TRUE;
+  default:
+    return 0;
+  }
+}
