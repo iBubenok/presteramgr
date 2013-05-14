@@ -243,6 +243,7 @@ DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
 DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
+DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -310,7 +311,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_SET_SRCS),
   HANDLER (CC_MON_SESSION_SET_DST),
   HANDLER (CC_MAIL_TO_NEIGHBOR),
-  HANDLER (CC_STACK_PORT_GET_STATE)
+  HANDLER (CC_STACK_PORT_GET_STATE),
+  HANDLER (CC_STACK_SET_DEV_MAP)
 };
 
 static int
@@ -1767,4 +1769,24 @@ DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
    state = stack_port_get_state (role);
    zmsg_addmem (reply, &state, sizeof (state));
    send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
+{
+  port_stack_role_t role;
+  uint8_t dev;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&role);
+  if (result != ST_OK)
+    goto out;
+
+  result = stack_set_dev_map (dev, role);
+
+ out:
+  report_status (result);
 }
