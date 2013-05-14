@@ -23,7 +23,15 @@ struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 void
 stack_start (void)
 {
+  CPSS_CSCD_LINK_TYPE_STC lp = {
+    .linkType = CPSS_CSCD_LINK_TYPE_PORT_E,
+    .linkNum  = CPSS_NULL_PORT_NUM_CNS
+  };
+  int i;
+
   DEBUG ("doing stack setup\r\n");
+  for (i = 0; i < 32; i++)
+    CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
   vlan_stack_setup ();
   mcg_stack_setup ();
   DEBUG ("done stack setup\r\n");
