@@ -1773,7 +1773,6 @@ DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
 
 DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
 {
-  port_stack_role_t role;
   uint8_t dev;
   enum status result;
 
@@ -1781,12 +1780,19 @@ DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&role);
-  if (result != ST_OK)
+  result = ST_BAD_FORMAT;
+
+  zframe_t *frame = zmsg_pop (__args);
+  if (!frame)
     goto out;
 
-  result = stack_set_dev_map (dev, role);
+  if (zframe_size (frame) != 2)
+    goto destroy_frame;
 
+  result = stack_set_dev_map (dev, zframe_data (frame));
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }

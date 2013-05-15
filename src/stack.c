@@ -7,6 +7,7 @@
 #include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 
 #include <stack.h>
 #include <vlan.h>
@@ -16,10 +17,12 @@
 #include <mgmt.h>
 #include <control.h>
 #include <log.h>
+#include <utils.h>
 #include <debug.h>
 
 int stack_id = 0;
 struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
+static int ring = 0;
 
 void
 stack_start (void)
@@ -123,37 +126,63 @@ stack_port_get_state (enum port_stack_role role)
   }
 }
 
+static void
+stack_enable_mc_filter (GT_BOOL enable)
+{
+  CRP (cpssDxChBrgPortEgrFltUnkEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, enable));
+  CRP (cpssDxChBrgPortEgrFltUregMcastEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, enable));
+  CRP (cpssDxChBrgPortEgrFltUregBcEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, enable));
+}
+
+static void
+stack_update_ring (int new_ring)
+{
+  new_ring = !!new_ring;
+  if (ring == new_ring)
+    return;
+
+  ring = new_ring;
+  stack_enable_mc_filter (gt_bool (ring));
+}
+
 enum status
-stack_set_dev_map (uint8_t dev, enum port_stack_role role)
+stack_set_dev_map (uint8_t dev, const uint8_t *hops)
 {
   CPSS_CSCD_LINK_TYPE_STC lp;
-  struct port *port;
-  GT_STATUS rc;
 
   if (!stack_active ())
     return ST_BAD_STATE;
 
-  switch (role) {
-  case PSR_PRIMARY:
-    port = stack_pri_port;
-    break;
-  case PSR_SECONDARY:
-    port = stack_sec_port;
-    break;
-  default:
-    return ST_BAD_VALUE;
-  }
+  stack_update_ring (hops[0] && hops[1]);
 
-  if (!port)
-    return ST_BAD_STATE;
+  CRP (cpssDxChBrgSrcIdGroupPortDelete
+       (stack_pri_port->ldev, dev, stack_pri_port->lport));
+  CRP (cpssDxChBrgSrcIdGroupPortDelete
+       (stack_sec_port->ldev, dev, stack_sec_port->lport));
 
-  lp.linkNum  = port->lport;
+  if (hops[0] > 1)
+    CRP (cpssDxChBrgSrcIdGroupPortAdd
+         (stack_pri_port->ldev, dev, stack_pri_port->lport));
+  if (hops[1] > 1)
+    CRP (cpssDxChBrgSrcIdGroupPortAdd
+         (stack_sec_port->ldev, dev, stack_sec_port->lport));
+
   lp.linkType = CPSS_CSCD_LINK_TYPE_PORT_E;
-  rc = CRP (cpssDxChCscdDevMapTableSet (0, dev, 0, &lp, 0));
-  switch (rc) {
-  case GT_OK:        return ST_OK;
-  case GT_HW_ERROR:  return ST_HW_ERROR;
-  case GT_BAD_PARAM: return ST_BAD_VALUE;
-  default:           return ST_HEX;
-  }
+  if (hops[0]) {
+    if (hops[1])
+      lp.linkNum = (hops[1] >= hops[0])
+        ? stack_pri_port->lport
+        : stack_sec_port->lport;
+    else
+      lp.linkNum = stack_pri_port->lport;
+  } else if (hops[1])
+    lp.linkNum = stack_sec_port->lport;
+  else
+    lp.linkNum = CPSS_NULL_PORT_NUM_CNS;
+  CRP (cpssDxChCscdDevMapTableSet (0, dev, 0, &lp, 0));
+
+  return ST_OK;
 }
