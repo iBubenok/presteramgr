@@ -35,6 +35,7 @@
 #include <cpss/generic/phy/cpssGenPhyVct.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -52,7 +53,8 @@ int nports = 0;
 typedef port_id_t dev_ports_t[CPSS_MAX_PORTS_NUM_CNS];
 static dev_ports_t dev_ports[32];
 
-static CPSS_PORTS_BMP_STC all_ports_bmp;
+CPSS_PORTS_BMP_STC all_ports_bmp;
+CPSS_PORTS_BMP_STC nst_ports_bmp;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
@@ -165,6 +167,7 @@ port_init (void)
   assert (ports);
 
   memset (&all_ports_bmp, 0, sizeof (all_ports_bmp));
+  memset (&nst_ports_bmp, 0, sizeof (nst_ports_bmp));
 
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
@@ -183,6 +186,8 @@ port_init (void)
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
     ports[i].stack_role = PORT_STACK_ROLE (i);
+    if (ports[i].stack_role == PSR_NONE)
+      CPSS_PORTS_BMP_PORT_SET_MAC (&nst_ports_bmp, pmap[i]);
     CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
@@ -391,6 +396,14 @@ port_start (void)
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
+
+    CRP (cpssDxChBrgSrcIdPortUcastEgressFilterSet
+         (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
+         (port->ldev, port->lport, stack_id));
+    CRP (cpssDxChBrgSrcIdPortSrcIdAssignModeSet
+         (port->ldev, port->lport,
+          CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
 
     if (is_stack_port (port)) {
       port_setup_stack (port);

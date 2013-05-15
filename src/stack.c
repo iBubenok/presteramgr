@@ -6,6 +6,7 @@
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 #include <cpss/generic/cscd/cpssGenCscd.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 
 #include <stack.h>
 #include <vlan.h>
@@ -29,11 +30,27 @@ stack_start (void)
   };
   int i;
 
+  if (!stack_active ())
+    return;
+
   DEBUG ("doing stack setup\r\n");
-  for (i = 0; i < 32; i++)
+
+  for (i = 0; i < 32; i++) {
     CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
+    CRP (cpssDxChBrgSrcIdGroupEntrySet
+         (0, i, GT_TRUE,
+          (i == stack_id)
+          ? &all_ports_bmp
+          : &nst_ports_bmp));
+  }
+
+  CRP (cpssDxChBrgSrcIdGlobalSrcIdAssignModeSet
+       (0, CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
+  CRP (cpssDxChBrgSrcIdGlobalUcastEgressFilterSet (0, GT_TRUE));
+
   vlan_stack_setup ();
   mcg_stack_setup ();
+
   DEBUG ("done stack setup\r\n");
 }
 
@@ -70,6 +87,8 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = port->lport;
   tp.dsaInfo.fromCpu.cascadeControl = GT_TRUE;
   tp.dsaInfo.fromCpu.extDestInfo.devPort.mailBoxToNeighborCPU = GT_TRUE;
+  tp.dsaInfo.fromCpu.srcDev = stack_id;
+  tp.dsaInfo.fromCpu.srcId = stack_id;
   CRP (cpssDxChNetIfDsaTagBuild (port->ldev, &tp, tag));
 
   mgmt_send_gen_frame (tag, data, len);
