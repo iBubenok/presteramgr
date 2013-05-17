@@ -405,6 +405,8 @@ port_start (void)
          (port->ldev, port->lport,
           CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
 
+    pcl_port_setup (port->id);
+
     if (is_stack_port (port)) {
       port_setup_stack (port);
       continue;
@@ -456,7 +458,6 @@ port_start (void)
           CPSS_PORT_TX_DROP_SHAPER_BYTE_MODE_E));
 #endif /* PRESTERAMGR_FUTURE_LION */
 
-    pcl_port_setup (port->id);
     pcl_enable_lbd_trap (port->id);
   }
 
