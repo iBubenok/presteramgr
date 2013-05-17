@@ -507,6 +507,11 @@ DEFINE_HANDLER (CC_PORT_SEND_FRAME)
     goto out;
   }
 
+  if (is_stack_port (port)) {
+    result = ST_BAD_STATE;
+    goto out;
+  }
+
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
     goto out;
