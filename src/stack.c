@@ -24,6 +24,8 @@
 int stack_id = 0;
 struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 static int ring = 0;
+static uint32_t dev_bmp  = 0;
+static uint32_t dev_mask = 0;
 
 void
 stack_start (void)
@@ -46,6 +48,8 @@ stack_start (void)
           (i == stack_id)
           ? &all_ports_bmp
           : &nst_ports_bmp));
+    if (i < stack_id)
+      dev_mask |= 1 << i;
   }
 
   CRP (cpssDxChBrgSrcIdGlobalSrcIdAssignModeSet
@@ -128,31 +132,50 @@ stack_port_get_state (enum port_stack_role role)
 }
 
 static void
-stack_enable_mc_filter (int enable)
+stack_enable_mc_filter (int en)
 {
+  static int enable = 0;
+
+  en = !!en;
+  if (en == enable)
+    return;
+
+  enable = en;
+  CRP (cpssDxChBrgPortEgrFltUnkEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
+  CRP (cpssDxChBrgPortEgrFltUregMcastEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
+  CRP (cpssDxChBrgPortEgrFltUregBcEnable
+       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
   pcl_enable_mc_drop (stack_sec_port->id, enable);
 }
 
 static void
-stack_update_ring (int new_ring)
+stack_update_ring (int new_ring, uint32_t new_dev_bmp)
 {
   new_ring = !!new_ring;
-  if (ring == new_ring)
+  if (ring == new_ring && dev_bmp == new_dev_bmp)
     return;
 
   ring = new_ring;
-  stack_enable_mc_filter (ring);
+  dev_bmp = new_dev_bmp;
+  stack_enable_mc_filter (ring && !(dev_bmp & dev_mask));
 }
 
 enum status
 stack_set_dev_map (uint8_t dev, const uint8_t *hops)
 {
   CPSS_CSCD_LINK_TYPE_STC lp;
+  uint32_t new_dev_bmp = dev_bmp;
 
   if (!stack_active ())
     return ST_BAD_STATE;
 
-  stack_update_ring (hops[0] && hops[1]);
+  if (hops[0] || hops[1])
+    new_dev_bmp |= 1 << dev;
+  else
+    new_dev_bmp &= ~(1 << dev);
+  stack_update_ring (hops[0] && hops[1], new_dev_bmp);
 
   CRP (cpssDxChBrgSrcIdGroupPortDelete
        (stack_pri_port->ldev, dev, stack_pri_port->lport));
