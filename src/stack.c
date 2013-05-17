@@ -18,6 +18,7 @@
 #include <control.h>
 #include <log.h>
 #include <utils.h>
+#include <pcl.h>
 #include <debug.h>
 
 int stack_id = 0;
@@ -127,14 +128,9 @@ stack_port_get_state (enum port_stack_role role)
 }
 
 static void
-stack_enable_mc_filter (GT_BOOL enable)
+stack_enable_mc_filter (int enable)
 {
-  CRP (cpssDxChBrgPortEgrFltUnkEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, enable));
-  CRP (cpssDxChBrgPortEgrFltUregMcastEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, enable));
-  CRP (cpssDxChBrgPortEgrFltUregBcEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, enable));
+  pcl_enable_mc_drop (stack_sec_port->id, enable);
 }
 
 static void
@@ -145,7 +141,7 @@ stack_update_ring (int new_ring)
     return;
 
   ring = new_ring;
-  stack_enable_mc_filter (gt_bool (ring));
+  stack_enable_mc_filter (ring);
 }
 
 enum status

@@ -9,6 +9,7 @@
 #include <port.h>
 #include <dev.h>
 #include <log.h>
+#include <utils.h>
 #include <debug.h>
 
 
@@ -65,6 +66,55 @@ pcl_setup_lbd_trap (void)
         &act));
 }
 
+static void
+pcl_setup_mc_drop (void)
+{
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
+  act.actionStop = GT_TRUE;
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+  mask.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleExtNotIpv6.common.pclId = 2;
+  rule.ruleExtNotIpv6.common.isL2Valid = 1;
+  rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
+
+  CRP (cpssDxChPclRuleSet
+       (0,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        1,
+        0,
+        &mask,
+        &rule,
+        &act));
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleExtIpv6L2.common.pclId = 0xFFFF;
+  mask.ruleExtIpv6L2.common.isL2Valid = 0xFF;
+  mask.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleExtIpv6L2.common.pclId = 2;
+  rule.ruleExtIpv6L2.common.isL2Valid = 1;
+  rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
+
+  CRP (cpssDxChPclRuleSet
+       (0,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E,
+        2,
+        0,
+        &mask,
+        &rule,
+        &act));
+}
+
 enum status
 pcl_enable_lbd_trap (port_id_t pid)
 {
@@ -103,6 +153,45 @@ pcl_enable_lbd_trap (port_id_t pid)
 }
 
 enum status
+pcl_enable_mc_drop (port_id_t pid, int enable)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_INTERFACE_INFO_STC iface = {
+    .type    = CPSS_INTERFACE_PORT_E,
+    .devPort = {
+      .devNum  = phys_dev (port->ldev),
+      .portNum = port->lport
+    }
+  };
+  CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
+    .enableLookup  = gt_bool (enable),
+    .pclId         = 2,
+    .dualLookup    = GT_FALSE,
+    .pclIdL01      = 0,
+    .groupKeyTypes = {
+      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E
+    }
+  };
+  GT_STATUS rc;
+
+  DEBUG ("%s mc drop\r\n", enable ? "enable" : "disable");
+
+  rc = CRP (cpssDxChPclCfgTblSet
+            (0, &iface,
+             CPSS_PCL_DIRECTION_INGRESS_E,
+             CPSS_PCL_LOOKUP_0_E,
+             &lc));
+  switch (rc) {
+  case GT_OK:        return ST_OK;
+  case GT_BAD_PARAM: return ST_BAD_VALUE;
+  case GT_HW_ERROR:  return ST_HW_ERROR;
+  default:           return ST_HEX;
+  }
+}
+
+enum status
 pcl_cpss_lib_init (void)
 {
   CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
@@ -113,6 +202,7 @@ pcl_cpss_lib_init (void)
   am.ipclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (0, &am));
   pcl_setup_lbd_trap ();
+  pcl_setup_mc_drop ();
 
   return ST_OK;
 }
