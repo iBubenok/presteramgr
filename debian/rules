@@ -53,7 +53,7 @@ build-stamp: config.status
 
 clean:
 	dh_testroot
-	rm -f build-stamp prepare-stamp
+	rm -f build-stamp config.status
 	rm -rf debian/install
 	-$(MAKE) distclean
 	-dh_clean
