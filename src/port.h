@@ -8,6 +8,13 @@ struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
 };
 
+struct port_vlan_conf {
+  uint16_t tallow : 1;
+  uint16_t xlate  : 1;
+  uint16_t tunnel : 1;
+  uint16_t map_to : 12;
+};
+
 struct port {
   port_id_t id;
   GT_U8 ldev;
@@ -29,6 +36,7 @@ struct port {
   int tdr_test_in_progress;
   struct port_state state;
   enum port_speed max_speed;
+  struct port_vlan_conf vlan_conf[4094];
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
