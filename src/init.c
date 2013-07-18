@@ -94,6 +94,7 @@
 #include <monitor.h>
 #include <pcl.h>
 #include <mgmt.h>
+#include <dgasp.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -585,6 +586,7 @@ after_init (void)
   qos_start ();
   rate_limit_init ();
   port_start ();
+  dgasp_init ();
   pdsa_init ();
   ip_start ();
   return cpssDxChCfgDevEnable (0, GT_TRUE);
