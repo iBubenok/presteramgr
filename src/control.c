@@ -12,7 +12,7 @@
 #include <sysdeps.h>
 #include <utils.h>
 #include <presteramgr.h>
-#include <pdsa-mgmt.h>
+#include <linux/pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
 #include <qos.h>
