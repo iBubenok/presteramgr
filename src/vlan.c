@@ -206,16 +206,13 @@ setup_tagging (vid_t vid,
   }
 }
 
-enum status
-vlan_add (vid_t vid)
+static enum status
+__vlan_add (vid_t vid)
 {
   CPSS_PORTS_BMP_STC members, tagging;
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_STATUS rc;
-
-  if (!vlan_valid (vid))
-    return ST_BAD_VALUE;
 
   memset (&vlan_info, 0, sizeof (vlan_info));
   vlan_info.unkSrcAddrSecBreach   = GT_FALSE;
@@ -267,6 +264,15 @@ vlan_add (vid_t vid)
 }
 
 enum status
+vlan_add (vid_t vid)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  return __vlan_add (vid);
+}
+
+enum status
 vlan_delete (vid_t vid)
 {
   GT_STATUS rc;
@@ -315,6 +321,7 @@ vlan_init (void)
        (0, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
 
   vlan_add (1);
+  __vlan_add (4095);
 
   static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));

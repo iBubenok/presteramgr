@@ -28,6 +28,7 @@
 #include <rtbd.h>
 #include <arpc.h>
 #include <arpd.h>
+#include <dgasp.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -232,6 +233,10 @@ DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
+DECLARE_HANDLER (CC_DGASP_ENABLE);
+DECLARE_HANDLER (CC_DGASP_ADD_PACKET);
+DECLARE_HANDLER (CC_DGASP_CLEAR_PACKETS);
+DECLARE_HANDLER (CC_DGASP_PORT_OP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -297,7 +302,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
-  HANDLER (CC_MON_SESSION_SET_DST)
+  HANDLER (CC_MON_SESSION_SET_DST),
+  HANDLER (CC_DGASP_ENABLE),
+  HANDLER (CC_DGASP_ADD_PACKET),
+  HANDLER (CC_DGASP_CLEAR_PACKETS),
+  HANDLER (CC_DGASP_PORT_OP)
 };
 
 static int
@@ -1700,6 +1709,61 @@ DEFINE_HANDLER (CC_MON_SESSION_SET_DST)
     goto out;
 
   result = mon_session_set_dst (num, pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = dgasp_enable (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_ADD_PACKET)
+{
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  if (ARGS_SIZE != 1)
+    goto out;
+
+  frame = FIRST_ARG;
+  result = dgasp_add_packet (zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_CLEAR_PACKETS)
+{
+  report_status (dgasp_clear_packets ());
+}
+
+DEFINE_HANDLER (CC_DGASP_PORT_OP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t add;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&add);
+  if (result != ST_OK)
+    goto out;
+
+  result = dgasp_port_op (pid, add);
 
  out:
   report_status (result);
