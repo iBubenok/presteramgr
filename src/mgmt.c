@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <pdsa-mgmt.h>
+#include <linux/pdsa-mgmt.h>
 #include <pthread.h>
 #include <mgmt.h>
 #include <port.h>
