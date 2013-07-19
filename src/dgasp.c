@@ -11,6 +11,7 @@
 #include <linux/netlink.h>
 #include <linux/dgasp.h>
 #include <dgasp.h>
+#include <vlan.h>
 #include <mcg.h>
 #include <debug.h>
 
@@ -51,7 +52,7 @@ dgasp_tx (pid_t to, __u16 type, const void *data, size_t len)
 
   return sendmsg (sock, &msg, 0);
 }
-
+#include <port.h>
 int
 dgasp_init (void)
 {
@@ -78,7 +79,7 @@ dgasp_init (void)
 
   memset (&dp, 0, sizeof (dp));
   dp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
-  dp.commonParams.vid = 4095; /* FIXME: use the named constant. */
+  dp.commonParams.vid = SVC_VID;
   dp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
   dp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
   dp.dsaInfo.fromCpu.dstInterface.vidx = DGASP_MCG;
@@ -127,5 +128,6 @@ dgasp_clear_packets (void)
 enum status
 dgasp_port_op (port_id_t pid, int add)
 {
+  vlan_svc_enable_port (pid, add);
   return mcg_dgasp_port_op (pid, add);
 }
