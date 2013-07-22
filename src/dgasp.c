@@ -12,6 +12,7 @@
 #include <linux/dgasp.h>
 #include <dgasp.h>
 #include <vlan.h>
+#include <port.h>
 #include <mcg.h>
 #include <debug.h>
 
@@ -52,7 +53,7 @@ dgasp_tx (pid_t to, __u16 type, const void *data, size_t len)
 
   return sendmsg (sock, &msg, 0);
 }
-#include <port.h>
+
 int
 dgasp_init (void)
 {
