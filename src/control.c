@@ -237,6 +237,7 @@ DECLARE_HANDLER (CC_DGASP_ENABLE);
 DECLARE_HANDLER (CC_DGASP_ADD_PACKET);
 DECLARE_HANDLER (CC_DGASP_CLEAR_PACKETS);
 DECLARE_HANDLER (CC_DGASP_PORT_OP);
+DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -306,7 +307,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_ENABLE),
   HANDLER (CC_DGASP_ADD_PACKET),
   HANDLER (CC_DGASP_CLEAR_PACKETS),
-  HANDLER (CC_DGASP_PORT_OP)
+  HANDLER (CC_DGASP_PORT_OP),
+  HANDLER (CC_802_3_SP_RX_ENABLE)
 };
 
 static int
@@ -1779,4 +1781,20 @@ DEFINE_HANDLER (CC_DGASP_PORT_OP)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_802_3_SP_RX_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = wnct_enable_proto (WNCT_802_3_SP, enable);
+
+ out:
+  report_status (result);
+
 }
