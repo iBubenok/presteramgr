@@ -1343,11 +1343,23 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     case WNCT_STP:
       type = CN_BPDU;
       break;
+    case WNCT_802_3_SP:
+      switch (frame->data[15]) {
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        break;
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[15]);
+        return;
+      }
+      break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
       break;
     default:
-      DEBUG ("IEEE reserved multicast %02X not supported\n", frame->data[5]);
+      DEBUG ("IEEE reserved multicast %02X not supported\n",
+             frame->data[5]);
       return;
     }
     break;
