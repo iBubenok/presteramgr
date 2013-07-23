@@ -1346,13 +1346,13 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       type = CN_BPDU;
       break;
     case WNCT_802_3_SP:
-      switch (frame->data[15]) {
+      switch (frame->data[14]) {
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[15]);
+               frame->data[14]);
         return;
       }
       break;
