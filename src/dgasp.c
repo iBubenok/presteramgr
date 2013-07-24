@@ -94,11 +94,14 @@ dgasp_init (void)
 enum status
 dgasp_enable (int enable)
 {
+#ifdef VARIANT_ARLAN_3424FE
   struct dgasp_enable arg = {
     .enable = enable
   };
 
   dgasp_tx (0, DGASP_ENABLE, &arg, sizeof (arg));
+#endif /* VARIANT_ARLAN_3424FE */
+
   return ST_OK;
 }
 
