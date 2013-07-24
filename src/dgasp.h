@@ -8,5 +8,6 @@ extern enum status dgasp_enable (int);
 extern enum status dgasp_add_packet (size_t, const void *);
 extern enum status dgasp_clear_packets (void);
 extern enum status dgasp_port_op (port_id_t, int);
+extern enum status dgasp_send (void);
 
 #endif /* __DGASP_H__ */

@@ -132,3 +132,10 @@ dgasp_port_op (port_id_t pid, int add)
   vlan_svc_enable_port (pid, add);
   return mcg_dgasp_port_op (pid, add);
 }
+
+enum status
+dgasp_send (void)
+{
+  dgasp_tx (0, DGASP_SEND, NULL, 0);
+  return ST_OK;
+}
