@@ -44,6 +44,13 @@ AC_ARG_WITH([arpd],
   [arpd=/usr/include/arpd])
 AC_SUBST([arpd])
 
+AC_ARG_WITH([linux-headers],
+  [AS_HELP_STRING([--with-linux-headers=PATH],
+                  [specify the Linux header files location])],
+  [linux_headers="-I`readlink -f $withval`"],
+  [linux_headers=""])
+AC_SUBST([linux_headers])
+
 AC_ARG_ENABLE([variant],
   [AS_HELP_STRING([--enable-variant],
                   [build variant (required)])],

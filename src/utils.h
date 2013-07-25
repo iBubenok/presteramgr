@@ -16,4 +16,10 @@
     (type *) ((char *) __mptr - offsetof (type, member));   \
   })
 
+static inline GT_BOOL
+gt_bool (int arg)
+{
+  return arg ? GT_TRUE : GT_FALSE;
+}
+
 #endif /* __UTILS_H__ */

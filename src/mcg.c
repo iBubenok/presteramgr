@@ -133,3 +133,34 @@ mcg_del_port (mcg_t mcg, port_id_t pid)
   default:          return ST_HEX;
   }
 }
+
+void
+mcg_dgasp_setup (void)
+{
+  CPSS_PORTS_BMP_STC bmp;
+
+  memset (&bmp, 0, sizeof (bmp));
+  CRP (cpssDxChBrgMcEntryWrite (0, DGASP_MCG, &bmp));
+}
+
+enum status
+mcg_dgasp_port_op (port_id_t pid, int add)
+{
+  GT_STATUS rc;
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (add)
+    rc = CRP (cpssDxChBrgMcMemberAdd (0, DGASP_MCG, port->lport));
+  else
+    rc = CRP (cpssDxChBrgMcMemberDelete (0, DGASP_MCG, port->lport));
+
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}

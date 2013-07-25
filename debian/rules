@@ -29,6 +29,13 @@ else
 WITH_ARPD := --with-arpd=$(ARPD)
 endif
 
+ifeq ($(LINUXHDRS),)
+WITH_LINUX_HEADERS :=
+else
+WITH_LINUX_HEADERS := --with-linux-headers=$(LINUXHDRS)
+endif
+
+
 configure: configure.ac
 	dh_testdir
 	./autogen.sh
@@ -42,6 +49,7 @@ config.status: configure
 		--with-cpss=$(CPSS) \
 		--with-libnl3-includes=$(SYSROOT)/usr/include/libnl3 \
 		--enable-variant=$(VARIANT) \
+		$(WITH_LINUX_HEADERS) \
 		$(WITH_PSCP) \
 		$(WITH_RTBD) \
 		$(WITH_ARPD)

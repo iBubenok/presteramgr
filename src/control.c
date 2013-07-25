@@ -12,7 +12,7 @@
 #include <sysdeps.h>
 #include <utils.h>
 #include <presteramgr.h>
-#include <pdsa-mgmt.h>
+#include <linux/pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
 #include <qos.h>
@@ -28,6 +28,7 @@
 #include <rtbd.h>
 #include <arpc.h>
 #include <arpd.h>
+#include <dgasp.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -232,6 +233,12 @@ DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
+DECLARE_HANDLER (CC_DGASP_ENABLE);
+DECLARE_HANDLER (CC_DGASP_ADD_PACKET);
+DECLARE_HANDLER (CC_DGASP_CLEAR_PACKETS);
+DECLARE_HANDLER (CC_DGASP_PORT_OP);
+DECLARE_HANDLER (CC_DGASP_SEND);
+DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -297,7 +304,13 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
-  HANDLER (CC_MON_SESSION_SET_DST)
+  HANDLER (CC_MON_SESSION_SET_DST),
+  HANDLER (CC_DGASP_ENABLE),
+  HANDLER (CC_DGASP_ADD_PACKET),
+  HANDLER (CC_DGASP_CLEAR_PACKETS),
+  HANDLER (CC_DGASP_PORT_OP),
+  HANDLER (CC_DGASP_SEND),
+  HANDLER (CC_802_3_SP_RX_ENABLE)
 };
 
 static int
@@ -1334,11 +1347,23 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     case WNCT_STP:
       type = CN_BPDU;
       break;
+    case WNCT_802_3_SP:
+      switch (frame->data[14]) {
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        break;
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[14]);
+        return;
+      }
+      break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
       break;
     default:
-      DEBUG ("IEEE reserved multicast %02X not supported\n", frame->data[5]);
+      DEBUG ("IEEE reserved multicast %02X not supported\n",
+             frame->data[5]);
       return;
     }
     break;
@@ -1703,4 +1728,80 @@ DEFINE_HANDLER (CC_MON_SESSION_SET_DST)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = dgasp_enable (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_ADD_PACKET)
+{
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  if (ARGS_SIZE != 1)
+    goto out;
+
+  frame = FIRST_ARG;
+  result = dgasp_add_packet (zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_CLEAR_PACKETS)
+{
+  report_status (dgasp_clear_packets ());
+}
+
+DEFINE_HANDLER (CC_DGASP_PORT_OP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t add;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&add);
+  if (result != ST_OK)
+    goto out;
+
+  result = dgasp_port_op (pid, add);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_SEND)
+{
+  report_status (dgasp_send ());
+}
+
+DEFINE_HANDLER (CC_802_3_SP_RX_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = wnct_enable_proto (WNCT_802_3_SP, enable);
+
+ out:
+  report_status (result);
+
 }
