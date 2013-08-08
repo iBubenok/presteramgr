@@ -8,7 +8,174 @@
 #include <pcl.h>
 #include <port.h>
 #include <log.h>
+#include <vlan.h>
 #include <debug.h>
+
+#define PORT_IPCL_ID(n) (n * 2)
+#define PORT_EPCL_ID(n) (n * 2 + 1)
+
+#define STACK_ENTRIES 300
+#define STACK_FIRST_ENTRY 1
+#define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
+
+static struct stack {
+  int sp;
+  int n_free;
+  uint16_t data[STACK_ENTRIES];
+} rules;
+
+static void
+pcl_init_rules (void)
+{
+  int i;
+
+  for (i = STACK_FIRST_ENTRY; i < STACK_MAX; i++)
+    rules.data[i] = i + STACK_FIRST_ENTRY;
+
+  rules.sp = 0;
+  rules.n_free = STACK_ENTRIES;
+}
+
+static int
+pcl_alloc_rules (uint16_t *nums, int n)
+{
+  int i;
+
+  if (rules.n_free < n)
+    return 0;
+
+  rules.n_free -= n;
+  for (i = 0; i < n; i++)
+    nums[i] = rules.data[rules.sp++];
+
+  return 1;
+}
+
+static void __attribute__ ((unused))
+pcl_free_rules (const uint16_t *nums, int n)
+{
+  int i;
+
+  rules.n_free += n;
+  for (i = 0; i < n; i++)
+    rules.data[--rules.sp] = nums[i];
+}
+
+enum status
+pcl_vlan_xlate (port_id_t pid, vid_t from, vid_t to)
+{
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+  struct port *port = port_ptr (pid);
+  uint16_t ix[2];
+
+  if (!(port && vlan_valid (from) && vlan_valid (to)))
+    return ST_BAD_VALUE;
+
+  if (!pcl_alloc_rules (ix, 2))
+    return ST_BAD_STATE;
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+  act.actionStop = GT_TRUE;
+  act.egressPolicy = GT_FALSE;
+  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+  act.vlan.nestedVlan = GT_FALSE;
+  act.vlan.vlanId = to;
+  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.vid = 0xFFFF;
+  mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+  rule.ruleExtNotIpv6.common.vid = from;
+  rule.ruleExtNotIpv6.common.sourcePort = port->lport;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        ix[0],
+        0,
+        &mask,
+        &rule,
+        &act));
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleEgrExtNotIpv6.common.vid = 0xFFFF;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (pid);
+  rule.ruleEgrExtNotIpv6.common.vid = to;
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+  act.actionStop = GT_TRUE;
+  act.egressPolicy = GT_TRUE;
+  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+  act.vlan.nestedVlan = GT_FALSE;
+  act.vlan.vlanId = from;
+  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,
+        CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+        ix[1],
+        0,
+        &mask,
+        &rule,
+        &act));
+
+  return ST_OK;
+}
+
+enum status
+pcl_vlan_tunnel (port_id_t pid, vid_t from, vid_t to)
+{
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+  struct port *port = port_ptr (pid);
+  uint16_t ix[1];
+
+  if (!(port && vlan_valid (from) && vlan_valid (to)))
+    return ST_BAD_VALUE;
+
+  if (!pcl_alloc_rules (ix, 1))
+    return ST_BAD_STATE;
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+  act.actionStop = GT_TRUE;
+  act.egressPolicy = GT_FALSE;
+  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+  act.vlan.nestedVlan = GT_TRUE;
+  act.vlan.vlanId = to;
+  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.vid = 0xFFFF;
+  mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+  rule.ruleExtNotIpv6.common.vid = from;
+  rule.ruleExtNotIpv6.common.sourcePort = port->lport;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        ix[0],
+        0,
+        &mask,
+        &rule,
+        &act));
+
+  return ST_OK;
+}
 
 
 enum status
@@ -105,6 +272,8 @@ enum status
 pcl_cpss_lib_init (void)
 {
   CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
+
+  pcl_init_rules ();
 
   CRP (cpssDxChPclInit (0));
   CRP (cpssDxChPclIngressPolicyEnable (0, GT_TRUE));
