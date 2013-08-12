@@ -471,7 +471,8 @@ vlan_set_dot1q_tag_native (int value)
     for (i = 0; i < nports; i++) {
       struct port *port = port_ptr (i + 1);
 
-      if (port->mode == PM_TRUNK) {
+      if (port->mode == PM_TRUNK &&
+          !port->vlan_conf[port->native_vid - 1].refc) {
         rc = CRP (cpssDxChBrgVlanMemberSet
                   (port->ldev,
                    port->native_vid,
