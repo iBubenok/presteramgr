@@ -160,6 +160,7 @@ stg_set_active (stp_id_t stg)
 }
 
 int vlan_dot1q_tag_native = 0;
+int vlan_xlate_tunnel = 0;
 
 static void
 setup_tagging (vid_t vid,
@@ -186,14 +187,24 @@ setup_tagging (vid_t vid,
       break;
 
     case PM_TRUNK:
-      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-      if (port->native_vid != vid || vlan_dot1q_tag_native) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
-          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-      } else
-        tagging_cmd->portsCmd[port->lport] =
-          CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      if (port->native_vid == vid ||
+          port->vlan_conf[vid - 1].tallow ||
+          port->vlan_conf[vid - 1].refc) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+
+        if (port->vlan_conf[vid - 1].refc) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
+          tagging_cmd->portsCmd[port->lport] = vlan_xlate_tunnel
+            ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+            : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+        } else if (port->native_vid != vid || vlan_dot1q_tag_native) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
+          tagging_cmd->portsCmd[port->lport] =
+            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+        } else
+          tagging_cmd->portsCmd[port->lport] =
+            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      }
       break;
 
     case PM_CUSTOMER:
