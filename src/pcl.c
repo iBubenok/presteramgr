@@ -159,7 +159,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
     CRP (cpssDxChPclRuleSet
          (port->ldev,
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          port->vlan_conf[from - 1].pcl_ix[0],
+          ix->ix[0],
           0,
           &mask,
           &rule,
@@ -186,7 +186,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-            port->vlan_conf[from - 1].pcl_ix[1],
+            ix->ix[1],
             0,
             &mask,
             &rule,
