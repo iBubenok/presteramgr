@@ -620,7 +620,11 @@ port_set_native_vid (port_id_t pid, vid_t vid)
                port->lport,
                GT_TRUE,
                GT_TRUE,
-               CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
+               port->vlan_conf[port->native_vid - 1].refc
+               ? (vlan_xlate_tunnel
+                  ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+                  : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E)
+               : CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
     if (rc != GT_OK)
       goto out;
 
