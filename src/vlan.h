@@ -4,6 +4,7 @@
 #include <control-proto.h>
 
 extern int vlan_dot1q_tag_native;
+extern int vlan_xlate_tunnel;
 
 enum vlan_state {
   VS_DELETED,
