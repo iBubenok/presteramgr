@@ -9,10 +9,11 @@ struct port_state {
 };
 
 struct port_vlan_conf {
-  uint16_t tallow : 1;
-  uint16_t xlate  : 1;
-  uint16_t tunnel : 1;
-  uint16_t map_to : 12;
+  uint32_t tallow : 1;
+  uint32_t xlate  : 1;
+  uint32_t map_to : 12;
+  uint32_t refc   : 12;
+  uint16_t pcl_ix[2];
 };
 
 struct port {

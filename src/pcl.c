@@ -9,13 +9,16 @@
 #include <port.h>
 #include <log.h>
 #include <vlan.h>
+#include <utils.h>
+#include <uthash.h>
 #include <debug.h>
 
-#define PORT_IPCL_ID(n) (n * 2)
-#define PORT_EPCL_ID(n) (n * 2 + 1)
+#define PORT_IPCL_ID(n) (((n) - 1) * 2)
+#define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
+#define PORT_LBD_RULE_IX(n) ((n) - 1)
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY 1
+#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64))
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 
 static struct stack {
@@ -61,178 +64,146 @@ pcl_free_rules (const uint16_t *nums, int n)
     rules.data[--rules.sp] = nums[i];
 }
 
-enum status
-pcl_vlan_xlate (port_id_t pid, vid_t from, vid_t to)
-{
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  CPSS_DXCH_PCL_ACTION_STC act;
-  struct port *port = port_ptr (pid);
+struct vt_ix {
+  int key;
+  int tunnel;
+  vid_t to;
   uint16_t ix[2];
+  UT_hash_handle hh;
+};
+
+static int
+vt_key (int from, int to, int tunnel)
+{
+  int key = 0;
+
+  key = from;
+  if (tunnel)
+    key |= to << 16;
+
+  return key;
+}
+
+static struct vt_ix *vt_ix = NULL;
+
+struct vt_ix *
+get_vt_ix (vid_t from, vid_t to, int tunnel, int alloc)
+{
+  int key = vt_key (from, to, tunnel);
+  struct vt_ix *ix;
+
+  HASH_FIND_INT (vt_ix, &key, ix);
+  if (alloc && !ix) {
+    ix = calloc (1, sizeof (struct vt_ix));
+    ix->key = key;
+    ix->tunnel = tunnel;
+    ix->to = to;
+    if (!pcl_alloc_rules (ix->ix, tunnel ? 1 : 2)) {
+      free (ix);
+      return NULL;
+    }
+    HASH_ADD_INT (vt_ix, key, ix);
+  }
+
+  return ix;
+}
+
+void
+free_vt_ix (struct vt_ix *ix)
+{
+  CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[0]));
+  pcl_free_rules (&(ix->ix[0]), 1);
+  if (!ix->tunnel) {
+    CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[1]));
+    pcl_free_rules (&(ix->ix[1]), 1);
+  }
+  HASH_DEL (vt_ix, ix);
+  free (ix);
+}
+
+enum status
+pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
+{
+  struct port *port = port_ptr (pid);
+  struct vt_ix *ix = get_vt_ix (from, to, tunnel, enable);
 
   if (!(port && vlan_valid (from) && vlan_valid (to)))
     return ST_BAD_VALUE;
 
-  if (!pcl_alloc_rules (ix, 2))
-    return ST_BAD_STATE;
+  if (enable) { /* Enable translation. */
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
 
-  memset (&act, 0, sizeof (act));
-  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-  act.actionStop = GT_TRUE;
-  act.egressPolicy = GT_FALSE;
-  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
-  act.vlan.nestedVlan = GT_FALSE;
-  act.vlan.vlanId = to;
-  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+    if (!ix)
+      return ST_BAD_STATE;
 
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleExtNotIpv6.common.vid = 0xFFFF;
-  mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+    act.actionStop = GT_TRUE;
+    act.egressPolicy = GT_FALSE;
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.nestedVlan = gt_bool (tunnel);
+    act.vlan.vlanId = to;
+    act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
 
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
-  rule.ruleExtNotIpv6.common.vid = from;
-  rule.ruleExtNotIpv6.common.sourcePort = port->lport;
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.vid = 0xFFFF;
+    mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
 
-  CRP (cpssDxChPclRuleSet
-       (port->ldev,
-        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        ix[0],
-        0,
-        &mask,
-        &rule,
-        &act));
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.vid = from;
+    rule.ruleExtNotIpv6.common.sourcePort = port->lport;
 
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleEgrExtNotIpv6.common.vid = 0xFFFF;
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port->vlan_conf[from - 1].pcl_ix[0],
+          0,
+          &mask,
+          &rule,
+          &act));
 
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (pid);
-  rule.ruleEgrExtNotIpv6.common.vid = to;
+    if (!tunnel) {
+      memset (&mask, 0, sizeof (mask));
+      mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleEgrExtNotIpv6.common.vid = 0xFFFF;
 
-  memset (&act, 0, sizeof (act));
-  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-  act.actionStop = GT_TRUE;
-  act.egressPolicy = GT_TRUE;
-  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
-  act.vlan.nestedVlan = GT_FALSE;
-  act.vlan.vlanId = from;
-  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (pid);
+      rule.ruleEgrExtNotIpv6.common.vid = to;
 
-  CRP (cpssDxChPclRuleSet
-       (port->ldev,
-        CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-        ix[1],
-        0,
-        &mask,
-        &rule,
-        &act));
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act.actionStop = GT_TRUE;
+      act.egressPolicy = GT_TRUE;
+      act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+      act.vlan.nestedVlan = GT_FALSE;
+      act.vlan.vlanId = from;
+      act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+            port->vlan_conf[from - 1].pcl_ix[1],
+            0,
+            &mask,
+            &rule,
+            &act));
+    }
+  } else { /* Disable translation. */
+    if (!ix)
+      return ST_DOES_NOT_EXIST;
+
+    free_vt_ix (ix);
+  }
 
   return ST_OK;
 }
 
 enum status
-pcl_vlan_tunnel (port_id_t pid, vid_t from, vid_t to)
-{
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  CPSS_DXCH_PCL_ACTION_STC act;
-  struct port *port = port_ptr (pid);
-  uint16_t ix[1];
-
-  if (!(port && vlan_valid (from) && vlan_valid (to)))
-    return ST_BAD_VALUE;
-
-  if (!pcl_alloc_rules (ix, 1))
-    return ST_BAD_STATE;
-
-  memset (&act, 0, sizeof (act));
-  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-  act.actionStop = GT_TRUE;
-  act.egressPolicy = GT_FALSE;
-  act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
-  act.vlan.nestedVlan = GT_TRUE;
-  act.vlan.vlanId = to;
-  act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
-
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleExtNotIpv6.common.vid = 0xFFFF;
-  mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
-
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
-  rule.ruleExtNotIpv6.common.vid = from;
-  rule.ruleExtNotIpv6.common.sourcePort = port->lport;
-
-  CRP (cpssDxChPclRuleSet
-       (port->ldev,
-        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        ix[0],
-        0,
-        &mask,
-        &rule,
-        &act));
-
-  return ST_OK;
-}
-
-
-enum status
-pcl_port_setup (port_id_t pid)
-{
-  struct port *port = port_ptr (pid);
-
-  if (!port)
-    return ST_BAD_VALUE;
-
-  CRP (cpssDxChPclPortIngressPolicyEnable
-       (port->ldev, port->lport, GT_TRUE));
-  CRP (cpssDxChPclPortLookupCfgTabAccessModeSet
-       (port->ldev, port->lport,
-        CPSS_PCL_DIRECTION_INGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        0,
-        CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_PORT_E));
-
-  return ST_OK;
-}
-
-static void
-pcl_setup_lbd_trap (void)
-{
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  CPSS_DXCH_PCL_ACTION_STC act;
-
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-  mask.ruleExtNotIpv6.etherType = 0xFFFF;
-  mask.ruleExtNotIpv6.l2Encap = 0xFF;
-
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = 1;
-  rule.ruleExtNotIpv6.common.isL2Valid = 1;
-  rule.ruleExtNotIpv6.etherType = 0x88B7;
-  rule.ruleExtNotIpv6.l2Encap = 1;
-
-  memset (&act, 0, sizeof (act));
-  act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  act.actionStop = GT_TRUE;
-  act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
-
-  CRP (cpssDxChPclRuleSet
-       (0,
-        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        0,
-        0,
-        &mask,
-        &rule,
-        &act));
-}
-
-enum status
-pcl_enable_lbd_trap (port_id_t pid)
+pcl_enable_port (port_id_t pid, int enable)
 {
   struct port *port = port_ptr (pid);
   CPSS_INTERFACE_INFO_STC iface = {
@@ -243,8 +214,8 @@ pcl_enable_lbd_trap (port_id_t pid)
     }
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
-    .enableLookup  = GT_TRUE,
-    .pclId         = 1,
+    .enableLookup  = gt_bool (enable),
+    .pclId         = PORT_IPCL_ID (pid),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -253,19 +224,97 @@ pcl_enable_lbd_trap (port_id_t pid)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
     }
   };
-  GT_STATUS rc;
 
-  rc = CRP (cpssDxChPclCfgTblSet
-            (0, &iface,
-             CPSS_PCL_DIRECTION_INGRESS_E,
-             CPSS_PCL_LOOKUP_0_E,
-             &lc));
-  switch (rc) {
-  case GT_OK:        return ST_OK;
-  case GT_BAD_PARAM: return ST_BAD_VALUE;
-  case GT_HW_ERROR:  return ST_HW_ERROR;
-  default:           return ST_HEX;
-  }
+  CRP (cpssDxChPclCfgTblSet
+       (0, &iface,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
+
+  lc.pclId                  = PORT_EPCL_ID (pid);
+  lc.groupKeyTypes.nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
+  lc.groupKeyTypes.ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
+  lc.groupKeyTypes.ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E;
+  CRP (cpssDxChPclCfgTblSet
+       (0, &iface,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
+
+  return ST_OK;
+}
+
+enum status
+pcl_enable_lbd_trap (port_id_t pid, int enable)
+{
+  if (!port_ptr (pid))
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.etherType = 0x88B7;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
+
+    CRP (cpssDxChPclRuleSet
+         (0,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          PORT_LBD_RULE_IX (pid),
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+    CRP (cpssDxChPclRuleInvalidate
+         (0, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+
+  return ST_OK;
+}
+
+enum status
+pcl_port_setup (port_id_t pid)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  /* Enable ingress PCL. */
+  CRP (cpssDxChPclPortIngressPolicyEnable
+       (port->ldev, port->lport, GT_TRUE));
+  CRP (cpssDxChPclPortLookupCfgTabAccessModeSet
+       (port->ldev, port->lport,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        0,
+        CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_PORT_E));
+
+  /* Enable egress PCL. */
+  CRP (cpssDxCh2EgressPclPacketTypesSet
+       (port->ldev, port->lport, CPSS_DXCH_PCL_EGRESS_PKT_NON_TS_E, GT_TRUE));
+  CRP (cpssDxChPclPortLookupCfgTabAccessModeSet
+       (port->ldev, port->lport,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        0,
+        CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_PORT_E));
+
+  return ST_OK;
 }
 
 enum status
@@ -276,11 +325,18 @@ pcl_cpss_lib_init (void)
   pcl_init_rules ();
 
   CRP (cpssDxChPclInit (0));
+
+  /* Enable ingress PCL. */
   CRP (cpssDxChPclIngressPolicyEnable (0, GT_TRUE));
+
+  /* Enable egress PCL. */
+  CRP (cpssDxCh2PclEgressPolicyEnable (0, GT_TRUE));
+
+  /* Configure access modes. */
   memset (&am, 0, sizeof (am));
   am.ipclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
+  am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (0, &am));
-  pcl_setup_lbd_trap ();
 
   return ST_OK;
 }
