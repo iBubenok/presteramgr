@@ -768,26 +768,73 @@ port_vlan_bulk_op (struct port *port,
 static enum status
 port_set_trunk_mode (struct port *port)
 {
-  GT_BOOL tag;
   CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+  GT_BOOL tag, mem;
+  GT_STATUS rc;
+  int i;
 
-  if (vlan_dot1q_tag_native) {
+  for (i = 0; i < NVLANS; i++) {
+    if (vlans[i].state == VS_DELETED)
+      continue;
+
+    mem = GT_TRUE;
     tag = GT_TRUE;
     cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-  } else {
-    tag = GT_FALSE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+
+    if (port->vlan_conf[i].refc) {
+      /* VLAN translation target. */
+      cmd = vlan_xlate_tunnel
+        ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+        : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+    } else if (i + 1 == port->native_vid) {
+      /* Trunk native VLAN. */
+      tag = GT_FALSE;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+    } else if (!port->vlan_conf[i].tallow) {
+      /* Not a member. */
+      mem = GT_FALSE;
+    }
+
+    rc = CRP (cpssDxChBrgVlanMemberSet
+              (port->ldev,
+               i + 1,
+               port->lport,
+               mem,
+               tag,
+               cmd));
+    ON_GT_ERROR (rc) goto err;
   }
 
-  return port_vlan_bulk_op (port,
-                            port->native_vid,
-                            tag,
-                            cmd,
-                            GT_FALSE,
-                            VLAN_TPID_IDX,
-                            GT_TRUE,
-                            GT_TRUE,
-                            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E);
+  rc = CRP (cpssDxChBrgVlanPortVidSet
+            (port->ldev,
+             port->lport,
+             port->native_vid));
+  ON_GT_ERROR (rc) goto err;
+
+  rc = CRP (cpssDxChBrgVlanForcePvidEnable
+            (port->ldev,
+             port->lport,
+             GT_FALSE));
+  ON_GT_ERROR (rc) goto err;
+
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE0_E, 1 << VLAN_TPID_IDX));
+  ON_GT_ERROR (rc) goto err;
+  rc = CRP (cpssDxChBrgVlanPortIngressTpidSet
+            (port->ldev, port->lport,
+             CPSS_VLAN_ETHERTYPE1_E, 1 << VLAN_TPID_IDX));
+  ON_GT_ERROR (rc) goto err;
+
+  cn_port_vid_set (port->id, port->native_vid);
+
+  return ST_OK;
+
+ err:
+  switch (rc) {
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
 }
 
 static enum status
