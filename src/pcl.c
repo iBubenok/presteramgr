@@ -20,6 +20,8 @@
 #define STACK_ENTRIES 300
 #define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64))
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
+#define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
+#define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
 
 static struct stack {
   int sp;
@@ -59,9 +61,12 @@ pcl_free_rules (const uint16_t *nums, int n)
 {
   int i;
 
-  rules.n_free += n;
-  for (i = 0; i < n; i++)
-    rules.data[--rules.sp] = nums[i];
+  for (i = 0; i < n; i++) {
+    if (nums[i] < STACK_MAX) {
+      rules.n_free++;
+      rules.data[--rules.sp] = nums[i];
+    }
+  }
 }
 
 struct vt_ix {
@@ -87,7 +92,7 @@ vt_key (int from, int to, int tunnel)
 static struct vt_ix *vt_ix = NULL;
 
 struct vt_ix *
-get_vt_ix (vid_t from, vid_t to, int tunnel, int alloc)
+get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
 {
   int key = vt_key (from, to, tunnel);
   struct vt_ix *ix;
@@ -98,9 +103,15 @@ get_vt_ix (vid_t from, vid_t to, int tunnel, int alloc)
     ix->key = key;
     ix->tunnel = tunnel;
     ix->to = to;
-    if (!pcl_alloc_rules (ix->ix, tunnel ? 1 : 2)) {
-      free (ix);
-      return NULL;
+    if (from) {
+      if (!pcl_alloc_rules (ix->ix, tunnel ? 1 : 2)) {
+        free (ix);
+        return NULL;
+      }
+    } else {
+      /* Default rule for port. */
+      ix->ix[0] = PORT_IPCL_DEF_IX (pid);
+      ix->ix[1] = PORT_EPCL_DEF_IX (pid);
     }
     HASH_ADD_INT (vt_ix, key, ix);
   }
@@ -125,10 +136,20 @@ enum status
 pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 {
   struct port *port = port_ptr (pid);
-  struct vt_ix *ix = get_vt_ix (from, to, tunnel, enable);
+  struct vt_ix *ix;
 
-  if (!(port && vlan_valid (from) && vlan_valid (to)))
+  if (!port)
     return ST_BAD_VALUE;
+
+  if (from == ALL_VLANS) {
+    if (to && !vlan_valid (to))
+      return ST_BAD_VALUE;
+  } else {
+    if (!(vlan_valid (from) && vlan_valid (to)))
+      return ST_BAD_VALUE;
+  }
+
+  ix = get_vt_ix (pid, from, to, tunnel, enable);
 
   if (enable) { /* Enable translation. */
     CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
@@ -138,17 +159,20 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
       return ST_BAD_STATE;
 
     memset (&act, 0, sizeof (act));
-    act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
     act.actionStop = GT_TRUE;
     act.egressPolicy = GT_FALSE;
-    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
-    act.vlan.nestedVlan = gt_bool (tunnel);
-    act.vlan.vlanId = to;
-    act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+    if (to) {
+      act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+      act.vlan.nestedVlan = gt_bool (tunnel);
+      act.vlan.vlanId = to;
+      act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+    } else
+      act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
 
     memset (&mask, 0, sizeof (mask));
     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-    mask.ruleExtNotIpv6.common.vid = 0xFFFF;
+    mask.ruleExtNotIpv6.common.vid = from ? 0xFFFF : 0;
     mask.ruleExtNotIpv6.common.sourcePort = 0xFF;
 
     memset (&rule, 0, sizeof (rule));
@@ -165,10 +189,10 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
           &rule,
           &act));
 
-    if (!tunnel) {
+    if (to && !tunnel) {
       memset (&mask, 0, sizeof (mask));
       mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
-      mask.ruleEgrExtNotIpv6.common.vid = 0xFFFF;
+      mask.ruleEgrExtNotIpv6.common.vid = from ? 0xFFFF : 0;
 
       memset (&rule, 0, sizeof (rule));
       rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (pid);
