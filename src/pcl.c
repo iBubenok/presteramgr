@@ -77,16 +77,16 @@ struct vt_ix {
   UT_hash_handle hh;
 };
 
-static int
-vt_key (int from, int to, int tunnel)
+static inline int
+vt_key (int pid, int from)
 {
-  int key = 0;
+  return (pid << 12) | from;
+}
 
-  key = from;
-  if (tunnel)
-    key |= to << 16;
-
-  return key;
+static inline int
+vt_key_vid (int key)
+{
+  return key & 0xFFF;
 }
 
 static struct vt_ix *vt_ix = NULL;
@@ -94,7 +94,7 @@ static struct vt_ix *vt_ix = NULL;
 struct vt_ix *
 get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
 {
-  int key = vt_key (from, to, tunnel);
+  int key = vt_key (pid, from);
   struct vt_ix *ix;
 
   HASH_FIND_INT (vt_ix, &key, ix);
@@ -111,7 +111,6 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
     } else {
       /* Default rule for port. */
       ix->ix[0] = PORT_IPCL_DEF_IX (pid);
-      ix->ix[1] = PORT_EPCL_DEF_IX (pid);
     }
     HASH_ADD_INT (vt_ix, key, ix);
   }
@@ -124,7 +123,7 @@ free_vt_ix (struct vt_ix *ix)
 {
   CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[0]));
   pcl_free_rules (&(ix->ix[0]), 1);
-  if (!ix->tunnel) {
+  if (vt_key_vid (ix->key) && ix->to && !ix->tunnel) {
     CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[1]));
     pcl_free_rules (&(ix->ix[1]), 1);
   }
@@ -137,17 +136,6 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 {
   struct port *port = port_ptr (pid);
   struct vt_ix *ix;
-
-  if (!port)
-    return ST_BAD_VALUE;
-
-  if (from == ALL_VLANS) {
-    if (to && !vlan_valid (to))
-      return ST_BAD_VALUE;
-  } else {
-    if (!(vlan_valid (from) && vlan_valid (to)))
-      return ST_BAD_VALUE;
-  }
 
   ix = get_vt_ix (pid, from, to, tunnel, enable);
 
@@ -189,10 +177,10 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
           &rule,
           &act));
 
-    if (to && !tunnel) {
+    if (from && to && !tunnel) {
       memset (&mask, 0, sizeof (mask));
       mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
-      mask.ruleEgrExtNotIpv6.common.vid = from ? 0xFFFF : 0;
+      mask.ruleEgrExtNotIpv6.common.vid = 0xFFFF;
 
       memset (&rule, 0, sizeof (rule));
       rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (pid);
