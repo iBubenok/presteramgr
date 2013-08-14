@@ -766,44 +766,56 @@ port_vlan_bulk_op (struct port *port,
 }
 
 static enum status
-port_set_trunk_mode (struct port *port)
+port_update_trunk_vlan (struct port *port, vid_t vid)
 {
   CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
   GT_BOOL tag, mem;
   GT_STATUS rc;
+  int vid_ix = vid - 1;
+
+  if (vlans[vid_ix].state == VS_DELETED)
+    return ST_OK;
+
+  mem = GT_TRUE;
+  tag = GT_TRUE;
+  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+
+  if (port->vlan_conf[vid_ix].refc) {
+    /* VLAN translation target. */
+    cmd = vlan_xlate_tunnel
+      ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+      : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+  } else if (vid == port->native_vid) {
+    /* Trunk native VLAN. */
+    tag = GT_FALSE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+  } else if (!port->vlan_conf[vid_ix].tallow) {
+    /* Not a member. */
+    mem = GT_FALSE;
+  }
+
+  rc = CRP (cpssDxChBrgVlanMemberSet
+            (port->ldev,
+             vid,
+             port->lport,
+             mem,
+             tag,
+             cmd));
+
+  switch (rc) {
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+static enum status
+port_set_trunk_mode (struct port *port)
+{
+  GT_STATUS rc;
   int i;
 
-  for (i = 0; i < NVLANS; i++) {
-    if (vlans[i].state == VS_DELETED)
-      continue;
-
-    mem = GT_TRUE;
-    tag = GT_TRUE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-
-    if (port->vlan_conf[i].refc) {
-      /* VLAN translation target. */
-      cmd = vlan_xlate_tunnel
-        ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
-        : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
-    } else if (i + 1 == port->native_vid) {
-      /* Trunk native VLAN. */
-      tag = GT_FALSE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
-    } else if (!port->vlan_conf[i].tallow) {
-      /* Not a member. */
-      mem = GT_FALSE;
-    }
-
-    rc = CRP (cpssDxChBrgVlanMemberSet
-              (port->ldev,
-               i + 1,
-               port->lport,
-               mem,
-               tag,
-               cmd));
-    ON_GT_ERROR (rc) goto err;
-  }
+  for (i = 0; i < NVLANS; i++)
+    port_update_trunk_vlan (port, i + 1);
 
   rc = CRP (cpssDxChBrgVlanPortVidSet
             (port->ldev,
@@ -2037,4 +2049,105 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
     CRP (rc);
     return ST_HEX;
   }
+}
+
+enum status
+port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
+{
+  struct port *port = port_ptr (pid);
+  int f_ix, t_ix;
+  vid_t vids_to_upd[2];
+  int n_to_upd = 0, i;
+  int trunk;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (from != ALL_VLANS && !vlan_valid (from))
+    return ST_BAD_VALUE;
+
+  if (to != ALL_VLANS && !vlan_valid (to))
+    return ST_BAD_VALUE;
+
+  /* Default translation rules are allowed only when tunneling. */
+  if (from == ALL_VLANS && to != ALL_VLANS && !vlan_xlate_tunnel)
+    return ST_BAD_VALUE;
+
+  f_ix = from - 1;
+  t_ix = to - 1;
+
+  if (add) {
+    if (from) {
+      /* Specific VLAN. */
+      int map_to = port->vlan_conf[f_ix].map_to;
+
+      if (map_to == to)
+        return ST_OK;
+
+      if (vlan_valid (map_to)) {
+        --port->vlan_conf[map_to - 1].refc;
+        vids_to_upd[n_to_upd++] = map_to;
+      }
+
+      port->vlan_conf[f_ix].xlate = 1;
+      port->vlan_conf[f_ix].map_to = to;
+      port->vlan_conf[t_ix].refc++;
+      vids_to_upd[n_to_upd++] = to;
+    } else {
+      /* Default. */
+      if (port->def_xlate) {
+        if (port->def_map_to == to)
+          return ST_OK;
+
+        if (vlan_valid (port->def_map_to)) {
+          port->vlan_conf[port->def_map_to - 1].refc--;
+          vids_to_upd[n_to_upd++] = port->def_map_to;
+        }
+      }
+
+      port->def_xlate = 1;
+      port->def_map_to = to;
+      if (vlan_valid (to)) {
+        port->vlan_conf[t_ix].refc++;
+        vids_to_upd[n_to_upd++] = to;
+      }
+    }
+  } else {
+    /* Disable translation. */
+    if (from && port->vlan_conf[f_ix].xlate) {
+      /* Specific VLAN. */
+      if (port->vlan_conf[f_ix].map_to != to)
+        return ST_DOES_NOT_EXIST;
+
+      port->vlan_conf[f_ix].xlate = 0;
+      port->vlan_conf[f_ix].map_to = 0;
+      port->vlan_conf[t_ix].refc--;
+      vids_to_upd[n_to_upd++] = to;
+    } else if (port->def_xlate) {
+      /* Default. */
+      if (port->def_map_to) {
+        port->vlan_conf[port->def_map_to - 1].refc--;
+        vids_to_upd[n_to_upd++] = port->def_map_to;
+      }
+      port->def_xlate = 0;
+      port->def_map_to = 0;
+    } else {
+      /* Nothing to do. */
+      return ST_OK;
+    }
+  }
+
+  /* Now apply changes if needed. */
+  trunk = port->mode == PM_TRUNK;
+
+  if (add)
+    pcl_setup_vt (pid, from, to, vlan_xlate_tunnel, trunk);
+  else
+    pcl_remove_vt (pid, from, to, vlan_xlate_tunnel);
+
+  if (trunk)
+    for (i = 0; i < n_to_upd; i++)
+      port_update_trunk_vlan (port, vids_to_upd[i]);
+
+  return ST_OK;
 }

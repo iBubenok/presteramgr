@@ -37,6 +37,8 @@ struct port {
   struct port_state state;
   enum port_speed max_speed;
   struct port_vlan_conf vlan_conf[4094];
+  int def_xlate;
+  vid_t def_map_to;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
@@ -89,5 +91,6 @@ extern enum status port_set_pve_dst (port_id_t, port_id_t, int);
 extern enum status port_tdr_test_start (port_id_t);
 extern enum status port_tdr_test_get_result (port_id_t, struct vct_cable_status *);
 extern enum status port_set_customer_vid (port_id_t, vid_t);
+extern enum status port_vlan_translate (port_id_t, vid_t, vid_t, int);
 
 #endif /* __PORT_H__ */
