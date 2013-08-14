@@ -242,6 +242,7 @@ DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
+DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -316,7 +317,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
-  HANDLER (CC_VLAN_SET_XLATE_TUNNEL)
+  HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
+  HANDLER (CC_PORT_SET_TRUNK_VLANS)
 };
 
 static int
@@ -1866,6 +1868,28 @@ DEFINE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL)
     goto out;
 
   result = vlan_set_xlate_tunnel (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
+{
+  enum status result;
+  port_id_t pid;
+  zframe_t *frame;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != VLAN_BITMAP_SIZE) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = port_set_trunk_vlans (pid, zframe_data (frame));
 
  out:
   report_status (result);

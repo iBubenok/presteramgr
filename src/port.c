@@ -2192,3 +2192,25 @@ port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
 
   return ST_OK;
 }
+
+enum status
+port_set_trunk_vlans (port_id_t pid, const uint8_t *bmp)
+{
+  struct port *port = port_ptr (pid);
+  int i, trunk, allow;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  trunk = port->mode == PM_TRUNK;
+  for (i = 1; i < 4095; i++) {
+    allow = !!(bmp[i / 8] + i % 8);
+    if (port->vlan_conf[i - 1].tallow != allow) {
+      port->vlan_conf[i - 1].tallow = allow;
+      if (trunk)
+        port_update_trunk_vlan (port, i);
+    }
+  }
+
+  return ST_OK;
+}
