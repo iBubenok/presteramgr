@@ -240,6 +240,7 @@ DECLARE_HANDLER (CC_DGASP_PORT_OP);
 DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
+DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -312,7 +313,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_PORT_OP),
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
-  HANDLER (CC_PORT_VLAN_TRANSLATE)
+  HANDLER (CC_PORT_VLAN_TRANSLATE),
+  HANDLER (CC_PORT_CLEAR_TRANSLATION)
 };
 
 static int
@@ -1832,6 +1834,21 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
     goto out;
 
   result = port_vlan_translate (pid, from, to, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_CLEAR_TRANSLATION)
+{
+  enum status result;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_clear_translation (pid);
 
  out:
   report_status (result);

@@ -10,5 +10,6 @@ extern enum status pcl_enable_lbd_trap (port_id_t, int);
 extern enum status pcl_setup_vt (port_id_t, vid_t, vid_t, int, int);
 extern enum status pcl_remove_vt (port_id_t, vid_t, vid_t, int);
 extern void pcl_port_enable_vt (port_id_t, int);
+extern void pcl_port_clear_vt (port_id_t);
 
 #endif /* __PCL_H__ */

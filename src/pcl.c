@@ -246,6 +246,17 @@ pcl_port_enable_vt (port_id_t pid, int enable)
   }
 }
 
+void
+pcl_port_clear_vt (port_id_t pid)
+{
+  struct vt_ix *ix, *tmp;
+
+  HASH_ITER (hh, vt_ix, ix, tmp) {
+    if (pid == ALL_PORTS || vt_key_pid (ix->key) == pid)
+      free_vt_ix (ix);
+  }
+}
+
 enum status
 pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 {

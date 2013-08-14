@@ -92,5 +92,6 @@ extern enum status port_tdr_test_start (port_id_t);
 extern enum status port_tdr_test_get_result (port_id_t, struct vct_cable_status *);
 extern enum status port_set_customer_vid (port_id_t, vid_t);
 extern enum status port_vlan_translate (port_id_t, vid_t, vid_t, int);
+extern enum status port_clear_translation (port_id_t);
 
 #endif /* __PORT_H__ */

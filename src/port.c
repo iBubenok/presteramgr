@@ -2051,6 +2051,39 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
   }
 }
 
+static void
+__port_clear_translation (struct port *port)
+{
+  int i, trunk = port->mode == PM_TRUNK;
+
+  for (i = 0; i < 4094; i++) {
+    if (trunk && port->vlan_conf[i].xlate) {
+      vid_t to = port->vlan_conf[i].map_to;
+
+      if (port->vlan_conf[to - 1].refc) {
+        port->vlan_conf[to - 1].refc = 0;
+        port_update_trunk_vlan (port, to);
+      }
+
+      port->vlan_conf[i].xlate = 0;
+    }
+  }
+}
+
+enum status
+port_clear_translation (port_id_t pid)
+{
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  __port_clear_translation (port);
+  pcl_port_clear_vt (pid);
+
+  return ST_OK;
+}
+
 enum status
 port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
 {
