@@ -2073,12 +2073,20 @@ __port_clear_translation (struct port *port)
 enum status
 port_clear_translation (port_id_t pid)
 {
-  struct port *port = port_ptr (pid);
+  if (pid == ALL_PORTS) {
+    int i;
 
-  if (!port)
-    return ST_BAD_VALUE;
+    for (i = 0; i < nports; i++)
+      __port_clear_translation (&ports[i]);
+  } else {
+    struct port *port = port_ptr (pid);
 
-  __port_clear_translation (port);
+    if (!port)
+      return ST_BAD_VALUE;
+
+    __port_clear_translation (port);
+  }
+
   pcl_port_clear_vt (pid);
 
   return ST_OK;
