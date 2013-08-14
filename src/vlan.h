@@ -54,6 +54,6 @@ extern enum status vlan_set_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_del_ip_addr (vid_t);
 extern int stg_is_active (stp_id_t);
 extern void vlan_svc_enable_port (port_id_t, int);
-
+extern enum status vlan_set_xlate_tunnel (int);
 
 #endif /* __VLAN_H__ */

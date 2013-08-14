@@ -633,3 +633,16 @@ vlan_svc_enable_port (port_id_t pid, int en)
        (port->ldev, SVC_VID, port->lport, gt_bool (en),
         GT_FALSE, CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E));
 }
+
+enum status
+vlan_set_xlate_tunnel (int enable)
+{
+  enable = !!enable;
+
+  if (vlan_xlate_tunnel != enable) {
+    port_clear_translation (ALL_PORTS);
+    vlan_xlate_tunnel = enable;
+  }
+
+  return ST_OK;
+}

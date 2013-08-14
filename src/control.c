@@ -241,6 +241,7 @@ DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
+DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -314,7 +315,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
-  HANDLER (CC_PORT_CLEAR_TRANSLATION)
+  HANDLER (CC_PORT_CLEAR_TRANSLATION),
+  HANDLER (CC_VLAN_SET_XLATE_TUNNEL)
 };
 
 static int
@@ -1849,6 +1851,21 @@ DEFINE_HANDLER (CC_PORT_CLEAR_TRANSLATION)
     goto out;
 
   result = port_clear_translation (pid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_xlate_tunnel (enable);
 
  out:
   report_status (result);
