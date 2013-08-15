@@ -593,66 +593,71 @@ port_set_access_vid (port_id_t pid, vid_t vid)
   }
 }
 
+static enum status
+port_update_trunk_vlan (struct port *port, vid_t vid)
+{
+  CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
+  GT_BOOL tag, mem;
+  GT_STATUS rc;
+  int vid_ix = vid - 1;
+
+  if (vlans[vid_ix].state == VS_DELETED)
+    return ST_OK;
+
+  mem = GT_TRUE;
+  tag = GT_TRUE;
+  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+
+  if (port->vlan_conf[vid_ix].refc) {
+    /* VLAN translation target. */
+    cmd = vlan_xlate_tunnel
+      ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+      : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+  } else if (vid == port->native_vid && !vlan_dot1q_tag_native) {
+    /* Trunk native VLAN. */
+    tag = GT_FALSE;
+    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+  } else if (!port->vlan_conf[vid_ix].tallow) {
+    /* Not a member. */
+    mem = GT_FALSE;
+  }
+
+  rc = CRP (cpssDxChBrgVlanMemberSet
+            (port->ldev,
+             vid,
+             port->lport,
+             mem,
+             tag,
+             cmd));
+
+  switch (rc) {
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 enum status
 port_set_native_vid (port_id_t pid, vid_t vid)
 {
   struct port *port = port_ptr (pid);
-  GT_STATUS rc = GT_OK;
+  vid_t old;
 
   if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
 
+  old = port->native_vid;
+  port->native_vid = vid;
+
   if (port->mode == PM_TRUNK) {
-    GT_BOOL tag_native;
-    CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
-
-    if (vlan_dot1q_tag_native) {
-      tag_native = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-    } else {
-      tag_native = GT_FALSE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
-    }
-
-    rc = CRP (cpssDxChBrgVlanMemberSet
-              (port->ldev,
-               port->native_vid,
-               port->lport,
-               GT_TRUE,
-               GT_TRUE,
-               port->vlan_conf[port->native_vid - 1].refc
-               ? (vlan_xlate_tunnel
-                  ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
-                  : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E)
-               : CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
-    if (rc != GT_OK)
-      goto out;
-
-    rc = CRP (cpssDxChBrgVlanMemberSet
-              (port->ldev,
-               vid,
-               port->lport,
-               GT_TRUE,
-               tag_native,
-               cmd));
-    if (rc != GT_OK)
-      goto out;
-
-    rc = CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
-    if (rc != GT_OK)
-      goto out;
-
+    port_update_trunk_vlan (port, old);
+    port_update_trunk_vlan (port, vid);
+    CRP (cpssDxChBrgVlanPortVidSet (port->ldev, port->lport, vid));
     cn_port_vid_set (pid, vid);
   }
 
   port->native_vid = vid;
 
- out:
-  switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
+  return ST_OK;
 }
 
 enum status
@@ -765,48 +770,6 @@ port_vlan_bulk_op (struct port *port,
   }
 }
 
-static enum status
-port_update_trunk_vlan (struct port *port, vid_t vid)
-{
-  CPSS_DXCH_BRG_VLAN_PORT_TAG_CMD_ENT cmd;
-  GT_BOOL tag, mem;
-  GT_STATUS rc;
-  int vid_ix = vid - 1;
-
-  if (vlans[vid_ix].state == VS_DELETED)
-    return ST_OK;
-
-  mem = GT_TRUE;
-  tag = GT_TRUE;
-  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-
-  if (port->vlan_conf[vid_ix].refc) {
-    /* VLAN translation target. */
-    cmd = vlan_xlate_tunnel
-      ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
-      : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
-  } else if (vid == port->native_vid) {
-    /* Trunk native VLAN. */
-    tag = GT_FALSE;
-    cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
-  } else if (!port->vlan_conf[vid_ix].tallow) {
-    /* Not a member. */
-    mem = GT_FALSE;
-  }
-
-  rc = CRP (cpssDxChBrgVlanMemberSet
-            (port->ldev,
-             vid,
-             port->lport,
-             mem,
-             tag,
-             cmd));
-
-  switch (rc) {
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
-}
 
 static enum status
 port_set_trunk_mode (struct port *port)
@@ -2204,7 +2167,9 @@ port_set_trunk_vlans (port_id_t pid, const uint8_t *bmp)
 
   trunk = port->mode == PM_TRUNK;
   for (i = 1; i < 4095; i++) {
-    allow = !!(bmp[i / 8] + i % 8);
+    allow = !!(bmp[i / 8] & (1 << (7 - (i % 8))));
+    /* if (allow) */
+    /*   DEBUG ("VLAN %d allowed on port %d\r\n", i, pid); */
     if (port->vlan_conf[i - 1].tallow != allow) {
       port->vlan_conf[i - 1].tallow = allow;
       if (trunk)
