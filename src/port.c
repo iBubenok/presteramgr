@@ -858,21 +858,20 @@ port_set_mode (port_id_t pid, enum port_mode mode)
   case PM_ACCESS:
     result = port_set_access_mode (port);
     break;
-
   case PM_TRUNK:
     result = port_set_trunk_mode (port);
     break;
-
   case PM_CUSTOMER:
     result = port_set_customer_mode (port);
     break;
-
   default:
     result = ST_BAD_VALUE;
   }
 
-  if (result == ST_OK)
+  if (result == ST_OK) {
+    pcl_port_enable_vt (pid, mode == PM_TRUNK);
     port->mode = mode;
+  }
 
   return result;
 }
