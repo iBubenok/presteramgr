@@ -2077,9 +2077,10 @@ port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
     return ST_BAD_VALUE;
 
   f_ix = from - 1;
-  t_ix = to - 1;
 
   if (add) {
+    t_ix = to - 1;
+
     if (from) {
       /* Specific VLAN. */
       int map_to = port->vlan_conf[f_ix].map_to;
@@ -2119,9 +2120,8 @@ port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
     /* Disable translation. */
     if (from && port->vlan_conf[f_ix].xlate) {
       /* Specific VLAN. */
-      if (port->vlan_conf[f_ix].map_to != to)
-        return ST_DOES_NOT_EXIST;
-
+      to = port->vlan_conf[f_ix].map_to;
+      t_ix = to - 1;
       port->vlan_conf[f_ix].xlate = 0;
       port->vlan_conf[f_ix].map_to = 0;
       port->vlan_conf[t_ix].refc--;
@@ -2146,7 +2146,7 @@ port_vlan_translate (port_id_t pid, vid_t from, vid_t to, int add)
   if (add)
     pcl_setup_vt (pid, from, to, vlan_xlate_tunnel, trunk);
   else
-    pcl_remove_vt (pid, from, to, vlan_xlate_tunnel);
+    pcl_remove_vt (pid, from, vlan_xlate_tunnel);
 
   if (trunk)
     for (i = 0; i < n_to_upd; i++)

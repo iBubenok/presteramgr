@@ -142,9 +142,9 @@ free_vt_ix (struct vt_ix *ix)
 }
 
 enum status
-pcl_remove_vt (port_id_t pid, vid_t from, vid_t to, int tunnel)
+pcl_remove_vt (port_id_t pid, vid_t from, int tunnel)
 {
-  struct vt_ix *ix = get_vt_ix (pid, from, to, tunnel, 0);
+  struct vt_ix *ix = get_vt_ix (pid, from, 0, tunnel, 0);
 
   if (!ix)
     return ST_DOES_NOT_EXIST;
