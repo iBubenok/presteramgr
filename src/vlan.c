@@ -641,6 +641,10 @@ vlan_set_xlate_tunnel (int enable)
 
   if (vlan_xlate_tunnel != enable) {
     port_clear_translation (ALL_PORTS);
+    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+         (0, (enable
+              ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
+              : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
     vlan_xlate_tunnel = enable;
   }
 
