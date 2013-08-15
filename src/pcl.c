@@ -217,9 +217,9 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
 
     memset (&act, 0, sizeof (act));
     act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-    act.actionStop = GT_TRUE;
+    act.actionStop = GT_FALSE;
     act.egressPolicy = GT_TRUE;
-    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_TAGGED_E;
     act.vlan.nestedVlan = GT_FALSE;
     act.vlan.vlanId = from;
     act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
