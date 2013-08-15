@@ -606,7 +606,7 @@ port_update_trunk_vlan (struct port *port, vid_t vid)
 
   mem = GT_TRUE;
   tag = GT_TRUE;
-  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG1_INNER_TAG0_CMD_E;
 
   if (port->vlan_conf[vid_ix].refc) {
     /* VLAN translation target. */

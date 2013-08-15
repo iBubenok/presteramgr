@@ -200,7 +200,7 @@ setup_tagging (vid_t vid,
         } else if (port->native_vid != vid || vlan_dot1q_tag_native) {
           CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
           tagging_cmd->portsCmd[port->lport] =
-            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG1_INNER_TAG0_CMD_E;
         } else
           tagging_cmd->portsCmd[port->lport] =
             CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -462,7 +462,7 @@ vlan_set_dot1q_tag_native (int value)
 
     if (value) {
       tag = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG1_INNER_TAG0_CMD_E;
     } else {
       tag = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -641,10 +641,10 @@ vlan_set_xlate_tunnel (int enable)
 
   if (vlan_xlate_tunnel != enable) {
     port_clear_translation (ALL_PORTS);
-    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
-         (0, (enable
-              ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
-              : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
+    /* CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet */
+    /*      (0, (enable */
+    /*           ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E */
+    /*           : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E))); */
     vlan_xlate_tunnel = enable;
   }
 
