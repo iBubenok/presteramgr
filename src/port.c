@@ -2027,7 +2027,8 @@ __port_clear_translation (struct port *port)
         port_update_trunk_vlan (port, to);
       }
 
-      port->vlan_conf[i].xlate = 0;
+      port->vlan_conf[i].xlate  = 0;
+      port->vlan_conf[i].map_to = 0;
     }
   }
 }
@@ -2167,8 +2168,6 @@ port_set_trunk_vlans (port_id_t pid, const uint8_t *bmp)
   trunk = port->mode == PM_TRUNK;
   for (i = 1; i < 4095; i++) {
     allow = !!(bmp[i / 8] & (1 << (7 - (i % 8))));
-    /* if (allow) */
-    /*   DEBUG ("VLAN %d allowed on port %d\r\n", i, pid); */
     if (port->vlan_conf[i - 1].tallow != allow) {
       port->vlan_conf[i - 1].tallow = allow;
       if (trunk)
