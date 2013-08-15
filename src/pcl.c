@@ -34,7 +34,7 @@ pcl_init_rules (void)
 {
   int i;
 
-  for (i = STACK_FIRST_ENTRY; i < STACK_MAX; i++)
+  for (i = 0; i < STACK_ENTRIES; i++)
     rules.data[i] = i + STACK_FIRST_ENTRY;
 
   rules.sp = 0;
