@@ -107,8 +107,6 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
   if (alloc && !ix) {
     ix = calloc (1, sizeof (struct vt_ix));
     ix->key = key;
-    ix->tunnel = tunnel;
-    ix->to = to;
     if (from) {
       if (!pcl_alloc_rules (ix->ix, 2)) {
         free (ix);
@@ -119,6 +117,11 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
       ix->ix[0] = PORT_IPCL_DEF_IX (pid);
     }
     HASH_ADD_INT (vt_ix, key, ix);
+  }
+
+  if (ix) {
+    ix->tunnel = tunnel;
+    ix->to = to;
   }
 
   return ix;
@@ -164,10 +167,9 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
   port_id_t pid;
   int tunnel;
 
-  if (!enable) {
-    invalidate_vt_ix (ix);
+  invalidate_vt_ix (ix);
+  if (!enable)
     return;
-  }
 
   from   = vt_key_vid (ix->key);
   to     = ix->to;
