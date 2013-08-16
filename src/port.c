@@ -2031,6 +2031,9 @@ __port_clear_translation (struct port *port)
       port->vlan_conf[i].map_to = 0;
     }
   }
+
+  port->def_xlate  = 0;
+  port->def_map_to = 0;
 }
 
 enum status
