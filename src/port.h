@@ -94,5 +94,6 @@ extern enum status port_set_customer_vid (port_id_t, vid_t);
 extern enum status port_vlan_translate (port_id_t, vid_t, vid_t, int);
 extern enum status port_clear_translation (port_id_t);
 extern enum status port_set_trunk_vlans (port_id_t, const uint8_t *);
+extern void port_update_trunk_vlan_all_ports (vid_t);
 
 #endif /* __PORT_H__ */

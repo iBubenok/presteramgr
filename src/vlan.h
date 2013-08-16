@@ -21,6 +21,7 @@ struct vlan {
   uint32_t mac_idx;
   int ip_addr_set;
   ip_addr_t c_ip_addr;
+  int vt_refc;
   enum vlan_state state;
 };
 

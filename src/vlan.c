@@ -197,13 +197,18 @@ setup_tagging (vid_t vid,
           tagging_cmd->portsCmd[port->lport] = vlan_xlate_tunnel
             ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
             : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
-        } else if (port->native_vid != vid || vlan_dot1q_tag_native) {
+        } else if (port->native_vid == vid) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
+          tagging_cmd->portsCmd[port->lport] = vlan_dot1q_tag_native
+            ? CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E
+            : CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+        } else if (vlans[vid - 1].vt_refc && vlan_xlate_tunnel) {
           CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
           tagging_cmd->portsCmd[port->lport] =
-            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG1_INNER_TAG0_CMD_E;
+            CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
         } else
           tagging_cmd->portsCmd[port->lport] =
-            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
       }
       break;
 
@@ -314,6 +319,7 @@ vlan_init (void)
     vlans[i].c_cpu = 0;
     vlans[i].mac_addr_set = 0;
     vlans[i].state = VS_DELETED;
+    vlans[i].vt_refc = 0;
   }
 
   CRP (cpssDxChBrgVlanTableInvalidate (0));
@@ -462,7 +468,7 @@ vlan_set_dot1q_tag_native (int value)
 
     if (value) {
       tag = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG1_INNER_TAG0_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
     } else {
       tag = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -640,11 +646,15 @@ vlan_set_xlate_tunnel (int enable)
   enable = !!enable;
 
   if (vlan_xlate_tunnel != enable) {
+    int i;
+
     port_clear_translation (ALL_PORTS);
-    /* CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet */
-    /*      (0, (enable */
-    /*           ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E */
-    /*           : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E))); */
+    for (i = 1; i < 4095; i++)
+      port_update_trunk_vlan_all_ports (i);
+    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+         (0, (enable
+              ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
+              : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
     vlan_xlate_tunnel = enable;
   }
 
