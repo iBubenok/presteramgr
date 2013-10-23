@@ -1711,6 +1711,8 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_ge (struct port *port)
 {
+  int is_fiber;
+
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport,
         (port->lport < 12)
@@ -1723,6 +1725,17 @@ port_setup_ge (struct port *port)
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
   case HWST_ARLAN_3424GE_F_S:
+    is_fiber = 1;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    is_fiber = port->id > 12;
+    break;
+  default:
+    is_fiber = 0;
+  }
+
+  if (is_fiber) {
+    DEBUG ("port %d is fiber\n", port->id);
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0006));
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -1780,9 +1793,8 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x04, 0x0061));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
-    break;
-
-  default:
+  } else {
+    DEBUG ("port %d is copper\n", port->id);
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
