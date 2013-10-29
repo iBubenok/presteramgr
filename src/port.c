@@ -352,11 +352,13 @@ port_start (void)
 #endif /* VARIANT_SM_12F */
 
   CRP (cpssDxChNstPortIsolationEnableSet (0, GT_TRUE));
+  CRP (cpssDxChBrgVlanEgressFilteringEnable (0, GT_TRUE));
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
     port->setup (port);
+    CRP (cpssDxChBrgVlanPortIngFltEnable (port->ldev, port->lport, GT_TRUE));
     port_set_vid (port);
     port_update_qos_trust (port);
     port_setup_stats (port->ldev, port->lport);
