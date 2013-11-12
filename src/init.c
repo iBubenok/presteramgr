@@ -575,9 +575,9 @@ rate_limit_init (void)
 static GT_STATUS
 after_init (void)
 {
-#if defined (VARIANT_ARLAN_3424GE)
+#if defined (VARIANT_GE)
   qt2025_phy_load_fw ();
-#endif /* VARIANT_ARLAN_3424GE */
+#endif /* VARIANT_GE */
   mac_start ();
   vlan_init ();
   wnct_start ();
