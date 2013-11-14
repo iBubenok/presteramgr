@@ -10,7 +10,7 @@
 
 #define FDB_MAX_ADDRS 16384
 
-#if defined (VARIANT_ARLAN_3424FE)
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424FE_POE)
 #define DEVICE_ID CPSS_98DX2122_CNS
 #define NDEVS 1
 #define NPORTS 28
