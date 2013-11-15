@@ -6,7 +6,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #if defined (VARIANT_ARLAN_3424FE)              \
-  || defined (VARIANT_ARLAN_3424FE_POE)         \
+  || defined (VARIANT_ARLAN_3424PFE)            \
   || defined (VARIANT_SM_12F)
 #define VARIANT_FE
 #elif defined (VARIANT_ARLAN_3424GE)
