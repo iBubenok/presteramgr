@@ -57,11 +57,12 @@ AC_ARG_ENABLE([variant],
   [variant="$enableval"],
   [variant="arlan-3424fe"])
 case "$variant" in
-     arlan-3424fe) AC_DEFINE([VARIANT_ARLAN_3424FE], [1], [Arlan-3424FE variant]) ;;
-     tamotator)    AC_DEFINE([VARIANT_ARLAN_3424FE], [1], [Arlan-3424FE variant]) ;;
-     arlan-3424ge) AC_DEFINE([VARIANT_ARLAN_3424GE], [1], [Arlan-3424GE variant]) ;;
-     sm-12f)       AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
-     *)            AC_MSG_ERROR([unsupported variant]) ;;
+     arlan-3424fe)  AC_DEFINE([VARIANT_ARLAN_3424FE], [1], [Arlan-3424FE variant]) ;;
+     tamotator)     AC_DEFINE([VARIANT_ARLAN_3424FE], [1], [Arlan-3424FE variant]) ;;
+     arlan-3424ge)  AC_DEFINE([VARIANT_ARLAN_3424GE], [1], [Arlan-3424GE variant]) ;;
+     sm-12f)        AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
+     arlan-3424pfe) AC_DEFINE([VARIANT_ARLAN_3424PFE], [1], [Arlan-3424PFE variant]) ;;
+     *)             AC_MSG_ERROR([unsupported variant]) ;;
 esac
 
 AC_DEFINE([_GNU_SOURCE], [1], [for TEMP_FAILURE_RETRY() etc.])

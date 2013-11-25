@@ -1,9 +1,40 @@
 sbin_PROGRAMS = presteramgr presterarst
-presteramgr_SOURCES = main.c init.c event.c port.c \
-	extsvc.c mgmt.c vlan.c debug.c presteramgr.h debug.h utils.h \
-	control.c data.c sysdeps.c mac.c qos.c pdsa.c wnct.c log.c \
-	zcontext.c mcg.c ip.c route.c nht.c ret.c qt2025-phy.c \
-	control-utils.c monitor.c env.c pcl.c fib.c arpc.c dgasp.c
+presteramgr_SOURCES =	\
+	variant.h			\
+	main.c				\
+	init.c				\
+	event.c				\
+	port.c				\
+	extsvc.c			\
+	mgmt.c				\
+	vlan.c				\
+	debug.c				\
+	presteramgr.h		\
+	debug.h				\
+	utils.h				\
+	control.c			\
+	data.c				\
+	sysdeps.c			\
+	mac.c				\
+	qos.c				\
+	pdsa.c				\
+	wnct.c				\
+	log.c				\
+	zcontext.c			\
+	mcg.c				\
+	ip.c				\
+	route.c				\
+	nht.c				\
+	ret.c				\
+	qt2025-phy.c		\
+	control-utils.c		\
+	monitor.c			\
+	env.c				\
+	pcl.c				\
+	fib.c				\
+	arpc.c				\
+	dgasp.c
+
 nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
 BUILT_SOURCES = control-proto.h rtbd.h arpd.h
 CLEANFILES = control-proto.h rtbd.h arpd.h

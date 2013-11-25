@@ -2,7 +2,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#if defined (VARIANT_ARLAN_3424GE)
+#include <variant.h>
+
+#if defined (VARIANT_GE)
 
 #include <cpssdefs.h>
 
@@ -209,4 +211,4 @@ qt2025_phy_load_fw (void)
   return ST_OK;
 }
 
-#endif /* VARIANT_ARLAN_3424GE */
+#endif /* VARIANT_GE */
