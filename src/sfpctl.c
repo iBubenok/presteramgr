@@ -115,7 +115,7 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  if (hw_type == 10 || hw_type == 11)
+  if (hw_type == 10 || hw_type == 11 || hw_type == 20)
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3));
   else if (hw_type == 12) {
     switch (hw_subtype) {
