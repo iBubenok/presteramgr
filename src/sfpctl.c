@@ -115,13 +115,14 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  if (hw_type == 10 || hw_type == 11)
+  if (hw_type == 10 || hw_type == 11 || hw_type == 20)
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3));
   else if (hw_type == 12) {
     switch (hw_subtype) {
     case 0:
     case 1:
-      goto out;
+      start = stop = 0x26;
+      break;
     case 2:
     case 3:
       start = 0x20;
@@ -140,7 +141,6 @@ main (int argc, char **argv)
     }
   }
 
- out:
   close (fd);
 
   return 0;
