@@ -121,7 +121,8 @@ main (int argc, char **argv)
     switch (hw_subtype) {
     case 0:
     case 1:
-      goto out;
+      start = stop = 0x26;
+      break;
     case 2:
     case 3:
       start = 0x20;
@@ -140,7 +141,6 @@ main (int argc, char **argv)
     }
   }
 
- out:
   close (fd);
 
   return 0;
