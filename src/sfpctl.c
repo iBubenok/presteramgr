@@ -87,6 +87,51 @@ clear_bits (int fd, int addr, __u8 cr, __u8 or, __u8 mask)
   }
 }
 
+static void
+set_bits (int fd, int addr, __u8 cr, __u8 mask)
+{
+  struct i2c_msg msgs[2];
+  struct i2c_rdwr_ioctl_data data = {
+    .msgs  = msgs,
+    .nmsgs = 2
+  };
+  __u8 buf[2];
+
+  if (ioctl (fd, I2C_SLAVE, addr) < 0) {
+    fprintf (stderr, "I2C_SLAVE(0x%X): %s\n", addr, strerror (errno));
+    return;
+  }
+
+  buf[0] = cr;
+  buf[1] = 0;
+
+  msgs[0].addr  = addr;
+  msgs[0].flags = 0;
+  msgs[0].len   = 1;
+  msgs[0].buf   = buf;
+  msgs[1].addr  = addr;
+  msgs[1].flags = I2C_M_RD;
+  msgs[1].len   = 1;
+  msgs[1].buf   = buf + 1;
+  if (ioctl (fd, I2C_RDWR, &data) < 0) {
+    fprintf (stderr, "I2C_READ(0x%X, 0x%X): %s\n", addr, cr, strerror (errno));
+    return;
+  }
+
+  buf[1] |= mask;
+
+  msgs[0].addr  = addr;
+  msgs[0].flags = 0;
+  msgs[0].len   = 2;
+  msgs[0].buf   = buf;
+  data.nmsgs = 1;
+  if (ioctl (fd, I2C_RDWR, &data) < 0) {
+    fprintf (stderr, "I2C_WRITE(0x%X, 0x%X): %s\n", addr, cr, strerror (errno));
+    return;
+  }
+}
+
+
 int
 main (int argc, char **argv)
 {
@@ -139,6 +184,8 @@ main (int argc, char **argv)
       clear_bits (fd, addr, 6, 2, (1 << 0) | (1 << 3));
       clear_bits (fd, addr, 7, 3, (1 << 0) | (1 << 3));
     }
+    set_bits (fd, 0x26, 6, (1 << 1) | (1 << 2));
+    set_bits (fd, 0x26, 7, (1 << 1) | (1 << 2));
   }
 
   close (fd);
