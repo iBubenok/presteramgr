@@ -1321,21 +1321,34 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 }
 
 enum status
-port_dump_phy_reg (port_id_t pid, uint16_t reg)
+port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
 {
   GT_STATUS rc;
-  GT_U16 val;
+  GT_U16 pg;
   struct port *port = port_ptr (pid);
 
   if (!port)
     return ST_BAD_VALUE;
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, reg, &val));
+            (port->ldev, port->lport, 0x16, &pg));
   if (rc != GT_OK)
     goto out;
 
-  fprintf (stderr, "%04X\r\n", val);
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x16, page));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, reg, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x16, pg));
+  if (rc != GT_OK)
+    goto out;
 
  out:
   switch (rc) {

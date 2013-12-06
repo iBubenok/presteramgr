@@ -804,19 +804,30 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
 {
   enum status result;
   port_id_t pid;
-  uint16_t reg;
+  uint16_t page, reg, val;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
-    goto out;
+    goto err;
+
+  result = POP_ARG (&page);
+  if (result != ST_OK)
+    goto err;
 
   result = POP_ARG (&reg);
   if (result != ST_OK)
-    goto out;
+    goto err;
 
-  result = port_dump_phy_reg (pid, reg);
+  result = port_dump_phy_reg (pid, page, reg, &val);
+  if (result != ST_OK)
+    goto err;
 
- out:
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+  return;
+
+ err:
   report_status (result);
 }
 
