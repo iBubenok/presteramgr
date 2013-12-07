@@ -1473,7 +1473,6 @@ port_set_flow_control (port_id_t pid, flow_control_t fc)
   GT_U16 val;
   GT_STATUS rc;
 
-
   if (!port)
     return ST_BAD_VALUE;
 
@@ -1793,6 +1792,54 @@ port_setup_ge (struct port *port)
     ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
   }
 
+  DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val);
+  if (val == 0x0DC0) {
+    DEBUG ("Activating A0 revision workaround\r\n");
+
+    /* A0 Revision errata. */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x00FF));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 24, 0x2800));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 23, 0x2001));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x0000));
+
+    /* A0 Revision errata for BGA. */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 29, 0x0003));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 30, 0x0002));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 29, 0x0000));
+
+    /* Check it. */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x00FF));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 23, 0x1001));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 25, &val));
+    DEBUG ("check 1: 0x%04X, must be 0x2800, %s\r\n",
+           val, (val == 0x2800) ? "good" : "bad");
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x0000));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 29, 0x0003));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 30, &val));
+    DEBUG ("check 2: 0x%04X, must be 0x0002, %s\r\n",
+           val, (val == 0x0002) ? "good" : "bad");
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 29, 0x0000));
+  }
+
   switch (ptype) {
   case IS_FIBER:
     DEBUG ("port %d is fiber\n", port->id);
@@ -1801,98 +1848,6 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x16, 0x0000));
     CRP (cpssDxChPhyPortSmiRegisterRead
          (port->ldev, port->lport, 0x03, &val));
-
-    DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val);
-    if (val == 0x0DC0) {
-      DEBUG ("Activating A0 revision workaround\r\n");
-
-      /* A0 Revision errata. */
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x00FF));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 24, 0x2800));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 23, 0x2001));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x0000));
-
-      /* A0 Revision errata for BGA. */
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x0000));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 29, 0x0003));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 30, 0x0002));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 29, 0x0000));
-
-      /* Check it. */
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x00FF));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 23, 0x1001));
-      CRP (cpssDxChPhyPortSmiRegisterRead
-           (port->ldev, port->lport, 25, &val));
-      DEBUG ("check 1: 0x%04X, must be 0x2800, %s\r\n",
-             val, (val == 0x2800) ? "good" : "bad");
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x0000));
-
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 22, 0x0000));
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 29, 0x0003));
-      CRP (cpssDxChPhyPortSmiRegisterRead
-           (port->ldev, port->lport, 30, &val));
-      DEBUG ("check 2: 0x%04X, must be 0x0002, %s\r\n",
-             val, (val == 0x0002) ? "good" : "bad");
-      CRP (cpssDxChPhyPortSmiRegisterWrite
-           (port->ldev, port->lport, 29, 0x0000));
-    }
-
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x00FD)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x11, 0x2299)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x00FF)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x18, 0x2800)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x00FF)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x17, 0x2001)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1D, 0x0010)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1E, 0x4018)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1D, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1D, 0x0003)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1E, 0x0002)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x1D, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x16, 0x0000)); */
-
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0006));
@@ -1915,8 +1870,6 @@ port_setup_ge (struct port *port)
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
-    /* CRP (cpssDxChPhyPortSmiRegisterWrite */
-    /*      (port->ldev, port->lport, 0x04, 0x0061)); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
     break;
@@ -1936,39 +1889,67 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x14, 0x0207));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x14, 0x8207));
+    usleep (10000);
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x4));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
 
-    /* Configure HEX */
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x16, 0xFF));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x18, 0x2800));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x17, 0x2001));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x18, 0x1F70));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x17, 0x2004));
-
     /* Configure LEDs */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x3));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x10, 0x1AA7));
+         (port->ldev, port->lport, 0x10, 0x1777));
 
-    /* Set Class A optical transceivers and reset PHY */
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x16, 0x0));
+         (port->ldev, port->lport, 0x16, 0x2));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x1A, 0x9040));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x00, 0x9140));
+         (port->ldev, port->lport, 0x10, 0x4008));
 
-    CRP (cpssDxChPhySmiAutoMediaSelectSet
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &val));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, val | (1 << 15)));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0001));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x04, 0x0020));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x10, 0x4085));
+
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &val));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, val | (1 << 15)));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0004));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x10, 0x6004));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x1A, 0x3000));
+
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &val));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, val | (1 << 12)));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x6));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x14, 0x8207));
+    usleep (10000);
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+
+    CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
   }
 
