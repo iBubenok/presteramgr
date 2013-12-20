@@ -161,7 +161,6 @@ extern size_t sysdeps_default_stack_size;
 
 #define SYSD_CSCD_TRUNK 1
 extern void sysd_setup_ic (void);
-extern void sysd_vlan_add (vid_t);
 
 
 #endif /* __SYSDEPS_H__ */

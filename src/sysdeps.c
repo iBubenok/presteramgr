@@ -52,11 +52,6 @@ sysd_setup_ic (void)
 {
 }
 
-void
-sysd_vlan_add (vid_t vid)
-{
-}
-
 #elif defined (VARIANT_SM_12F)
 
 static struct dev_info __dev_info[] = {
@@ -81,11 +76,6 @@ sysd_setup_ic (void)
 {
 }
 
-void
-sysd_vlan_add (vid_t vid)
-{
-}
-
 #elif defined (VARIANT_ARLAN_3424GE)
 
 static struct dev_info __dev_info[] = {
@@ -107,11 +97,6 @@ static struct dev_info __dev_info[] = {
 
 void
 sysd_setup_ic (void)
-{
-}
-
-void
-sysd_vlan_add (vid_t vid)
 {
 }
 
@@ -199,26 +184,6 @@ sysd_setup_ic (void)
        (0, 1, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
   CRP (cpssDxChCscdDevMapTableSet
        (1, 0, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
-}
-
-void
-sysd_vlan_add (vid_t vid)
-{
-  GT_U8 dp[2][2] = {
-    {26, 27},
-    {24, 25}
-  };
-  int d, p;
-
-  for (d = 0; d < 2; d++) {
-    for (p = 0; p < 2; p++) {
-      CRP (cpssDxChBrgVlanMemberSet
-           (d, vid, dp[d][p], GT_TRUE, GT_TRUE,
-            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
-    }
-  }
-
-  DEBUG ("*** setup cascade trunk ports vlan %d\r\n", vid);
 }
 
 #endif /* VARIANT_* */
