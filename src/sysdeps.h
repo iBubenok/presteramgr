@@ -17,6 +17,8 @@
 struct dev_info {
   uint32_t dev_id;
   GT_PCI_INT int_num;
+  int n_ic_ports;
+  int *ic_ports;
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
 };
 extern struct dev_info *dev_info;

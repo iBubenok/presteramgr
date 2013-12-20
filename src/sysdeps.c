@@ -32,9 +32,10 @@ get_system_params (void)
 
 static struct dev_info __dev_info[] = {
   {
-    .dev_id   = CPSS_98DX2122_CNS,
-    .int_num  = GT_PCI_INT_B,
-    .ph1_info = {
+    .dev_id     = CPSS_98DX2122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
@@ -60,9 +61,10 @@ sysd_vlan_add (vid_t vid)
 
 static struct dev_info __dev_info[] = {
   {
-    .dev_id   = CPSS_98DX2122_CNS,
-    .int_num  = GT_PCI_INT_B,
-    .ph1_info = {
+    .dev_id     = CPSS_98DX2122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
@@ -88,9 +90,10 @@ sysd_vlan_add (vid_t vid)
 
 static struct dev_info __dev_info[] = {
   {
-    .dev_id   = CPSS_98DX4122_CNS,
-    .int_num  = GT_PCI_INT_B,
-    .ph1_info = {
+    .dev_id     = CPSS_98DX4122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
@@ -114,11 +117,16 @@ sysd_vlan_add (vid_t vid)
 
 #elif defined (VARIANT_ARLAN_3448PGE)
 
+static int ic_ports_0[] = {26, 27};
+static int ic_ports_1[] = {24, 25};
+
 static struct dev_info __dev_info[] = {
   {
-    .dev_id   = CPSS_98DX5248_CNS,
-    .int_num  = GT_PCI_INT_A,
-    .ph1_info = {
+    .dev_id     = CPSS_98DX5248_CNS,
+    .int_num    = GT_PCI_INT_A,
+    .n_ic_ports = 2,
+    .ic_ports   = ic_ports_0,
+    .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
@@ -129,9 +137,11 @@ static struct dev_info __dev_info[] = {
     }
   },
   {
-    .dev_id   = CPSS_98DX4122_CNS,
-    .int_num  = GT_PCI_INT_B,
-    .ph1_info = {
+    .dev_id     = CPSS_98DX4122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 2,
+    .ic_ports   = ic_ports_1,
+    .ph1_info   = {
       .devNum                 = 1,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
