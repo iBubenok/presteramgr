@@ -30,7 +30,7 @@ get_system_params (void)
 
 #if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
 
-struct dev_info dev_info[] = {
+static struct dev_info __dev_info[] = {
   {
     .dev_id   = CPSS_98DX2122_CNS,
     .int_num  = GT_PCI_INT_B,
@@ -58,7 +58,7 @@ sysd_vlan_add (vid_t vid)
 
 #elif defined (VARIANT_SM_12F)
 
-struct dev_info dev_info[] = {
+static struct dev_info __dev_info[] = {
   {
     .dev_id   = CPSS_98DX2122_CNS,
     .int_num  = GT_PCI_INT_B,
@@ -86,7 +86,7 @@ sysd_vlan_add (vid_t vid)
 
 #elif defined (VARIANT_ARLAN_3424GE)
 
-struct dev_info dev_info[] = {
+static struct dev_info __dev_info[] = {
   {
     .dev_id   = CPSS_98DX4122_CNS,
     .int_num  = GT_PCI_INT_B,
@@ -114,7 +114,7 @@ sysd_vlan_add (vid_t vid)
 
 #elif defined (VARIANT_ARLAN_3448PGE)
 
-struct dev_info dev_info[] = {
+static struct dev_info __dev_info[] = {
   {
     .dev_id   = CPSS_98DX5248_CNS,
     .int_num  = GT_PCI_INT_A,
@@ -212,3 +212,5 @@ sysd_vlan_add (vid_t vid)
 }
 
 #endif /* VARIANT_* */
+
+struct dev_info *dev_info = __dev_info;

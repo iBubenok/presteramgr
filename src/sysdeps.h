@@ -19,7 +19,7 @@ struct dev_info {
   GT_PCI_INT int_num;
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
 };
-extern struct dev_info dev_info[];
+extern struct dev_info *dev_info;
 
 struct pm {
   uint8_t dev;
@@ -152,6 +152,8 @@ static inline int IS_XG_PORT (int n)
 #else
 #error Undefined or unsupported variant.
 #endif /* VARIANT_* */
+
+#define for_all_devs(var) for (var = 0; var < NDEVS; var++)
 
 extern size_t sysdeps_default_stack_size;
 
