@@ -19,7 +19,7 @@ struct dev_info {
   GT_PCI_INT int_num;
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
 };
-#define DECLARE_DEV_INFO(name) struct dev_info name[]
+extern struct dev_info dev_info[];
 
 struct pm {
   uint8_t dev;
@@ -27,23 +27,6 @@ struct pm {
 };
 
 #if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
-
-#define DEV_INFO                                                                \
-  {                                                                             \
-    {                                                                           \
-      .dev_id   = CPSS_98DX2122_CNS,                                            \
-      .int_num  = GT_PCI_INT_B,                                                 \
-      .ph1_info = {                                                             \
-        .devNum                 = 0,                                            \
-        .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,         \
-        .mngInterfaceType       = CPSS_CHANNEL_PEX_E,                           \
-        .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,                    \
-        .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E, \
-        .initSerdesDefaults     = GT_TRUE,                                      \
-        .isExternalCpuConnected = GT_FALSE                                      \
-      }                                                                         \
-    }                                                                           \
-  }
 
 #define NDEVS 1
 #define NPORTS 28
@@ -75,23 +58,6 @@ static inline int IS_XG_PORT (int n)
 
 #elif defined (VARIANT_SM_12F)
 
-#define DEV_INFO                                                                \
-  {                                                                             \
-    {                                                                           \
-      .dev_id   = CPSS_98DX2122_CNS,                                            \
-      .int_num  = GT_PCI_INT_B,                                                 \
-      .ph1_info = {                                                             \
-        .devNum                 = 0,                                            \
-        .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,         \
-        .mngInterfaceType       = CPSS_CHANNEL_PEX_E,                           \
-        .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,                    \
-        .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E, \
-        .initSerdesDefaults     = GT_TRUE,                                      \
-        .isExternalCpuConnected = GT_FALSE                                      \
-      }                                                                         \
-    }                                                                           \
-  }
-
 #define NDEVS 1
 #define NPORTS 16
 #define DECLARE_PORT_MAP(name)                              \
@@ -118,23 +84,6 @@ static inline int IS_XG_PORT (int n)
 }
 
 #elif defined (VARIANT_ARLAN_3424GE)
-
-#define DEV_INFO                                                                \
-  {                                                                             \
-    {                                                                           \
-      .dev_id   = CPSS_98DX4122_CNS,                                            \
-      .int_num  = GT_PCI_INT_B,                                                 \
-      .ph1_info = {                                                             \
-        .devNum                 = 0,                                            \
-        .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,         \
-        .mngInterfaceType       = CPSS_CHANNEL_PEX_E,                           \
-        .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,                    \
-        .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E, \
-        .initSerdesDefaults     = GT_TRUE,                                      \
-        .isExternalCpuConnected = GT_FALSE                                      \
-      }                                                                         \
-    }                                                                           \
-  }
 
 #define NDEVS 1
 #define NPORTS 28
@@ -165,36 +114,6 @@ static inline int IS_XG_PORT (int n)
 }
 
 #elif defined (VARIANT_ARLAN_3448PGE)
-
-#define DEV_INFO                                                                     \
-  {                                                                                  \
-    {                                                                                \
-      .dev_id   = CPSS_98DX5248_CNS,                                                 \
-      .int_num  = GT_PCI_INT_A,                                                      \
-      .ph1_info = {                                                                  \
-        .devNum                 = 0,                                                 \
-        .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,              \
-        .mngInterfaceType       = CPSS_CHANNEL_PEX_E,                                \
-        .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,                         \
-        .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E, \
-        .initSerdesDefaults     = GT_TRUE,                                           \
-        .isExternalCpuConnected = GT_FALSE                                           \
-      }                                                                              \
-    },                                                                               \
-    {                                                                                \
-      .dev_id   = CPSS_98DX4122_CNS,                                                 \
-      .int_num  = GT_PCI_INT_B,                                                      \
-      .ph1_info = {                                                                  \
-        .devNum                 = 1,                                                 \
-        .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,              \
-        .mngInterfaceType       = CPSS_CHANNEL_PEX_E,                                \
-        .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,                         \
-        .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E, \
-        .initSerdesDefaults     = GT_TRUE,                                           \
-        .isExternalCpuConnected = GT_FALSE                                           \
-      }                                                                              \
-    }                                                                                \
-  }
 
 #define NDEVS 2
 #define NPORTS 48

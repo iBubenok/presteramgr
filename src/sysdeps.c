@@ -28,7 +28,121 @@ get_system_params (void)
   pthread_attr_getstacksize (&attr, &sysdeps_default_stack_size);
 }
 
-#if defined (VARIANT_ARLAN_3448PGE)
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
+
+struct dev_info dev_info[] = {
+  {
+    .dev_id   = CPSS_98DX2122_CNS,
+    .int_num  = GT_PCI_INT_B,
+    .ph1_info = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+}
+
+void
+sysd_vlan_add (vid_t vid)
+{
+}
+
+#elif defined (VARIANT_SM_12F)
+
+struct dev_info dev_info[] = {
+  {
+    .dev_id   = CPSS_98DX2122_CNS,
+    .int_num  = GT_PCI_INT_B,
+    .ph1_info = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+}
+
+void
+sysd_vlan_add (vid_t vid)
+{
+}
+
+#elif defined (VARIANT_ARLAN_3424GE)
+
+struct dev_info dev_info[] = {
+  {
+    .dev_id   = CPSS_98DX4122_CNS,
+    .int_num  = GT_PCI_INT_B,
+    .ph1_info = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+}
+
+void
+sysd_vlan_add (vid_t vid)
+{
+}
+
+#elif defined (VARIANT_ARLAN_3448PGE)
+
+struct dev_info dev_info[] = {
+  {
+    .dev_id   = CPSS_98DX5248_CNS,
+    .int_num  = GT_PCI_INT_A,
+    .ph1_info = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  },
+  {
+    .dev_id   = CPSS_98DX4122_CNS,
+    .int_num  = GT_PCI_INT_B,
+    .ph1_info = {
+      .devNum                 = 1,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
 void
 sysd_setup_ic (void)
 {
@@ -96,14 +210,5 @@ sysd_vlan_add (vid_t vid)
 
   DEBUG ("*** setup cascade trunk ports vlan %d\r\n", vid);
 }
-#else /* Single-switch variants. */
-void
-sysd_setup_ic (void)
-{
-}
 
-void
-sysd_vlan_add (vid_t vid)
-{
-}
-#endif /* VARIANT_ARLAN_3448PGE */
+#endif /* VARIANT_* */

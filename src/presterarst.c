@@ -28,8 +28,6 @@
 
 extern GT_STATUS osStartEngine (int, const char **, const char *, GT_VOIDFUNCPTR);
 
-static DECLARE_DEV_INFO (dev_info) = DEV_INFO;
-
 static enum status
 pci_find_dev (struct dev_info *info)
 {

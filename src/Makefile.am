@@ -42,7 +42,7 @@ presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
 nodist_presterarst_SOURCES = control-proto.h rtbd.h
-presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c
+presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c sysdeps.c
 presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 

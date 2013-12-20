@@ -111,8 +111,6 @@
 
 extern GT_STATUS extDrvUartInit (void);
 
-static DECLARE_DEV_INFO (dev_info) = DEV_INFO;
-
 static enum status
 pci_find_dev (struct dev_info *info)
 {
