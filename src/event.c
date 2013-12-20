@@ -25,6 +25,7 @@
 #include <port.h>
 #include <data.h>
 #include <zcontext.h>
+#include <sysdeps.h>
 
 #include <czmq.h>
 
@@ -157,7 +158,7 @@ event_enter_loop (void)
 {
   static GT_U32 ebmp [CPSS_UNI_EV_BITMAP_SIZE_CNS];
   GT_STATUS rc;
-  int i;
+  int i, d;
   GT_32 key;
 
   key = intr_lock ();
@@ -167,10 +168,11 @@ event_enter_loop (void)
     exit (1);
 
   for (i = 0; i < EVENT_NUM; ++i) {
-    rc = CRP (cpssEventDeviceMaskSet (0, events [i],
-                                      CPSS_EVENT_UNMASK_E));
-    if (rc != GT_OK)
-      exit (1);
+    for (d = 0; d < NDEVS; d++) {
+      rc = CRP (cpssEventDeviceMaskSet (d, events [i], CPSS_EVENT_UNMASK_E));
+      if (rc != GT_OK)
+        exit (1);
+    }
   }
 
   intr_unlock (key);

@@ -7,6 +7,7 @@
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
 
+#include <sysdeps.h>
 #include <presteramgr.h>
 #include <debug.h>
 #include <string.h>
@@ -271,6 +272,7 @@ __vlan_add (vid_t vid)
                                        &tagging_cmd));
   switch (rc) {
   case GT_OK:
+    sysd_vlan_add (vid);
     vlans[vid - 1].state = VS_ACTIVE;
     return ST_OK;
   case GT_HW_ERROR:

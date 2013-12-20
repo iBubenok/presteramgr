@@ -8,6 +8,7 @@
 #include <presteramgr.h>
 #include <env.h>
 #include <debug.h>
+#include <utils.h>
 #include <log.h>
 
 #include <gtOs/gtOsInit.h>
@@ -110,47 +111,49 @@
 
 extern GT_STATUS extDrvUartInit (void);
 
+static DECLARE_DEV_INFO (dev_info) = DEV_INFO;
 
-static GT_STATUS
-init_pci (CPSS_DXCH_PP_PHASE1_INIT_INFO_STC *info)
+static enum status
+pci_find_dev (struct dev_info *info)
 {
-  GT_U16 did = (DEVICE_ID >> 16) & 0xFFFF;
-  GT_U16 vid = DEVICE_ID & 0xFFFF;
+  GT_U16 did = (info->dev_id >> 16) & 0xFFFF;
+  GT_U16 vid = info->dev_id & 0xFFFF;
   GT_U32 ins = 0, bus_no = 0, dev_sel = 0, func_no = 0;
   GT_UINTPTR pci_base_addr, internal_pci_base;
   void *int_vec;
   GT_U32 int_mask;
   GT_STATUS rc;
 
-  rc = extDrvPciFindDev (vid, did, ins, &bus_no, &dev_sel, &func_no);
-  RCC (rc, extDrvPciFindDev);
-  DEBUG ("Device found: bus no %d, dev sel %d, func no %d\r\n",
-         bus_no, dev_sel, func_no);
+  rc = CRP (extDrvPciFindDev (vid, did, ins, &bus_no, &dev_sel, &func_no));
+  ON_GT_ERROR (rc) goto out;
+  DEBUG ("Device found: id %X, bus no %d, dev sel %d, func no %d\r\n",
+         info->dev_id, bus_no, dev_sel, func_no);
 
-  rc = extDrvPciMap (bus_no, dev_sel, func_no, vid, did,
-                     &pci_base_addr, &internal_pci_base);
-  RCC (rc, extDrvPciMap);
+  rc = CRP (extDrvPciMap (bus_no, dev_sel, func_no, vid, did,
+                          &pci_base_addr, &internal_pci_base));
+  ON_GT_ERROR (rc) goto out;
   internal_pci_base &= 0xFFF00000;
   DEBUG ("%08X %08X\r\n", pci_base_addr, internal_pci_base);
 
-  rc = extDrvGetPciIntVec (GT_PCI_INT_B, &int_vec);
-  RCC (rc, extDrvGetPciIntVec);
+  rc = CRP (extDrvGetPciIntVec (info->int_num, &int_vec));
+  ON_GT_ERROR (rc) goto out;
   DEBUG ("intvec: %d\r\n", (GT_U32) int_vec);
 
-  rc = extDrvGetIntMask (GT_PCI_INT_B, &int_mask);
-  RCC (rc, extDrvGetIntMask);
+  rc = extDrvGetIntMask (info->int_num, &int_mask);
+  ON_GT_ERROR (rc) goto out;
   DEBUG ("intmask: %08X\r\n", int_mask);
 
-  info->busBaseAddr = pci_base_addr;
-  info->internalPciBase = internal_pci_base;
-  info->intVecNum = (GT_U32) int_vec;
-  info->intMask = int_mask;
+  info->ph1_info.busBaseAddr = pci_base_addr;
+  info->ph1_info.internalPciBase = internal_pci_base;
+  info->ph1_info.intVecNum = (GT_U32) int_vec;
+  info->ph1_info.intMask = int_mask;
 
-  return GT_OK;
+ out:
+  return (rc == GT_OK) ? ST_OK : ST_HEX;
 }
 
 static GT_STATUS
-post_phase_1 (void)
+post_phase_1 (int d)
 {
   /* GT_STATUS rc; */
   /* CPSS_DXCH_IMPLEMENT_WA_ENT wa [CPSS_DXCH_IMPLEMENT_WA_LAST_E]; */
@@ -162,14 +165,14 @@ post_phase_1 (void)
   /* wa [0] = CPSS_DXCH_IMPLEMENT_WA_FDB_AU_FIFO_E; */
   /* wa_info [0] = 0; */
 
-  /* rc = cpssDxChHwPpImplementWaInit (0, 1, wa, wa_info); */
+  /* rc = cpssDxChHwPpImplementWaInit (d, 1, wa, wa_info); */
   /* RCC (rc, cpssDxChHwPpImplementWaInit); */
 
   return GT_OK;
 }
 
 static GT_STATUS
-phase2_init (void)
+phase2_init (int d)
 {
   CPSS_DXCH_PP_PHASE2_INIT_INFO_STC info;
   GT_U32 au_desc_size;
@@ -178,9 +181,9 @@ phase2_init (void)
 
   osMemSet (&info, 0, sizeof (info));
 
-  info.newDevNum = 0;
+  info.newDevNum = d;
 
-  cpssDxChHwAuDescSizeGet (CPSS_98DX2122_CNS, &au_desc_size);
+  cpssDxChHwAuDescSizeGet (dev_info[d].dev_id, &au_desc_size);
   info.auqCfg.auDescBlockSize = au_desc_size * FDB_MAX_ADDRS * 2;
   info.auqCfg.auDescBlock =
     osCacheDmaMalloc (au_desc_size * (FDB_MAX_ADDRS * 2 + 1));
@@ -195,7 +198,7 @@ phase2_init (void)
   info.netifSdmaPortGroupId = 0;
 
   extDrvSetIntLockUnlock (INTR_MODE_LOCK, &int_key);
-  rc = cpssDxChHwPpPhase2Init (0, &info);
+  rc = cpssDxChHwPpPhase2Init (d, &info);
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);
 
@@ -203,12 +206,14 @@ phase2_init (void)
 }
 
 static GT_STATUS
-logical_init (void)
+logical_init (int d)
 {
   CPSS_DXCH_PP_CONFIG_INIT_STC conf;
   GT_STATUS rc;
 
-  INFO ("devFamily: %d (%d)\n", PRV_CPSS_PP_MAC(0)->devFamily, PRV_CPSS_PP_MAC(0)->devFamily == CPSS_PP_FAMILY_DXCH_XCAT2_E);
+  INFO ("devFamily: %d (%d)\n",
+        PRV_CPSS_PP_MAC(d)->devFamily,
+        PRV_CPSS_PP_MAC(d)->devFamily == CPSS_PP_FAMILY_DXCH_XCAT2_E);
 
   osMemSet (&conf, 0, sizeof (conf));
 
@@ -222,7 +227,7 @@ logical_init (void)
   conf.maxNumOfIpv4TunnelTerms = 8;
   conf.routingMode = CPSS_DXCH_TCAM_ROUTER_BASED_E;
 
-  rc = cpssDxChCfgPpLogicalInit (0, &conf);
+  rc = cpssDxChCfgPpLogicalInit (d, &conf);
   RCC (rc, cpssDxChCfgPpLogicalInit);
 
   return rc;
@@ -325,24 +330,24 @@ dxChPortBufMgInit (IN GT_U8 dev)
 }
 
 static GT_STATUS
-port_lib_init (void)
+port_lib_init (int d)
 {
   GT_STATUS rc;
 
   port_init ();
-  RCC ((rc = cpssDxChPortStatInit (0)), cpssDxChPortStatInit);
-  RCC ((rc = dxChPortBufMgInit (0)), dxChPortBufMgInit);
-  RCC ((rc = cpssDxChPortTxInit (0)), cpssDxChPortTxInit);
+  RCC ((rc = cpssDxChPortStatInit (d)), cpssDxChPortStatInit);
+  RCC ((rc = dxChPortBufMgInit (d)), dxChPortBufMgInit);
+  RCC ((rc = cpssDxChPortTxInit (d)), cpssDxChPortTxInit);
 
   return GT_OK;
 }
 
 static GT_STATUS
-phy_lib_init (void)
+phy_lib_init (int d)
 {
   GT_STATUS rc;
 
-  RCC ((rc = cpssDxChPhyPortSmiInit (0)),
+  RCC ((rc = cpssDxChPhyPortSmiInit (d)),
        cpssDxChPhyPortSmiInit);
 
   return GT_OK;
@@ -398,35 +403,35 @@ dxChBrgFdbInit (IN GT_U8 dev)
 }
 
 static GT_STATUS
-bridge_lib_init (void)
+bridge_lib_init (int d)
 {
   GT_STATUS rc;
   GT_U32 stp_entry [CPSS_DXCH_STG_ENTRY_SIZE_CNS];
 
   /* Init VLAN */
-  RCC ((rc = cpssDxChBrgVlanInit (0)),
+  RCC ((rc = cpssDxChBrgVlanInit (d)),
        cpssDxChBrgVlanInit);
 
   /* STP */
-  RCC ((rc = cpssDxChBrgStpInit (0)),
+  RCC ((rc = cpssDxChBrgStpInit (d)),
        cpssDxChBrgStpInit);
 
-  RCC ((rc = dxChBrgFdbInit (0)),
+  RCC ((rc = dxChBrgFdbInit (d)),
        dxChBrgFdbInit);
 
-  RCC ((rc = cpssDxChBrgMcInit (0)),
+  RCC ((rc = cpssDxChBrgMcInit (d)),
        cpssDxChBrgMcInit);
 
   /* set first entry in STP like default entry */
   osMemSet (stp_entry, 0, sizeof (stp_entry));
-  RCC ((rc = cpssDxChBrgStpEntryWrite (0, 0, stp_entry)),
+  RCC ((rc = cpssDxChBrgStpEntryWrite (d, 0, stp_entry)),
        cpssDxChBrgStpEntryWrite);
 
   return GT_OK;
 }
 
-static GT_STATUS
-netif_lib_init (void)
+static GT_STATUS __attribute__ ((unused))
+netif_lib_init (int d)
 {
   GT_STATUS rc;
   CPSS_DXCH_NETIF_MII_INIT_STC init;
@@ -457,29 +462,29 @@ netif_lib_init (void)
     return GT_FAIL;
   }
 
-  RCC ((rc = cpssDxChNetIfMiiInit (0, &init)),
+  RCC ((rc = cpssDxChNetIfMiiInit (d, &init)),
        cpssDxChNetIfMiiInit);
 
   return GT_OK;
 }
 
 static GT_STATUS
-policer_lib_init (void)
+policer_lib_init (int d)
 {
   GT_STATUS rc;
 
-  if (PRV_CPSS_DXCH_PP_MAC (0)->fineTuning.featureInfo.iplrSecondStageSupported
+  if (PRV_CPSS_DXCH_PP_MAC (d)->fineTuning.featureInfo.iplrSecondStageSupported
       != GT_TRUE) {
     DEBUG ("policer_lib_init: doing nothing\n");
     return GT_OK;
   }
 
-  RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (0,
+  RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (d,
                                                 CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
                                                 GT_FALSE)),
        cpssDxCh3PolicerMeteringEnableSet);
 
-  RCC ((rc = cpssDxChPolicerCountingModeSet (0,
+  RCC ((rc = cpssDxChPolicerCountingModeSet (d,
                                              CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
                                              CPSS_DXCH_POLICER_COUNTING_DISABLE_E)),
        cpssDxChPolicerCountingModeSet);
@@ -488,52 +493,54 @@ policer_lib_init (void)
 }
 
 static GT_STATUS
-trunk_lib_init (void)
+trunk_lib_init (int d)
 {
   GT_STATUS rc;
   GT_U8 max = 127;
 
-  RCC ((rc = cpssDxChTrunkInit (0, max, CPSS_DXCH_TRUNK_MEMBERS_MODE_NATIVE_E)),
+  RCC ((rc = cpssDxChTrunkInit (d, max, CPSS_DXCH_TRUNK_MEMBERS_MODE_NATIVE_E)),
        cpssDxChTrunkInit);
 
   return rc;
 }
 
 static GT_STATUS
-lib_init (void)
+lib_init (int d)
 {
   GT_STATUS rc;
 
   DEBUG ("doing port library init\n");
-  RCC ((rc = port_lib_init ()), port_lib_init);
+  RCC ((rc = port_lib_init (d)), port_lib_init);
   DEBUG ("port library init done\n");
 
   DEBUG ("doing phy library init\n");
-  RCC ((rc = phy_lib_init ()), phy_lib_init);
+  RCC ((rc = phy_lib_init (d)), phy_lib_init);
   DEBUG ("phy library init done\n");
 
   DEBUG ("doing bridge library init\n");
-  RCC ((rc = bridge_lib_init ()), bridge_lib_init);
+  RCC ((rc = bridge_lib_init (d)), bridge_lib_init);
   DEBUG ("bridge library init done\n");
 
-  DEBUG ("doing netif library init\n");
-  RCC ((rc = netif_lib_init ()), netif_lib_init);
-  DEBUG ("netif library init done\n");
+  if (d == 1) {
+    DEBUG ("doing netif library init\n");
+    RCC ((rc = netif_lib_init (d)), netif_lib_init);
+    DEBUG ("netif library init done\n");
+  }
 
   DEBUG ("doing monitor init\n");
-  mon_cpss_lib_init ();
+  mon_cpss_lib_init (d);
   DEBUG ("monitor init done\n");
 
   DEBUG ("doing pcl library init\n");
-  pcl_cpss_lib_init ();
+  pcl_cpss_lib_init (d);
   DEBUG ("pcl library init done\n");
 
   DEBUG ("doing policer library init\n");
-  RCC ((rc = policer_lib_init ()), policer_lib_init);
+  RCC ((rc = policer_lib_init (d)), policer_lib_init);
   DEBUG ("policer library init done\n");
 
   DEBUG ("doing trunk library init\n");
-  RCC ((rc = trunk_lib_init ()), trunk_lib_init);
+  RCC ((rc = trunk_lib_init (d)), trunk_lib_init);
   DEBUG ("trunk library init done\n");
 
   DEBUG ("doing IP library init\n");
@@ -544,22 +551,22 @@ lib_init (void)
 }
 
 static GT_STATUS
-after_phase2 (void)
+after_phase2 (int d)
 {
-  CRP (cpssDxChCscdDsaSrcDevFilterSet (0, GT_FALSE));
+  CRP (cpssDxChCscdDsaSrcDevFilterSet (d, GT_FALSE));
 
   return GT_OK;
 }
 
 static void
-linux_ip_setup (GT_U8 dev)
+linux_ip_setup (int d)
 {
   CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
-       (dev, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+       (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
 }
 
 static void
-rate_limit_init (void)
+rate_limit_init (int d)
 {
   CPSS_DXCH_BRG_GEN_RATE_LIMIT_STC cfg = {
     .dropMode    = CPSS_DROP_MODE_HARD_E,
@@ -570,34 +577,21 @@ rate_limit_init (void)
     .win10Gbps   = 1000
   };
 
-  CRP (cpssDxChBrgGenRateLimitGlobalCfgSet (0, &cfg));
+  CRP (cpssDxChBrgGenRateLimitGlobalCfgSet (d, &cfg));
 }
 
 static GT_STATUS
-after_init (void)
+after_init (int d)
 {
-#if defined (VARIANT_GE)
-  qt2025_phy_load_fw ();
-#endif /* VARIANT_GE */
-  mac_start ();
-  vlan_init ();
-  wnct_start ();
-  linux_ip_setup (0);
-  qos_start ();
-  rate_limit_init ();
-  port_start ();
-  dgasp_init ();
-  pdsa_init ();
-  ip_start ();
-  return cpssDxChCfgDevEnable (0, GT_TRUE);
+  return cpssDxChCfgDevEnable (d, GT_TRUE);
 }
 
 static GT_STATUS
 init_cpss (void)
 {
   GT_STATUS rc;
-  CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
   CPSS_PP_DEVICE_TYPE dev_type;
+  int i;
 
   rc = extDrvEthRawSocketModeSet (GT_TRUE);
   if (rc != GT_OK)
@@ -611,52 +605,61 @@ init_cpss (void)
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
 
-  osMemSet (&ph1_info, 0, sizeof (ph1_info));
+  for (i = 0; i < NDEVS; i++) {
+    pci_find_dev (&dev_info[i]);
 
-  ph1_info.devNum = 0;
-  ph1_info.coreClock = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS;
-  ph1_info.mngInterfaceType = CPSS_CHANNEL_PEX_E;
-  ph1_info.ppHAState = CPSS_SYS_HA_MODE_ACTIVE_E;
-  ph1_info.serdesRefClock = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E;
-  ph1_info.initSerdesDefaults = GT_TRUE;
-  ph1_info.isExternalCpuConnected = GT_FALSE;
+    DEBUG ("doing phase1 config\n");
+    rc = cpssDxChHwPpPhase1Init (&dev_info[i].ph1_info, &dev_type);
+    RCC (rc, cpssDxChHwPpPhase1Init);
+    DEBUG ("device type: %08X\n", dev_type);
 
-  rc = init_pci (&ph1_info);
-  RCC (rc, init_pci);
+    DEBUG ("initializing workarounds\n");
+    rc = post_phase_1 (i);
+    RCC (rc, post_phase_1);
 
-  DEBUG ("doing phase1 config\n");
-  rc = cpssDxChHwPpPhase1Init (&ph1_info, &dev_type);
-  RCC (rc, cpssDxChHwPpPhase1Init);
-  DEBUG ("device type: %08X\n", dev_type);
+    DEBUG ("doing phase2 config\n");
+    rc = phase2_init (i);
+    RCC (rc, phase2_init);
+    DEBUG ("phase2 config done\n");
 
-  DEBUG ("initializing workarounds\n");
-  rc = post_phase_1 ();
-  RCC (rc, post_phase_1);
+    DEBUG ("after phase2 config\n");
+    rc = after_phase2 (i);
+    RCC (rc, after_phase2);
+    DEBUG ("after config done\n");
 
-  DEBUG ("doing phase2 config\n");
-  rc = phase2_init ();
-  RCC (rc, phase2_init);
-  DEBUG ("phase2 config done\n");
+    DEBUG ("doing logical init\n");
+    rc = logical_init (i);
+    RCC (rc, logical_init);
+    DEBUG ("logical init done\n");
 
-  DEBUG ("after phase2 config\n");
-  rc = after_phase2 ();
-  RCC (rc, after_phase2);
-  DEBUG ("after config done\n");
+    DEBUG ("doing library init\n");
+    rc = lib_init (i);
+    RCC (rc, lib_init);
+    DEBUG ("library init done\n");
+  }
 
-  DEBUG ("doing logical init\n");
-  rc = logical_init ();
-  RCC (rc, logical_init);
-  DEBUG ("logical init done\n");
+  sysd_setup_ic ();
 
-  DEBUG ("doing library init\n");
-  rc = lib_init ();
-  RCC (rc, lib_init);
-  DEBUG ("library init done\n");
+#if defined (VARIANT_GE)
+  qt2025_phy_load_fw ();
+#endif /* VARIANT_GE */
+  mac_start ();
+  vlan_init ();
+  wnct_start ();
+  linux_ip_setup (0);
+  qos_start ();
+  rate_limit_init (0);
+  port_start ();
+  dgasp_init ();
+  pdsa_init ();
+  ip_start ();
 
-  DEBUG ("doing after init\n");
-  rc = after_init ();
-  RCC (rc, after_init);
-  DEBUG ("after init done\n");
+  for (i = 0; i < NDEVS; i++) {
+    DEBUG ("doing after init\n");
+    rc = after_init (i);
+    RCC (rc, after_init);
+    DEBUG ("after init done\n");
+  }
 
   return GT_OK;
 }

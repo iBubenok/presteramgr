@@ -387,8 +387,8 @@ mon_session_set_dst (mon_session_t num, port_id_t dst_pid, vid_t dst_vid)
 }
 
 void
-mon_cpss_lib_init (void)
+mon_cpss_lib_init (int d)
 {
   CRP (cpssDxChMirrorToAnalyzerForwardingModeSet
-       (0, CPSS_DXCH_MIRROR_TO_ANALYZER_FORWARDING_HOP_BY_HOP_E));
+       (d, CPSS_DXCH_MIRROR_TO_ANALYZER_FORWARDING_HOP_BY_HOP_E));
 }

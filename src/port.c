@@ -51,7 +51,7 @@ int nports = 0;
 
 static port_id_t *port_ids;
 
-static CPSS_PORTS_BMP_STC all_ports_bmp;
+static CPSS_PORTS_BMP_STC all_ports_bmp[NDEVS];
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
@@ -164,8 +164,8 @@ port_init (void)
 
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
-    ports[i].ldev = 0;
-    ports[i].lport = pmap[i];
+    ports[i].ldev = pmap[i].dev;
+    ports[i].lport = pmap[i].port;
     ports[i].mode = PM_ACCESS;
     ports[i].access_vid = 1;
     ports[i].native_vid = 1;
@@ -178,7 +178,7 @@ port_init (void)
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
-    CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
+    CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp[pmap[i].dev], pmap[i].port);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
       ports[i].set_speed = port_set_speed_fe;
@@ -331,7 +331,7 @@ __port_set_prot (struct port *t, int prot)
 enum status
 port_start (void)
 {
-  int i;
+  int i, d;
 
 #if defined (VARIANT_FE)
   CRP (cpssDxChPhyAutoPollNumOfPortsSet
@@ -339,10 +339,12 @@ port_start (void)
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 #endif /* VARIANT_FE */
 
-  for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
-    if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
-        PRV_CPSS_PORT_NOT_EXISTS_E)
-    CRP (cpssDxChPortEnableSet (0, i, GT_FALSE));
+  for (d = 0; d < NDEVS; d++) {
+    for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
+      if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
+          PRV_CPSS_PORT_NOT_EXISTS_E)
+        CRP (cpssDxChPortEnableSet (d, i, GT_FALSE));
+  }
 
 #if defined (VARIANT_SM_12F)
   /* Shut down unused PHYs. */
@@ -352,8 +354,10 @@ port_start (void)
   }
 #endif /* VARIANT_SM_12F */
 
-  CRP (cpssDxChNstPortIsolationEnableSet (0, GT_TRUE));
-  CRP (cpssDxChBrgVlanEgressFilteringEnable (0, GT_TRUE));
+  for (d = 0; d < NDEVS; d++) {
+    CRP (cpssDxChNstPortIsolationEnableSet (d, GT_TRUE));
+    CRP (cpssDxChBrgVlanEgressFilteringEnable (d, GT_TRUE));
+  }
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
@@ -386,9 +390,9 @@ port_start (void)
     CRP (cpssDxChCosL2TrustModeVlanTagSelectSet
          (port->ldev, port->lport, CPSS_VLAN_TAG0_E));
 
-    CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12));
+    /* CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12)); */
 
-    port->iso_bmp = all_ports_bmp;
+    port->iso_bmp = all_ports_bmp[port->ldev];
     port->iso_bmp_changed = 1;
     port_set_iso_bmp (port);
 
@@ -1780,6 +1784,9 @@ port_setup_ge (struct port *port)
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x04 + (port->lport % 12)));
 
+#if defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#else /* !VARIANT_ARLAN_3448PGE */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
   case HWST_ARLAN_3424GE_F_S:
@@ -1791,7 +1798,10 @@ port_setup_ge (struct port *port)
   default:
     ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
   }
+#endif /* VARIANT_* */
 
+  CRP (cpssDxChPhyPortSmiRegisterWrite (port->ldev, port->lport, 0x16, 0));
+  CRP (cpssDxChPhyPortSmiRegisterRead (port->ldev, port->lport, 0x03, &val));
   DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val);
   if (val == 0x0DC0) {
     DEBUG ("Activating A0 revision workaround\r\n");

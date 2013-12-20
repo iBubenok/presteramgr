@@ -390,25 +390,25 @@ pcl_port_setup (port_id_t pid)
 }
 
 enum status
-pcl_cpss_lib_init (void)
+pcl_cpss_lib_init (int d)
 {
   CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
 
   pcl_init_rules ();
 
-  CRP (cpssDxChPclInit (0));
+  CRP (cpssDxChPclInit (d));
 
   /* Enable ingress PCL. */
-  CRP (cpssDxChPclIngressPolicyEnable (0, GT_TRUE));
+  CRP (cpssDxChPclIngressPolicyEnable (d, GT_TRUE));
 
   /* Enable egress PCL. */
-  CRP (cpssDxCh2PclEgressPolicyEnable (0, GT_TRUE));
+  CRP (cpssDxCh2PclEgressPolicyEnable (d, GT_TRUE));
 
   /* Configure access modes. */
   memset (&am, 0, sizeof (am));
   am.ipclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
-  CRP (cpssDxChPclCfgTblAccessModeSet (0, &am));
+  CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
   return ST_OK;
 }
