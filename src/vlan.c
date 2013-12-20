@@ -169,20 +169,32 @@ setup_tagging (vid_t vid,
                CPSS_PORTS_BMP_STC *tagging,
                CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC *tagging_cmd)
 {
-  int i;
+  int i, d;
 
-  memset (members, 0, sizeof (*members));
-  memset (tagging, 0, sizeof (*tagging));
-  memset (tagging_cmd, 0, sizeof (*tagging_cmd));
+  memset (members, 0, sizeof (*members) * NDEVS);
+  memset (tagging, 0, sizeof (*tagging) * NDEVS);
+  memset (tagging_cmd, 0, sizeof (*tagging_cmd) * NDEVS);
+
+  for_all_devs (d) {
+    for (i = 0; i < dev_info[d].n_ic_ports; i++) {
+      int p = dev_info[d].ic_ports[i];
+
+      CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], i);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], i);
+      tagging_cmd[d].portsCmd[p] =
+        CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+    }
+  }
 
   for (i = 0; i < nports; i++) {
     struct port *port = port_ptr (i + 1);
+    d = port->ldev;
 
     switch (port->mode) {
     case PM_ACCESS:
       if (port->access_vid == vid) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
       }
       break;
@@ -191,32 +203,32 @@ setup_tagging (vid_t vid,
       if (port->native_vid == vid ||
           port->vlan_conf[vid - 1].tallow ||
           port->vlan_conf[vid - 1].refc) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
 
         if (port->vlan_conf[vid - 1].refc) {
-          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
-          tagging_cmd->portsCmd[port->lport] = vlan_xlate_tunnel
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] = vlan_xlate_tunnel
             ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
             : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
         } else if (port->native_vid == vid) {
-          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
-          tagging_cmd->portsCmd[port->lport] = vlan_dot1q_tag_native
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] = vlan_dot1q_tag_native
             ? CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E
             : CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
         } else if (vlans[vid - 1].vt_refc && vlan_xlate_tunnel) {
-          CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
-          tagging_cmd->portsCmd[port->lport] =
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] =
             CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
         } else
-          tagging_cmd->portsCmd[port->lport] =
+          tagging_cmd[d].portsCmd[port->lport] =
             CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
       }
       break;
 
     case PM_CUSTOMER:
       if (port->customer_vid == vid) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E;
       }
       break;
@@ -227,9 +239,10 @@ setup_tagging (vid_t vid,
 static enum status
 __vlan_add (vid_t vid)
 {
-  CPSS_PORTS_BMP_STC members, tagging;
+  CPSS_PORTS_BMP_STC members[NDEVS], tagging[NDEVS];
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
-  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
+  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd[NDEVS];
+  int d;
   GT_STATUS rc;
 
   memset (&vlan_info, 0, sizeof (vlan_info));
@@ -265,14 +278,17 @@ __vlan_add (vid_t vid)
   vlan_info.ucastLocalSwitchingEn = GT_FALSE;
   vlan_info.mcastLocalSwitchingEn = GT_FALSE;
 
-  setup_tagging (vid, &members, &tagging, &tagging_cmd);
+  setup_tagging (vid, members, tagging, tagging_cmd);
 
-  rc = CRP (cpssDxChBrgVlanEntryWrite (0, vid, &members,
-                                       &tagging, &vlan_info,
-                                       &tagging_cmd));
+  for_all_devs (d) {
+    rc = CRP (cpssDxChBrgVlanEntryWrite (d, vid, &members[d],
+                                         &tagging[d], &vlan_info,
+                                         &tagging_cmd[d]));
+    ON_GT_ERROR (rc) break;
+  }
+
   switch (rc) {
   case GT_OK:
-    sysd_vlan_add (vid);
     vlans[vid - 1].state = VS_ACTIVE;
     return ST_OK;
   case GT_HW_ERROR:
