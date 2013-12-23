@@ -149,26 +149,11 @@ enum status
 pcl_remove_vt (port_id_t pid, vid_t from, int tunnel)
 {
   struct vt_ix *ix = get_vt_ix (pid, from, 0, tunnel, 0);
-  struct port *port = port_ptr (pid);
 
   if (!ix)
     return ST_DOES_NOT_EXIST;
 
-  if (!port)
-    return ST_BAD_VALUE;
-
   free_vt_ix (ix);
-
-  CRP (cpssDxCh2EgressPclPacketTypesSet
-       (port->ldev, port->lport,
-        CPSS_DXCH_PCL_EGRESS_PKT_NON_TS_E,
-        GT_TRUE));
-  CRP (cpssDxChPclPortLookupCfgTabAccessModeSet
-       (port->ldev, port->lport,
-        CPSS_PCL_DIRECTION_EGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        0,
-        CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_PORT_E));
 
   return ST_OK;
 }
