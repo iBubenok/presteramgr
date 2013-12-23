@@ -14,6 +14,7 @@
 #include <utils.h>
 #include <env.h>
 #include <pcl.h>
+#include <dev.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -35,6 +36,7 @@
 #include <cpss/generic/phy/cpssGenPhyVct.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -49,9 +51,11 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 struct port *ports = NULL;
 int nports = 0;
 
-static port_id_t *port_ids;
+typedef port_id_t dev_ports_t[CPSS_MAX_PORTS_NUM_CNS];
+static dev_ports_t dev_ports[32];
 
-static CPSS_PORTS_BMP_STC all_ports_bmp;
+CPSS_PORTS_BMP_STC all_ports_bmp;
+CPSS_PORTS_BMP_STC nst_ports_bmp;
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_fe (struct port *, enum port_duplex);
@@ -87,15 +91,16 @@ port_unlock (void)
 }
 
 int
-port_id (GT_U8 ldev, GT_U8 lport)
+port_id (GT_U8 hdev, GT_U8 hport)
 {
-  if (!((ldev < NDEVS) &&
-        (lport < CPSS_MAX_PORTS_NUM_CNS))) {
-    ERR ("ldev = %d, lport = %d\r\n", ldev, lport);
-    return 0;
-  }
+  /* FIXME: that's not really the way to do it. */
+  if (hdev == 0)
+    hdev = stack_id;
 
-  return port_ids[ldev * CPSS_MAX_PORTS_NUM_CNS + lport];
+  if (hdev > 31 || hport >= CPSS_MAX_PORTS_NUM_CNS)
+    return 0;
+
+  return dev_ports[hdev][hport];
 }
 
 static void
@@ -116,6 +121,9 @@ port_update_qos_trust (const struct port *port)
 {
   GT_STATUS rc;
   CPSS_QOS_PORT_TRUST_MODE_ENT trust;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (mls_qos_trust) {
     if (port->trust_cos && port->trust_dscp)
@@ -154,13 +162,13 @@ port_init (void)
   DECLARE_PORT_MAP (pmap);
   int i;
 
-  port_ids = calloc (NDEVS * CPSS_MAX_PORTS_NUM_CNS, sizeof (port_id_t));
-  assert (port_ids);
+  memset (dev_ports, 0, sizeof (dev_ports));
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
 
   memset (&all_ports_bmp, 0, sizeof (all_ports_bmp));
+  memset (&nst_ports_bmp, 0, sizeof (nst_ports_bmp));
 
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
@@ -178,6 +186,9 @@ port_init (void)
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
+    ports[i].stack_role = PORT_STACK_ROLE (i);
+    if (ports[i].stack_role == PSR_NONE)
+      CPSS_PORTS_BMP_PORT_SET_MAC (&nst_ports_bmp, pmap[i]);
     CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp, pmap[i]);
     if (IS_FE_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_100;
@@ -208,8 +219,28 @@ port_init (void)
       EMERG ("Port specification error at %d, aborting", i);
       abort ();
     }
-    port_ids[ports[i].ldev * CPSS_MAX_PORTS_NUM_CNS + ports[i].lport] =
-      ports[i].id;
+    dev_ports[phys_dev (ports[i].ldev)][ports[i].lport] = ports[i].id;
+
+    switch (ports[i].stack_role) {
+    case PSR_PRIMARY:
+      if (stack_pri_port) {
+        /* We should never get here. */
+        EMERG ("Port specification error at %d, aborting", i);
+        abort ();
+      }
+      stack_pri_port = &ports[i];
+      break;
+    case PSR_SECONDARY:
+      if (stack_sec_port) {
+        /* We should never get here. */
+        EMERG ("Port specification error at %d, aborting", i);
+        abort ();
+      }
+      stack_sec_port = &ports[i];
+      break;
+    default:
+      break;
+    }
   }
 
   nports = NPORTS;
@@ -224,7 +255,7 @@ port_set_iso_bmp (struct port *port)
     CPSS_INTERFACE_INFO_STC iface = {
       .type = CPSS_INTERFACE_PORT_E,
       .devPort = {
-        .devNum = port->ldev,
+        .devNum = phys_dev (port->ldev),
         .portNum = port->lport
       }
     };
@@ -328,6 +359,16 @@ __port_set_prot (struct port *t, int prot)
   return 1;
 }
 
+static void
+port_setup_stack (struct port *port)
+{
+  port->setup (port);
+  CRP (cpssDxChCscdPortTypeSet
+       (port->ldev, port->lport,
+        CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
+  CRP (cpssDxChPortMruSet (port->ldev, port->lport, 16382));
+}
+
 enum status
 port_start (void)
 {
@@ -357,6 +398,21 @@ port_start (void)
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
+
+    CRP (cpssDxChBrgSrcIdPortUcastEgressFilterSet
+         (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
+         (port->ldev, port->lport, stack_id));
+    CRP (cpssDxChBrgSrcIdPortSrcIdAssignModeSet
+         (port->ldev, port->lport,
+          CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
+
+    pcl_port_setup (port->id);
+
+    if (is_stack_port (port)) {
+      port_setup_stack (port);
+      continue;
+    }
 
     port->setup (port);
     CRP (cpssDxChBrgVlanPortIngFltEnable (port->ldev, port->lport, GT_TRUE));
@@ -428,7 +484,8 @@ port_start (void)
     struct port *port = &ports[i];
 
     CRP (cpssDxChBrgStpStateSet
-         (port->ldev, port->lport, 0, CPSS_STP_BLCK_LSTN_E));
+         (port->ldev, port->lport, 0,
+          is_stack_port (port) ? CPSS_STP_FRWRD_E : CPSS_STP_BLCK_LSTN_E));
     CRP (cpssDxChPortEnableSet (port->ldev, port->lport, GT_TRUE));
     port->shutdown (port, 0);
     port->update_sd (port);
@@ -535,6 +592,9 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   if (!(port = port_ptr (pid)) || stp_id > 255)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   result = data_decode_stp_state (&cs, state);
   if (result != ST_OK)
     return result;
@@ -560,6 +620,9 @@ port_set_access_vid (port_id_t pid, vid_t vid)
 
   if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (port->mode == PM_ACCESS) {
     rc = CRP (cpssDxChBrgVlanPortDelete
@@ -660,6 +723,9 @@ port_set_native_vid (port_id_t pid, vid_t vid)
   if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   old = port->native_vid;
   port->native_vid = vid;
 
@@ -683,6 +749,9 @@ port_set_customer_vid (port_id_t pid, vid_t vid)
 
   if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (port->mode == PM_CUSTOMER) {
     rc = CRP (cpssDxChBrgVlanPortDelete
@@ -866,6 +935,9 @@ port_set_mode (port_id_t pid, enum port_mode mode)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   if (port->mode == mode)
     return ST_OK;
 
@@ -917,6 +989,9 @@ port_block (port_id_t pid, const struct port_block *what)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   switch (what->type) {
   case TT_UNICAST:
@@ -1300,6 +1375,9 @@ port_set_speed (port_id_t pid, const struct port_speed_arg *psa)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   if (psa->speed == PORT_SPEED_AUTO && !psa->speed_auto)
     return ST_BAD_VALUE;
 
@@ -1313,6 +1391,9 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (duplex >= __PORT_DUPLEX_MAX)
     return ST_BAD_VALUE;
@@ -1461,6 +1542,9 @@ port_set_mdix_auto (port_id_t pid, int mdix_auto)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   return port->set_mdix_auto (port, mdix_auto);
 }
 
@@ -1475,6 +1559,9 @@ port_set_flow_control (port_id_t pid, flow_control_t fc)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   switch (fc) {
   case FC_DESIRED:
@@ -1594,6 +1681,9 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   if (rl->type >= __TT_MAX)
     return ST_BAD_VALUE;
 
@@ -1645,6 +1735,9 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   max = max_bps (port->max_speed);
   if (max == 0)
@@ -2007,6 +2100,9 @@ port_set_protected (port_id_t pid, bool_t protected)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
   if (__port_set_prot (port, !!protected))
     port_update_iso ();
 
@@ -2020,6 +2116,9 @@ port_set_comm (port_id_t pid, port_comm_t comm)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (__port_set_comm (port, comm))
     port_update_iso ();
@@ -2054,7 +2153,8 @@ port_set_mru (uint16_t mru)
     return ST_BAD_VALUE;
 
   for (i = 0; i < NPORTS; i++)
-    CRP (cpssDxChPortMruSet (ports[i].ldev, ports[i].lport, mru));
+    if (!is_stack_port (&ports[i]))
+      CRP (cpssDxChPortMruSet (ports[i].ldev, ports[i].lport, mru));
 
   return ST_OK;
 }
@@ -2068,15 +2168,21 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
   if (!src)
     return ST_BAD_VALUE;
 
+  if (is_stack_port (src))
+    return ST_BAD_STATE;
+
   if (enable) {
     struct port *dst = port_ptr (dpid);
 
     if (!dst)
       return ST_BAD_VALUE;
 
+    if (is_stack_port (dst))
+      return ST_BAD_STATE;
+
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
               (src->ldev, src->lport, !!enable,
-               dst->lport, dst->ldev, GT_FALSE));
+               dst->lport, phys_dev (dst->ldev), GT_FALSE));
   } else {
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
               (src->ldev, src->lport, !!enable, 0, 0, GT_FALSE));
@@ -2098,6 +2204,9 @@ port_tdr_test_start (port_id_t pid)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (port->tdr_test_in_progress)
     return ST_NOT_READY;
@@ -2128,6 +2237,9 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
 
   if (!port)
     return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
 
   if (!port->tdr_test_in_progress)
     return ST_BAD_STATE;

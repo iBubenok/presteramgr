@@ -15,6 +15,7 @@
 #include <pdsa.h>
 #include <route.h>
 #include <utils.h>
+#include <dev.h>
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
@@ -176,6 +177,13 @@ setup_tagging (vid_t vid,
 
   for (i = 0; i < nports; i++) {
     struct port *port = port_ptr (i + 1);
+
+    if (is_stack_port (port)) {
+      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+      tagging_cmd->portsCmd[port->lport] =
+        CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      continue;
+    }
 
     switch (port->mode) {
     case PM_ACCESS:
@@ -375,7 +383,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   mac_entry.key.key.macVlan.vlanId = vid;
   memcpy (mac_entry.key.key.macVlan.macAddr.arEther, addr, 6);
   mac_entry.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  mac_entry.dstInterface.devPort.devNum = 0;
+  mac_entry.dstInterface.devPort.devNum = phys_dev (0);
   mac_entry.dstInterface.devPort.portNum = 63;
   mac_entry.appSpecificCpuCode = GT_TRUE;
   mac_entry.isStatic = GT_TRUE;
@@ -659,4 +667,8 @@ vlan_set_xlate_tunnel (int enable)
   }
 
   return ST_OK;
+
+vlan_stack_setup (void)
+{
+  __vlan_add (4095);
 }

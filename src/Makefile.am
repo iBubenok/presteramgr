@@ -1,4 +1,5 @@
 sbin_PROGRAMS = presteramgr presterarst
+<<<<<<< HEAD
 presteramgr_SOURCES =	\
 	variant.h			\
 	main.c				\
@@ -33,7 +34,9 @@ presteramgr_SOURCES =	\
 	pcl.c				\
 	fib.c				\
 	arpc.c				\
-	dgasp.c
+	dgasp.c             \
+	dev.c               \
+	stack.c
 
 nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
 BUILT_SOURCES = control-proto.h rtbd.h arpd.h

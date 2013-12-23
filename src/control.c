@@ -159,6 +159,15 @@ cn_port_vid_set (port_id_t pid, vid_t vid)
   notify_send (&msg);
 }
 
+void
+cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
+{
+  zmsg_t *msg = make_notify_message (CN_MAIL);
+  zmsg_addmem (msg, &role, sizeof (role));
+  zmsg_addmem (msg, data, len);
+  notify_send (&msg);
+}
+
 int
 control_start (void)
 {
@@ -243,6 +252,9 @@ DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
+DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
+DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
+DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -319,6 +331,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
   HANDLER (CC_PORT_SET_TRUNK_VLANS)
+  HANDLER (CC_MAIL_TO_NEIGHBOR),
+  HANDLER (CC_STACK_PORT_GET_STATE),
+  HANDLER (CC_STACK_SET_DEV_MAP)
 };
 
 static int
@@ -510,6 +525,11 @@ DEFINE_HANDLER (CC_PORT_SEND_FRAME)
 
   if (!(port = port_ptr (pid))) {
     result = ST_BAD_VALUE;
+    goto out;
+  }
+
+  if (is_stack_port (port)) {
+    result = ST_BAD_STATE;
     goto out;
   }
 
@@ -1408,6 +1428,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     result = ST_OK;
     goto out;
 
+  case CPU_CODE_MAIL:
+    stack_handle_mail (pid, frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     result = ST_BAD_VALUE;
@@ -1850,6 +1875,30 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
 
   result = port_vlan_translate (pid, from, to, enable);
 
+DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
+{
+  port_stack_role_t role;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&role);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  result = stack_mail (role, zframe_data (frame), len);
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }
@@ -1902,6 +1951,46 @@ DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
 
   result = port_set_trunk_vlans (pid, zframe_data (frame));
 
+DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
+{
+   port_stack_role_t role;
+   enum status result;
+   uint8_t state;
+
+   result = POP_ARG (&role);
+   if (result != ST_OK) {
+     report_status (result);
+     return;
+   }
+
+   zmsg_t *reply = make_reply (ST_OK);
+   state = stack_port_get_state (role);
+   zmsg_addmem (reply, &state, sizeof (state));
+   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
+{
+  uint8_t dev;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = ST_BAD_FORMAT;
+
+  zframe_t *frame = zmsg_pop (__args);
+  if (!frame)
+    goto out;
+
+  if (zframe_size (frame) != 2)
+    goto destroy_frame;
+
+  result = stack_set_dev_map (dev, zframe_data (frame));
+
+ destroy_frame:
+  zframe_destroy (&frame);
  out:
   report_status (result);
 }

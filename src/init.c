@@ -95,6 +95,8 @@
 #include <pcl.h>
 #include <mgmt.h>
 #include <dgasp.h>
+#include <stack.h>
+#include <dev.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -103,9 +105,9 @@
 #define RX_BUFF_ALIGN_DEF       1
 
 #define RCC(rc, name) ({                                                \
-  GT_STATUS __rc = CRP (rc);                                            \
-  if (__rc != GT_OK)                                                    \
-    return __rc;                                                        \
+      GT_STATUS __rc = CRP (rc);                                        \
+      if (__rc != GT_OK)                                                \
+        return __rc;                                                    \
     })
 
 extern GT_STATUS extDrvUartInit (void);
@@ -196,6 +198,8 @@ phase2_init (void)
 
   extDrvSetIntLockUnlock (INTR_MODE_LOCK, &int_key);
   rc = cpssDxChHwPpPhase2Init (0, &info);
+  CRP (cpssDxChCfgHwDevNumSet (0, stack_id));
+  dev_set_map (0, stack_id);
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);
 
@@ -546,8 +550,8 @@ lib_init (void)
 static GT_STATUS
 after_phase2 (void)
 {
-  CRP (cpssDxChCscdDsaSrcDevFilterSet (0, GT_FALSE));
-
+  CRP (cpssDxChCscdDsaSrcDevFilterSet
+       (0, stack_active () ? GT_TRUE : GT_FALSE));
   return GT_OK;
 }
 
@@ -585,6 +589,7 @@ after_init (void)
   linux_ip_setup (0);
   qos_start ();
   rate_limit_init ();
+  stack_start ();
   port_start ();
   dgasp_init ();
   pdsa_init ();
