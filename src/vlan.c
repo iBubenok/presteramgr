@@ -667,7 +667,9 @@ vlan_set_xlate_tunnel (int enable)
   }
 
   return ST_OK;
+}
 
+void
 vlan_stack_setup (void)
 {
   __vlan_add (4095);

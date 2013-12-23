@@ -330,7 +330,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_VLAN_TRANSLATE),
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
-  HANDLER (CC_PORT_SET_TRUNK_VLANS)
+  HANDLER (CC_PORT_SET_TRUNK_VLANS),
   HANDLER (CC_MAIL_TO_NEIGHBOR),
   HANDLER (CC_STACK_PORT_GET_STATE),
   HANDLER (CC_STACK_SET_DEV_MAP)
@@ -1875,6 +1875,10 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
 
   result = port_vlan_translate (pid, from, to, enable);
 
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
 {
   port_stack_role_t role;
@@ -1950,6 +1954,10 @@ DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
   }
 
   result = port_set_trunk_vlans (pid, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
 
 DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
 {

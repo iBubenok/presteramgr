@@ -149,9 +149,13 @@ enum status
 pcl_remove_vt (port_id_t pid, vid_t from, int tunnel)
 {
   struct vt_ix *ix = get_vt_ix (pid, from, 0, tunnel, 0);
+  struct port *port = port_ptr (pid);
 
   if (!ix)
     return ST_DOES_NOT_EXIST;
+
+  if (!port)
+    return ST_BAD_VALUE;
 
   free_vt_ix (ix);
 
@@ -559,7 +563,6 @@ pcl_cpss_lib_init (void)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (0, &am));
 
-  pcl_setup_lbd_trap ();
   pcl_setup_mc_drop ();
 
   return ST_OK;

@@ -1,5 +1,4 @@
 sbin_PROGRAMS = presteramgr presterarst
-<<<<<<< HEAD
 presteramgr_SOURCES =	\
 	variant.h			\
 	main.c				\
