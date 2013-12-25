@@ -29,6 +29,7 @@
 #include <arpc.h>
 #include <arpd.h>
 #include <dgasp.h>
+#include <diag.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -255,6 +256,9 @@ DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
 DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
 DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
+DECLARE_HANDLER (CC_DIAG_REG_READ);
+DECLARE_HANDLER (CC_DIAG_BDC_SET_MODE);
+DECLARE_HANDLER (CC_DIAG_BDC_READ);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -333,7 +337,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_TRUNK_VLANS),
   HANDLER (CC_MAIL_TO_NEIGHBOR),
   HANDLER (CC_STACK_PORT_GET_STATE),
-  HANDLER (CC_STACK_SET_DEV_MAP)
+  HANDLER (CC_STACK_SET_DEV_MAP),
+  HANDLER (CC_DIAG_REG_READ),
+  HANDLER (CC_DIAG_BDC_SET_MODE),
+  HANDLER (CC_DIAG_BDC_READ)
 };
 
 static int
@@ -2001,4 +2008,57 @@ DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
   zframe_destroy (&frame);
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_REG_READ)
+{
+  uint32_t reg, val;
+  enum status result;
+
+  result = POP_ARG (&reg);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_reg_read (reg, &val);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_BDC_SET_MODE)
+{
+  uint8_t mode;
+  enum status result;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = diag_bdc_set_mode (mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_BDC_READ)
+{
+  uint32_t val;
+  enum status result;
+
+  result = diag_bdc_read (&val);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
 }

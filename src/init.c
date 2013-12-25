@@ -8,6 +8,7 @@
 #include <presteramgr.h>
 #include <env.h>
 #include <debug.h>
+#include <diag.h>
 #include <log.h>
 
 #include <gtOs/gtOsInit.h>
@@ -147,6 +148,8 @@ init_pci (CPSS_DXCH_PP_PHASE1_INIT_INFO_STC *info)
   info->internalPciBase = internal_pci_base;
   info->intVecNum = (GT_U32) int_vec;
   info->intMask = int_mask;
+
+  diag_pci_base_addr = (uint32_t) pci_base_addr;
 
   return GT_OK;
 }
