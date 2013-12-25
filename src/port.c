@@ -1882,6 +1882,11 @@ port_setup_ge (struct port *port)
     ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
   }
 
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x0000));
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x03, &val));
+
   DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val);
   if (val == 0x0DC0) {
     DEBUG ("Activating A0 revision workaround\r\n");
