@@ -640,7 +640,7 @@ vlan_svc_enable_port (port_id_t pid, int en)
   struct port *port;
 
   port = port_ptr (pid);
-  if (!port)
+  if (!port || is_stack_port (port))
     return;
 
   CRP (cpssDxChBrgVlanMemberSet
