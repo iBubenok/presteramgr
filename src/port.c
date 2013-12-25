@@ -403,9 +403,6 @@ port_start (void)
          (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
          (port->ldev, port->lport, stack_id));
-    CRP (cpssDxChBrgSrcIdPortSrcIdAssignModeSet
-         (port->ldev, port->lport,
-          CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
 
     pcl_port_setup (port->id);
 
