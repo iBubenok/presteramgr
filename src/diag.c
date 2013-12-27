@@ -5,6 +5,7 @@
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/diag/cpssDxChDiag.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgCount.h>
+#include <cpss/dxCh/dxChxGen/diag/cpssDxChDiagDescriptor.h>
 
 #include <diag.h>
 #include <debug.h>
@@ -92,5 +93,25 @@ diag_bic_read (uint8_t set, uint32_t *dptr)
   case GT_HW_ERROR:      return ST_HW_ERROR;
   case GT_BAD_PARAM:     return ST_BAD_VALUE;
   default:               return ST_HEX;
+  }
+}
+
+enum status
+diag_desc_read (uint8_t subj, uint8_t *v, uint32_t *p)
+{
+  CPSS_DXCH_DIAG_DESCRIPTOR_STC desc;
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChDiagDescriptorGet (0, subj, &desc));
+
+  if (rc == GT_OK) {
+    *v = desc.fieldValueValid[subj] == GT_TRUE;
+    *p = desc.fieldValue[subj];
+    return ST_OK;
+  }
+
+  switch (rc) {
+  case GT_BAD_PARAM: return ST_BAD_VALUE;
+  default:           return ST_HEX;
   }
 }
