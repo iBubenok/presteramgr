@@ -8,6 +8,7 @@
 #include <tipc.h>
 #include <stack.h>
 #include <log.h>
+#include <data.h>
 #include <utils.h>
 
 
@@ -38,13 +39,21 @@ static struct msghdr bpdu_msg = {
   .msg_iovlen  = BPDU_IOVLEN
 };
 
-static int bpdu_sock;
+static struct sockaddr_tipc link_dst = {
+  .family             = AF_TIPC,
+  .addrtype           = TIPC_ADDR_MCAST,
+  .addr.nameseq.type  = PTI_LINK_TYPE,
+  .addr.nameseq.lower = 0,
+  .addr.nameseq.upper = 31
+};
+
+static int ntf_sock;
 
 static void
-tipc_start_bpdu_notify (void)
+tipc_notify_init (void)
 {
-  bpdu_sock = socket (AF_TIPC, SOCK_RDM, 0);
-  if (bpdu_sock < 0)
+  ntf_sock = socket (AF_TIPC, SOCK_RDM, 0);
+  if (ntf_sock < 0)
     errex ("socket() failed");
 
   bpdu_hdr.dev = stack_id;
@@ -59,13 +68,29 @@ tipc_notify_bpdu (port_id_t pid, size_t len, void *data)
   bpdu_iov[BPDU_IOV_DATA].iov_base = data;
   bpdu_iov[BPDU_IOV_DATA].iov_len  = len;
 
-  if (TEMP_FAILURE_RETRY (sendmsg (bpdu_sock, &bpdu_msg, 0)) < 0)
+  if (TEMP_FAILURE_RETRY (sendmsg (ntf_sock, &bpdu_msg, 0)) < 0)
+    err ("sendmsg() failed");
+}
+
+void
+tipc_notify_link (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+{
+  struct pti_link_msg msg;
+
+  msg.dev = stack_id;
+  msg.iid = pid;
+  data_encode_port_state (&msg.state, attrs);
+
+  if (TEMP_FAILURE_RETRY
+      (sendto (ntf_sock, &msg, sizeof (msg), 0,
+               (struct sockaddr *) &link_dst, sizeof (link_dst)))
+      != sizeof (msg))
     err ("sendmsg() failed");
 }
 
 void
 tipc_start (void)
 {
-  tipc_start_bpdu_notify ();
+  tipc_notify_init ();
 }
 
