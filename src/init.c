@@ -98,6 +98,7 @@
 #include <dgasp.h>
 #include <stack.h>
 #include <dev.h>
+#include <tipc.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -693,6 +694,9 @@ cpss_start (void)
 
   INFO ("init mgmt interface\n");
   mgmt_init ();
+
+  INFO ("start tipc interface\n");
+  tipc_start ();
 
   INFO ("start control interface\n");
   control_start ();

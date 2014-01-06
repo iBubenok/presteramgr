@@ -30,6 +30,7 @@
 #include <arpd.h>
 #include <dgasp.h>
 #include <diag.h>
+#include <tipc.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -1391,8 +1392,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
     case WNCT_STP:
-      type = CN_BPDU;
-      break;
+      tipc_notify_bpdu (pid, frame->len, frame->data);
+      result = ST_OK;
+      goto out;
+
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
       case WNCT_802_3_SP_OAM:
