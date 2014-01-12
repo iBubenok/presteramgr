@@ -75,16 +75,18 @@ tipc_notify_bpdu (port_id_t pid, size_t len, void *data)
 void
 tipc_notify_link (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-  struct pti_link_msg msg;
+  static uint8_t buf[PTI_LINK_MSG_SIZE (1)];
+  struct pti_link_msg *msg = (struct pti_link_msg *) buf;
 
-  msg.dev = stack_id;
-  msg.iid = pid;
-  data_encode_port_state (&msg.state, attrs);
+  msg->dev = stack_id;
+  msg->nlinks = 1;
+  msg->link[0].iid = pid;
+  data_encode_port_state (&msg->link[0].state, attrs);
 
   if (TEMP_FAILURE_RETRY
-      (sendto (ntf_sock, &msg, sizeof (msg), 0,
+      (sendto (ntf_sock, buf, sizeof (buf), 0,
                (struct sockaddr *) &link_dst, sizeof (link_dst)))
-      != sizeof (msg))
+      != PTI_LINK_MSG_SIZE (1))
     err ("sendmsg() failed");
 }
 
