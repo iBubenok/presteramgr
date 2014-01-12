@@ -260,6 +260,7 @@ DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 DECLARE_HANDLER (CC_DIAG_REG_READ);
 DECLARE_HANDLER (CC_DIAG_BDC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BDC_READ);
+DECLARE_HANDLER (CC_BC_LINK_STATE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -341,7 +342,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_STACK_SET_DEV_MAP),
   HANDLER (CC_DIAG_REG_READ),
   HANDLER (CC_DIAG_BDC_SET_MODE),
-  HANDLER (CC_DIAG_BDC_READ)
+  HANDLER (CC_DIAG_BDC_READ),
+  HANDLER (CC_BC_LINK_STATE)
 };
 
 static int
@@ -2064,4 +2066,10 @@ DEFINE_HANDLER (CC_DIAG_BDC_READ)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));
   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_BC_LINK_STATE)
+{
+  tipc_bc_link_state ();
+  report_status (ST_OK);
 }

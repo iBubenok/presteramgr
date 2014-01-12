@@ -10,6 +10,8 @@
 #include <log.h>
 #include <data.h>
 #include <utils.h>
+#include <sysdeps.h>
+#include <port.h>
 
 
 #define BPDU_IOVLEN   2
@@ -87,6 +89,27 @@ tipc_notify_link (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
       (sendto (ntf_sock, buf, sizeof (buf), 0,
                (struct sockaddr *) &link_dst, sizeof (link_dst)))
       != PTI_LINK_MSG_SIZE (1))
+    err ("sendmsg() failed");
+}
+
+void
+tipc_bc_link_state (void)
+{
+  static uint8_t buf[PTI_LINK_MSG_SIZE (NPORTS)];
+  struct pti_link_msg *msg = (struct pti_link_msg *) buf;
+  int i;
+
+  msg->dev = stack_id;
+  msg->nlinks = NPORTS;
+  for (i = 0; i < NPORTS; i++) {
+    msg->link[i].iid = ports[i].id;
+    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
+  }
+
+  if (TEMP_FAILURE_RETRY
+      (sendto (ntf_sock, buf, sizeof (buf), 0,
+               (struct sockaddr *) &link_dst, sizeof (link_dst)))
+      != PTI_LINK_MSG_SIZE (NPORTS))
     err ("sendmsg() failed");
 }
 

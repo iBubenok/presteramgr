@@ -41,6 +41,7 @@ struct port {
   int def_xlate;
   vid_t def_map_to;
   enum port_stack_role stack_role;
+  CPSS_PORT_ATTRIBUTES_STC attrs;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
