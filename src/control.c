@@ -260,6 +260,9 @@ DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 DECLARE_HANDLER (CC_DIAG_REG_READ);
 DECLARE_HANDLER (CC_DIAG_BDC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BDC_READ);
+DECLARE_HANDLER (CC_DIAG_BIC_SET_MODE);
+DECLARE_HANDLER (CC_DIAG_BIC_READ);
+DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 
 static cmd_handler_t handlers[] = {
@@ -343,6 +346,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_REG_READ),
   HANDLER (CC_DIAG_BDC_SET_MODE),
   HANDLER (CC_DIAG_BDC_READ),
+  HANDLER (CC_DIAG_BIC_SET_MODE),
+  HANDLER (CC_DIAG_BIC_READ),
+  HANDLER (CC_DIAG_DESC_READ),
   HANDLER (CC_BC_LINK_STATE)
 };
 
@@ -2065,6 +2071,83 @@ DEFINE_HANDLER (CC_DIAG_BDC_READ)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_BIC_SET_MODE)
+{
+  uint8_t set, mode, port;
+  vid_t vid;
+  enum status result;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&port);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = diag_bic_set_mode (set, mode, port, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_BIC_READ)
+{
+  uint8_t set;
+  uint32_t data[4];
+  int i;
+  enum status result;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_bic_read (set, data);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  for (i = 0; i < 4; i++)
+    zmsg_addmem (reply, &data[i], sizeof (data[i]));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_DESC_READ)
+{
+  uint8_t subj, valid;
+  uint32_t data;
+  enum status result;
+
+  result = POP_ARG (&subj);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_desc_read (subj, &valid, &data);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &valid, sizeof (valid));
+  zmsg_addmem (reply, &data, sizeof (data));
   send_reply (reply);
 }
 
