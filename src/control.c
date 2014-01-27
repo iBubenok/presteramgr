@@ -264,6 +264,7 @@ DECLARE_HANDLER (CC_DIAG_BIC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
+DECLARE_HANDLER (CC_STACK_TXEN);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -349,7 +350,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_BIC_SET_MODE),
   HANDLER (CC_DIAG_BIC_READ),
   HANDLER (CC_DIAG_DESC_READ),
-  HANDLER (CC_BC_LINK_STATE)
+  HANDLER (CC_BC_LINK_STATE),
+  HANDLER (CC_STACK_TXEN)
 };
 
 static int
@@ -2155,4 +2157,24 @@ DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
   tipc_bc_link_state ();
   report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_STACK_TXEN)
+{
+  uint8_t dev;
+  bool_t txen;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&txen);
+  if (result != ST_OK)
+    goto out;
+
+  result = stack_txen (dev, txen);
+
+ out:
+  report_status (result);
 }
