@@ -44,12 +44,18 @@ stack_start (void)
 
   memset (&nul_ports_bmp, 0, sizeof (nul_ports_bmp));
   for (i = 0; i < 32; i++) {
+    CPSS_PORTS_BMP_STC *pbm;
+
+    if (i == stack_id)
+      pbm = &all_ports_bmp;
+    else if (i == 0)
+      pbm = &nst_ports_bmp;
+    else
+      pbm = &nul_ports_bmp;
+
     CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
-    CRP (cpssDxChBrgSrcIdGroupEntrySet
-         (0, i, GT_TRUE,
-          (i == stack_id)
-          ? &all_ports_bmp
-          : &nul_ports_bmp));
+    CRP (cpssDxChBrgSrcIdGroupEntrySet (0, i, GT_TRUE, pbm));
+
     if (i < stack_id)
       dev_mask |= 1 << i;
   }
