@@ -30,6 +30,7 @@
 #include <arpd.h>
 #include <dgasp.h>
 #include <diag.h>
+#include <tipc.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -262,6 +263,8 @@ DECLARE_HANDLER (CC_DIAG_BDC_READ);
 DECLARE_HANDLER (CC_DIAG_BIC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
+DECLARE_HANDLER (CC_BC_LINK_STATE);
+DECLARE_HANDLER (CC_STACK_TXEN);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -346,7 +349,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_BDC_READ),
   HANDLER (CC_DIAG_BIC_SET_MODE),
   HANDLER (CC_DIAG_BIC_READ),
-  HANDLER (CC_DIAG_DESC_READ)
+  HANDLER (CC_DIAG_DESC_READ),
+  HANDLER (CC_BC_LINK_STATE),
+  HANDLER (CC_STACK_TXEN)
 };
 
 static int
@@ -1397,8 +1402,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
     case WNCT_STP:
-      type = CN_BPDU;
-      break;
+      tipc_notify_bpdu (pid, frame->len, frame->data);
+      result = ST_OK;
+      goto out;
+
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
       case WNCT_802_3_SP_OAM:
@@ -2144,4 +2151,30 @@ DEFINE_HANDLER (CC_DIAG_DESC_READ)
   zmsg_addmem (reply, &valid, sizeof (valid));
   zmsg_addmem (reply, &data, sizeof (data));
   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_BC_LINK_STATE)
+{
+  tipc_bc_link_state ();
+  report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_STACK_TXEN)
+{
+  uint8_t dev;
+  bool_t txen;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&txen);
+  if (result != ST_OK)
+    goto out;
+
+  result = stack_txen (dev, txen);
+
+ out:
+  report_status (result);
 }

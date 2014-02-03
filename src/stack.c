@@ -30,6 +30,7 @@ static uint32_t dev_mask = 0;
 void
 stack_start (void)
 {
+  CPSS_PORTS_BMP_STC nul_ports_bmp;
   CPSS_CSCD_LINK_TYPE_STC lp = {
     .linkType = CPSS_CSCD_LINK_TYPE_PORT_E,
     .linkNum  = CPSS_NULL_PORT_NUM_CNS
@@ -41,13 +42,20 @@ stack_start (void)
 
   DEBUG ("doing stack setup\r\n");
 
+  memset (&nul_ports_bmp, 0, sizeof (nul_ports_bmp));
   for (i = 0; i < 32; i++) {
+    CPSS_PORTS_BMP_STC *pbm;
+
+    if (i == stack_id)
+      pbm = &all_ports_bmp;
+    else if (i == 0)
+      pbm = &nst_ports_bmp;
+    else
+      pbm = &nul_ports_bmp;
+
     CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
-    CRP (cpssDxChBrgSrcIdGroupEntrySet
-         (0, i, GT_TRUE,
-          (i == stack_id)
-          ? &all_ports_bmp
-          : &nst_ports_bmp));
+    CRP (cpssDxChBrgSrcIdGroupEntrySet (0, i, GT_TRUE, pbm));
+
     if (i < stack_id)
       dev_mask |= 1 << i;
   }
@@ -202,6 +210,24 @@ stack_set_dev_map (uint8_t dev, const uint8_t *hops)
   else
     lp.linkNum = CPSS_NULL_PORT_NUM_CNS;
   CRP (cpssDxChCscdDevMapTableSet (0, dev, 0, &lp, 0));
+
+  return ST_OK;
+}
+
+enum status
+stack_txen (uint8_t dev, int txen)
+{
+  GT_STATUS (*func) (GT_U8, GT_U32, GT_U8) = txen
+    ? cpssDxChBrgSrcIdGroupPortAdd
+    : cpssDxChBrgSrcIdGroupPortDelete;
+  int i;
+
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+    if (is_stack_port (port))
+      continue;
+    func (port->ldev, dev, port->lport);
+  }
 
   return ST_OK;
 }
