@@ -4,8 +4,9 @@
 
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
-#include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
+#include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <sysdeps.h>
 #include <presteramgr.h>
@@ -311,11 +312,16 @@ enum status
 vlan_delete (vid_t vid)
 {
   GT_STATUS rc;
+  int d;
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssDxChBrgVlanEntryInvalidate (0, vid));
+  for_all_devs (d) {
+    rc = CRP (cpssDxChBrgVlanEntryInvalidate (d, vid));
+    ON_GT_ERROR (rc) break;
+  }
+
   switch (rc) {
   case GT_OK:
     vlans[vid - 1].state = VS_DELETED;
@@ -328,8 +334,7 @@ vlan_delete (vid_t vid)
 int
 vlan_init (void)
 {
-  GT_STATUS rc;
-  int i;
+  int i, d;
 
   for (i = 0; i < NVLANS; i++) {
     vlans[i].vid = i + 1;
@@ -340,21 +345,23 @@ vlan_init (void)
     vlans[i].vt_refc = 0;
   }
 
-  CRP (cpssDxChBrgVlanTableInvalidate (0));
-  CRP (cpssDxChBrgVlanMruProfileValueSet (0, 0, 10000));
-  rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
-  CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
-       (0, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
+  for_all_devs (d) {
+    CRP (cpssDxChBrgVlanTableInvalidate (d));
+    CRP (cpssDxChBrgVlanMruProfileValueSet (d, 0, 12000));
+    CRP (cpssDxChBrgVlanBridgingModeSet (d, CPSS_BRG_MODE_802_1Q_E));
+    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+         (d, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
 
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
 
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+  }
 
   vlan_add (1);
   __vlan_add (SVC_VID);
@@ -363,7 +370,7 @@ vlan_init (void)
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
 
-  return rc != GT_OK;
+  return ST_OK;
 }
 
 static void
@@ -524,22 +531,25 @@ vlan_set_dot1q_tag_native (int value)
 static void
 vlan_reconf_cpu (vid_t vid, bool_t cpu)
 {
-  CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
+  CPSS_PORTS_BMP_STC members, tagging;
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_BOOL valid;
+  int d;
 
-  CRP (cpssDxChBrgVlanEntryRead
-       (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
-  if (cpu) {
-    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
-    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
-  } else {
-    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
-    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+  for_all_devs (d) {
+    CRP (cpssDxChBrgVlanEntryRead
+         (d, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+    if (cpu) {
+      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
+      vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+    } else {
+      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
+      vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+    }
+    CRP (cpssDxChBrgVlanEntryWrite
+         (d, vid, &members, &tagging, &vlan_info, &tagging_cmd));
   }
-  CRP (cpssDxChBrgVlanEntryWrite
-       (0, vid, &members, &tagging, &vlan_info, &tagging_cmd));
 }
 
 enum status
@@ -568,7 +578,7 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
 enum status
 vlan_set_fdb_map (const stp_id_t *ids)
 {
-  int i;
+  int i, d;
 
   for (i = 0; i < NVLANS; i++)
     if (ids[i] > 255)
@@ -578,8 +588,16 @@ vlan_set_fdb_map (const stp_id_t *ids)
   for (i = 0; i < NVLANS; i++) {
     vlans[i].stp_id = ids[i];
     stg_set_active (ids[i]);
-    if (vlans[i].state == VS_ACTIVE)
-      CRP (cpssDxChBrgVlanToStpIdBind (0, i + 1, ids[i]));
+    if (vlans[i].state == VS_ACTIVE) {
+      for_all_devs (d) {
+        int p;
+
+        CRP (cpssDxChBrgVlanToStpIdBind (d, i + 1, ids[i]));
+        for (p = 0; p < dev_info[d].n_ic_ports; p++)
+          CRP (cpssDxChBrgStpStateSet
+               (d, dev_info[d].ic_ports[p], ids[i], CPSS_STP_FRWRD_E));
+      }
+    }
   }
 
   return ST_OK;

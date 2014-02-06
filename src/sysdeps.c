@@ -7,8 +7,6 @@
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
-#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
-#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 
 #include <pthread.h>
 #include <string.h>
@@ -157,8 +155,6 @@ sysd_setup_ic (void)
     memset (&tp, 0, sizeof (tp));
 
     for (p = 0; p < 2; p++) {
-      stp_id_t stg;
-
       CPSS_PORTS_BMP_PORT_SET_MAC (&tp, dp[d][p]);
 
       CRP (cpssDxChCscdPortTypeSet
@@ -169,10 +165,7 @@ sysd_setup_ic (void)
            (d, dp[d][p], CPSS_PORT_SPEED_10000_E));
       CRP (cpssDxChPortSerdesPowerStatusSet
            (d, dp[d][p], CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
-
-      CRP (cpssDxChPortEnableSet (d, dp[d][p], GT_TRUE));
-      for (stg = 0; stg < 256; stg++)
-        CRP (cpssDxChBrgStpStateSet (d, dp[d][p], stg, CPSS_STP_FRWRD_E));
+      CRP (cpssDxChPortMruSet (d, dp[d][p], 12000));
 
       DEBUG ("*** setup device %d cascade trunk port %d\r\n", d, dp[d][p]);
     }

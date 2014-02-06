@@ -419,7 +419,7 @@ port_start (void)
   CRP (cpssDxChCscdPortTypeSet
        (0, CPSS_CPU_PORT_NUM_CNS,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
-  CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 10000));
+  CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 12000));
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet (0, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
 
   CRP (cpssDxChBrgPrvEdgeVlanEnable (0, GT_TRUE));
@@ -427,6 +427,15 @@ port_start (void)
   CRP (cpssDxChPortTxShaperGlobalParamsSet (0, 15, 15, 1));
   CRP (cpssDxChPortTxByteCountChangeEnableSet
        (0, CPSS_DXCH_PORT_TX_BC_CHANGE_ENABLE_SHAPER_ONLY_E));
+
+  for_all_devs (i) {
+    int p;
+
+    for (p = 0; p < dev_info[i].n_ic_ports; p++) {
+      DEBUG ("*** enable dev %d trunk port %d\r\n", i, dev_info[i].ic_ports[p]);
+      CRP (cpssDxChPortEnableSet (i, dev_info[i].ic_ports[p], GT_TRUE));
+    }
+  }
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
@@ -2060,7 +2069,7 @@ port_set_mru (uint16_t mru)
 {
   int i;
 
-  if (mru > 16382 || mru % 2)
+  if (mru > 12000 || mru % 2)
     return ST_BAD_VALUE;
 
   for (i = 0; i < NPORTS; i++)
