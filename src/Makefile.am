@@ -33,7 +33,11 @@ presteramgr_SOURCES =	\
 	pcl.c				\
 	fib.c				\
 	arpc.c				\
-	dgasp.c
+	dgasp.c             \
+	dev.c               \
+	diag.c              \
+	stack.c             \
+	tipc.c
 
 nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
 BUILT_SOURCES = control-proto.h rtbd.h arpd.h
@@ -46,7 +50,7 @@ presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c sysdeps.c
 presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
-AM_CPPFLAGS = @linux_headers@ -I@cpss@/cpss/common/h \
+AM_CPPFLAGS = @linux_headers@ -I@pscp@ -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \
 	-I@cpss@/cpss/cpssEnabler/mainExtDrv/h -I @cpss@/compilation_root
 AM_CFLAGS = -Wall -Werror

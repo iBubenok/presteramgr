@@ -12,6 +12,7 @@
 #include <monitor.h>
 #include <debug.h>
 #include <utils.h>
+#include <dev.h>
 
 #include <uthash.h>
 
@@ -83,7 +84,7 @@ mon_configure_dst (struct session *s)
     return;
 
   iface.interface.type = CPSS_INTERFACE_PORT_E;
-  iface.interface.devPort.devNum = port->ldev;
+  iface.interface.devPort.devNum = phys_dev (port->ldev);
   iface.interface.devPort.portNum = port->lport;
 
   if (tag) {

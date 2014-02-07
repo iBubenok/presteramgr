@@ -3,9 +3,9 @@
 
 AC_PREREQ([2.67])
 AC_INIT([presteramgr], [0.0.0], [obelozeorov@plgn.ru])
-AM_INIT_AUTOMAKE([presteramgr], [0.0.0])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([config.h])
+AM_INIT_AUTOMAKE
 
 AC_PROG_CC
 

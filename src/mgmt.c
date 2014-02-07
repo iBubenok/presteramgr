@@ -13,7 +13,9 @@
 #include <port.h>
 #include <control.h>
 #include <vlan.h>
+#include <stack.h>
 #include <zcontext.h>
+#include <dev.h>
 #include <debug.h>
 #include <log.h>
 
@@ -127,6 +129,13 @@ mgmt_thread (void *unused)
     return NULL;
   }
 
+  DEBUG ("configuring device number %d\r\n", stack_id);
+  struct pdsa_dev_num devnum = { .num = stack_id };
+  if (mgmt_tx (0, PDSA_MGMT_SET_DEV_NUM, &devnum, sizeof (devnum)) < 0) {
+    ERR ("mgmt_tx(): %s\r\n", strerror (errno));
+    return NULL;
+  }
+
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {
     if (recvmsg (sock, &msg, 0) < 0) {
@@ -174,7 +183,7 @@ mgmt_send_frame (GT_U8 dev, GT_U8 port, const void *data, size_t len)
   struct pdsa_spec_frame *frame;
 
   frame = malloc (PDSA_SPEC_FRAME_SIZE (len));
-  frame->dev = dev;
+  frame->dev = phys_dev (dev);
   frame->port = port;
   frame->len = len;
   memcpy (frame->data, data, len);
@@ -195,6 +204,23 @@ mgmt_send_regular_frame (vid_t vid, const void *data, size_t len)
   memcpy (frame->data, data, len);
 
   mgmt_tx (0, PDSA_MGMT_REG_FRAME_TX, frame, PDSA_REG_FRAME_SIZE (len));
+
+  free (frame);
+}
+
+void
+mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
+{
+  struct pdsa_gen_frame *frame;
+  size_t full_len = len + 8;
+
+  frame = malloc (PDSA_GEN_FRAME_SIZE (full_len));
+  frame->len = full_len;
+  memcpy (frame->data, data, 12);
+  memcpy (frame->data + 12, tag, 8);
+  memcpy (frame->data + 20, data + 12, len - 12);
+
+  mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (full_len));
 
   free (frame);
 }

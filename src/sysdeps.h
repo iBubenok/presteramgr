@@ -11,6 +11,7 @@
 #include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInit.h>
 
 #include <control-proto.h>
+#include <port.h>
 
 #define FDB_MAX_ADDRS 16384
 
@@ -43,19 +44,32 @@ struct pm {
     {0, 26}, {0, 27}, {0, 24}, {0, 25}             \
   }
 
-static inline int IS_FE_PORT (int n)
+static inline int
+IS_FE_PORT (int n)
 {
   return n >= 0 && n < 24;
 }
 
-static inline int IS_GE_PORT (int n)
+static inline int
+IS_GE_PORT (int n)
 {
   return n >= 24 && n < 28;
 }
 
-static inline int IS_XG_PORT (int n)
+static inline int
+IS_XG_PORT (int n)
 {
   return 0;
+}
+
+static inline enum port_stack_role
+PORT_STACK_ROLE (int n)
+{
+  switch (n) {
+  case 26: return PSR_PRIMARY;
+  case 27: return PSR_SECONDARY;
+  default: return PSR_NONE;
+  }
 }
 
 #elif defined (VARIANT_SM_12F)
@@ -83,6 +97,16 @@ static inline int IS_GE_PORT (int n)
 static inline int IS_XG_PORT (int n)
 {
   return 0;
+}
+
+static inline enum port_stack_role
+PORT_STACK_ROLE (int n)
+{
+  switch (n) {
+  case 14: return PSR_PRIMARY;
+  case 15: return PSR_SECONDARY;
+  default: return PSR_NONE;
+  }
 }
 
 #elif defined (VARIANT_ARLAN_3424GE)
@@ -115,6 +139,16 @@ static inline int IS_XG_PORT (int n)
   return n >= 24 && n < 28;
 }
 
+static inline enum port_stack_role
+PORT_STACK_ROLE (int n)
+{
+  switch (n) {
+  case 26: return PSR_PRIMARY;
+  case 27: return PSR_SECONDARY;
+  default: return PSR_NONE;
+  }
+}
+
 #elif defined (VARIANT_ARLAN_3448PGE)
 
 #define NDEVS 2
@@ -135,7 +169,6 @@ static inline int IS_XG_PORT (int n)
     {0, 20}, {0, 21}, {0, 22}, {0, 23},         \
   }
 
-
 static inline int IS_FE_PORT (int n)
 {
   return 0;
@@ -149,6 +182,12 @@ static inline int IS_GE_PORT (int n)
 static inline int IS_XG_PORT (int n)
 {
   return n >= 48 && n < 52;
+}
+
+static inline enum port_stack_role
+PORT_STACK_ROLE (int n)
+{
+  return PSR_NONE;
 }
 
 #else

@@ -9,6 +9,7 @@
 #include <env.h>
 #include <debug.h>
 #include <utils.h>
+#include <diag.h>
 #include <log.h>
 
 #include <gtOs/gtOsInit.h>
@@ -96,6 +97,9 @@
 #include <pcl.h>
 #include <mgmt.h>
 #include <dgasp.h>
+#include <stack.h>
+#include <dev.h>
+#include <tipc.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -104,9 +108,9 @@
 #define RX_BUFF_ALIGN_DEF       1
 
 #define RCC(rc, name) ({                                                \
-  GT_STATUS __rc = CRP (rc);                                            \
-  if (__rc != GT_OK)                                                    \
-    return __rc;                                                        \
+      GT_STATUS __rc = CRP (rc);                                        \
+      if (__rc != GT_OK)                                                \
+        return __rc;                                                    \
     })
 
 extern GT_STATUS extDrvUartInit (void);
@@ -145,6 +149,8 @@ pci_find_dev (struct dev_info *info)
   info->ph1_info.internalPciBase = internal_pci_base;
   info->ph1_info.intVecNum = (GT_U32) int_vec;
   info->ph1_info.intMask = int_mask;
+
+  diag_pci_base_addr = (uint32_t) pci_base_addr;
 
  out:
   return (rc == GT_OK) ? ST_OK : ST_HEX;
@@ -197,6 +203,11 @@ phase2_init (int d)
 
   extDrvSetIntLockUnlock (INTR_MODE_LOCK, &int_key);
   rc = cpssDxChHwPpPhase2Init (d, &info);
+
+  /* FIXME: adapt to multidev! */
+  /* CRP (cpssDxChCfgHwDevNumSet (0, stack_id)); */
+  /* dev_set_map (0, stack_id); */
+
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);
 
@@ -551,7 +562,8 @@ lib_init (int d)
 static GT_STATUS
 after_phase2 (int d)
 {
-  CRP (cpssDxChCscdDsaSrcDevFilterSet (d, GT_FALSE));
+  CRP (cpssDxChCscdDsaSrcDevFilterSet
+       (d, stack_active () ? GT_TRUE : GT_FALSE));
 
   return GT_OK;
 }
@@ -686,6 +698,9 @@ cpss_start (void)
 
   INFO ("init mgmt interface\n");
   mgmt_init ();
+
+  INFO ("start tipc interface\n");
+  tipc_start ();
 
   INFO ("start control interface\n");
   control_start ();

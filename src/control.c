@@ -29,6 +29,8 @@
 #include <arpc.h>
 #include <arpd.h>
 #include <dgasp.h>
+#include <diag.h>
+#include <tipc.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -159,6 +161,15 @@ cn_port_vid_set (port_id_t pid, vid_t vid)
   notify_send (&msg);
 }
 
+void
+cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
+{
+  zmsg_t *msg = make_notify_message (CN_MAIL);
+  zmsg_addmem (msg, &role, sizeof (role));
+  zmsg_addmem (msg, data, len);
+  notify_send (&msg);
+}
+
 int
 control_start (void)
 {
@@ -243,6 +254,17 @@ DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
+DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
+DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
+DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
+DECLARE_HANDLER (CC_DIAG_REG_READ);
+DECLARE_HANDLER (CC_DIAG_BDC_SET_MODE);
+DECLARE_HANDLER (CC_DIAG_BDC_READ);
+DECLARE_HANDLER (CC_DIAG_BIC_SET_MODE);
+DECLARE_HANDLER (CC_DIAG_BIC_READ);
+DECLARE_HANDLER (CC_DIAG_DESC_READ);
+DECLARE_HANDLER (CC_BC_LINK_STATE);
+DECLARE_HANDLER (CC_STACK_TXEN);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -318,7 +340,18 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_VLAN_TRANSLATE),
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
-  HANDLER (CC_PORT_SET_TRUNK_VLANS)
+  HANDLER (CC_PORT_SET_TRUNK_VLANS),
+  HANDLER (CC_MAIL_TO_NEIGHBOR),
+  HANDLER (CC_STACK_PORT_GET_STATE),
+  HANDLER (CC_STACK_SET_DEV_MAP),
+  HANDLER (CC_DIAG_REG_READ),
+  HANDLER (CC_DIAG_BDC_SET_MODE),
+  HANDLER (CC_DIAG_BDC_READ),
+  HANDLER (CC_DIAG_BIC_SET_MODE),
+  HANDLER (CC_DIAG_BIC_READ),
+  HANDLER (CC_DIAG_DESC_READ),
+  HANDLER (CC_BC_LINK_STATE),
+  HANDLER (CC_STACK_TXEN)
 };
 
 static int
@@ -513,6 +546,11 @@ DEFINE_HANDLER (CC_PORT_SEND_FRAME)
     goto out;
   }
 
+  if (is_stack_port (port)) {
+    result = ST_BAD_STATE;
+    goto out;
+  }
+
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
     goto out;
@@ -659,7 +697,7 @@ DEFINE_HANDLER (CC_VLAN_DUMP)
   if (result != ST_OK)
     goto out;
 
-  if (!vlan_valid (vid)) {
+  if (!(vlan_valid (vid) || vid == SVC_VID)) {
     result = ST_BAD_VALUE;
     goto out;
   }
@@ -1364,8 +1402,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
     case WNCT_STP:
-      type = CN_BPDU;
-      break;
+      tipc_notify_bpdu (pid, frame->len, frame->data);
+      result = ST_OK;
+      goto out;
+
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
       case WNCT_802_3_SP_OAM:
@@ -1405,6 +1445,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+
+  case CPU_CODE_MAIL:
+    stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
 
@@ -1854,6 +1899,34 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
+{
+  port_stack_role_t role;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&role);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  result = stack_mail (role, zframe_data (frame), len);
+
+ destroy_frame:
+  zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_CLEAR_TRANSLATION)
 {
   enum status result;
@@ -1901,6 +1974,206 @@ DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
   }
 
   result = port_set_trunk_vlans (pid, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_STACK_PORT_GET_STATE)
+{
+   port_stack_role_t role;
+   enum status result;
+   uint8_t state;
+
+   result = POP_ARG (&role);
+   if (result != ST_OK) {
+     report_status (result);
+     return;
+   }
+
+   zmsg_t *reply = make_reply (ST_OK);
+   state = stack_port_get_state (role);
+   zmsg_addmem (reply, &state, sizeof (state));
+   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
+{
+  uint8_t dev;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = ST_BAD_FORMAT;
+
+  zframe_t *frame = zmsg_pop (__args);
+  if (!frame)
+    goto out;
+
+  if (zframe_size (frame) != 2)
+    goto destroy_frame;
+
+  result = stack_set_dev_map (dev, zframe_data (frame));
+
+ destroy_frame:
+  zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_REG_READ)
+{
+  uint32_t reg, val;
+  enum status result;
+
+  result = POP_ARG (&reg);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_reg_read (reg, &val);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_BDC_SET_MODE)
+{
+  uint8_t mode;
+  enum status result;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = diag_bdc_set_mode (mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_BDC_READ)
+{
+  uint32_t val;
+  enum status result;
+
+  result = diag_bdc_read (&val);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_BIC_SET_MODE)
+{
+  uint8_t set, mode, port;
+  vid_t vid;
+  enum status result;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&port);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = diag_bic_set_mode (set, mode, port, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_BIC_READ)
+{
+  uint8_t set;
+  uint32_t data[4];
+  int i;
+  enum status result;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_bic_read (set, data);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  for (i = 0; i < 4; i++)
+    zmsg_addmem (reply, &data[i], sizeof (data[i]));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_DESC_READ)
+{
+  uint8_t subj, valid;
+  uint32_t data;
+  enum status result;
+
+  result = POP_ARG (&subj);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_desc_read (subj, &valid, &data);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &valid, sizeof (valid));
+  zmsg_addmem (reply, &data, sizeof (data));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_BC_LINK_STATE)
+{
+  tipc_bc_link_state ();
+  report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_STACK_TXEN)
+{
+  uint8_t dev;
+  bool_t txen;
+  enum status result;
+
+  result = POP_ARG (&dev);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&txen);
+  if (result != ST_OK)
+    goto out;
+
+  result = stack_txen (dev, txen);
 
  out:
   report_status (result);

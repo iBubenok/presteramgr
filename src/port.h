@@ -3,6 +3,7 @@
 
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
+#include <stack.h>
 
 struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
@@ -39,6 +40,8 @@ struct port {
   struct port_vlan_conf vlan_conf[4094];
   int def_xlate;
   vid_t def_map_to;
+  enum port_stack_role stack_role;
+  CPSS_PORT_ATTRIBUTES_STC attrs;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
@@ -49,6 +52,8 @@ struct port {
 
 extern struct port *ports;
 extern int nports;
+extern CPSS_PORTS_BMP_STC all_ports_bmp;
+extern CPSS_PORTS_BMP_STC nst_ports_bmp;
 
 static inline int
 port_valid (port_id_t n)
@@ -60,6 +65,12 @@ static inline struct port *
 port_ptr (port_id_t n)
 {
   return port_valid (n) ? &ports[n - 1] : NULL;
+}
+
+static inline int
+is_stack_port (const struct port *port)
+{
+  return stack_active () && (port->stack_role != PSR_NONE);
 }
 
 extern int port_init (void);

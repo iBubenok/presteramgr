@@ -9,9 +9,11 @@ extern enum status mcg_add_port (mcg_t, port_id_t);
 extern enum status mcg_del_port (mcg_t, port_id_t);
 extern void mcg_dgasp_setup (void);
 extern enum status mcg_dgasp_port_op (port_id_t, int);
+extern void mcg_stack_setup (void);
 
-#define DGASP_MCG     4093
 #define LAST_USER_MCG 4092
+#define DGASP_MCG     4093
+#define STACK_MCG 4094
 
 static inline int
 mcg_valid (mcg_t mcg)

@@ -26,6 +26,7 @@ mcg_create (mcg_t mcg)
   GT_STATUS rc;
   struct mcast_group *group;
   int key = mcg;
+  int i;
 
   HASH_FIND_INT (groups, &key, group);
   if (group)
@@ -33,6 +34,11 @@ mcg_create (mcg_t mcg)
 
   group = calloc (1, sizeof (struct mcast_group));
   group->key = key;
+  for (i = 0; i < nports; i++) {
+    struct port *port = port_ptr (i + 1);
+    if (is_stack_port (port))
+      CPSS_PORTS_BMP_PORT_SET_MAC (&group->ports, port->lport);
+  }
   rc = CRP (cpssDxChBrgMcEntryWrite (0, mcg, &group->ports));
   if (rc == GT_OK) {
     HASH_ADD_INT (groups, key, group);
@@ -163,4 +169,19 @@ mcg_dgasp_port_op (port_id_t pid, int add)
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
+}
+
+void
+mcg_stack_setup (void)
+{
+  CPSS_PORTS_BMP_STC bmp;
+  int i;
+
+  memset (&bmp, 0, sizeof (bmp));
+  for (i = 0; i < nports; i++) {
+    struct port *port = &ports[i];
+    if (is_stack_port (port))
+      CPSS_PORTS_BMP_PORT_SET_MAC (&bmp, port->lport);
+  }
+  CRP (cpssDxChBrgMcEntryWrite (0, STACK_MCG, &bmp));
 }
