@@ -542,7 +542,7 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
   struct port *port;
   GT_STATUS rc;
 
-  *pid = port_id (ldev, lport);
+  *pid = port_id (phys_dev (ldev), lport);
   port = port_ptr (*pid);
   if (!port)
     return ST_DOES_NOT_EXIST;
