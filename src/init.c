@@ -184,6 +184,7 @@ phase2_init (int d)
   GT_U32 au_desc_size;
   GT_32 int_key;
   GT_STATUS rc;
+  int hw_dev_num = sysd_hw_dev_num (d);
 
   osMemSet (&info, 0, sizeof (info));
 
@@ -206,9 +207,9 @@ phase2_init (int d)
   extDrvSetIntLockUnlock (INTR_MODE_LOCK, &int_key);
   rc = cpssDxChHwPpPhase2Init (d, &info);
 
-  /* FIXME: adapt to multidev! */
-  /* CRP (cpssDxChCfgHwDevNumSet (0, stack_id)); */
-  /* dev_set_map (0, stack_id); */
+  DEBUG ("*** set hw dev num %d => %d\r\n", d, hw_dev_num);
+  CRP (cpssDxChCfgHwDevNumSet (d, hw_dev_num));
+  dev_set_map (d, hw_dev_num);
 
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);

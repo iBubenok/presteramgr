@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include <sysdeps.h>
+#include <stack.h>
 #include <log.h>
 #include <debug.h>
 
@@ -177,6 +178,20 @@ sysd_setup_ic (void)
        (0, 1, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
   CRP (cpssDxChCscdDevMapTableSet
        (1, 0, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+}
+
+int
+sysd_hw_dev_num (int ldev)
+{
+  switch (ldev) {
+  case 0:
+    return stack_id + 15;
+  case 1:
+    return stack_id;
+  default:
+    EMERG ("invalid logical device number %d\r\n", ldev);
+    abort ();
+  }
 }
 
 #endif /* VARIANT_* */

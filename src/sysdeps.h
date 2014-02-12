@@ -200,6 +200,7 @@ extern size_t sysdeps_default_stack_size;
 
 #define SYSD_CSCD_TRUNK 1
 extern void sysd_setup_ic (void);
+extern int sysd_hw_dev_num (int);
 
 
 #endif /* __SYSDEPS_H__ */
