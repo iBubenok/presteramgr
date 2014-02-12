@@ -13,6 +13,7 @@
 
 #include <sysdeps.h>
 #include <stack.h>
+#include <dev.h>
 #include <log.h>
 #include <debug.h>
 
@@ -175,9 +176,9 @@ sysd_setup_ic (void)
   }
 
   CRP (cpssDxChCscdDevMapTableSet
-       (0, 1, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+       (0, phys_dev (1), 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
   CRP (cpssDxChCscdDevMapTableSet
-       (1, 0, 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+       (1, phys_dev (0), 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
 }
 
 int
