@@ -52,8 +52,8 @@ struct port {
 
 extern struct port *ports;
 extern int nports;
-extern CPSS_PORTS_BMP_STC all_ports_bmp;
-extern CPSS_PORTS_BMP_STC nst_ports_bmp;
+extern CPSS_PORTS_BMP_STC all_ports_bmp[];
+extern CPSS_PORTS_BMP_STC nst_ports_bmp[];
 
 static inline int
 port_valid (port_id_t n)

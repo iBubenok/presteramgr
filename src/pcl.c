@@ -477,6 +477,7 @@ pcl_port_setup (port_id_t pid)
   return ST_OK;
 }
 
+enum status
 pcl_enable_mc_drop (port_id_t pid, int enable)
 {
   struct port *port = port_ptr (pid);
