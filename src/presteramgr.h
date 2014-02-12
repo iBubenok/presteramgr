@@ -4,6 +4,7 @@
 /*
  * init.c
  */
+extern int just_reset;
 extern void cpss_start (void);
 
 /*

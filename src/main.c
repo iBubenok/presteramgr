@@ -46,10 +46,11 @@ main (int argc, char **argv)
       {"debug",           no_argument,       NULL, 'd'},
       {"log-cpss-errors", no_argument,       NULL, 'c'},
       {"stack-id",        required_argument, NULL, 'i'},
+      {"reset",           no_argument,       NULL, 'r'},
       {NULL, 0, NULL, 0}
     };
 
-    c = getopt_long (argc, argv, "adci:", opts, &option_index);
+    c = getopt_long (argc, argv, "adci:r", opts, &option_index);
     if (c == -1)
       break;
 
@@ -69,6 +70,9 @@ main (int argc, char **argv)
         fprintf (stderr, "invalid command line arguments\n");
         exit (EXIT_FAILURE);
       }
+      break;
+    case 'r':
+      just_reset = 1;
       break;
     default:
       fprintf (stderr, "invalid command line arguments\n");

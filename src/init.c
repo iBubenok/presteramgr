@@ -102,6 +102,8 @@
 #include <tipc.h>
 
 
+int just_reset = 0;
+
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
 #define RX_BUFF_SIZE_DEF        1536
@@ -623,6 +625,9 @@ init_cpss (void)
     RCC (rc, cpssDxChHwPpPhase1Init);
     DEBUG ("device type: %08X\n", dev_type);
 
+    if (just_reset)
+      continue;
+
     DEBUG ("initializing workarounds\n");
     rc = post_phase_1 (i);
     RCC (rc, post_phase_1);
@@ -646,6 +651,26 @@ init_cpss (void)
     rc = lib_init (i);
     RCC (rc, lib_init);
     DEBUG ("library init done\n");
+  }
+
+  if (just_reset) {
+    for (i = 0; i < NDEVS; i++) {
+      DEBUG ("dev %d: doing soft reset", i);
+      CRP (cpssDxChHwPpSoftResetSkipParamSet
+           (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
+      CRP (cpssDxChHwPpSoftResetSkipParamSet
+           (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_FALSE));
+      CRP (cpssDxChHwPpSoftResetSkipParamSet
+           (i, CPSS_HW_PP_RESET_SKIP_TYPE_EEPROM_E, GT_FALSE));
+      CRP (cpssDxChHwPpSoftResetSkipParamSet
+           (i, CPSS_HW_PP_RESET_SKIP_TYPE_PEX_E, GT_TRUE));
+      CRP (cpssDxChHwPpSoftResetSkipParamSet
+           (i, CPSS_HW_PP_RESET_SKIP_TYPE_LINK_LOSS_E, GT_FALSE));
+      CRP (cpssDxChHwPpSoftResetTrigger (i));
+      sleep (1);
+    }
+
+    exit (EXIT_SUCCESS);
   }
 
   sysd_setup_ic ();
@@ -678,6 +703,10 @@ init_cpss (void)
 void
 cpss_start (void)
 {
+  /* FIXME: really DO reset. */
+  if (just_reset)
+    exit (EXIT_SUCCESS);
+
   INFO ("init environment");
   env_init ();
 
