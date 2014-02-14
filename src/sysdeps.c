@@ -7,6 +7,7 @@
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
+#include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
 #include <pthread.h>
 #include <string.h>
@@ -138,6 +139,31 @@ static struct dev_info __dev_info[] = {
   }
 };
 
+/* TODO: maybe the CPU code setup must be done for all variants. */
+static void
+sysd_setup_cpu_codes (void)
+{
+  int d;
+
+  for_all_devs (d) {
+    CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
+      .tc = 7,
+      .dp = CPSS_DP_GREEN_E,
+      .truncate = GT_FALSE,
+      .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
+      .cpuCodeRateLimiterIndex = 0,
+      .cpuCodeStatRateLimitIndex = 0,
+      .designatedDevNumIndex = CPU_DEV
+    };
+
+    CRP (cpssDxChNetIfCpuCodeDesignatedDeviceTableSet
+         (d, 1, phys_dev (CPU_DEV)));
+
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce));
+  }
+}
+
 void
 sysd_setup_ic (void)
 {
@@ -179,6 +205,8 @@ sysd_setup_ic (void)
        (0, phys_dev (1), 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
   CRP (cpssDxChCscdDevMapTableSet
        (1, phys_dev (0), 0, &cl, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+
+  sysd_setup_cpu_codes ();
 }
 
 int

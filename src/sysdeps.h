@@ -153,6 +153,7 @@ PORT_STACK_ROLE (int n)
 
 #define NDEVS 2
 #define NPORTS 48
+#define CPU_DEV 1
 #define DECLARE_PORT_MAP(name)                  \
   struct pm name[NPORTS] = {                    \
     {1, 0},  {1, 1},  {1, 2},  {1, 3},          \
