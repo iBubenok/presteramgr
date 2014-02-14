@@ -31,10 +31,13 @@ void
 stack_start (void)
 {
   CPSS_PORTS_BMP_STC nul_ports_bmp;
+#ifndef VARIANT_ARLAN_3448PGE
+  /* FIXME: add multidev support! */
   CPSS_CSCD_LINK_TYPE_STC lp = {
     .linkType = CPSS_CSCD_LINK_TYPE_PORT_E,
     .linkNum  = CPSS_NULL_PORT_NUM_CNS
   };
+#endif /* VARIANT_ARLAN_3448PGE */
   int i;
 
   if (!stack_active ())
@@ -44,6 +47,8 @@ stack_start (void)
 
   memset (&nul_ports_bmp, 0, sizeof (nul_ports_bmp));
   for (i = 0; i < 32; i++) {
+#ifndef VARIANT_ARLAN_3448PGE
+    /* FIXME: add multidev support! */
     CPSS_PORTS_BMP_STC *pbm;
 
     if (i == stack_id)
@@ -55,6 +60,7 @@ stack_start (void)
 
     CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
     CRP (cpssDxChBrgSrcIdGroupEntrySet (0, i, GT_TRUE, pbm));
+#endif /* VARIANT_ARLAN_3448PGE */
 
     if (i < stack_id)
       dev_mask |= 1 << i;
