@@ -145,7 +145,7 @@ sysd_setup_cpu_codes (void)
 {
   int d;
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
       .tc = 7,
       .dp = CPSS_DP_GREEN_E,

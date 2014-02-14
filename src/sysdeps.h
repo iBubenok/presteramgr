@@ -195,7 +195,7 @@ PORT_STACK_ROLE (int n)
 #error Undefined or unsupported variant.
 #endif /* VARIANT_* */
 
-#define for_all_devs(var) for (var = 0; var < NDEVS; var++)
+#define for_each_dev(var) for (var = 0; var < NDEVS; var++)
 
 extern size_t sysdeps_default_stack_size;
 

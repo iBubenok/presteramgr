@@ -177,7 +177,7 @@ setup_tagging (vid_t vid,
   memset (tagging, 0, sizeof (*tagging) * NDEVS);
   memset (tagging_cmd, 0, sizeof (*tagging_cmd) * NDEVS);
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     for (i = 0; i < dev_info[d].n_ic_ports; i++) {
       int p = dev_info[d].ic_ports[i];
 
@@ -289,7 +289,7 @@ __vlan_add (vid_t vid)
 
   setup_tagging (vid, members, tagging, tagging_cmd);
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     rc = CRP (cpssDxChBrgVlanEntryWrite (d, vid, &members[d],
                                          &tagging[d], &vlan_info,
                                          &tagging_cmd[d]));
@@ -325,7 +325,7 @@ vlan_delete (vid_t vid)
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     rc = CRP (cpssDxChBrgVlanEntryInvalidate (d, vid));
     ON_GT_ERROR (rc) break;
   }
@@ -353,7 +353,7 @@ vlan_init (void)
     vlans[i].vt_refc = 0;
   }
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     CRP (cpssDxChBrgVlanTableInvalidate (d));
     CRP (cpssDxChBrgVlanMruProfileValueSet (d, 0, 12000));
     CRP (cpssDxChBrgVlanBridgingModeSet (d, CPSS_BRG_MODE_802_1Q_E));
@@ -545,7 +545,7 @@ vlan_reconf_cpu (vid_t vid, bool_t cpu)
   GT_BOOL valid;
   int d;
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     CRP (cpssDxChBrgVlanEntryRead
          (d, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
     if (cpu) {
@@ -597,7 +597,7 @@ vlan_set_fdb_map (const stp_id_t *ids)
     vlans[i].stp_id = ids[i];
     stg_set_active (ids[i]);
     if (vlans[i].state == VS_ACTIVE) {
-      for_all_devs (d) {
+      for_each_dev (d) {
         int p;
 
         CRP (cpssDxChBrgVlanToStpIdBind (d, i + 1, ids[i]));

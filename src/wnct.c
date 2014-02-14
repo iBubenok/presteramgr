@@ -23,7 +23,7 @@ wnct_enable_proto (uint8_t proto, int enable)
   if (protos[proto] == enable)
     return ST_OK;
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     rc = CRP (cpssDxChBrgGenIeeeReservedMcastProtCmdSet
               (d, 0, proto, enable
                ? CPSS_PACKET_CMD_TRAP_TO_CPU_E
@@ -49,7 +49,7 @@ wnct_start (void)
 
   memset (protos, 0, sizeof (protos));
 
-  for_all_devs (d) {
+  for_each_dev (d) {
     rc = CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (d, GT_TRUE));
     ON_GT_ERROR (rc) goto gt_error;
   }
