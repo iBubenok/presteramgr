@@ -618,7 +618,7 @@ init_cpss (void)
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
 
-  for (i = 0; i < NDEVS; i++) {
+  for_all_devs (i) {
     pci_find_dev (&dev_info[i]);
 
     DEBUG ("doing phase1 config\n");
@@ -655,7 +655,7 @@ init_cpss (void)
   }
 
   if (just_reset) {
-    for (i = 0; i < NDEVS; i++) {
+    for_all_devs (i) {
       DEBUG ("dev %d: doing soft reset", i);
       CRP (cpssDxChHwPpSoftResetSkipParamSet
            (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
@@ -690,7 +690,7 @@ init_cpss (void)
   pdsa_init ();
   ip_start ();
 
-  for (i = 0; i < NDEVS; i++) {
+  for_all_devs (i) {
     DEBUG ("doing after init\n");
     rc = after_init (i);
     RCC (rc, after_init);

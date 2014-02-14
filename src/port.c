@@ -380,7 +380,7 @@ port_start (void)
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 #endif /* VARIANT_FE */
 
-  for (d = 0; d < NDEVS; d++) {
+  for_all_devs (d) {
     for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
       if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
           PRV_CPSS_PORT_NOT_EXISTS_E)
@@ -395,7 +395,7 @@ port_start (void)
   }
 #endif /* VARIANT_SM_12F */
 
-  for (d = 0; d < NDEVS; d++) {
+  for_all_devs (d) {
     CRP (cpssDxChNstPortIsolationEnableSet (d, GT_TRUE));
     CRP (cpssDxChBrgVlanEgressFilteringEnable (d, GT_TRUE));
   }

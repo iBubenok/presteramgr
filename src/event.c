@@ -181,7 +181,7 @@ event_enter_loop (void)
     exit (1);
 
   for (i = 0; i < EVENT_NUM; ++i) {
-    for (d = 0; d < NDEVS; d++) {
+    for_all_devs (d) {
       rc = CRP (cpssEventDeviceMaskSet (d, events [i], CPSS_EVENT_UNMASK_E));
       if (rc != GT_OK)
         exit (1);
