@@ -372,6 +372,7 @@ port_setup_stack (struct port *port)
 enum status
 port_start (void)
 {
+  GT_U32 rate = 5000;
   int i, d;
 
 #if defined (VARIANT_FE)
@@ -381,8 +382,8 @@ port_start (void)
 #endif /* VARIANT_FE */
 
   for_each_dev (d) {
-    for (i = 0; i < PRV_CPSS_PP_MAC (0)->numOfPorts; i++)
-      if (PRV_CPSS_PP_MAC (0)->phyPortInfoArray[i].portType !=
+    for (i = 0; i < PRV_CPSS_PP_MAC (d)->numOfPorts; i++)
+      if (PRV_CPSS_PP_MAC (d)->phyPortInfoArray[i].portType !=
           PRV_CPSS_PORT_NOT_EXISTS_E)
         CRP (cpssDxChPortEnableSet (d, i, GT_FALSE));
   }
@@ -443,8 +444,6 @@ port_start (void)
     CRP (cpssDxChCosL2TrustModeVlanTagSelectSet
          (port->ldev, port->lport, CPSS_VLAN_TAG0_E));
 
-    /* CRP (cpssDxChPortTxByteCountChangeValueSet (port->ldev, port->lport, 12)); */
-
     port->iso_bmp = all_ports_bmp[port->ldev];
     port->iso_bmp_changed = 1;
     port_set_iso_bmp (port);
@@ -468,25 +467,29 @@ port_start (void)
   }
 
   port_set_mru (1526);
-  port_setup_stats (0, CPSS_CPU_PORT_NUM_CNS);
+
+  port_setup_stats (CPU_DEV, CPSS_CPU_PORT_NUM_CNS);
   CRP (cpssDxChCscdPortTypeSet
-       (0, CPSS_CPU_PORT_NUM_CNS,
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
-  CRP (cpssDxChPortMruSet (0, CPSS_CPU_PORT_NUM_CNS, 12000));
-  CRP (cpssDxChBrgFdbNaToCpuPerPortSet (0, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+  CRP (cpssDxChPortMruSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 12000));
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
 
-  CRP (cpssDxChBrgPrvEdgeVlanEnable (0, GT_TRUE));
-
-  CRP (cpssDxChPortTxShaperGlobalParamsSet (0, 15, 15, 1));
-  CRP (cpssDxChPortTxByteCountChangeEnableSet
-       (0, CPSS_DXCH_PORT_TX_BC_CHANGE_ENABLE_SHAPER_ONLY_E));
-
-  for_each_dev (i) {
+  for_each_dev (d) {
     int p;
 
-    for (p = 0; p < dev_info[i].n_ic_ports; p++) {
-      DEBUG ("*** enable dev %d trunk port %d\r\n", i, dev_info[i].ic_ports[p]);
-      CRP (cpssDxChPortEnableSet (i, dev_info[i].ic_ports[p], GT_TRUE));
+    CRP (cpssDxChBrgPrvEdgeVlanEnable (d, GT_TRUE));
+
+    CRP (cpssDxChPortTxShaperGlobalParamsSet (d, 15, 15, 1));
+    CRP (cpssDxChPortTxToCpuShaperModeSet
+         (d, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
+    CRP (cpssDxChPortTxByteCountChangeEnableSet
+         (d, CPSS_DXCH_PORT_TX_BC_CHANGE_ENABLE_SHAPER_ONLY_E));
+
+    for (p = 0; p < dev_info[d].n_ic_ports; p++) {
+      DEBUG ("*** enable dev %d trunk port %d\r\n", d, dev_info[d].ic_ports[p]);
+      CRP (cpssDxChPortEnableSet (d, dev_info[d].ic_ports[p], GT_TRUE));
     }
   }
 
@@ -501,14 +504,12 @@ port_start (void)
     port->update_sd (port);
   };
 
-  CRP (cpssDxChPortTxToCpuShaperModeSet
-       (0, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
+  CRP (cpssDxChPortTxShaperProfileSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
+  CRP (cpssDxChPortTxShaperEnableSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
-  GT_U32 rate = 5000;
-  CRP (cpssDxChPortTxShaperProfileSet (0, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
-  CRP (cpssDxChPortTxShaperEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
-
-  CRP (cpssDxChPortEnableSet (0, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+  CRP (cpssDxChPortEnableSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
   return ST_OK;
 }
