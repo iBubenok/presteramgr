@@ -43,4 +43,7 @@ errex (const char *msg)
   exit (EXIT_FAILURE);
 }
 
+#define MAC_FMT "%02X:%02X:%02X:%02X:%02X:%02X"
+#define MAC_ARG(n) n[0], n[1], n[2], n[3], n[4], n[5]
+
 #endif /* __UTILS_H__ */
