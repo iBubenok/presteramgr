@@ -25,6 +25,7 @@
 #include <port.h>
 #include <data.h>
 #include <tipc.h>
+#include <mac.h>
 #include <zcontext.h>
 #include <sysdeps.h>
 
@@ -32,6 +33,7 @@
 
 
 static void *pub_sock;
+static void *fdb_sock;
 
 static zmsg_t *
 make_notify_message (enum control_notification type)
@@ -95,6 +97,7 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
+  CPSS_PP_EB_AUQ_PENDING_E
 };
 #define EVENT_NUM ARRAY_SIZE (events)
 
@@ -166,6 +169,26 @@ event_handle_aging_done (void)
   return CRP (rc);
 }
 
+static GT_STATUS
+event_handle_au_msg (void)
+{
+  GT_STATUS rc;
+  GT_U32 edata;
+  GT_U8 dev;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              CPSS_PP_EB_AUQ_PENDING_E,
+                              &edata, &dev)) == GT_OK)
+  if (rc == GT_NO_MORE)
+    rc = GT_OK;
+
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, &dev, sizeof (dev));
+  zmsg_send (&msg, fdb_sock);
+
+  return GT_OK;
+}
+
 void
 event_enter_loop (void)
 {
@@ -200,6 +223,8 @@ event_enter_loop (void)
       event_handle_aging_done ();
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
       event_handle_link_change ();
+    if (eventp (CPSS_PP_EB_AUQ_PENDING_E, ebmp))
+      event_handle_au_msg ();
   }
 }
 
@@ -209,4 +234,8 @@ event_init (void)
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
+
+  fdb_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  assert (fdb_sock);
+  zsocket_connect (fdb_sock, FDB_NOTIFY_EP);
 }

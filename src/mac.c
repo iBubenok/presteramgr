@@ -3,9 +3,11 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <mac.h>
+#include <zcontext.h>
 #include <port.h>
 #include <vlan.h>
 #include <dev.h>
+#include <utils.h>
 #include <debug.h>
 #include <log.h>
 
@@ -158,8 +160,12 @@ enum status
 mac_set_aging_time (aging_time_t time)
 {
   GT_STATUS rc;
+  int d;
 
-  rc = CRP (cpssDxChBrgFdbAgingTimeoutSet (0, time));
+  for_each_dev (d) {
+    rc = CRP (cpssDxChBrgFdbAgingTimeoutSet (d, time));
+    ON_GT_ERROR (rc) break;
+  }
 
   switch (rc) {
   case GT_OK:        return ST_OK;
@@ -295,9 +301,86 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
   return ST_OK;
 }
 
+/*
+ * FDB management.
+ */
+
+struct fdb_entry {
+  CPSS_MAC_ENTRY_EXT_STC me;
+};
+
+static struct fdb_entry fdb[FDB_MAX_ADDRS];
+
+static void
+fdb_new_addr (GT_U8 dev, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
+{
+  DEBUG ("NA/SA msg: " MAC_FMT "\r\n",
+         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther));
+}
+
+static volatile int fdb_thread_started = 0;
+
+static void *
+fdb_thread (void *_)
+{
+  void *fdb_sock;
+
+  DEBUG ("starting up FDB\r\n");
+
+  fdb_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (fdb_sock);
+  zsocket_bind (fdb_sock, FDB_NOTIFY_EP);
+
+  DEBUG ("FDB startup done\r\n");
+  fdb_thread_started = 1;
+
+  while (1) {
+    GT_U32 num, total;
+    GT_STATUS rc;
+    CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
+    int i;
+
+    zmsg_t *msg = zmsg_recv (fdb_sock);
+    zframe_t *frame = zmsg_first (msg);
+    GT_U8 dev = *((GT_U8 *) zframe_data (frame));
+    zmsg_destroy (&msg);
+
+    total = 0;
+    do {
+      num = FDB_MAX_ADDRS - total;
+      rc = cpssDxChBrgFdbAuMsgBlockGet (dev, &num, ptr);
+      total += num;
+    } while (rc == GT_OK && total > FDB_MAX_ADDRS);
+
+    switch (rc) {
+    case GT_OK:
+    case GT_NO_MORE:
+      DEBUG ("got %lu MAC addrs total\r\n", total);
+      for (i = 0; i < total; i++) {
+        DEBUG ("AU msg type %d\r\n", fdb_addrs[i].updType);
+        switch (fdb_addrs[i].updType) {
+        case CPSS_NA_E:
+        case CPSS_SA_E:
+          fdb_new_addr (dev, &fdb_addrs[i]);
+          break;
+        default:
+          break;
+        }
+      }
+      break;
+
+    default:
+      CRP (rc);
+    }
+  }
+
+  return NULL;
+}
+
 enum status
 mac_start (void)
 {
+  pthread_t tid;
   struct mac_age_arg arg = {
     .vid = ALL_VLANS,
     .port = ALL_PORTS
@@ -305,6 +388,16 @@ mac_start (void)
 
   CRP (cpssDxChBrgFdbAAandTAToCpuSet (0, GT_FALSE));
   CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (0, GT_FALSE));
+
+  memset (fdb, 0, sizeof (fdb));
+  pthread_create (&tid, NULL, fdb_thread, NULL);
+  DEBUG ("waiting for FDB startup\r\n");
+  int n = 0;
+  while (!fdb_thread_started) {
+    n++;
+    usleep (10000);
+  }
+  DEBUG ("FDB startup finished after %d iteractions\r\n", n);
 
 #ifdef DEBUG_LIST_MACS
   int i, j;
