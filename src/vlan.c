@@ -181,8 +181,8 @@ setup_tagging (vid_t vid,
     for (i = 0; i < dev_info[d].n_ic_ports; i++) {
       int p = dev_info[d].ic_ports[i];
 
-      CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], i);
-      CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], i);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], p);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], p);
       tagging_cmd[d].portsCmd[p] =
         CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
     }
