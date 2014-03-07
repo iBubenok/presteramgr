@@ -533,7 +533,7 @@ lib_init (int d)
   RCC ((rc = bridge_lib_init (d)), bridge_lib_init);
   DEBUG ("bridge library init done\n");
 
-  if (d == 1) {
+  if (d == CPU_DEV) {
     DEBUG ("doing netif library init\n");
     RCC ((rc = netif_lib_init (d)), netif_lib_init);
     DEBUG ("netif library init done\n");
@@ -555,10 +555,6 @@ lib_init (int d)
   RCC ((rc = trunk_lib_init (d)), trunk_lib_init);
   DEBUG ("trunk library init done\n");
 
-  DEBUG ("doing IP library init\n");
-  ip_cpss_lib_init ();
-  DEBUG ("IP library init done\n");
-
   return GT_OK;
 }
 
@@ -569,13 +565,6 @@ after_phase2 (int d)
        (d, stack_active () ? GT_TRUE : GT_FALSE));
 
   return GT_OK;
-}
-
-static void
-linux_ip_setup (int d)
-{
-  CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
-       (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
 }
 
 static void
@@ -676,13 +665,16 @@ init_cpss (void)
 
   sysd_setup_ic ();
 
+  DEBUG ("doing IP library init\n");
+  ip_cpss_lib_init ();
+  DEBUG ("IP library init done\n");
+
 #if defined (VARIANT_GE)
   qt2025_phy_load_fw ();
 #endif /* VARIANT_GE */
   mac_start ();
   vlan_init ();
   wnct_start ();
-  linux_ip_setup (0);
   qos_start ();
   rate_limit_init (0);
   port_start ();
