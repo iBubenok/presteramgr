@@ -17,6 +17,7 @@
 #include <vlan.h>
 #include <fib.h>
 #include <arpc.h>
+#include <sysdeps.h>
 #include <debug.h>
 
 #include <uthash.h>
@@ -61,8 +62,8 @@ cpss_lib_init (void)
   GT_BOOL                                         isCh2VrSupported;
   GT_U32                                          lpmDbId = 0;
   GT_U32                                          tcamColumns;
-  static GT_BOOL lpmDbInitialized = GT_FALSE;     /* traces after LPM DB creation */
   GT_U8 devs[] = { 0 };
+  int d;
 
   /* init default UC and MC entries */
   memset (&defUcLttEntry, 0, sizeof (CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT));
@@ -105,56 +106,6 @@ cpss_lib_init (void)
           &defMcLttEntry,
           sizeof (CPSS_DXCH_IP_LTT_ENTRY_STC));
 
-  memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
-  ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-  rc = cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1);
-  if (rc != GT_OK) {
-    if (rc == GT_OUT_OF_RANGE) {
-      /* The device does not support any IP (not router device). */
-      rc = GT_OK;
-      DEBUG ("cpssDxChIpUcRouteEntriesWrite : device not supported\n");
-    }
-    return  rc;
-  }
-
-  memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
-  mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  CRPR (cpssDxChIpMcRouteEntriesWrite (0, DEFAULT_MC_RE_IDX, &mcRouteEntry));
-
-  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-  memset (&rt, 0, sizeof (rt));
-  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, MGMT_IP_RE_IDX, &rt, 1));
-
-  /* Set up the unknown dst trap entry. */
-  rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, TRAP_RE_IDX, &rt, 1));
-
-  /* Set up the unknown dst drop entry. */
-  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, DROP_RE_IDX, &rt, 1));
-
-  /********************************************************************/
-  /* if lpm db is already created, all that is needed to do is to add */
-  /* the device to the lpm db                                         */
-  /********************************************************************/
-  if (lpmDbInitialized == GT_TRUE) {
-    rc = cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1);
-    if (rc == GT_BAD_PARAM) {
-      DEBUG ("cpssDxChIpLpmDBDevListAdd : device not supported\n");
-      rc = GT_OK;
-    }
-    return  rc;
-  }
-
-  /*****************/
-  /* create LPM DB */
-  /*****************/
-
-  /* set parameters */
   cpssLpmDbCapacity.numOfIpv4Prefixes         = 3920;
   cpssLpmDbCapacity.numOfIpv6Prefixes         = 100;
   cpssLpmDbCapacity.numOfIpv4McSourcePrefixes = 100;
@@ -166,17 +117,35 @@ cpss_lib_init (void)
                                GT_TRUE,
                                &cpssLpmDbCapacity, NULL));
 
-  /* mark the lpm db as created */
-  lpmDbInitialized = GT_TRUE;
+  for_each_dev (d) {
+    memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
+    ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1));
 
-  /*******************************/
-  /* add active device to LPM DB */
-  /*******************************/
-  CRPR (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+    memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
+    mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    CRP (cpssDxChIpMcRouteEntriesWrite (d, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
-  /*************************/
-  /* create virtual router */
-  /*************************/
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, MGMT_IP_RE_IDX, &rt, 1));
+
+    /* Set up the unknown dst trap entry. */
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, TRAP_RE_IDX, &rt, 1));
+
+    /* Set up the unknown dst drop entry. */
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, DROP_RE_IDX, &rt, 1));
+
+    devs[0] = d;
+    CRP (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+  }
+
   rc = CRP (cpssDxChIpLpmVirtualRouterAdd (lpmDbId, 0, &vrConfigInfo));
 
   return rc;
@@ -186,23 +155,25 @@ enum status
 route_set_router_mac_addr (mac_addr_t addr)
 {
   GT_ETHERADDR ra;
-  GT_STATUS rc;
+  int d;
 
   memcpy (ra.arEther, addr, sizeof (addr));
-  rc = CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
-  switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
-  }
+  for_each_dev (d)
+    CRP (cpssDxChIpRouterMacSaBaseSet (d, &ra));
+
+  return ST_OK;
 }
 
 enum status
 route_start (void)
 {
+  int d;
+
   arpc_start ();
 
   DEBUG ("enable routing");
-  CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
+  for_each_dev (d)
+    CRP (cpssDxChIpRoutingEnable (d, GT_TRUE));
 
   return ST_OK;
 }
