@@ -313,6 +313,16 @@ struct fdb_entry fdb[FDB_MAX_ADDRS];
 #define DYN_FDB_ENTRY 0
 #define OWN_FDB_ENTRY 10
 
+static inline int
+me_key_eq (const CPSS_MAC_ENTRY_EXT_STC *a,
+           const CPSS_MAC_ENTRY_EXT_STC *b)
+{
+  return ((a->key.key.macVlan.vlanId == b->key.key.macVlan.vlanId)
+          && !memcmp (a->key.key.macVlan.macAddr.arEther,
+                      b->key.key.macVlan.macAddr.arEther,
+                      6));
+}
+
 static void
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
@@ -320,9 +330,9 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   GT_U32 idx;
   int i;
 
-  DEBUG ("NA/SA msg: " MAC_FMT ", index %u, offset %u\r\n",
-         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther),
-         u->macEntryIndex, u->entryOffset);
+  /* DEBUG ("NA/SA msg: " MAC_FMT ", index %u, offset %u\r\n", */
+  /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
+  /*        u->macEntryIndex, u->entryOffset); */
 
   rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
   ON_GT_ERROR (rc) return;
@@ -331,7 +341,7 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
     if (!fdb[idx].valid) {
       int d;
 
-      DEBUG ("writing entry at %d\r\n", idx);
+      /* DEBUG ("writing entry at %d\r\n", idx); */
 
       memcpy (&fdb[idx].me, &u->macEntry, sizeof (u->macEntry));
       fdb[idx].me.appSpecificCpuCode = GT_FALSE;
@@ -349,6 +359,36 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   }
 
   DEBUG ("no FDB space left\r\n");
+}
+
+static void
+fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
+{
+  GT_STATUS rc;
+  GT_U32 idx;
+  int i;
+
+  DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n",
+         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther),
+         u->macEntry.key.key.macVlan.vlanId);
+
+  rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
+  ON_GT_ERROR (rc) return;
+
+  for (i = 0; i < 4; i++, idx++) {
+    if (fdb[idx].valid && me_key_eq (&u->macEntry, &fdb[idx].me)) {
+      int d;
+
+      DEBUG ("found entry at %u, removing\r\n", idx);
+      for_each_dev (d)
+        CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
+      fdb[idx].valid = 0;
+
+      return;
+    }
+  }
+
+  DEBUG ("Aged entry not found!\r\n");
 }
 
 static volatile int fdb_thread_started = 0;
@@ -383,7 +423,8 @@ fdb_thread (void *_)
       num = FDB_MAX_ADDRS - total;
       rc = cpssDxChBrgFdbAuMsgBlockGet (dev, &num, ptr);
       total += num;
-    } while (rc == GT_OK && total > FDB_MAX_ADDRS);
+      ptr += num;
+    } while (rc == GT_OK && total < FDB_MAX_ADDRS);
 
     switch (rc) {
     case GT_OK:
@@ -395,6 +436,9 @@ fdb_thread (void *_)
         case CPSS_NA_E:
         case CPSS_SA_E:
           fdb_new_addr (dev, &fdb_addrs[i]);
+          break;
+        case CPSS_AA_E:
+          fdb_old_addr (dev, &fdb_addrs[i]);
           break;
         default:
           break;
@@ -418,9 +462,12 @@ mac_start (void)
     .vid = ALL_VLANS,
     .port = ALL_PORTS
   };
+  int d;
 
-  CRP (cpssDxChBrgFdbAAandTAToCpuSet (0, GT_FALSE));
-  CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (0, GT_FALSE));
+  for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
+    CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (d, GT_TRUE));
+  }
 
   memset (fdb, 0, sizeof (fdb));
   pthread_create (&tid, NULL, fdb_thread, NULL);
