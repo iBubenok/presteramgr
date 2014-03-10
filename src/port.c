@@ -417,11 +417,15 @@ port_start (void)
     }
 
     port->setup (port);
+
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
+
     CRP (cpssDxChBrgVlanPortIngFltEnable (port->ldev, port->lport, GT_TRUE));
     port_set_vid (port);
     port_update_qos_trust (port);
     port_setup_stats (port->ldev, port->lport);
-    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_FALSE));
+    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgGenPortIeeeReservedMcastProfileIndexSet
          (port->ldev, port->lport, 0));
     CRP (cpssDxChIpPortRoutingEnable

@@ -8,6 +8,12 @@
 
 #define FDB_NOTIFY_EP "inproc://fdb"
 
+struct fdb_entry {
+  int valid;
+  CPSS_MAC_ENTRY_EXT_STC me;
+};
+extern struct fdb_entry fdb[];
+
 extern CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
 extern GT_U32 fdb_naddrs;
 

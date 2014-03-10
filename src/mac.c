@@ -2,6 +2,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <cpssdefs.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
+
 #include <mac.h>
 #include <zcontext.h>
 #include <port.h>
@@ -222,20 +225,20 @@ mac_list (void)
 
   CRP (cpssDxChBrgFdbAuqFuqMessagesNumberGet
        (0, CPSS_DXCH_FDB_QUEUE_TYPE_FU_E, &total, &end));
-  DEBUG ("FU entries: %lu, end: %d\r", total, end);
+  DEBUG ("FU entries: %u, end: %d\r", total, end);
 
   num = total;
   CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
   fdb_naddrs = num;
-  DEBUG ("got %lu MAC addrs\r\n", num);
+  DEBUG ("got %u MAC addrs\r\n", num);
   if (num < total) {
     ptr += num;
     num = total - num;
     CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
-    DEBUG ("got %lu MAC addrs more\r\n", num);
+    DEBUG ("got %u MAC addrs more\r\n", num);
     fdb_naddrs += num;
   }
-  DEBUG ("got %lu MAC addrs total\r\n", fdb_naddrs);
+  DEBUG ("got %u MAC addrs total\r\n", fdb_naddrs);
 
   return ST_OK;
 }
@@ -305,17 +308,47 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
  * FDB management.
  */
 
-struct fdb_entry {
-  CPSS_MAC_ENTRY_EXT_STC me;
-};
+struct fdb_entry fdb[FDB_MAX_ADDRS];
 
-static struct fdb_entry fdb[FDB_MAX_ADDRS];
+#define DYN_FDB_ENTRY 0
+#define OWN_FDB_ENTRY 10
 
 static void
-fdb_new_addr (GT_U8 dev, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
+fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-  DEBUG ("NA/SA msg: " MAC_FMT "\r\n",
-         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther));
+  GT_STATUS rc;
+  GT_U32 idx;
+  int i;
+
+  DEBUG ("NA/SA msg: " MAC_FMT ", index %u, offset %u\r\n",
+         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther),
+         u->macEntryIndex, u->entryOffset);
+
+  rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
+  ON_GT_ERROR (rc) return;
+
+  for (i = 0; i < 4; i++, idx++) {
+    if (!fdb[idx].valid) {
+      int d;
+
+      DEBUG ("writing entry at %d\r\n", idx);
+
+      memcpy (&fdb[idx].me, &u->macEntry, sizeof (u->macEntry));
+      fdb[idx].me.appSpecificCpuCode = GT_FALSE;
+      fdb[idx].me.isStatic           = GT_FALSE;
+      fdb[idx].me.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
+      fdb[idx].me.saCommand          = CPSS_MAC_TABLE_FRWRD_E;
+      fdb[idx].me.daRoute            = GT_FALSE;
+      fdb[idx].me.userDefined        = DYN_FDB_ENTRY;
+      fdb[idx].valid = 1;
+      for_each_dev (d)
+        CRP (cpssDxChBrgFdbMacEntryWrite (d, idx, GT_FALSE, &fdb[idx].me));
+
+      return;
+    }
+  }
+
+  DEBUG ("no FDB space left\r\n");
 }
 
 static volatile int fdb_thread_started = 0;
@@ -355,9 +388,9 @@ fdb_thread (void *_)
     switch (rc) {
     case GT_OK:
     case GT_NO_MORE:
-      DEBUG ("got %lu MAC addrs total\r\n", total);
+      /* DEBUG ("got %lu MAC addrs total\r\n", total); */
       for (i = 0; i < total; i++) {
-        DEBUG ("AU msg type %d\r\n", fdb_addrs[i].updType);
+        /* DEBUG ("AU msg type %d\r\n", fdb_addrs[i].updType); */
         switch (fdb_addrs[i].updType) {
         case CPSS_NA_E:
         case CPSS_SA_E:
