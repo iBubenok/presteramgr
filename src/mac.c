@@ -332,7 +332,6 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
     }
     usleep (100);
   } while (!all_done);
-  DEBUG ("*** FLUSH DONE!\r\n");
 
   for_each_dev (d) {
     CRP (cpssDxChBrgFdbActionActiveInterfaceSet
@@ -375,18 +374,12 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   GT_U32 idx;
   int i;
 
-  /* DEBUG ("NA/SA msg: " MAC_FMT ", devNum %u\r\n", */
-  /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
-  /*        u->associatedDevNum); */
-
   rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
   ON_GT_ERROR (rc) return;
 
   for (i = 0; i < 4; i++, idx++) {
     if (!fdb[idx].valid) {
       int d;
-
-      /* DEBUG ("writing entry at %d\r\n", idx); */
 
       memcpy (&fdb[idx].me, &u->macEntry, sizeof (u->macEntry));
       fdb[idx].me.appSpecificCpuCode = GT_FALSE;
