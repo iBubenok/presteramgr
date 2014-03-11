@@ -253,7 +253,7 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
   GT_U32 s_is_trunk, s_is_trunk_mask;
   GT_U32 s_port, s_port_mask, port, port_mask;
   GT_BOOL done[NDEVS];
-  int d, all_done;
+  int d, all_done, i;
 
   if (arg->vid == ALL_VLANS) {
     act_vid = 0;
@@ -283,6 +283,8 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
   }
 
   for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_FALSE));
+
     CRP (cpssDxChBrgFdbActionModeGet (d, &s_act_mode));
     CRP (cpssDxChBrgFdbMacTriggerModeGet (d, &s_mac_mode));
     CRP (cpssDxChBrgFdbActionActiveDevGet (d, &s_act_dev, &s_act_dev_mask));
@@ -298,6 +300,26 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
     CRP (cpssDxChBrgFdbTrigActionStart (d, CPSS_FDB_ACTION_DELETING_E));
 
     done[d] = GT_FALSE;
+  }
+
+  if (act_vid_mask && port_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].me.key.key.macVlan.vlanId == act_vid
+          && fdb[i].me.dstInterface.devPort.devNum == act_dev
+          && fdb[i].me.dstInterface.devPort.portNum == port)
+        fdb[i].valid = 0;
+  } else if (act_vid_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].me.key.key.macVlan.vlanId == act_vid)
+        fdb[i].valid = 0;
+  } else if (port_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].me.dstInterface.devPort.devNum == act_dev
+          && fdb[i].me.dstInterface.devPort.portNum == port)
+        fdb[i].valid = 0;
+  } else {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      fdb[i].valid = 0;
   }
 
   do {
@@ -320,6 +342,8 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
     CRP (cpssDxChBrgFdbActionActiveVlanSet (d, s_act_vid, s_act_vid_mask));
     CRP (cpssDxChBrgFdbMacTriggerModeSet (d, s_mac_mode));
     CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
+
+    CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
   }
 
   return ST_OK;
