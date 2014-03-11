@@ -413,65 +413,93 @@ fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   DEBUG ("Aged entry not found!\r\n");
 }
 
+static void
+fdb_upd_for_dev (int d)
+{
+  GT_U32 num, total;
+  GT_STATUS rc;
+  CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
+  int i;
+
+  total = 0;
+  do {
+    num = FDB_MAX_ADDRS - total;
+    rc = cpssDxChBrgFdbAuMsgBlockGet (d, &num, ptr);
+    total += num;
+    ptr += num;
+  } while (rc == GT_OK && total < FDB_MAX_ADDRS);
+
+  switch (rc) {
+  case GT_OK:
+  case GT_NO_MORE:
+    for (i = 0; i < total; i++) {
+      switch (fdb_addrs[i].updType) {
+      case CPSS_NA_E:
+      case CPSS_SA_E:
+        fdb_new_addr (d, &fdb_addrs[i]);
+        break;
+      case CPSS_AA_E:
+        fdb_old_addr (d, &fdb_addrs[i]);
+        break;
+      default:
+        break;
+      }
+    }
+    break;
+
+  default:
+    CRP (rc);
+  }
+}
+
+static int
+fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
+{
+  zmsg_t *msg = zmsg_recv (fdb_sock);
+  zframe_t *frame = zmsg_first (msg);
+  GT_U8 dev = *((GT_U8 *) zframe_data (frame));
+  zmsg_destroy (&msg);
+
+  fdb_upd_for_dev (dev);
+
+  return 0;
+}
+
+static int
+fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
+{
+  int d;
+
+  for_each_dev (d)
+    fdb_upd_for_dev (d);
+
+  return 0;
+}
+
 static volatile int fdb_thread_started = 0;
 
 static void *
 fdb_thread (void *_)
 {
   void *fdb_sock;
+  zloop_t *loop;
 
   DEBUG ("starting up FDB\r\n");
+
+  loop = zloop_new ();
+  assert (loop);
 
   fdb_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (fdb_sock);
   zsocket_bind (fdb_sock, FDB_NOTIFY_EP);
 
+  zmq_pollitem_t pi = { fdb_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &pi, fdb_evt_handler, fdb_sock);
+  zloop_timer (loop, 1000, 0, fdb_upd_timer, fdb_sock);
+
   DEBUG ("FDB startup done\r\n");
   fdb_thread_started = 1;
-
-  while (1) {
-    GT_U32 num, total;
-    GT_STATUS rc;
-    CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
-    int i;
-
-    zmsg_t *msg = zmsg_recv (fdb_sock);
-    zframe_t *frame = zmsg_first (msg);
-    GT_U8 dev = *((GT_U8 *) zframe_data (frame));
-    zmsg_destroy (&msg);
-
-    total = 0;
-    do {
-      num = FDB_MAX_ADDRS - total;
-      rc = cpssDxChBrgFdbAuMsgBlockGet (dev, &num, ptr);
-      total += num;
-      ptr += num;
-    } while (rc == GT_OK && total < FDB_MAX_ADDRS);
-
-    switch (rc) {
-    case GT_OK:
-    case GT_NO_MORE:
-      /* DEBUG ("got %lu MAC addrs total\r\n", total); */
-      for (i = 0; i < total; i++) {
-        /* DEBUG ("AU msg type %d\r\n", fdb_addrs[i].updType); */
-        switch (fdb_addrs[i].updType) {
-        case CPSS_NA_E:
-        case CPSS_SA_E:
-          fdb_new_addr (dev, &fdb_addrs[i]);
-          break;
-        case CPSS_AA_E:
-          fdb_old_addr (dev, &fdb_addrs[i]);
-          break;
-        default:
-          break;
-        }
-      }
-      break;
-
-    default:
-      CRP (rc);
-    }
-  }
+  zloop_start (loop);
 
   return NULL;
 }
