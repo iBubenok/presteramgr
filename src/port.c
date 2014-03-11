@@ -369,6 +369,29 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortMruSet (port->ldev, port->lport, 12000));
 }
 
+static void
+__port_disable (uint8_t d, uint8_t p)
+{
+  CRP (cpssDxChPortEnableSet (d, p, GT_FALSE));
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet (d, p, GT_FALSE));
+}
+
+void
+port_disable_all (void)
+{
+  int d, i;
+
+  for_each_dev (d) {
+    for (i = 0; i < PRV_CPSS_PP_MAC (d)->numOfPorts; i++) {
+      if (PRV_CPSS_PP_MAC (d)->phyPortInfoArray[i].portType !=
+          PRV_CPSS_PORT_NOT_EXISTS_E) {
+        __port_disable (d, i);
+      }
+    }
+    __port_disable (d, CPSS_CPU_PORT_NUM_CNS);
+  }
+}
+
 enum status
 port_start (void)
 {
@@ -380,13 +403,6 @@ port_start (void)
        (0, CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_16_E,
         CPSS_DXCH_PHY_SMI_AUTO_POLL_NUM_OF_PORTS_8_E));
 #endif /* VARIANT_FE */
-
-  for_each_dev (d) {
-    for (i = 0; i < PRV_CPSS_PP_MAC (d)->numOfPorts; i++)
-      if (PRV_CPSS_PP_MAC (d)->phyPortInfoArray[i].portType !=
-          PRV_CPSS_PORT_NOT_EXISTS_E)
-        CRP (cpssDxChPortEnableSet (d, i, GT_FALSE));
-  }
 
 #if defined (VARIANT_SM_12F)
   /* Shut down unused PHYs. */

@@ -672,6 +672,7 @@ init_cpss (void)
 #if defined (VARIANT_GE)
   qt2025_phy_load_fw ();
 #endif /* VARIANT_GE */
+  port_disable_all ();
   mac_start ();
   vlan_init ();
   wnct_start ();

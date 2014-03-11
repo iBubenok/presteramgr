@@ -74,6 +74,7 @@ is_stack_port (const struct port *port)
 }
 
 extern int port_init (void);
+extern void port_disable_all (void);
 extern enum status port_start (void);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_id (GT_U8, GT_U8);
