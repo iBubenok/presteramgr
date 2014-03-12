@@ -20,6 +20,8 @@ struct dev_info {
   GT_PCI_INT int_num;
   int n_ic_ports;
   int *ic_ports;
+  int n_xg_phys;
+  unsigned *xg_phys;
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
 };
 extern struct dev_info *dev_info;
