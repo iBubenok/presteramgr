@@ -79,11 +79,15 @@ sysd_setup_ic (void)
 
 #elif defined (VARIANT_ARLAN_3424GE)
 
+static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};
+
 static struct dev_info __dev_info[] = {
   {
     .dev_id     = CPSS_98DX4122_CNS,
     .int_num    = GT_PCI_INT_B,
     .n_ic_ports = 0,
+    .n_xg_phys  = 4,
+    .xg_phys    = xg_phys
     .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
