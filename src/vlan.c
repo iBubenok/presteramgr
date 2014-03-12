@@ -18,6 +18,7 @@
 #include <route.h>
 #include <utils.h>
 #include <dev.h>
+#include <mac.h>
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
@@ -385,114 +386,19 @@ static void
 vlan_clear_mac_addr (struct vlan *vlan)
 {
   if (vlan->mac_addr_set) {
-    int d;
-
-    DEBUG ("invalidate FDB entry at %d", vlan->mac_idx);
-    for_each_dev (d)
-      CRP (cpssDxChBrgFdbMacEntryInvalidate (d, vlan->mac_idx));
-    vlan->mac_idx = 0;
+    mac_op_own (vlan->vid, vlan->c_mac_addr, 0);
     vlan->mac_addr_set = 0;
   }
 }
 
-#define VLAN_MAC_ENTRY 1
-
-GT_STATUS
+void
 vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 {
-  CPSS_MAC_ENTRY_EXT_STC mac_entry;
-  GT_STATUS rc;
-  GT_U32 idx, best_idx, i, score;
+  struct vlan *vlan = &vlans[vid - 1];
 
-  vlan_clear_mac_addr (&vlans[vid - 1]);
-
-  memset (&mac_entry, 0, sizeof (mac_entry));
-  mac_entry.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-  mac_entry.key.key.macVlan.vlanId = vid;
-  memcpy (mac_entry.key.key.macVlan.macAddr.arEther, addr, 6);
-  mac_entry.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  mac_entry.dstInterface.devPort.devNum = phys_dev (CPU_DEV);
-  mac_entry.dstInterface.devPort.portNum = CPSS_CPU_PORT_NUM_CNS;
-  mac_entry.appSpecificCpuCode = GT_TRUE;
-  mac_entry.isStatic = GT_TRUE;
-  mac_entry.daCommand = CPSS_MAC_TABLE_FRWRD_E;
-  mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-  mac_entry.daRoute = GT_TRUE;
-  mac_entry.userDefined = VLAN_MAC_ENTRY;
-
-  rc = CRP (cpssDxChBrgFdbHashCalc (0, &mac_entry.key, &idx));
-  if (rc != GT_OK)
-    goto out;
-
-  best_idx = idx;
-  score = 10;
-  DEBUG ("searching FDB from %lu to %lu, initial score %lu",
-         idx, idx + 3, score);
-  for (i = 0; i < 4; i++) {
-    GT_BOOL valid, skip, aged;
-    GT_U8 adev;
-    CPSS_MAC_ENTRY_EXT_STC tmp;
-
-    CRP (cpssDxChBrgFdbMacEntryRead
-         (0, idx + i, &valid, &skip, &aged, &adev, &tmp));
-
-    if (skip || !valid) {
-      DEBUG ("found free FDB entry (score 0) at %lu", idx + i);
-      best_idx = idx + i;
-      score = 0;
-      break;
-    }
-
-    if (aged) {
-      DEBUG ("found aged FDB entry (score 1) at %lu", idx + i);
-      best_idx = idx + i;
-      score = 1;
-      continue;
-    }
-
-    if (tmp.isStatic) {
-      if (tmp.userDefined == VLAN_MAC_ENTRY) {
-        DEBUG ("found static VLAN FDB entry (score 10) at %lu", idx + i);
-        continue;
-      } else {
-        DEBUG ("found static FDB entry (score 5) at %lu", idx + i);
-        if (score > 5) {
-          best_idx = idx + i;
-          score = 5;
-        }
-      }
-    } else {
-      DEBUG ("found dynamic FDB entry (score 2) at %lu", idx + i);
-      if (score > 2) {
-        best_idx = idx + i;
-        score = 2;
-      }
-    }
-
-    if (score < 10) {
-      int d;
-      DEBUG ("writing VLAN FDB entry at %lu (score %lu)", best_idx, score);
-      for_each_dev (d) {
-        rc = CRP (cpssDxChBrgFdbMacEntryWrite
-                  (d, best_idx, GT_FALSE, &mac_entry));
-        if (rc != GT_OK)
-          goto out;
-      }
-    } else {
-      DEBUG ("no room for VLAN FDB entry");
-      rc = GT_NOT_FOUND;
-      goto out;
-    }
-  }
-
-  memcpy (vlans[vid - 1].c_mac_addr, addr, 6);
-  vlans[vid - 1].mac_addr_set = 1;
-  vlans[vid - 1].mac_idx = best_idx;
-
-  return GT_OK;
-
- out:
-  return rc;
+  vlan_clear_mac_addr (vlan);
+  memcpy (vlan->c_mac_addr, addr, 6);
+  mac_op_own (vlan->vid, vlan->c_mac_addr, 1);
 }
 
 enum status

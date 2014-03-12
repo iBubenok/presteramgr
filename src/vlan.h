@@ -18,7 +18,6 @@ struct vlan {
   int c_cpu;
   int mac_addr_set;
   mac_addr_t c_mac_addr;
-  uint32_t mac_idx;
   int ip_addr_set;
   ip_addr_t c_ip_addr;
   int vt_refc;
@@ -46,7 +45,7 @@ extern enum status vlan_dump (vid_t);
 extern enum status vlan_add (vid_t);
 extern enum status vlan_delete (vid_t);
 extern enum status vlan_set_dot1q_tag_native (int);
-extern GT_STATUS vlan_set_mac_addr (GT_U16, const unsigned char *);
+extern void vlan_set_mac_addr (GT_U16, const unsigned char *);
 extern enum status vlan_set_cpu (vid_t, bool_t);
 extern enum status vlan_set_fdb_map (const stp_id_t *);
 extern enum status vlan_get_mac_addr (vid_t, mac_addr_t);

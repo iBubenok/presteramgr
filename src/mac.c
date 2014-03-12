@@ -15,64 +15,29 @@
 #include <log.h>
 
 
-/*
- * TODO: maintain shadow FDB.
- */
+#define FDB_CONTROL_EP "inproc://fdb-control"
 
-#undef DEBUG_LIST_MACS
+enum fdb_ctl_cmd {
+  FCC_MAC_OP,
+  FCC_OWN_MAC_OP,
+  FCC_MC_IP_OP
+};
 
-static enum status
-mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
+static void *ctl_sock;
+
+static enum status __attribute__ ((unused))
+fdb_ctl (int cmd, const void *arg, int size)
 {
-  CPSS_MAC_ENTRY_EXT_KEY_STC key;
-  GT_STATUS result;
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, arg, size);
+  zmsg_send (&msg, ctl_sock);
 
-  memset (&key, 0, sizeof (key));
+  msg = zmsg_recv (ctl_sock);
+  status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
+  zmsg_destroy (&msg);
 
-  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
-  memcpy (key.key.ipMcast.sip, arg->src, sizeof (arg->src));
-  memcpy (key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
-  key.key.ipMcast.vlanId = arg->vid;
-
-  result = CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
-  switch (result) {
-  case GT_OK:           return ST_OK;
-  case GT_BAD_PARAM:    return ST_BAD_VALUE;
-  case GT_HW_ERROR:     return ST_HW_ERROR;
-  case GT_OUT_OF_RANGE: return ST_BAD_VALUE;
-  case GT_BAD_STATE:    return ST_BUSY;
-  default:              return ST_HEX;
-  }
-}
-
-static enum status
-mac_mc_ip_add (const struct mc_ip_op_arg *arg)
-{
-  CPSS_MAC_ENTRY_EXT_STC me;
-  GT_STATUS result;
-
-  memset (&me, 0, sizeof (me));
-
-  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
-  memcpy (me.key.key.ipMcast.sip, arg->src, sizeof (arg->src));
-  memcpy (me.key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
-  me.key.key.ipMcast.vlanId = arg->vid;
-
-  me.isStatic = GT_TRUE;
-  me.dstInterface.type = CPSS_INTERFACE_VIDX_E;
-  me.dstInterface.vidx = arg->mcg;
-  me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
-  me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-
-  result = CRP (cpssDxChBrgFdbMacEntrySet (0, &me));
-  switch (result) {
-  case GT_OK:           return ST_OK;
-  case GT_BAD_PARAM:    return ST_BAD_VALUE;
-  case GT_HW_ERROR:     return ST_HW_ERROR;
-  case GT_OUT_OF_RANGE: return ST_BAD_VALUE;
-  case GT_BAD_STATE:    return ST_BUSY;
-  default:              return ST_HEX;
-  }
+  return status;
 }
 
 enum status
@@ -81,70 +46,7 @@ mac_mc_ip_op (const struct mc_ip_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  if (arg->delete)
-    return mac_mc_ip_delete (arg);
-  else
-    return mac_mc_ip_add (arg);
-}
-
-static enum status
-mac_add (const struct mac_op_arg *arg)
-{
-  CPSS_MAC_ENTRY_EXT_STC me;
-  GT_STATUS result;
-
-  memset (&me, 0, sizeof (me));
-  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-  memcpy (me.key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
-  me.key.key.macVlan.vlanId = arg->vid;
-  me.isStatic = GT_TRUE;
-
-  if (arg->drop) {
-    me.dstInterface.type = CPSS_INTERFACE_VID_E;
-    me.dstInterface.vlanId = arg->vid;
-
-    me.daCommand = CPSS_MAC_TABLE_DROP_E;
-    me.saCommand = CPSS_MAC_TABLE_DROP_E;
-  } else {
-    struct port *port = port_ptr (arg->port);
-
-    if (!port)
-      return ST_BAD_VALUE;
-
-    me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-    me.dstInterface.devPort.devNum = phys_dev (port->ldev);
-    me.dstInterface.devPort.portNum = port->lport;
-
-    me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
-    me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-  }
-
-  result = CRP (cpssDxChBrgFdbMacEntrySet (0, &me));
-  switch (result) {
-  case GT_OK:        return ST_OK;
-  case GT_HW_ERROR:  return ST_HW_ERROR;
-  case GT_BAD_STATE: return ST_BUSY;
-  default:           return ST_HEX;
-  }
-}
-
-static enum status
-mac_delete (const struct mac_op_arg *arg)
-{
-  CPSS_MAC_ENTRY_EXT_KEY_STC key;
-  GT_STATUS result;
-
-  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-  memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
-  key.key.macVlan.vlanId = arg->vid;
-
-  result = CRP (cpssDxChBrgFdbMacEntryDelete (0, &key));
-  switch (result) {
-  case GT_OK:        return ST_OK;
-  case GT_HW_ERROR:  return ST_HW_ERROR;
-  case GT_BAD_STATE: return ST_BUSY;
-  default:           return ST_HEX;
-  }
+  return fdb_ctl (FCC_MC_IP_OP, arg, sizeof (*arg));
 }
 
 enum status
@@ -153,10 +55,22 @@ mac_op (const struct mac_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  if (arg->delete)
-    return mac_delete (arg);
-  else
-    return mac_add (arg);
+  return fdb_ctl (FCC_MAC_OP, arg, sizeof (*arg));
+}
+
+enum status
+mac_op_own (vid_t vid, mac_addr_t mac, int add)
+{
+  struct mac_op_arg arg;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  arg.vid = vid;
+  memcpy (arg.mac, mac, sizeof (mac));
+  /* Everything else is irrelevant for own MAC addr. */
+
+  return fdb_ctl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
 }
 
 enum status
@@ -180,68 +94,6 @@ mac_set_aging_time (aging_time_t time)
 
 CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
 GT_U32 fdb_naddrs = 0;
-
-enum status
-mac_list (void)
-{
-  CPSS_FDB_ACTION_MODE_ENT s_act_mode;
-  CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
-  GT_U32 s_act_dev, s_act_dev_mask;
-  GT_U16 s_act_vid, s_act_vid_mask;
-  GT_U32 s_is_trunk, s_is_trunk_mask;
-  GT_U32 s_port, s_port_mask, num, total;
-  GT_BOOL done = GT_FALSE, end;
-  CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
-
-  CRP (cpssDxChBrgFdbActionModeGet (0, &s_act_mode));
-  CRP (cpssDxChBrgFdbMacTriggerModeGet (0, &s_mac_mode));
-  CRP (cpssDxChBrgFdbActionActiveDevGet (0, &s_act_dev, &s_act_dev_mask));
-  CRP (cpssDxChBrgFdbActionActiveVlanGet (0, &s_act_vid, &s_act_vid_mask));
-  CRP (cpssDxChBrgFdbActionActiveInterfaceGet
-       (0, &s_is_trunk, &s_is_trunk_mask, &s_port, &s_port_mask));
-  CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_FALSE));
-
-  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, 0, 0));
-  CRP (cpssDxChBrgFdbActionActiveInterfaceSet (0, 0, 0, 0, 0));
-  CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_TRUE));
-  CRP (cpssDxChBrgFdbTrigActionStart (0, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
-
-  /* FIXME: use event system instead of polling. */
-  while (1) {
-    CRP (cpssDxChBrgFdbTrigActionStatusGet (0, &done));
-    if (done)
-      break;
-    usleep (100);
-  };
-
-  CRP (cpssDxChBrgFdbUploadEnableSet (0, GT_FALSE));
-  CRP (cpssDxChBrgFdbActionActiveInterfaceSet
-       (0, s_is_trunk, s_is_trunk_mask, s_port, s_port_mask));
-  CRP (cpssDxChBrgFdbActionActiveDevSet (0, s_act_dev, s_act_dev_mask));
-  CRP (cpssDxChBrgFdbActionModeSet (0, s_act_mode));
-  CRP (cpssDxChBrgFdbActionActiveVlanSet (0, s_act_vid, s_act_vid_mask));
-  CRP (cpssDxChBrgFdbMacTriggerModeSet (0, s_mac_mode));
-  CRP (cpssDxChBrgFdbActionsEnableSet (0, GT_TRUE));
-
-  CRP (cpssDxChBrgFdbAuqFuqMessagesNumberGet
-       (0, CPSS_DXCH_FDB_QUEUE_TYPE_FU_E, &total, &end));
-  DEBUG ("FU entries: %u, end: %d\r", total, end);
-
-  num = total;
-  CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
-  fdb_naddrs = num;
-  DEBUG ("got %u MAC addrs\r\n", num);
-  if (num < total) {
-    ptr += num;
-    num = total - num;
-    CRP (cpssDxChBrgFdbFuMsgBlockGet (0, &num, ptr));
-    DEBUG ("got %u MAC addrs more\r\n", num);
-    fdb_naddrs += num;
-  }
-  DEBUG ("got %u MAC addrs total\r\n", fdb_naddrs);
-
-  return ST_OK;
-}
 
 enum status
 mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
@@ -354,80 +206,229 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 
 struct fdb_entry fdb[FDB_MAX_ADDRS];
 
-#define DYN_FDB_ENTRY 0
-#define OWN_FDB_ENTRY 10
+enum fdb_entry_prio {
+  FEP_DYN,
+  FEP_STATIC,
+  FEP_OWN
+};
 
 static inline int
-me_key_eq (const CPSS_MAC_ENTRY_EXT_STC *a,
-           const CPSS_MAC_ENTRY_EXT_STC *b)
+me_key_eq (const CPSS_MAC_ENTRY_EXT_KEY_STC *a,
+           const CPSS_MAC_ENTRY_EXT_KEY_STC *b)
 {
-  return ((a->key.key.macVlan.vlanId == b->key.key.macVlan.vlanId)
-          && !memcmp (a->key.key.macVlan.macAddr.arEther,
-                      b->key.key.macVlan.macAddr.arEther,
-                      6));
+  if (a->entryType != b->entryType)
+    return 0;
+
+  switch (a->entryType) {
+  case CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E:
+    return (a->key.macVlan.vlanId == b->key.macVlan.vlanId
+            && !memcmp (a->key.macVlan.macAddr.arEther,
+                        b->key.macVlan.macAddr.arEther,
+                        6));
+
+  case CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E:
+  case CPSS_MAC_ENTRY_EXT_TYPE_IPV6_MCAST_E:
+    return (a->key.ipMcast.vlanId == b->key.ipMcast.vlanId
+            && !memcmp (a->key.ipMcast.sip, b->key.ipMcast.sip, 4)
+            && !memcmp (a->key.ipMcast.dip, b->key.ipMcast.dip, 4));
+  }
+
+  /* Should never happen. */
+  return 0;
+}
+
+#define INVALID_IDX 0xFFFFFFFF
+static enum status __attribute__ ((unused))
+fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
+{
+  GT_U32 idx, best_idx = INVALID_IDX;
+  int i, d, best_pri = e->userDefined;
+
+  ON_GT_ERROR (CRP (cpssDxChBrgFdbHashCalc (CPU_DEV, &e->key, &idx)))
+    return ST_HEX;
+
+  for (i = 0; i < 4; i++, idx++) {
+    if (!fdb[idx].valid) {
+      best_idx = idx;
+      break;
+    }
+
+    if (best_pri > fdb[idx].me.userDefined) {
+      best_pri = fdb[idx].me.userDefined;
+      best_idx = idx;
+    }
+  }
+
+  if (best_idx == INVALID_IDX)
+    return ST_DOES_NOT_EXIST;
+
+  memcpy (&fdb[best_idx].me, e, sizeof (*e));
+  fdb[best_idx].valid = 1;
+  for_each_dev (d)
+    CRP (cpssDxChBrgFdbMacEntryWrite (d, best_idx, GT_FALSE, e));
+
+  return ST_OK;
+}
+#undef INVALID_IDX
+
+static enum status __attribute__ ((unused))
+fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k)
+{
+  GT_U32 idx;
+  int i, d;
+
+  ON_GT_ERROR (CRP (cpssDxChBrgFdbHashCalc (CPU_DEV, k, &idx)))
+    return ST_HEX;
+
+  for (i = 0; i < 4; i++, idx++) {
+    if (fdb[idx].valid && me_key_eq (k, &fdb[idx].me.key)) {
+      DEBUG ("found entry at %u, removing\r\n", idx);
+
+      for_each_dev (d)
+        CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
+      fdb[idx].valid = 0;
+
+      return ST_OK;
+    }
+  }
+
+  DEBUG ("Aged entry not found!\r\n");
+  return ST_DOES_NOT_EXIST;
+}
+
+static enum status
+fdb_mac_add (const struct mac_op_arg *arg, int own)
+{
+  CPSS_MAC_ENTRY_EXT_STC me;
+
+  memset (&me, 0, sizeof (me));
+  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  memcpy (me.key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
+  me.key.key.macVlan.vlanId = arg->vid;
+  me.isStatic = GT_TRUE;
+
+  if (own) {
+    me.userDefined = FEP_OWN;
+    me.dstInterface.type = CPSS_INTERFACE_PORT_E;
+    me.dstInterface.devPort.devNum = phys_dev (CPU_DEV);
+    me.dstInterface.devPort.portNum = CPSS_CPU_PORT_NUM_CNS;
+    me.appSpecificCpuCode = GT_TRUE;
+    me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+    me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+    me.daRoute = GT_TRUE;
+  } else {
+    me.userDefined = FEP_STATIC;
+
+    if (arg->drop) {
+      me.dstInterface.type = CPSS_INTERFACE_VID_E;
+      me.dstInterface.vlanId = arg->vid;
+
+      me.daCommand = CPSS_MAC_TABLE_DROP_E;
+      me.saCommand = CPSS_MAC_TABLE_DROP_E;
+    } else {
+      struct port *port = port_ptr (arg->port);
+
+      if (!port)
+        return ST_BAD_VALUE;
+
+      me.dstInterface.type = CPSS_INTERFACE_PORT_E;
+      me.dstInterface.devPort.devNum = phys_dev (port->ldev);
+      me.dstInterface.devPort.portNum = port->lport;
+
+      me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+      me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+    }
+  }
+
+  return fdb_insert (&me);
+}
+
+static enum status
+fdb_mac_delete (const struct mac_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_KEY_STC key;
+
+  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
+  key.key.macVlan.vlanId = arg->vid;
+
+  return fdb_remove (&key);
+}
+
+static enum status
+fdb_mac_op (const struct mac_op_arg *arg, int own)
+{
+  if (arg->delete)
+    return fdb_mac_delete (arg);
+  else
+    return fdb_mac_add (arg, own);
+}
+
+static enum status
+fdb_mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_KEY_STC key;
+
+  memset (&key, 0, sizeof (key));
+  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
+  memcpy (key.key.ipMcast.sip, arg->src, sizeof (arg->src));
+  memcpy (key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  key.key.ipMcast.vlanId = arg->vid;
+
+  return fdb_remove (&key);
+}
+
+static enum status
+fdb_mac_mc_ip_add (const struct mc_ip_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_STC me;
+
+  memset (&me, 0, sizeof (me));
+  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
+  memcpy (me.key.key.ipMcast.sip, arg->src, sizeof (arg->src));
+  memcpy (me.key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  me.key.key.ipMcast.vlanId = arg->vid;
+  me.isStatic = GT_TRUE;
+  me.userDefined = FEP_STATIC;
+  me.dstInterface.type = CPSS_INTERFACE_VIDX_E;
+  me.dstInterface.vidx = arg->mcg;
+  me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+  me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+
+  return fdb_insert (&me);
+}
+
+static enum status
+fdb_mac_mc_ip_op (const struct mc_ip_op_arg *arg)
+{
+  if (arg->delete)
+    return fdb_mac_mc_ip_delete (arg);
+  else
+    return fdb_mac_mc_ip_add (arg);
 }
 
 static void
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-  GT_STATUS rc;
-  GT_U32 idx;
-  int i;
+  u->macEntry.appSpecificCpuCode = GT_FALSE;
+  u->macEntry.isStatic           = GT_FALSE;
+  u->macEntry.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
+  u->macEntry.saCommand          = CPSS_MAC_TABLE_FRWRD_E;
+  u->macEntry.daRoute            = GT_FALSE;
+  u->macEntry.userDefined        = FEP_DYN;
+  u->macEntry.spUnknown          = GT_FALSE;
 
-  rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
-  ON_GT_ERROR (rc) return;
-
-  for (i = 0; i < 4; i++, idx++) {
-    if (!fdb[idx].valid) {
-      int d;
-
-      memcpy (&fdb[idx].me, &u->macEntry, sizeof (u->macEntry));
-      fdb[idx].me.appSpecificCpuCode = GT_FALSE;
-      fdb[idx].me.isStatic           = GT_FALSE;
-      fdb[idx].me.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
-      fdb[idx].me.saCommand          = CPSS_MAC_TABLE_FRWRD_E;
-      fdb[idx].me.daRoute            = GT_FALSE;
-      fdb[idx].me.userDefined        = DYN_FDB_ENTRY;
-      fdb[idx].me.spUnknown          = GT_FALSE;
-      fdb[idx].valid = 1;
-      for_each_dev (d)
-        CRP (cpssDxChBrgFdbMacEntryWrite (d, idx, GT_FALSE, &fdb[idx].me));
-
-      return;
-    }
-  }
-
-  DEBUG ("no FDB space left\r\n");
+  fdb_insert (&u->macEntry);
 }
 
 static void
 fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-  GT_STATUS rc;
-  GT_U32 idx;
-  int i;
-
   DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n",
          MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther),
          u->macEntry.key.key.macVlan.vlanId);
 
-  rc = CRP (cpssDxChBrgFdbHashCalc (d, &u->macEntry.key, &idx));
-  ON_GT_ERROR (rc) return;
-
-  for (i = 0; i < 4; i++, idx++) {
-    if (fdb[idx].valid && me_key_eq (&u->macEntry, &fdb[idx].me)) {
-      int d;
-
-      DEBUG ("found entry at %u, removing\r\n", idx);
-      for_each_dev (d)
-        CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
-      fdb[idx].valid = 0;
-
-      return;
-    }
-  }
-
-  DEBUG ("Aged entry not found!\r\n");
+  fdb_remove (&u->macEntry.key);
 }
 
 static void
@@ -470,9 +471,9 @@ fdb_upd_for_dev (int d)
 }
 
 static int
-fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
+fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 {
-  zmsg_t *msg = zmsg_recv (fdb_sock);
+  zmsg_t *msg = zmsg_recv (not_sock);
   zframe_t *frame = zmsg_first (msg);
   GT_U8 dev = *((GT_U8 *) zframe_data (frame));
   zmsg_destroy (&msg);
@@ -483,7 +484,7 @@ fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
 }
 
 static int
-fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
+fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 {
   int d;
 
@@ -493,12 +494,40 @@ fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *fdb_sock)
   return 0;
 }
 
+static int
+fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
+{
+  zmsg_t *msg = zmsg_recv (ctl_sock);
+  zframe_t *frame = zmsg_first (msg);
+  int cmd = *((int *) zframe_data (frame));
+  void *arg = zframe_data (zmsg_next (msg));
+  status_t status = ST_BAD_REQUEST;
+
+  switch (cmd) {
+  case FCC_MAC_OP:
+    status = fdb_mac_op (arg, 0);
+    break;
+  case FCC_OWN_MAC_OP:
+    status = fdb_mac_op (arg, 1);
+    break;
+  case FCC_MC_IP_OP:
+    status = fdb_mac_mc_ip_op (arg);
+  }
+  zmsg_destroy (&msg);
+
+  msg = zmsg_new ();
+  zmsg_addmem (msg, &status, sizeof (status));
+  zmsg_send (&msg, ctl_sock);
+
+  return 0;
+}
+
 static volatile int fdb_thread_started = 0;
 
 static void *
 fdb_thread (void *_)
 {
-  void *fdb_sock;
+  void *not_sock, *ctl_sock;
   zloop_t *loop;
 
   DEBUG ("starting up FDB\r\n");
@@ -506,13 +535,20 @@ fdb_thread (void *_)
   loop = zloop_new ();
   assert (loop);
 
-  fdb_sock = zsocket_new (zcontext, ZMQ_PULL);
-  assert (fdb_sock);
-  zsocket_bind (fdb_sock, FDB_NOTIFY_EP);
+  not_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (not_sock);
+  zsocket_bind (not_sock, FDB_NOTIFY_EP);
 
-  zmq_pollitem_t pi = { fdb_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &pi, fdb_evt_handler, fdb_sock);
-  zloop_timer (loop, 1000, 0, fdb_upd_timer, fdb_sock);
+  zmq_pollitem_t not_pi = { not_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &not_pi, fdb_evt_handler, not_sock);
+  zloop_timer (loop, 1000, 0, fdb_upd_timer, not_sock);
+
+  ctl_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (ctl_sock);
+  zsocket_bind (ctl_sock, FDB_CONTROL_EP);
+
+  zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &ctl_pi, fdb_ctl_handler, ctl_sock);
 
   DEBUG ("FDB startup done\r\n");
   fdb_thread_started = 1;
@@ -568,6 +604,10 @@ mac_start (void)
     usleep (10000);
   }
   DEBUG ("FDB startup finished after %d iteractions\r\n", n);
+
+  ctl_sock = zsocket_new (zcontext, ZMQ_REQ);
+  assert (ctl_sock);
+  zsocket_connect (ctl_sock, FDB_CONTROL_EP);
 
   return ST_OK;
 }
