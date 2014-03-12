@@ -104,7 +104,9 @@ sysd_setup_ic (void)
 #elif defined (VARIANT_ARLAN_3448PGE)
 
 static int ic_ports_0[] = {26, 27};
+static unsigned xg_phys_0[] = {0x18, 0x19};
 static int ic_ports_1[] = {24, 25};
+static unsigned xg_phys_1[] = {0x1A, 0x1B};
 
 static struct dev_info __dev_info[] = {
   {
@@ -112,6 +114,8 @@ static struct dev_info __dev_info[] = {
     .int_num    = GT_PCI_INT_A,
     .n_ic_ports = 2,
     .ic_ports   = ic_ports_0,
+    .n_xg_phys  = 2,
+    .xg_phys    = xg_phys_0,
     .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
@@ -127,6 +131,8 @@ static struct dev_info __dev_info[] = {
     .int_num    = GT_PCI_INT_B,
     .n_ic_ports = 2,
     .ic_ports   = ic_ports_1,
+    .n_xg_phys  = 2,
+    .xg_phys    = xg_phys_1,
     .ph1_info   = {
       .devNum                 = 1,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
