@@ -156,22 +156,30 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 
   if (act_vid_mask && port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
-      if (fdb[i].me.key.key.macVlan.vlanId == act_vid
+      if (fdb[i].valid
+          && fdb[i].me.key.key.macVlan.vlanId == act_vid
           && fdb[i].me.dstInterface.devPort.devNum == act_dev
-          && fdb[i].me.dstInterface.devPort.portNum == port)
+          && fdb[i].me.dstInterface.devPort.portNum == port
+          && (del_static || !fdb[i].me.isStatic))
         fdb[i].valid = 0;
   } else if (act_vid_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
-      if (fdb[i].me.key.key.macVlan.vlanId == act_vid)
+      if (fdb[i].valid
+          && fdb[i].me.key.key.macVlan.vlanId == act_vid
+          && (del_static || !fdb[i].me.isStatic))
         fdb[i].valid = 0;
   } else if (port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
-      if (fdb[i].me.dstInterface.devPort.devNum == act_dev
-          && fdb[i].me.dstInterface.devPort.portNum == port)
+      if (fdb[i].valid
+          && fdb[i].me.dstInterface.devPort.devNum == act_dev
+          && fdb[i].me.dstInterface.devPort.portNum == port
+          && (del_static || !fdb[i].me.isStatic))
         fdb[i].valid = 0;
   } else {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
-      fdb[i].valid = 0;
+      if (fdb[i].valid
+          && (del_static || !fdb[i].me.isStatic))
+        fdb[i].valid = 0;
   }
 
   do {
