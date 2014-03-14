@@ -292,7 +292,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
 }
 #undef INVALID_IDX
 
-static enum status __attribute__ ((unused))
+static enum status
 fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k)
 {
   GT_U32 idx;
