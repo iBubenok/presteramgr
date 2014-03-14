@@ -581,6 +581,16 @@ mac_start (void)
     bmp |= 1 << phys_dev (d);
 
   for_each_dev (d) {
+    CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_FALSE));
+
+    CRP (cpssDxChBrgFdbActionActiveDevSet (d, d, 0x1F));
+    CRP (cpssDxChBrgFdbActionActiveVlanSet (d, 0, 0));
+    CRP (cpssDxChBrgFdbActionActiveInterfaceSet (d, 0, 0, 0, 0));
+    CRP (cpssDxChBrgFdbStaticDelEnable (d, GT_FALSE));
+    CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
+    CRP (cpssDxChBrgFdbMacTriggerModeSet (d, CPSS_ACT_AUTO_E));
+    CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
+
     CRP (cpssDxChBrgFdbDeviceTableSet (d, bmp));
 
     /* Disable AA/TA messages. */
