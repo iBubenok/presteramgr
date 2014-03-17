@@ -215,7 +215,7 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 struct fdb_entry fdb[FDB_MAX_ADDRS];
 
 enum fdb_entry_prio {
-  FEP_UNUSED = -1,
+  FEP_UNUSED,
   FEP_DYN,
   FEP_STATIC,
   FEP_OWN
@@ -247,7 +247,7 @@ me_key_eq (const CPSS_MAC_ENTRY_EXT_KEY_STC *a,
 }
 
 #define INVALID_IDX 0xFFFFFFFF
-static enum status __attribute__ ((unused))
+static enum status
 fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
 {
   GT_U32 idx, best_idx = INVALID_IDX;
@@ -259,7 +259,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
   for (i = 0; i < 4; i++, idx++) {
     if (me_key_eq (&e->key, &fdb[idx].me.key)) {
       if (!fdb[idx].valid
-          || fdb[idx].me.userDefined < e->userDefined) {
+          || fdb[idx].me.userDefined <= e->userDefined) {
         best_idx = idx;
         break;
       } else {
@@ -267,6 +267,9 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
         return ST_ALREADY_EXISTS;
       }
     }
+
+    if (best_pri == FEP_UNUSED)
+      continue;
 
     if (!fdb[idx].valid) {
       best_pri = FEP_UNUSED;
