@@ -1926,9 +1926,9 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x16, 0x0000));
   CRP (cpssDxChPhyPortSmiRegisterRead
        (port->ldev, port->lport, 0x03, &val));
-  DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val);
+  /* DEBUG ("port %d reg 0:3 is 0x%04X\r\n", port->id, val); */
   if (val == 0x0DC0) {
-    DEBUG ("Activating A0 revision workaround\r\n");
+    /* DEBUG ("Activating A0 revision workaround\r\n"); */
 
     /* A0 Revision errata. */
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -1957,8 +1957,8 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 23, 0x1001));
     CRP (cpssDxChPhyPortSmiRegisterRead
          (port->ldev, port->lport, 25, &val));
-    DEBUG ("check 1: 0x%04X, must be 0x2800, %s\r\n",
-           val, (val == 0x2800) ? "good" : "bad");
+    /* DEBUG ("check 1: 0x%04X, must be 0x2800, %s\r\n", */
+    /*        val, (val == 0x2800) ? "good" : "bad"); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 0x0000));
 
@@ -1968,15 +1968,15 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 29, 0x0003));
     CRP (cpssDxChPhyPortSmiRegisterRead
          (port->ldev, port->lport, 30, &val));
-    DEBUG ("check 2: 0x%04X, must be 0x0002, %s\r\n",
-           val, (val == 0x0002) ? "good" : "bad");
+    /* DEBUG ("check 2: 0x%04X, must be 0x0002, %s\r\n", */
+    /*        val, (val == 0x0002) ? "good" : "bad"); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 29, 0x0000));
   }
 
   switch (ptype) {
   case IS_FIBER:
-    DEBUG ("port %d is fiber\n", port->id);
+    /* DEBUG ("port %d is fiber\n", port->id); */
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
@@ -2009,7 +2009,7 @@ port_setup_ge (struct port *port)
     break;
 
   case IS_COPPER:
-    DEBUG ("port %d is copper\n", port->id);
+    /* DEBUG ("port %d is copper\n", port->id); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -2017,7 +2017,7 @@ port_setup_ge (struct port *port)
     break;
 
   case IS_COMBO:
-    DEBUG ("port %d is combo\n", port->id);
+    /* DEBUG ("port %d is combo\n", port->id); */
 
     /* Configure Auto-Media detect */
     CRP (cpssDxChPhyPortSmiRegisterWrite
