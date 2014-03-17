@@ -24,8 +24,8 @@
 #include <qt2025-phy.h>
 #include <qt2025-phy-fw.h>
 
-#define SHOW_XG_PHY_HEARTBEAT
-#define SHOW_HG_PHY_FW_VERSION
+#undef SHOW_XG_PHY_HEARTBEAT
+#undef SHOW_HG_PHY_FW_VERSION
 
 /*******************************************************************************
  * Global variables
@@ -176,8 +176,11 @@ qt2025PhyConfig (GT_U8 dev, int ng, int np, int cl, GT_U32 *xsmiAddrArrayPtr)
 enum status
 qt2025_phy_load_fw (void)
 {
+#if defined (SHOW_HG_PHY_FW_VERSION) || defined (SHOW_XG_PHY_HEARTBEAT)
   GT_U16 val;
-  int i, d, a;
+  int i, a;
+#endif /* SHOW_HG_PHY_FW_VERSION) || SHOW_XG_PHY_HEARTBEAT */
+  int d;
 
   for_each_dev (d) {
     CRP (prvCpssDrvHwPpSetRegField (d, 0x01800180, 14, 1, 1));
