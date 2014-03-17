@@ -154,22 +154,23 @@ PORT_STACK_ROLE (int n)
 #elif defined (VARIANT_ARLAN_3448PGE)
 
 #define NDEVS 2
-#define NPORTS 48
+#define NPORTS 52
 #define CPU_DEV 1
 #define DECLARE_PORT_MAP(name)                  \
   struct pm name[NPORTS] = {                    \
     {0, 1},  {0, 0},  {0, 3},  {0, 2},          \
     {0, 5},  {0, 4},  {0, 7},  {0, 6},          \
     {0, 9},  {0, 8},  {0, 11}, {0, 10},         \
-    {0, 13}, {0, 11}, {0, 15}, {0, 14},         \
+    {0, 13}, {0, 12}, {0, 15}, {0, 14},         \
     {0, 17}, {0, 16}, {0, 19}, {0, 18},         \
     {0, 21}, {0, 20}, {0, 23}, {0, 22},         \
     {1, 1},  {1, 0},  {1, 3},  {1, 2},          \
     {1, 5},  {1, 4},  {1, 7},  {1, 6},          \
     {1, 9},  {1, 8},  {1, 11}, {1, 10},         \
-    {1, 13}, {1, 11}, {1, 15}, {1, 14},         \
+    {1, 13}, {1, 12}, {1, 15}, {1, 14},         \
     {1, 17}, {1, 16}, {1, 19}, {1, 18},         \
     {1, 21}, {1, 20}, {1, 23}, {1, 22},         \
+    {0, 24}, {0, 25}, {0, 26}, {0, 27},         \
   }
 
 static inline int IS_FE_PORT (int n)
@@ -190,7 +191,11 @@ static inline int IS_XG_PORT (int n)
 static inline enum port_stack_role
 PORT_STACK_ROLE (int n)
 {
-  return PSR_NONE;
+  switch (n) {
+  case 50: return PSR_PRIMARY;
+  case 51: return PSR_SECONDARY;
+  default: return PSR_NONE;
+  }
 }
 
 #else
