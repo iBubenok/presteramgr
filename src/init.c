@@ -346,6 +346,9 @@ port_lib_init (int d)
 {
   GT_STATUS rc;
 
+  if (d == 0)
+    port_init ();
+
   RCC ((rc = cpssDxChPortStatInit (d)), cpssDxChPortStatInit);
   RCC ((rc = dxChPortBufMgInit (d)), dxChPortBufMgInit);
   RCC ((rc = cpssDxChPortTxInit (d)), cpssDxChPortTxInit);
@@ -605,8 +608,6 @@ init_cpss (void)
   osFatalErrorInit (NULL);
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
-
-  port_init ();
 
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
