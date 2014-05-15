@@ -83,6 +83,7 @@
 #include <extsvc.h>
 #include <control.h>
 #include <port.h>
+#include <gif.h>
 #include <vlan.h>
 #include <qos.h>
 #include <pdsa.h>
@@ -338,6 +339,7 @@ port_lib_init (void)
   GT_STATUS rc;
 
   port_init ();
+  gif_init ();
   RCC ((rc = cpssDxChPortStatInit (0)), cpssDxChPortStatInit);
   RCC ((rc = dxChPortBufMgInit (0)), dxChPortBufMgInit);
   RCC ((rc = cpssDxChPortTxInit (0)), cpssDxChPortTxInit);
