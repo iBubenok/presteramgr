@@ -31,6 +31,7 @@
 #include <dgasp.h>
 #include <diag.h>
 #include <tipc.h>
+#include <trunk.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -265,6 +266,7 @@ DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
+DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -351,7 +353,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_BIC_READ),
   HANDLER (CC_DIAG_DESC_READ),
   HANDLER (CC_BC_LINK_STATE),
-  HANDLER (CC_STACK_TXEN)
+  HANDLER (CC_STACK_TXEN),
+  HANDLER (CC_TRUNK_SET_MEMBERS)
 };
 
 static int
@@ -2174,6 +2177,35 @@ DEFINE_HANDLER (CC_STACK_TXEN)
     goto out;
 
   result = stack_txen (dev, txen);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
+{
+  struct trunk_member mem[8];
+  trunk_id_t id;
+  enum status result;
+  zframe_t *frame;
+  int n = 0;
+
+  result = POP_ARG (&id);
+  if (result != ST_OK)
+    goto out;
+
+  result = ST_BAD_FORMAT;
+  frame = FIRST_ARG;
+  while (frame) {
+    if (zframe_size (frame) != sizeof (struct trunk_member))
+      goto out;
+    memcpy (&mem[n++], zframe_data (frame), sizeof (struct trunk_member));
+    if (n > 8)
+      goto out;
+    frame = NEXT_ARG;
+  }
+
+  result = trunk_set_members (id, n, mem);
 
  out:
   report_status (result);

@@ -60,19 +60,16 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
       return result;
 
     if (mem[i].enabled) {
-      DEBUG ("e[%d]: %d:%d\r\n", ne, hp.hw_dev, hp.hw_port);
       e[ne].port = hp.hw_port;
       e[ne].device = hp.hw_dev;
       ne++;
     } else {
-      DEBUG ("d[%d]: %d:%d\r\n", nd, hp.hw_dev, hp.hw_port);
       d[nd].port = hp.hw_port;
       d[nd].device = hp.hw_dev;
       nd++;
     }
   }
 
-  DEBUG ("trunk %d, ne %d, nd %d\r\n", trunk, ne, nd);
   rc = CRP (cpssDxChTrunkMembersSet (0, trunk, ne, e, nd, d));
   switch (rc) {
   case GT_OK: return ST_OK;

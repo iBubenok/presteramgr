@@ -37,7 +37,9 @@ presteramgr_SOURCES =	\
 	dev.c               \
 	diag.c              \
 	stack.c             \
-	tipc.c
+	tipc.c				\
+	trunk.c				\
+	gif.c
 
 nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
 BUILT_SOURCES = control-proto.h rtbd.h arpd.h

@@ -49,9 +49,6 @@
 /* Policer library. */
 #include <cpss/dxCh/dxChxGen/policer/cpssDxChPolicer.h>
 
-/* Trunk library. */
-#include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
-
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
@@ -100,6 +97,7 @@
 #include <stack.h>
 #include <dev.h>
 #include <tipc.h>
+#include <trunk.h>
 
 
 #define RX_DESC_NUM_DEF         200
@@ -498,18 +496,6 @@ policer_lib_init (void)
 }
 
 static GT_STATUS
-trunk_lib_init (void)
-{
-  GT_STATUS rc;
-  GT_U8 max = 127;
-
-  RCC ((rc = cpssDxChTrunkInit (0, max, CPSS_DXCH_TRUNK_MEMBERS_MODE_NATIVE_E)),
-       cpssDxChTrunkInit);
-
-  return rc;
-}
-
-static GT_STATUS
 lib_init (void)
 {
   GT_STATUS rc;
@@ -543,7 +529,7 @@ lib_init (void)
   DEBUG ("policer library init done\n");
 
   DEBUG ("doing trunk library init\n");
-  RCC ((rc = trunk_lib_init ()), trunk_lib_init);
+  trunk_init ();
   DEBUG ("trunk library init done\n");
 
   DEBUG ("doing IP library init\n");

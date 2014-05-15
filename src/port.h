@@ -40,6 +40,7 @@ struct port {
   struct port_vlan_conf vlan_conf[4094];
   int def_xlate;
   vid_t def_map_to;
+  trunk_id_t trunk_id;
   enum port_stack_role stack_role;
   CPSS_PORT_ATTRIBUTES_STC attrs;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
