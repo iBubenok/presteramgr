@@ -43,4 +43,10 @@ errex (const char *msg)
   exit (EXIT_FAILURE);
 }
 
+static inline int
+in_range (val, min, max)
+{
+  return val >= min && val <= max;
+}
+
 #endif /* __UTILS_H__ */
