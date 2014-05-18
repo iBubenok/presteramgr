@@ -14,9 +14,12 @@
 struct dev_ports {
   int n_total;
   int n_by_type[GIFT_PORT_TYPES];
-  union {
-    struct port *local;
-    struct hw_port remote;
+  struct {
+    struct gif_id id;
+    union {
+      struct port *local;
+      struct hw_port remote;
+    };
   } port[64];
 };
 
@@ -33,14 +36,16 @@ gif_init (void)
   dp = (stack_id == 0) ? &__dev_ports[0] : &__dev_ports[stack_id - 1];
 
   for (i = 0; i < nports; i++) {
+    if (IS_FE_PORT (i))
+      dp->port[i].id.type = GIFT_FE;
+    else if (IS_GE_PORT (i))
+      dp->port[i].id.type = GIFT_GE;
+    else if (IS_XG_PORT (i))
+      dp->port[i].id.type = GIFT_XG;
+    dp->port[i].id.dev = stack_id;
+    dp->port[i].id.num = ++dp->n_by_type[dp->port[i].id.type];
     dp->port[i].local = &ports[i];
     dp->n_total++;
-    if (IS_FE_PORT (i))
-      dp->n_by_type[GIFT_FE]++;
-    else if (IS_GE_PORT (i))
-      dp->n_by_type[GIFT_GE]++;
-    else if (IS_XG_PORT (i))
-      dp->n_by_type[GIFT_XG]++;
   }
 }
 
@@ -86,4 +91,98 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
+enum status
+gif_tx (const struct gif_id *id,
+        const struct gif_tx_opts *opts,
+        uint16_t size,
+        const void *data)
+{
+  return ST_OK;
+}
 
+enum status
+gif_get_hw_ports (struct port_def *pd)
+{
+  struct dev_ports *dp;
+  int i;
+
+  dp = (stack_id == 0) ? &__dev_ports[0] : &__dev_ports[stack_id - 1];
+
+  for (i = 0; i < dp->n_total; i++) {
+    memcpy (&pd[i].id, &dp->port[i].id, sizeof (struct gif_id));
+    pd[i].hp.hw_dev = phys_dev (dp->port[i].local->ldev);
+    pd[i].hp.hw_port = dp->port[i].local->lport;
+    pd[i].hp.sr = dp->port[i].local->stack_role;
+  }
+
+  return ST_OK;
+}
+
+static void __attribute__ ((unused))
+gif_dump_hw_ports (void)
+{
+  int d, p;
+
+  DEBUG ("\r\n*** BEGIN KNOWN PORT DUMP ***\r\n");
+  for (d = 0; d < 16; d++) {
+    struct dev_ports *dp = &__dev_ports[d];
+
+    for (p = 0; p < dp->n_total; p++) {
+      char *t, *r;
+      int hd, hp, sr;
+
+      switch (dp->port[p].id.type) {
+      case GIFT_FE: t = "fastethernet"; break;
+      case GIFT_GE: t = "gigabitethernet"; break;
+      case GIFT_XG: t = "tengigabitethernet"; break;
+      default:      t = "unknown";
+      }
+
+      if ((d == 0 && stack_id == 0) || d == stack_id - 1) {
+        hd = phys_dev (dp->port[p].local->ldev);
+        hp = dp->port[p].local->lport;
+        sr = dp->port[p].local->stack_role;
+      } else {
+        hd = dp->port[p].remote.hw_dev;
+        hp = dp->port[p].remote.hw_port;
+        sr = dp->port[p].remote.sr;
+      }
+
+      switch (sr) {
+      case PSR_PRIMARY:   r = "primary"; break;
+      case PSR_SECONDARY: r = "secondary"; break;
+      case PSR_NONE:      r = "none"; break;
+      default:            r = "unknown";
+      }
+
+      DEBUG ("%s %d/%d, %d:%d, %s\r\n",
+             t, dp->port[p].id.dev, dp->port[p].id.num,
+             hd, hp, r);
+    }
+  }
+  DEBUG ("\r\n*** END KNOWN PORT DUMP ***\r\n");
+}
+
+enum status
+gif_set_hw_ports (uint8_t dev, uint8_t n, const struct port_def *pd)
+{
+  struct dev_ports *dp;
+  int i;
+
+  if (!stack_active ()
+      || !in_range (dev, 1, 16)
+      || dev == stack_id
+      || !in_range (n, 0, 60))
+    return ST_BAD_VALUE;
+
+  dp = &__dev_ports[dev - 1];
+  memset (dp, 0, sizeof (*dp));
+  for (i = 0; i < n; i++) {
+    memcpy (&dp->port[i].id, &pd[i].id, sizeof (struct gif_id));
+    memcpy (&dp->port[i].remote, &pd[i].hp, sizeof (struct hw_port));
+    dp->n_by_type[pd[i].id.type]++;
+    dp->n_total++;
+  }
+
+  return ST_OK;
+}

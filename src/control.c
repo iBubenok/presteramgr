@@ -32,6 +32,7 @@
 #include <diag.h>
 #include <tipc.h>
 #include <trunk.h>
+#include <gif.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -266,6 +267,8 @@ DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
+DECLARE_HANDLER (CC_GET_HW_PORTS);
+DECLARE_HANDLER (CC_SET_HW_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 
 static cmd_handler_t handlers[] = {
@@ -354,6 +357,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_DESC_READ),
   HANDLER (CC_BC_LINK_STATE),
   HANDLER (CC_STACK_TXEN),
+  HANDLER (CC_GET_HW_PORTS),
+  HANDLER (CC_SET_HW_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS)
 };
 
@@ -2182,6 +2187,55 @@ DEFINE_HANDLER (CC_STACK_TXEN)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_GET_HW_PORTS)
+{
+  static struct port_def pd[NPORTS];
+  static int done = 0;
+  enum status result = ST_OK;
+
+  if (!done) {
+    result = gif_get_hw_ports (pd);
+    done = 1;
+  }
+
+  zmsg_t *reply = make_reply (result);
+  if (result == ST_OK) {
+    uint8_t n = NPORTS;
+    zmsg_addmem (reply, &n, sizeof (n));
+    zmsg_addmem (reply, pd, sizeof (pd));
+  }
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_SET_HW_PORTS)
+{
+  uint8_t d, n;
+  struct port_def *pd = NULL;
+  enum status result;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&n);
+  if (result != ST_OK)
+    goto out;
+
+  if (n) {
+    zframe_t *frame = FIRST_ARG;
+    if (!frame) {
+      result = ST_BAD_FORMAT;
+      goto out;
+    }
+    pd = (struct port_def *) zframe_data (frame);
+  }
+
+  result = gif_set_hw_ports (d, n, pd);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
 {
   struct trunk_member mem[8];
@@ -2210,3 +2264,4 @@ DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
  out:
   report_status (result);
 }
+
