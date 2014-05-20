@@ -270,6 +270,7 @@ DECLARE_HANDLER (CC_STACK_TXEN);
 DECLARE_HANDLER (CC_GET_HW_PORTS);
 DECLARE_HANDLER (CC_SET_HW_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
+DECLARE_HANDLER (CC_GIF_TX);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -359,7 +360,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_STACK_TXEN),
   HANDLER (CC_GET_HW_PORTS),
   HANDLER (CC_SET_HW_PORTS),
-  HANDLER (CC_TRUNK_SET_MEMBERS)
+  HANDLER (CC_TRUNK_SET_MEMBERS),
+  HANDLER (CC_GIF_TX)
 };
 
 static int
@@ -2265,3 +2267,26 @@ DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_GIF_TX)
+{
+  zframe_t *frame;
+  struct gif_id *id;
+  struct gif_tx_opts *opts;
+  enum status result = ST_BAD_FORMAT;
+
+  frame = FIRST_ARG;
+  if (zframe_size (frame) != sizeof (*id))
+    goto out;
+  id = (struct gif_id *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  if (zframe_size (frame) != sizeof (*opts))
+    goto out;
+  opts = (struct gif_tx_opts *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}

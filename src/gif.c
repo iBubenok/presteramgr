@@ -7,9 +7,13 @@
 #include <stack.h>
 #include <utils.h>
 #include <dev.h>
+#include <mgmt.h>
+#include <debug.h>
 #include <sysdeps.h>
 #include <assert.h>
 
+#include <cpssdefs.h>
+#include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
 struct dev_ports {
   int n_total;
@@ -91,12 +95,36 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
+#define CPU_DEV 0
 enum status
 gif_tx (const struct gif_id *id,
         const struct gif_tx_opts *opts,
         uint16_t size,
         const void *data)
 {
+  CPSS_DXCH_NET_DSA_PARAMS_STC tp;
+  uint8_t tag[8];
+  enum status result;
+  struct hw_port hp;
+
+  result = gif_get_hw_port (&hp, id->type, id->dev, id->num);
+  if (result != ST_OK)
+    return result;
+
+  memset (&tp, 0, sizeof (tp));
+  tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
+  tp.commonParams.vid = opts->vid;
+  tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+  tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
+  tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
+  tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
+  tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+  tp.dsaInfo.fromCpu.srcDev = stack_id;
+  tp.dsaInfo.fromCpu.srcId = stack_id;
+  CRP (cpssDxChNetIfDsaTagBuild (CPU_DEV, &tp, tag));
+
+  mgmt_send_gen_frame (tag, data, size);
+
   return ST_OK;
 }
 
