@@ -1408,6 +1408,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     goto out;
   }
 
+  result = ST_BAD_VALUE;
+
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
@@ -1418,13 +1420,16 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        break;
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
                frame->data[14]);
-        return;
+        goto out;
       }
       break;
     case WNCT_GVRP:
@@ -1433,7 +1438,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n",
              frame->data[5]);
-      return;
+      goto out;
     }
     break;
 
@@ -1465,7 +1470,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
-    result = ST_BAD_VALUE;
     goto out;
   }
 
