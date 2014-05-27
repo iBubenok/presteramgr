@@ -127,7 +127,7 @@ static struct dev_info __dev_info[] = {
       .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
       .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
       .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_FALSE
+      .isExternalCpuConnected = GT_TRUE
     }
   },
   {
