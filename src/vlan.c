@@ -399,6 +399,7 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   vlan_clear_mac_addr (vlan);
   memcpy (vlan->c_mac_addr, addr, 6);
   mac_op_own (vlan->vid, vlan->c_mac_addr, 1);
+  vlan->mac_addr_set = 1;
 }
 
 enum status
@@ -602,15 +603,18 @@ vlan_set_xlate_tunnel (int enable)
   enable = !!enable;
 
   if (vlan_xlate_tunnel != enable) {
-    int i;
+    int i, d;
 
     port_clear_translation (ALL_PORTS);
     for (i = 1; i < 4095; i++)
       port_update_trunk_vlan_all_ports (i);
-    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
-         (0, (enable
-              ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
-              : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
+
+    for_each_dev (d)
+      CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+           (d, (enable
+                ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
+                : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
+
     vlan_xlate_tunnel = enable;
   }
 
