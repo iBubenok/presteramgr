@@ -100,6 +100,7 @@
 #include <stack.h>
 #include <dev.h>
 #include <tipc.h>
+#include <presteramgr.h>
 
 
 int just_reset = 0;
@@ -590,6 +591,38 @@ after_init (int d)
   return cpssDxChCfgDevEnable (d, GT_TRUE);
 }
 
+static void
+do_reset (void)
+{
+  CPSS_PP_DEVICE_TYPE dev_type;
+  int i;
+
+  DEBUG ("*** reset requested\r\n");
+
+  for_each_dev (i) {
+    pci_find_dev (&dev_info[i]);
+
+    DEBUG ("doing phase1 config\n");
+    CRP (cpssDxChHwPpPhase1Init (&dev_info[i].ph1_info, &dev_type));
+    DEBUG ("device type: %08X\n", dev_type);
+
+    DEBUG ("dev %d: doing soft reset", i);
+
+    CRP (cpssDxChHwPpSoftResetSkipParamSet
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_FALSE));
+    CRP (cpssDxChHwPpSoftResetSkipParamSet
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_FALSE));
+    CRP (cpssDxChHwPpSoftResetSkipParamSet
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_EEPROM_E, GT_TRUE));
+    CRP (cpssDxChHwPpSoftResetSkipParamSet
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_PEX_E, GT_TRUE));
+
+    CRP (cpssDxChHwPpSoftResetTrigger (i));
+
+    sleep (1);
+  }
+}
+
 static GT_STATUS
 init_cpss (void)
 {
@@ -609,6 +642,11 @@ init_cpss (void)
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
 
+  if (just_reset) {
+    do_reset ();
+    return GT_OK;
+  }
+
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
 
@@ -616,9 +654,6 @@ init_cpss (void)
     rc = cpssDxChHwPpPhase1Init (&dev_info[i].ph1_info, &dev_type);
     RCC (rc, cpssDxChHwPpPhase1Init);
     DEBUG ("device type: %08X\n", dev_type);
-
-    if (just_reset)
-      continue;
 
     DEBUG ("initializing workarounds\n");
     rc = post_phase_1 (i);
@@ -643,26 +678,6 @@ init_cpss (void)
     rc = lib_init (i);
     RCC (rc, lib_init);
     DEBUG ("library init done\n");
-  }
-
-  if (just_reset) {
-    for_each_dev (i) {
-      DEBUG ("dev %d: doing soft reset", i);
-      CRP (cpssDxChHwPpSoftResetSkipParamSet
-           (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
-      CRP (cpssDxChHwPpSoftResetSkipParamSet
-           (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_FALSE));
-      CRP (cpssDxChHwPpSoftResetSkipParamSet
-           (i, CPSS_HW_PP_RESET_SKIP_TYPE_EEPROM_E, GT_FALSE));
-      CRP (cpssDxChHwPpSoftResetSkipParamSet
-           (i, CPSS_HW_PP_RESET_SKIP_TYPE_PEX_E, GT_TRUE));
-      CRP (cpssDxChHwPpSoftResetSkipParamSet
-           (i, CPSS_HW_PP_RESET_SKIP_TYPE_LINK_LOSS_E, GT_FALSE));
-      CRP (cpssDxChHwPpSoftResetTrigger (i));
-      sleep (1);
-    }
-
-    exit (EXIT_SUCCESS);
   }
 
   sysd_setup_ic ();
@@ -695,14 +710,9 @@ init_cpss (void)
   return GT_OK;
 }
 
-
 void
 cpss_start (void)
 {
-  /* FIXME: really DO reset. */
-  if (just_reset)
-    exit (EXIT_SUCCESS);
-
   INFO ("init environment");
   env_init ();
 
@@ -715,6 +725,9 @@ cpss_start (void)
   }
 
   init_cpss ();
+  if (just_reset) {
+    exit (EXIT_SUCCESS);
+  }
 
   event_init ();
 
