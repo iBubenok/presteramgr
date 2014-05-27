@@ -129,16 +129,26 @@ cpss_lib_init (void)
     CRP (cpssDxChIpMcRouteEntriesWrite (d, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+    /* Set up the management IP addr route entry. */
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.appSpecificCpuCodeEnable = GT_TRUE;
+    rt.entry.regularEntry.trapMirrorArpBcEnable = GT_TRUE;
     CRP (cpssDxChIpUcRouteEntriesWrite (d, MGMT_IP_RE_IDX, &rt, 1));
 
     /* Set up the unknown dst trap entry. */
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.appSpecificCpuCodeEnable = GT_TRUE;
     rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
     CRP (cpssDxChIpUcRouteEntriesWrite (d, TRAP_RE_IDX, &rt, 1));
 
     /* Set up the unknown dst drop entry. */
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
     CRP (cpssDxChIpUcRouteEntriesWrite (d, DROP_RE_IDX, &rt, 1));
 
