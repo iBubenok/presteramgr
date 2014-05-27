@@ -432,6 +432,9 @@ port_start (void)
       continue;
     }
 
+    CRP (cpssDxChCscdPortTypeSet
+         (port->ldev, port->lport, CPSS_CSCD_PORT_NETWORK_E));
+
     port->setup (port);
 
     CRP (cpssDxChBrgFdbPortLearnStatusSet
@@ -2113,6 +2116,7 @@ port_setup_xg (struct port *port)
        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
   CRP (cpssXsmiPortGroupRegisterWrite
        (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
+
   /*
   dump_xg_reg (port, 1, 0xC319);
   dump_xg_reg (port, 1, 0xC31A);
