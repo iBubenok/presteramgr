@@ -67,7 +67,7 @@ mac_op_own (vid_t vid, mac_addr_t mac, int add)
     return ST_BAD_VALUE;
 
   arg.vid = vid;
-  memcpy (arg.mac, mac, sizeof (mac));
+  memcpy (arg.mac, mac, sizeof (arg.mac));
   arg.delete = !add;
   /* Everything else is irrelevant for own MAC addr. */
 
