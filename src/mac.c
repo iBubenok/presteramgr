@@ -68,6 +68,7 @@ mac_op_own (vid_t vid, mac_addr_t mac, int add)
 
   arg.vid = vid;
   memcpy (arg.mac, mac, sizeof (mac));
+  arg.delete = !add;
   /* Everything else is irrelevant for own MAC addr. */
 
   return fdb_ctl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
