@@ -164,7 +164,7 @@ sysd_setup_cpu_codes (void)
       .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
       .cpuCodeRateLimiterIndex = 0,
       .cpuCodeStatRateLimitIndex = 0,
-      .designatedDevNumIndex = CPU_DEV
+      .designatedDevNumIndex = 1
     };
 
 
