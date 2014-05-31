@@ -338,7 +338,7 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
   if (own) {
     me.userDefined = FEP_OWN;
     me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-    me.dstInterface.devPort.devNum = phys_dev (CPU_DEV);
+    /* me.dstInterface.devPort.devNum will be set in fdb_insert() */
     me.dstInterface.devPort.portNum = CPSS_CPU_PORT_NUM_CNS;
     me.appSpecificCpuCode = GT_TRUE;
     me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
