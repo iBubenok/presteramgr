@@ -608,8 +608,11 @@ do_reset (void)
 
     DEBUG ("dev %d: doing soft reset", i);
 
+    /* TODO: investigate why the CPU device does not forward
+       traffic after register reset and restore "register reset
+       skip" flag. */
     CRP (cpssDxChHwPpSoftResetSkipParamSet
-         (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_FALSE));
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
          (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_FALSE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
