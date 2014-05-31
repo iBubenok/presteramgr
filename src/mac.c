@@ -249,7 +249,7 @@ me_key_eq (const CPSS_MAC_ENTRY_EXT_KEY_STC *a,
 
 #define INVALID_IDX 0xFFFFFFFF
 static enum status
-fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
+fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own)
 {
   GT_U32 idx, best_idx = INVALID_IDX;
   int i, d, best_pri = e->userDefined;
@@ -289,8 +289,11 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e)
 
   memcpy (&fdb[best_idx].me, e, sizeof (*e));
   fdb[best_idx].valid = 1;
-  for_each_dev (d)
+  for_each_dev (d) {
+    if (own)
+      e->dstInterface.devPort.devNum = phys_dev (d);
     CRP (cpssDxChBrgFdbMacEntryWrite (d, best_idx, GT_FALSE, e));
+  }
 
   return ST_OK;
 }
@@ -365,7 +368,7 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
     }
   }
 
-  return fdb_insert (&me);
+  return fdb_insert (&me, own);
 }
 
 static enum status
@@ -420,7 +423,7 @@ fdb_mac_mc_ip_add (const struct mc_ip_op_arg *arg)
   me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
   me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
 
-  return fdb_insert (&me);
+  return fdb_insert (&me, 0);
 }
 
 static enum status
