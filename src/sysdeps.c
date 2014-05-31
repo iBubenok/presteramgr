@@ -200,6 +200,8 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ARP_BC_TO_ME_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce));
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E, &cce));
