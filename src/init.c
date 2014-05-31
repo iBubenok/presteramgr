@@ -697,7 +697,8 @@ init_cpss (void)
   vlan_init ();
   wnct_start ();
   qos_start ();
-  rate_limit_init (0);
+  for_each_dev (i)
+    rate_limit_init (i);
   port_start ();
   dgasp_init ();
   pdsa_init ();
