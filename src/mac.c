@@ -310,7 +310,7 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k)
 
   for (i = 0; i < 4; i++, idx++) {
     if (fdb[idx].valid && me_key_eq (k, &fdb[idx].me.key)) {
-      DEBUG ("found entry at %u, removing\r\n", idx);
+      /* DEBUG ("found entry at %u, removing\r\n", idx); */
 
       for_each_dev (d)
         CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
@@ -446,15 +446,15 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   u->macEntry.userDefined        = FEP_DYN;
   u->macEntry.spUnknown          = GT_FALSE;
 
-  fdb_insert (&u->macEntry);
+  fdb_insert (&u->macEntry, 0);
 }
 
 static void
 fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-  DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n",
-         MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther),
-         u->macEntry.key.key.macVlan.vlanId);
+  /* DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n", */
+  /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
+  /*        u->macEntry.key.key.macVlan.vlanId); */
 
   fdb_remove (&u->macEntry.key);
 }
