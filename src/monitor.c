@@ -12,6 +12,7 @@
 #include <monitor.h>
 #include <debug.h>
 #include <utils.h>
+#include <sysdeps.h>
 #include <dev.h>
 
 #include <uthash.h>
@@ -79,6 +80,7 @@ mon_configure_dst (struct session *s)
   CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC iface;
   int tag = vlan_valid (s->dst_vid);
   CPSS_DXCH_MIRROR_ANALYZER_VLAN_TAG_CFG_STC cfg;
+  int d;
 
   if (!port)
     return;
@@ -97,19 +99,23 @@ mon_configure_dst (struct session *s)
   };
 
   if (s->rx) {
-    if (tag)
-      CRP (cpssDxChMirrorRxAnalyzerVlanTagConfig (0, &cfg));
-    CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, RX_DST_IX, &iface));
-    CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
-         (0, GT_TRUE, RX_DST_IX));
+    for_each_dev (d) {
+      if (tag)
+        CRP (cpssDxChMirrorRxAnalyzerVlanTagConfig (d, &cfg));
+      CRP (cpssDxChMirrorAnalyzerInterfaceSet (d, RX_DST_IX, &iface));
+      CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
+           (d, GT_TRUE, RX_DST_IX));
+    }
   }
 
   if (s->tx) {
-    if (tag)
-      CRP (cpssDxChMirrorTxAnalyzerVlanTagConfig (0, &cfg));
-    CRP (cpssDxChMirrorAnalyzerInterfaceSet (0, TX_DST_IX, &iface));
-    CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
-         (0, GT_TRUE, TX_DST_IX));
+    for_each_dev (d) {
+      if (tag)
+        CRP (cpssDxChMirrorTxAnalyzerVlanTagConfig (d, &cfg));
+      CRP (cpssDxChMirrorAnalyzerInterfaceSet (d, TX_DST_IX, &iface));
+      CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
+           (d, GT_TRUE, TX_DST_IX));
+    }
   }
 }
 
@@ -117,18 +123,21 @@ static void
 mon_deconfigure_dst (struct session *s)
 {
   struct port *port = port_ptr (s->dst_pid);
+  int d;
 
   if (!port)
     /* Destination is not configured. */
     return;
 
   if (s->rx)
-    CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
-         (0, GT_FALSE, RX_DST_IX));
+    for_each_dev (d)
+      CRP (cpssDxChMirrorRxGlobalAnalyzerInterfaceIndexSet
+           (d, GT_FALSE, RX_DST_IX));
 
   if (s->tx)
-    CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
-         (0, GT_FALSE, TX_DST_IX));
+    for_each_dev (d)
+      CRP (cpssDxChMirrorTxGlobalAnalyzerInterfaceIndexSet
+           (d, GT_FALSE, TX_DST_IX));
 
   if (vlan_valid (s->dst_vid)) {
     struct session *o = other_active_session (s);
@@ -142,12 +151,13 @@ static void
 mon_configure_srcs (struct session *s)
 {
   struct port *port;
-  int i;
+  int i, d;
 
   for (i = 0; i < s->nsrcs; i++) {
     switch (s->src[i].type) {
     case MI_SRC_VLAN:
-      CRP (cpssDxChBrgVlanIngressMirrorEnable (0, s->src[i].id, GT_TRUE));
+      for_each_dev (d)
+        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].id, GT_TRUE));
       break;
     case MI_SRC_PORT_RX:
       port = port_ptr (s->src[i].id);
@@ -174,12 +184,13 @@ static void
 mon_deconfigure_srcs (struct session *s)
 {
   struct port *port;
-  int i;
+  int i, d;
 
   for (i = 0; i < s->nsrcs; i++) {
     switch (s->src[i].type) {
     case MI_SRC_VLAN:
-      CRP (cpssDxChBrgVlanIngressMirrorEnable (0, s->src[i].id, GT_FALSE));
+      for_each_dev (d)
+        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].id, GT_FALSE));
       break;
     case MI_SRC_PORT_RX:
       port = port_ptr (s->src[i].id);
