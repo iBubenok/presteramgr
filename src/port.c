@@ -160,15 +160,22 @@ int
 port_init (void)
 {
   DECLARE_PORT_MAP (pmap);
-  int i;
+  int i, d, p;
 
   memset (dev_ports, 0, sizeof (dev_ports));
 
   ports = calloc (NPORTS, sizeof (struct port));
   assert (ports);
 
-  memset (&all_ports_bmp, 0, sizeof (all_ports_bmp));
-  memset (&nst_ports_bmp, 0, sizeof (nst_ports_bmp));
+  memset (all_ports_bmp, 0, sizeof (all_ports_bmp));
+  memset (nst_ports_bmp, 0, sizeof (nst_ports_bmp));
+  for_each_dev (d) {
+    DEBUG ("add dev %d ic ports\r\n", d);
+    for (p = 0; p < dev_info[d].n_ic_ports; p++) {
+      CPSS_PORTS_BMP_PORT_SET_MAC (&all_ports_bmp[d], dev_info[d].ic_ports[p]);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&nst_ports_bmp[d], dev_info[d].ic_ports[p]);
+    }
+  }
 
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
