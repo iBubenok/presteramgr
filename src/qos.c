@@ -11,6 +11,7 @@
 #include <debug.h>
 #include <qos.h>
 #include <port.h>
+#include <sysdeps.h>
 
 int mls_qos_trust = 0;
 const uint8_t qos_default_wrr_weights[8] = {
@@ -60,7 +61,7 @@ qos_start (void)
 {
   struct dscp_map dscp_map[64];
   queue_id_t cos_map[8] = { 2, 0, 1, 3, 4, 5, 6, 7 };
-  int i;
+  int i, d;
 
   for (i = 0; i < 8; i++) {
     CPSS_DXCH_COS_PROFILE_STC prof = {
@@ -71,13 +72,15 @@ qos_start (void)
       .exp = 0
     };
 
-    CRP (cpssDxChCosProfileEntrySet (0, i, &prof));
+    for_each_dev (d)
+      CRP (cpssDxChCosProfileEntrySet (d, i, &prof));
   }
 
-  CRP (cpssDxChPortTxWrrGlobalParamSet
-       (0,
-        CPSS_PORT_TX_WRR_BYTE_MODE_E,
-        CPSS_PORT_TX_WRR_MTU_2K_E));
+  for_each_dev (d)
+    CRP (cpssDxChPortTxWrrGlobalParamSet
+         (d,
+          CPSS_PORT_TX_WRR_BYTE_MODE_E,
+          CPSS_PORT_TX_WRR_MTU_2K_E));
 
   for (i = 0; i < 64; i++) {
     dscp_map[i].dscp = i;
@@ -96,14 +99,15 @@ qos_start (void)
 enum status
 qos_set_dscp_prio (int n, const struct dscp_map *map)
 {
-  int i;
+  int i, d;
 
   for (i = 0; i < n; ++i)
     if (map[i].dscp > 63 || map[i].queue > 7)
       return ST_BAD_VALUE;
 
   for (i = 0; i < n; ++i)
-    CRP (cpssDxChCosDscpToProfileMapSet (0, map[i].dscp, map[i].queue));
+    for_each_dev (d)
+      CRP (cpssDxChCosDscpToProfileMapSet (d, map[i].dscp, map[i].queue));
 
   return ST_OK;
 }
@@ -111,15 +115,17 @@ qos_set_dscp_prio (int n, const struct dscp_map *map)
 enum status
 qos_set_cos_prio (const queue_id_t *map)
 {
-  int i;
+  int i, d;
 
   for (i = 0; i < 8; i++)
     if (map[i] > 7)
       return ST_BAD_VALUE;
 
   for (i = 0; i < 8; i++) {
-    CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 0, map[i]));
-    CRP (cpssDxChCosUpCfiDeiToProfileMapSet (0, 0, i, 1, map[i]));
+    for_each_dev (d) {
+      CRP (cpssDxChCosUpCfiDeiToProfileMapSet (d, 0, i, 0, map[i]));
+      CRP (cpssDxChCosUpCfiDeiToProfileMapSet (d, 0, i, 1, map[i]));
+    }
   }
 
   return ST_OK;
@@ -128,7 +134,7 @@ qos_set_cos_prio (const queue_id_t *map)
 enum status
 qos_set_prioq_num (int num)
 {
-  int i;
+  int i, d;
 
   if (num < 0 || num > 8)
     return ST_BAD_VALUE;
@@ -136,13 +142,15 @@ qos_set_prioq_num (int num)
   prioq_num = num;
 
   for (i = 0; i < 8 - num; i++)
-    CRP (cpssDxChPortTxQArbGroupSet
-         (0, i, CPSS_PORT_TX_WRR_ARB_GROUP_0_E,
-          CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+    for_each_dev (d)
+      CRP (cpssDxChPortTxQArbGroupSet
+           (d, i, CPSS_PORT_TX_WRR_ARB_GROUP_0_E,
+            CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
   for ( ; i < 8; i++)
-    CRP (cpssDxChPortTxQArbGroupSet
-         (0, i, CPSS_PORT_TX_SP_ARB_GROUP_E,
-          CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+    for_each_dev (d)
+      CRP (cpssDxChPortTxQArbGroupSet
+           (d, i, CPSS_PORT_TX_SP_ARB_GROUP_E,
+            CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
@@ -150,11 +158,12 @@ qos_set_prioq_num (int num)
 enum status
 qos_set_wrr_queue_weights (const uint8_t *weights)
 {
-  int i;
+  int i, d;
 
   for (i = 0; i < 8; i++)
-    CRP (cpssDxChPortTxQWrrProfileSet
-         (0, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+    for_each_dev (d)
+      CRP (cpssDxChPortTxQWrrProfileSet
+           (d, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
