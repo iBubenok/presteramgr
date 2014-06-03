@@ -288,12 +288,14 @@ route_add (const struct route *rt)
   if (rt->pfx.alen == 0) {
     /* Default route. */
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
 
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
     rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
-    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   } else {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
@@ -423,11 +425,13 @@ route_prefix_set_drop (uint32_t ip, int len)
   } else {
     /* Default route. */
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
 
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   }
 }
 
