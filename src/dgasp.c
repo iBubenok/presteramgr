@@ -14,6 +14,7 @@
 #include <vlan.h>
 #include <port.h>
 #include <mcg.h>
+#include <sysdeps.h>
 #include <debug.h>
 
 #define MAX_PAYLOAD 1024
@@ -84,9 +85,9 @@ dgasp_init (void)
   dp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
   dp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
   dp.dsaInfo.fromCpu.dstInterface.vidx = DGASP_MCG;
-  dp.dsaInfo.fromCpu.srcId = 0; /* FIXME: stack! */
-  dp.dsaInfo.fromCpu.srcDev = 0; /* FIXME: stack! */
-  CRP (cpssDxChNetIfDsaTagBuild (0, &dp, tag));
+  dp.dsaInfo.fromCpu.srcId = 0;
+  dp.dsaInfo.fromCpu.srcDev = phys_dev (CPU_DEV);
+  CRP (cpssDxChNetIfDsaTagBuild (CPU_DEV, &dp, tag));
 
   return 0;
 }
