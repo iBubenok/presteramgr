@@ -422,6 +422,14 @@ port_start (void)
   for_each_dev (d) {
     CRP (cpssDxChNstPortIsolationEnableSet (d, GT_TRUE));
     CRP (cpssDxChBrgVlanEgressFilteringEnable (d, GT_TRUE));
+    CRP (cpssDxChBrgSrcIdGlobalSrcIdAssignModeSet
+         (d, CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
+
+    CRP (cpssDxChBrgSrcIdGroupEntrySet
+         (d, stack_id, GT_TRUE, &all_ports_bmp[d]));
+    if (stack_id)
+      CRP (cpssDxChBrgSrcIdGroupEntrySet
+           (d, 0, GT_TRUE, &nst_ports_bmp[d]));
   }
 
   for (i = 0; i < nports; i++) {
