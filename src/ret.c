@@ -16,6 +16,7 @@
 #include <debug.h>
 #include <route-p.h>
 #include <dev.h>
+#include <sysdeps.h>
 
 #include <uthash.h>
 
@@ -76,6 +77,7 @@ ret_add (const struct gw *gw, int def)
       if (re->valid) {
         CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
         struct port *port = port_ptr (re->pid);
+        int d;
 
         memset (&rt, 0, sizeof (rt));
         rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
@@ -86,7 +88,8 @@ ret_add (const struct gw *gw, int def)
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
         DEBUG ("write default route entry\r\n");
-        CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+        for_each_dev (d)
+          CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
       }
     }
     goto out;
@@ -126,12 +129,14 @@ ret_unref (const struct gw *gw, int def)
     re->def = 0;
     if (re->valid) {
       CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+      int d;
 
       DEBUG ("reset default route entry");
       memset (&rt, 0, sizeof (rt));
       rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
       rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-      CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
     }
   }
 
@@ -155,7 +160,7 @@ enum status
 ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
 {
   struct re *re;
-  int idx, nh_idx;
+  int idx, nh_idx, d;
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
   GT_STATUS rc;
   struct port *port = port_ptr (pid);
@@ -182,13 +187,15 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
     rt.entry.regularEntry.nextHopVlanId = gw->vid;
     DEBUG ("write route entry");
-    rc = CRP (cpssDxChIpUcRouteEntriesWrite (0, re->idx, &rt, 1));
+    for_each_dev (d)
+      rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
     if (rc != ST_OK)
       return ST_HEX;
 
     if (re->def) {
       DEBUG ("write default route entry");
-      CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
     }
 
     return ST_OK;
@@ -214,15 +221,13 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
   DEBUG ("write route entry at %d\r\n", idx);
-  rc = CRP (cpssDxChIpUcRouteEntriesWrite (0, idx, &rt, 1));
-  if (rc != ST_OK) {
-    nht_unref (addr);
-    res_push (idx);
-    return ST_HEX;
-  }
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
+
   if (re->def) {
     DEBUG ("write default route entry\r\n");
-    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   }
 
   re->idx = idx;
