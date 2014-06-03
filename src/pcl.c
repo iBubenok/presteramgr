@@ -11,6 +11,7 @@
 #include <log.h>
 #include <vlan.h>
 #include <utils.h>
+#include <sysdeps.h>
 #include <uthash.h>
 #include <debug.h>
 
@@ -30,7 +31,7 @@ static struct stack {
   uint16_t data[STACK_ENTRIES];
 } rules;
 
-static void
+static void __attribute__ ((constructor))
 pcl_init_rules (void)
 {
   int i;
@@ -131,9 +132,13 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
 static void
 invalidate_vt_ix (struct vt_ix *ix)
 {
-  CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[0]));
+  int d;
+
+  for_each_dev (d)
+    CRP (cpssDxChPclRuleInvalidate (d, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[0]));
   if (vt_key_vid (ix->key))
-    CRP (cpssDxChPclRuleInvalidate (0, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[1]));
+    for_each_dev (d)
+      CRP (cpssDxChPclRuleInvalidate (d, CPSS_PCL_RULE_SIZE_EXT_E, ix->ix[1]));
 }
 
 static void
@@ -276,7 +281,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 }
 
 static void
-pcl_setup_mc_drop (void)
+pcl_setup_mc_drop (int d)
 {
   CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -296,7 +301,7 @@ pcl_setup_mc_drop (void)
   rule.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
   CRP (cpssDxChPclRuleSet
-       (0,
+       (d,
         CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
         1,
         0,
@@ -315,7 +320,7 @@ pcl_setup_mc_drop (void)
   rule.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
   CRP (cpssDxChPclRuleSet
-       (0,
+       (d,
         CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L2_E,
         2,
         0,
@@ -334,7 +339,7 @@ pcl_setup_mc_drop (void)
   rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
   CRP (cpssDxChPclRuleSet
-       (0,
+       (d,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
         3,
         0,
@@ -353,7 +358,7 @@ pcl_setup_mc_drop (void)
   rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
   CRP (cpssDxChPclRuleSet
-       (0,
+       (d,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E,
         4,
         0,
@@ -384,22 +389,25 @@ pcl_enable_port (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
     }
   };
+  int d;
 
-  CRP (cpssDxChPclCfgTblSet
-       (0, &iface,
-        CPSS_PCL_DIRECTION_INGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &lc));
+  for_each_dev (d)
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_INGRESS_E,
+          CPSS_PCL_LOOKUP_0_E,
+          &lc));
 
   lc.pclId                  = PORT_EPCL_ID (pid);
   lc.groupKeyTypes.nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E;
-  CRP (cpssDxChPclCfgTblSet
-       (0, &iface,
-        CPSS_PCL_DIRECTION_EGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &lc));
+  for_each_dev (d)
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_EGRESS_E,
+          CPSS_PCL_LOOKUP_0_E,
+          &lc));
 
   return ST_OK;
 }
@@ -407,6 +415,8 @@ pcl_enable_port (port_id_t pid, int enable)
 enum status
 pcl_enable_lbd_trap (port_id_t pid, int enable)
 {
+  int d;
+
   if (!port_ptr (pid))
     return ST_BAD_VALUE;
 
@@ -431,17 +441,19 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
 
-    CRP (cpssDxChPclRuleSet
-         (0,
-          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          PORT_LBD_RULE_IX (pid),
-          0,
-          &mask,
-          &rule,
-          &act));
+    for_each_dev (d)
+      CRP (cpssDxChPclRuleSet
+           (d,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            PORT_LBD_RULE_IX (pid),
+            0,
+            &mask,
+            &rule,
+            &act));
   } else
-    CRP (cpssDxChPclRuleInvalidate
-         (0, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+    for_each_dev (d)
+      CRP (cpssDxChPclRuleInvalidate
+           (d, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
 
   return ST_OK;
 }
@@ -510,19 +522,22 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E
     }
   };
+  int d;
 
   DEBUG ("%s mc drop\r\n", enable ? "enabling" : "disabling");
 
-  CRP (cpssDxChPclCfgTblSet
-       (0, &iface,
-        CPSS_PCL_DIRECTION_EGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &elc));
-  CRP (cpssDxChPclCfgTblSet
-       (0, &iface,
-        CPSS_PCL_DIRECTION_INGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &ilc));
+  for_each_dev (d) {
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_EGRESS_E,
+          CPSS_PCL_LOOKUP_0_E,
+          &elc));
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_INGRESS_E,
+          CPSS_PCL_LOOKUP_0_E,
+          &ilc));
+  }
 
   return ST_OK;
 }
@@ -531,8 +546,6 @@ enum status
 pcl_cpss_lib_init (int d)
 {
   CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
-
-  pcl_init_rules ();
 
   CRP (cpssDxChPclInit (d));
 
@@ -548,7 +561,7 @@ pcl_cpss_lib_init (int d)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
-  pcl_setup_mc_drop ();
+  pcl_setup_mc_drop (d);
 
   return ST_OK;
 }
