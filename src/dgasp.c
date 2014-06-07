@@ -15,6 +15,7 @@
 #include <port.h>
 #include <mcg.h>
 #include <sysdeps.h>
+#include <dev.h>
 #include <debug.h>
 
 #define MAX_PAYLOAD 1024
