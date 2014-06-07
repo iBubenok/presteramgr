@@ -206,6 +206,10 @@ setup_tagging (vid_t vid,
         CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
         tagging_cmd[d].portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      } else if (port->voice_vid == vid) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
       }
       break;
 

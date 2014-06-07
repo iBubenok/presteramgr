@@ -265,6 +265,7 @@ DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
+DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -351,7 +352,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_BIC_READ),
   HANDLER (CC_DIAG_DESC_READ),
   HANDLER (CC_BC_LINK_STATE),
-  HANDLER (CC_STACK_TXEN)
+  HANDLER (CC_STACK_TXEN),
+  HANDLER (CC_PORT_SET_VOICE_VLAN)
 };
 
 static int
@@ -2170,6 +2172,26 @@ DEFINE_HANDLER (CC_STACK_TXEN)
     goto out;
 
   result = stack_txen (dev, txen);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_VOICE_VLAN)
+{
+  enum status result;
+  port_id_t pid;
+  vid_t vid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_voice_vid (pid, vid);
 
  out:
   report_status (result);

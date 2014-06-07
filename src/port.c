@@ -184,6 +184,7 @@ port_init (void)
     ports[i].mode = PM_ACCESS;
     ports[i].access_vid = 1;
     ports[i].native_vid = 1;
+    ports[i].voice_vid = 0;
     ports[i].trust_cos = 0;
     ports[i].trust_dscp = 0;
     ports[i].c_speed = PORT_SPEED_AUTO;
@@ -672,6 +673,9 @@ port_set_access_vid (port_id_t pid, vid_t vid)
   if (!(port && vlan_valid (vid)))
     return ST_BAD_VALUE;
 
+  if (port->voice_vid == vid)
+    return ST_BAD_VALUE;
+
   if (is_stack_port (port))
     return ST_BAD_STATE;
 
@@ -701,6 +705,54 @@ port_set_access_vid (port_id_t pid, vid_t vid)
   }
 
   port->access_vid = vid;
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+port_set_voice_vid (port_id_t pid, vid_t vid)
+{
+  struct port *port = port_ptr (pid);
+  GT_STATUS rc = GT_OK;
+
+  if (!(port && (vid == 0 || vlan_valid (vid))))
+    return ST_BAD_VALUE;
+
+  if (port->access_vid == vid)
+    return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
+  if (port->mode == PM_ACCESS) {
+    if (port->voice_vid) {
+      rc = CRP (cpssDxChBrgVlanPortDelete
+                (port->ldev,
+                 port->voice_vid,
+                 port->lport));
+      if (rc != GT_OK)
+        goto out;
+    }
+
+    if (vid) {
+      rc = CRP (cpssDxChBrgVlanMemberSet
+                (port->ldev,
+                 vid,
+                 port->lport,
+                 GT_TRUE,
+                 GT_FALSE,
+                 CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
+      if (rc != GT_OK)
+        goto out;
+    }
+  }
+
+  port->voice_vid = vid;
 
  out:
   switch (rc) {
@@ -950,15 +1002,26 @@ port_set_trunk_mode (struct port *port)
 static enum status
 port_set_access_mode (struct port *port)
 {
-  return port_vlan_bulk_op (port,
-                            port->access_vid,
-                            GT_FALSE,
-                            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
-                            GT_FALSE,
-                            VLAN_TPID_IDX,
-                            GT_FALSE,
-                            GT_FALSE,
-                            CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
+  port_vlan_bulk_op (port,
+                     port->access_vid,
+                     GT_FALSE,
+                     CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E,
+                     GT_FALSE,
+                     VLAN_TPID_IDX,
+                     GT_FALSE,
+                     GT_FALSE,
+                     CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E);
+
+  if (port->voice_vid)
+    CRP (cpssDxChBrgVlanMemberSet
+         (port->ldev,
+          port->voice_vid,
+          port->lport,
+          GT_TRUE,
+          GT_FALSE,
+          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
+
+  return ST_OK;
 }
 
 static enum status
