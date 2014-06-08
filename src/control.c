@@ -266,6 +266,7 @@ DECLARE_HANDLER (CC_DIAG_DESC_READ);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
 DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
+DECLARE_HANDLER (CC_WNCT_ENABLE_PROTO);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -353,7 +354,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_DESC_READ),
   HANDLER (CC_BC_LINK_STATE),
   HANDLER (CC_STACK_TXEN),
-  HANDLER (CC_PORT_SET_VOICE_VLAN)
+  HANDLER (CC_PORT_SET_VOICE_VLAN),
+  HANDLER (CC_WNCT_ENABLE_PROTO)
 };
 
 static int
@@ -1415,6 +1417,9 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
         return;
       }
       break;
+    case WNCT_LLDP:
+      type = CN_LLDP_MCAST;
+      break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
       break;
@@ -2192,6 +2197,26 @@ DEFINE_HANDLER (CC_PORT_SET_VOICE_VLAN)
     goto out;
 
   result = port_set_voice_vid (pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
+{
+  enum status result;
+  wnct_t proto;
+  bool_t enable;
+
+  result = POP_ARG (&proto);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = wnct_enable_proto (proto, enable);
 
  out:
   report_status (result);
