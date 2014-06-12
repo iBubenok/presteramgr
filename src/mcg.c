@@ -166,14 +166,20 @@ mcg_dgasp_port_op (port_id_t pid, int add)
 void
 mcg_stack_setup (void)
 {
-  CPSS_PORTS_BMP_STC bmp;
-  int i;
+  CPSS_PORTS_BMP_STC bmp[NDEVS];
+  int i, d;
 
-  memset (&bmp, 0, sizeof (bmp));
+  memset (bmp, 0, sizeof (bmp));
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
     if (is_stack_port (port))
-      CPSS_PORTS_BMP_PORT_SET_MAC (&bmp, port->lport);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&bmp[port->ldev], port->lport);
   }
-  CRP (cpssDxChBrgMcEntryWrite (0, STACK_MCG, &bmp));
+
+  for_each_dev (d) {
+    for (i = 0; i < dev_info[d].n_ic_ports; i++)
+      CPSS_PORTS_BMP_PORT_SET_MAC (&bmp[d], dev_info[d].ic_ports[i]);
+
+    CRP (cpssDxChBrgMcEntryWrite (d, STACK_MCG, &bmp[d]));
+  }
 }

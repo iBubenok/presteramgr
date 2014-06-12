@@ -19,6 +19,7 @@
 #include <log.h>
 #include <utils.h>
 #include <pcl.h>
+#include <sysdeps.h>
 #include <debug.h>
 
 int stack_id = 0;
@@ -31,14 +32,12 @@ void
 stack_start (void)
 {
   CPSS_PORTS_BMP_STC nul_ports_bmp;
-#ifndef VARIANT_ARLAN_3448PGE
-  /* FIXME: add multidev support! */
   CPSS_CSCD_LINK_TYPE_STC lp = {
     .linkType = CPSS_CSCD_LINK_TYPE_PORT_E,
     .linkNum  = CPSS_NULL_PORT_NUM_CNS
   };
-#endif /* VARIANT_ARLAN_3448PGE */
-  int i;
+  int i, d;
+  uint32_t dbmp = 0;
 
   if (!stack_active ())
     return;
@@ -46,29 +45,28 @@ stack_start (void)
   DEBUG ("doing stack setup\r\n");
 
   memset (&nul_ports_bmp, 0, sizeof (nul_ports_bmp));
+  for_each_dev (d)
+    dbmp |= 1 << phys_dev (d);
+
   for (i = 0; i < 32; i++) {
-#ifndef VARIANT_ARLAN_3448PGE
-    /* FIXME: add multidev support! */
-    CPSS_PORTS_BMP_STC *pbm;
+    for_each_dev (d) {
+      CPSS_PORTS_BMP_STC *pbm;
 
-    if (i == stack_id)
-      pbm = &all_ports_bmp;
-    else if (i == 0)
-      pbm = &nst_ports_bmp;
-    else
-      pbm = &nul_ports_bmp;
+      if (i != stack_id) {
+        pbm = i ? &nul_ports_bmp : &nst_ports_bmp[d];
+        CRP (cpssDxChBrgSrcIdGroupEntrySet (d, i, GT_TRUE, pbm));
+      }
 
-    CRP (cpssDxChCscdDevMapTableSet (0, i, 0, &lp, 0));
-    CRP (cpssDxChBrgSrcIdGroupEntrySet (0, i, GT_TRUE, pbm));
-#endif /* VARIANT_ARLAN_3448PGE */
+      if (!(dbmp & (1 << i)))
+        CRP (cpssDxChCscdDevMapTableSet (d, i, 0, &lp, 0));
+    }
 
     if (i < stack_id)
       dev_mask |= 1 << i;
   }
 
-  CRP (cpssDxChBrgSrcIdGlobalSrcIdAssignModeSet
-       (0, CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
-  CRP (cpssDxChBrgSrcIdGlobalUcastEgressFilterSet (0, GT_TRUE));
+  for_each_dev (d)
+    CRP (cpssDxChBrgSrcIdGlobalUcastEgressFilterSet (d, GT_TRUE));
 
   vlan_stack_setup ();
   mcg_stack_setup ();
@@ -181,6 +179,7 @@ stack_set_dev_map (uint8_t dev, const uint8_t *hops)
 {
   CPSS_CSCD_LINK_TYPE_STC lp;
   uint32_t new_dev_bmp = dev_bmp;
+  int d;
 
   if (!stack_active ())
     return ST_BAD_STATE;
@@ -203,19 +202,36 @@ stack_set_dev_map (uint8_t dev, const uint8_t *hops)
     CRP (cpssDxChBrgSrcIdGroupPortAdd
          (stack_sec_port->ldev, dev, stack_sec_port->lport));
 
-  lp.linkType = CPSS_CSCD_LINK_TYPE_PORT_E;
-  if (hops[0]) {
-    if (hops[1])
-      lp.linkNum = (hops[1] >= hops[0])
-        ? stack_pri_port->lport
-        : stack_sec_port->lport;
+  for_each_dev (d) {
+    struct port *port;
+
+    lp.linkType = CPSS_CSCD_LINK_TYPE_PORT_E;
+    lp.linkNum  = CPSS_NULL_PORT_NUM_CNS;
+
+    if (hops[0]) {
+      if (hops[1])
+        port = (hops[1] >= hops[0])
+          ? stack_pri_port
+          : stack_sec_port;
+      else
+        port = stack_pri_port;
+    } else if (hops[1])
+      port = stack_sec_port;
     else
-      lp.linkNum = stack_pri_port->lport;
-  } else if (hops[1])
-    lp.linkNum = stack_sec_port->lport;
-  else
-    lp.linkNum = CPSS_NULL_PORT_NUM_CNS;
-  CRP (cpssDxChCscdDevMapTableSet (0, dev, 0, &lp, 0));
+      port = NULL;
+
+    if (port) {
+      if (port->ldev == d)
+        lp.linkNum = port->lport;
+      else {
+        lp.linkType = CPSS_CSCD_LINK_TYPE_TRUNK_E;
+        lp.linkNum = SYSD_CSCD_TRUNK;
+      }
+    }
+
+    CRP (cpssDxChCscdDevMapTableSet
+         (d, dev, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+  }
 
   return ST_OK;
 }

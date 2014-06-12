@@ -428,9 +428,6 @@ port_start (void)
 
     CRP (cpssDxChBrgSrcIdGroupEntrySet
          (d, stack_id, GT_TRUE, &all_ports_bmp[d]));
-    if (stack_id)
-      CRP (cpssDxChBrgSrcIdGroupEntrySet
-           (d, 0, GT_TRUE, &nst_ports_bmp[d]));
   }
 
   for (i = 0; i < nports; i++) {
