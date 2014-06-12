@@ -1384,6 +1384,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   struct pdsa_spec_frame *frame;
   notification_t type;
   port_id_t pid;
+  int put_vid = 0;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1436,10 +1437,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
+    put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
+    put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (0):
@@ -1463,7 +1466,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (type == CN_ARP_REPLY_TO_ME)
+  if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
   zmsg_addmem (msg, frame->data, frame->len);
