@@ -699,6 +699,7 @@ init_cpss (void)
   qos_start ();
   for_each_dev (i)
     rate_limit_init (i);
+  stack_start ();
   port_start ();
   dgasp_init ();
   pdsa_init ();
