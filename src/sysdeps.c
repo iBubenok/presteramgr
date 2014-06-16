@@ -30,127 +30,6 @@ get_system_params (void)
   pthread_attr_getstacksize (&attr, &sysdeps_default_stack_size);
 }
 
-#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
-
-static struct dev_info __dev_info[] = {
-  {
-    .dev_id     = CPSS_98DX2122_CNS,
-    .int_num    = GT_PCI_INT_B,
-    .n_ic_ports = 0,
-    .ph1_info   = {
-      .devNum                 = 0,
-      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
-      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
-      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
-      .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_FALSE
-    }
-  }
-};
-
-void
-sysd_setup_ic (void)
-{
-}
-
-#elif defined (VARIANT_SM_12F)
-
-static struct dev_info __dev_info[] = {
-  {
-    .dev_id     = CPSS_98DX2122_CNS,
-    .int_num    = GT_PCI_INT_B,
-    .n_ic_ports = 0,
-    .ph1_info   = {
-      .devNum                 = 0,
-      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
-      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
-      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
-      .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_FALSE
-    }
-  }
-};
-
-void
-sysd_setup_ic (void)
-{
-}
-
-#elif defined (VARIANT_ARLAN_3424GE)
-
-static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};
-
-static struct dev_info __dev_info[] = {
-  {
-    .dev_id     = CPSS_98DX4122_CNS,
-    .int_num    = GT_PCI_INT_B,
-    .n_ic_ports = 0,
-    .n_xg_phys  = 4,
-    .xg_phys    = xg_phys
-    .ph1_info   = {
-      .devNum                 = 0,
-      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
-      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
-      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
-      .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_FALSE
-    }
-  }
-};
-
-void
-sysd_setup_ic (void)
-{
-}
-
-#elif defined (VARIANT_ARLAN_3448PGE)
-
-static int ic_ports_0[] = {26, 27};
-static unsigned xg_phys_0[] = {0x18, 0x19};
-static int ic_ports_1[] = {24, 25};
-static unsigned xg_phys_1[] = {0x1A, 0x1B};
-
-static struct dev_info __dev_info[] = {
-  {
-    .dev_id     = CPSS_98DX5248_CNS,
-    .int_num    = GT_PCI_INT_A,
-    .n_ic_ports = 2,
-    .ic_ports   = ic_ports_0,
-    .n_xg_phys  = 2,
-    .xg_phys    = xg_phys_0,
-    .ph1_info   = {
-      .devNum                 = 0,
-      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
-      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
-      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
-      .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_TRUE
-    }
-  },
-  {
-    .dev_id     = CPSS_98DX4122_CNS,
-    .int_num    = GT_PCI_INT_B,
-    .n_ic_ports = 2,
-    .ic_ports   = ic_ports_1,
-    .n_xg_phys  = 2,
-    .xg_phys    = xg_phys_1,
-    .ph1_info   = {
-      .devNum                 = 1,
-      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
-      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
-      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
-      .initSerdesDefaults     = GT_TRUE,
-      .isExternalCpuConnected = GT_FALSE
-    }
-  }
-};
-
-/* TODO: maybe the CPU code setup must be done for all variants. */
 static void
 sysd_setup_cpu_codes (void)
 {
@@ -207,6 +86,140 @@ sysd_setup_cpu_codes (void)
          (d, CPSS_NET_FIRST_USER_DEFINED_E, &cce));
   }
 }
+
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
+
+static struct dev_info __dev_info[] = {
+  {
+    .dev_id     = CPSS_98DX2122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .ph1_info   = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+int
+sysd_hw_dev_num (int ldev)
+{
+  switch (ldev) {
+  case 0: return stack_id;
+  default:
+    EMERG ("invalid logical device number %d\r\n", ldev);
+    abort ();
+  }
+}
+
+void
+sysd_setup_ic (void)
+{
+  sysd_setup_cpu_codes ();
+}
+
+#elif defined (VARIANT_SM_12F)
+
+static struct dev_info __dev_info[] = {
+  {
+    .dev_id     = CPSS_98DX2122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .ph1_info   = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+  sysd_setup_cpu_codes ();
+}
+
+#elif defined (VARIANT_ARLAN_3424GE)
+
+static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};
+
+static struct dev_info __dev_info[] = {
+  {
+    .dev_id     = CPSS_98DX4122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .n_xg_phys  = 4,
+    .xg_phys    = xg_phys
+    .ph1_info   = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+  sysd_setup_cpu_codes ();
+}
+
+#elif defined (VARIANT_ARLAN_3448PGE)
+
+static int ic_ports_0[] = {26, 27};
+static unsigned xg_phys_0[] = {0x18, 0x19};
+static int ic_ports_1[] = {24, 25};
+static unsigned xg_phys_1[] = {0x1A, 0x1B};
+
+static struct dev_info __dev_info[] = {
+  {
+    .dev_id     = CPSS_98DX5248_CNS,
+    .int_num    = GT_PCI_INT_A,
+    .n_ic_ports = 2,
+    .ic_ports   = ic_ports_0,
+    .n_xg_phys  = 2,
+    .xg_phys    = xg_phys_0,
+    .ph1_info   = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_TRUE
+    }
+  },
+  {
+    .dev_id     = CPSS_98DX4122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 2,
+    .ic_ports   = ic_ports_1,
+    .n_xg_phys  = 2,
+    .xg_phys    = xg_phys_1,
+    .ph1_info   = {
+      .devNum                 = 1,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
 
 void
 sysd_setup_ic (void)

@@ -34,6 +34,7 @@ struct pm {
 #if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
 
 #define NDEVS 1
+#define CPU_DEV 0
 #define NPORTS 28
 #define DECLARE_PORT_MAP(name)                     \
   struct pm name[NPORTS] = {                       \
