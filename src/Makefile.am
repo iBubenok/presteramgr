@@ -1,4 +1,4 @@
-sbin_PROGRAMS = presteramgr presterarst
+sbin_PROGRAMS = presteramgr presterarst slwd
 presteramgr_SOURCES =	\
 	variant.h			\
 	main.c				\
@@ -51,6 +51,9 @@ nodist_presterarst_SOURCES = control-proto.h rtbd.h
 presterarst_SOURCES = presterarst.c log.c debug.c extsvc.c
 presterarst_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
+
+nodist_slwd_SOURCES = control-proto.h
+slwd_SOURCES = slwd.c log.c debug.c
 
 AM_CPPFLAGS = @linux_headers@ -I@pscp@ -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \

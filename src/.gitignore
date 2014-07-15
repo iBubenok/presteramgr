@@ -2,6 +2,7 @@ presteramgr
 presteractl
 presterarst
 pmntest
+slwd
 pdsa-mgmt.h
 control-proto.h
 control-proto.hrl

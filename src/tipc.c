@@ -46,7 +46,7 @@ static struct sockaddr_tipc link_dst = {
   .addrtype           = TIPC_ADDR_MCAST,
   .addr.nameseq.type  = PTI_LINK_TYPE,
   .addr.nameseq.lower = 0,
-  .addr.nameseq.upper = 31
+  .addr.nameseq.upper = 62
 };
 
 static int ntf_sock;
