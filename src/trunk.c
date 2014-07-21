@@ -56,6 +56,8 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
       return ST_BAD_VALUE;
 
     result = gif_get_hw_port (&hp, mem[i].id.type, mem[i].id.dev, mem[i].id.num);
+    if (result == ST_DOES_NOT_EXIST)
+      continue;
     if (result != ST_OK)
       return result;
 

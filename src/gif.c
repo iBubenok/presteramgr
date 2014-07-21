@@ -76,7 +76,7 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   }
 
   if (num > __dev_ports[dev].n_by_type[type])
-    return ST_BAD_VALUE;
+    return ST_DOES_NOT_EXIST;
 
   for (i = 0; i < type; i++)
     o += __dev_ports[dev].n_by_type[i];
