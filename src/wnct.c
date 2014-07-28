@@ -42,10 +42,8 @@ wnct_start (void)
 {
   memset (protos, 0, sizeof (protos));
 
-  CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (WNCT_STP, GT_TRUE));
+  CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (0, GT_TRUE));
   wnct_enable_proto (WNCT_STP, 1);
-
-  CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (WNCT_802_3_SP, GT_TRUE));
   wnct_enable_proto (WNCT_802_3_SP, 1);
 
   return ST_OK;
