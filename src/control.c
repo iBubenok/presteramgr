@@ -271,6 +271,7 @@ DECLARE_HANDLER (CC_GET_HW_PORTS);
 DECLARE_HANDLER (CC_SET_HW_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
+DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -361,7 +362,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_GET_HW_PORTS),
   HANDLER (CC_SET_HW_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS),
-  HANDLER (CC_GIF_TX)
+  HANDLER (CC_GIF_TX),
+  HANDLER (CC_PORT_ENABLE_QUEUE)
 };
 
 static int
@@ -2290,6 +2292,31 @@ DEFINE_HANDLER (CC_GIF_TX)
 
   frame = NEXT_ARG;
   result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_QUEUE)
+{
+  port_id_t pid;
+  uint8_t q;
+  bool_t en;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&q);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&en);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_enable_queue (pid, q, en);
 
  out:
   report_status (result);

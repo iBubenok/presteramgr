@@ -37,6 +37,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
+#include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -2441,4 +2442,36 @@ port_set_trunk_vlans (port_id_t pid, const uint8_t *bmp)
   }
 
   return ST_OK;
+}
+
+enum status
+port_enable_queue (port_id_t pid, uint8_t q, bool_t enable)
+{
+  GT_U8 d, p;
+  GT_STATUS rc;
+
+  if (q > 7)
+    return ST_BAD_VALUE;
+
+  if (pid == 0) {
+    d = 0;
+    p = CPSS_CPU_PORT_NUM_CNS;
+  } else {
+    struct port *port = port_ptr (pid);
+
+    if (!port)
+      return ST_DOES_NOT_EXIST;
+
+    d = port->ldev;
+    p = port->lport;
+  }
+
+  DEBUG ("%s queue %d on port %d:%d\r\n",
+         enable ? "enable" : "disable", q, d, p);
+
+  rc = CRP (cpssDxChPortTxQueueingEnableSet (d, p, q, gt_bool (enable)));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }
