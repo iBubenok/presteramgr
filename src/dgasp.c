@@ -82,6 +82,7 @@ dgasp_init (void)
   dp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
   dp.commonParams.vid = SVC_VID;
   dp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+  dp.dsaInfo.fromCpu.tc = 7;
   dp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
   dp.dsaInfo.fromCpu.dstInterface.vidx = DGASP_MCG;
   dp.dsaInfo.fromCpu.srcId = 0; /* FIXME: stack! */

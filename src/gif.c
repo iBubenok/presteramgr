@@ -114,7 +114,9 @@ gif_tx (const struct gif_id *id,
   memset (&tp, 0, sizeof (tp));
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
   tp.commonParams.vid = opts->vid;
+  tp.commonParams.vpt = 7;
   tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+  tp.dsaInfo.fromCpu.tc = 7;
   tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
   tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
   tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
