@@ -49,7 +49,7 @@ tipc_init (void)
   addr.addrtype                = TIPC_ADDR_NAME;
   addr.scope                   = TIPC_CLUSTER_SCOPE;
   addr.addr.name.name.type     = PTI_LINK_TYPE;
-  addr.addr.name.name.instance = stack_id * 2;
+  addr.addr.name.name.instance = stack_id + 32;
 
   if (bind (tfd, (struct sockaddr *) &addr, sizeof (addr)) < 0) {
     ERR ("bind() failed");
