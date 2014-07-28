@@ -451,7 +451,7 @@ port_start (void)
     port->setup (port);
 
     CRP (cpssDxChBrgFdbPortLearnStatusSet
-         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_SOFT_DROP_E));
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
     CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
 
