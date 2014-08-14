@@ -96,14 +96,12 @@ dgasp_init (void)
 enum status
 dgasp_enable (int enable)
 {
-#if 0
   /* FIXME: this code should depend on board dying gasp support. */
   struct dgasp_enable arg = {
     .enable = enable
   };
 
   dgasp_tx (0, DGASP_ENABLE, &arg, sizeof (arg));
-#endif /* 0 */
 
   return ST_OK;
 }
