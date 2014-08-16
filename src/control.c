@@ -31,6 +31,7 @@
 #include <dgasp.h>
 #include <diag.h>
 #include <tipc.h>
+#include <pcl.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -267,6 +268,7 @@ DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
 DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
 DECLARE_HANDLER (CC_WNCT_ENABLE_PROTO);
+DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -355,7 +357,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_BC_LINK_STATE),
   HANDLER (CC_STACK_TXEN),
   HANDLER (CC_PORT_SET_VOICE_VLAN),
-  HANDLER (CC_WNCT_ENABLE_PROTO)
+  HANDLER (CC_WNCT_ENABLE_PROTO),
+  HANDLER (CC_PORT_ENABLE_LBD)
 };
 
 static int
@@ -2220,6 +2223,26 @@ DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
     goto out;
 
   result = wnct_enable_proto (proto, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_LBD)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_lbd_trap (pid, enable);
 
  out:
   report_status (result);
