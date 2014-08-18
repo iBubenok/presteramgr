@@ -501,7 +501,7 @@ port_start (void)
 
     pcl_port_setup (port->id);
     pcl_enable_port (port->id, 1);
-    pcl_enable_lbd_trap (port->id, 1);
+    /* pcl_enable_lbd_trap (port->id, 1); */
   }
 
   port_set_mru (1526);
