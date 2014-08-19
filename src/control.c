@@ -33,6 +33,7 @@
 #include <tipc.h>
 #include <trunk.h>
 #include <gif.h>
+#include <pcl.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -272,6 +273,7 @@ DECLARE_HANDLER (CC_SET_HW_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
+DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -363,7 +365,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SET_HW_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_GIF_TX),
-  HANDLER (CC_PORT_ENABLE_QUEUE)
+  HANDLER (CC_PORT_ENABLE_QUEUE),
+  HANDLER (CC_PORT_ENABLE_LBD)
 };
 
 static int
@@ -2317,6 +2320,26 @@ DEFINE_HANDLER (CC_PORT_ENABLE_QUEUE)
     goto out;
 
   result = port_enable_queue (pid, q, en);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_LBD)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_lbd_trap (pid, enable);
 
  out:
   report_status (result);
