@@ -102,10 +102,11 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
   tp.commonParams.vid = 4095;
   tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+  tp.dsaInfo.fromCpu.tc = 7;
   tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
   tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = phys_dev (port->ldev);
   tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = port->lport;
-  tp.dsaInfo.fromCpu.cascadeControl = GT_TRUE;
+  tp.dsaInfo.fromCpu.cascadeControl = GT_FALSE;
   tp.dsaInfo.fromCpu.extDestInfo.devPort.mailBoxToNeighborCPU = GT_TRUE;
   tp.dsaInfo.fromCpu.srcDev = stack_id;
   tp.dsaInfo.fromCpu.srcId = stack_id;

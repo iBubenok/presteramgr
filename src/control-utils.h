@@ -82,6 +82,7 @@ typedef void (*cmd_handler_t) (zmsg_t *, void *);
     })
 
 #define FIRST_ARG (zmsg_first (__args))
+#define NEXT_ARG (zmsg_next (__args))
 
 #define GET_FROM_FRAME(val, frame)                              \
   ({                                                            \

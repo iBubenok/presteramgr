@@ -1,4 +1,5 @@
-sbin_PROGRAMS = presteramgr
+sbin_PROGRAMS = presteramgr slwd
+
 presteramgr_SOURCES =	\
 	variant.h			\
 	main.c				\
@@ -37,13 +38,18 @@ presteramgr_SOURCES =	\
 	dev.c               \
 	diag.c              \
 	stack.c             \
-	tipc.c
+	tipc.c				\
+	trunk.c				\
+	gif.c
 
 nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h
 BUILT_SOURCES = control-proto.h rtbd.h arpd.h
 CLEANFILES = control-proto.h rtbd.h arpd.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
+
+nodist_slwd_SOURCES = control-proto.h
+slwd_SOURCES = slwd.c log.c debug.c
 
 AM_CPPFLAGS = @linux_headers@ -I@pscp@ -I@cpss@/cpss/common/h \
 	-I@cpss@/cpss/mainPpDrv/h -I@cpss@/cpss/cpssEnabler/mainOs/h \

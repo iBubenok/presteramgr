@@ -41,6 +41,7 @@ struct port {
   struct port_vlan_conf vlan_conf[4094];
   int def_xlate;
   vid_t def_map_to;
+  trunk_id_t trunk_id;
   enum port_stack_role stack_role;
   CPSS_PORT_ATTRIBUTES_STC attrs;
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
@@ -109,5 +110,6 @@ extern enum status port_vlan_translate (port_id_t, vid_t, vid_t, int);
 extern enum status port_clear_translation (port_id_t);
 extern enum status port_set_trunk_vlans (port_id_t, const uint8_t *);
 extern void port_update_trunk_vlan_all_ports (vid_t);
+extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 
 #endif /* __PORT_H__ */

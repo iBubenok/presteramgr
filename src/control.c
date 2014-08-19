@@ -31,6 +31,8 @@
 #include <dgasp.h>
 #include <diag.h>
 #include <tipc.h>
+#include <trunk.h>
+#include <gif.h>
 #include <pcl.h>
 
 #include <gtOs/gtOsTask.h>
@@ -268,6 +270,11 @@ DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
 DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
 DECLARE_HANDLER (CC_WNCT_ENABLE_PROTO);
+DECLARE_HANDLER (CC_GET_HW_PORTS);
+DECLARE_HANDLER (CC_SET_HW_PORTS);
+DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
+DECLARE_HANDLER (CC_GIF_TX);
+DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 
 static cmd_handler_t handlers[] = {
@@ -358,6 +365,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_STACK_TXEN),
   HANDLER (CC_PORT_SET_VOICE_VLAN),
   HANDLER (CC_WNCT_ENABLE_PROTO),
+  HANDLER (CC_GET_HW_PORTS),
+  HANDLER (CC_SET_HW_PORTS),
+  HANDLER (CC_TRUNK_SET_MEMBERS),
+  HANDLER (CC_GIF_TX),
+  HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD)
 };
 
@@ -1402,6 +1414,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     goto out;
   }
 
+  result = ST_BAD_VALUE;
+
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
@@ -1412,13 +1426,16 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        break;
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
                frame->data[14]);
-        return;
+        goto out;
       }
       break;
     case WNCT_LLDP:
@@ -1430,7 +1447,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n",
              frame->data[5]);
-      return;
+      goto out;
     }
     break;
 
@@ -1464,7 +1481,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
-    result = ST_BAD_VALUE;
     goto out;
   }
 
@@ -2204,6 +2220,55 @@ DEFINE_HANDLER (CC_PORT_SET_VOICE_VLAN)
 
   result = port_set_voice_vid (pid, vid);
 
+   out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GET_HW_PORTS)
+{
+  static struct port_def pd[NPORTS];
+  static int done = 0;
+  enum status result = ST_OK;
+
+  if (!done) {
+    result = gif_get_hw_ports (pd);
+    done = 1;
+  }
+
+  zmsg_t *reply = make_reply (result);
+  if (result == ST_OK) {
+    uint8_t n = NPORTS;
+    zmsg_addmem (reply, &n, sizeof (n));
+    zmsg_addmem (reply, pd, sizeof (pd));
+  }
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_SET_HW_PORTS)
+{
+  uint8_t d, n;
+  struct port_def *pd = NULL;
+  enum status result;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&n);
+  if (result != ST_OK)
+    goto out;
+
+  if (n) {
+    zframe_t *frame = FIRST_ARG;
+    if (!frame) {
+      result = ST_BAD_FORMAT;
+      goto out;
+    }
+    pd = (struct port_def *) zframe_data (frame);
+  }
+
+  result = gif_set_hw_ports (d, n, pd);
+
  out:
   report_status (result);
 }
@@ -2223,6 +2288,83 @@ DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
     goto out;
 
   result = wnct_enable_proto (proto, enable);
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
+{
+  struct trunk_member mem[8];
+  trunk_id_t id;
+  enum status result;
+  zframe_t *frame;
+  int n = 0;
+
+  result = POP_ARG (&id);
+  if (result != ST_OK)
+    goto out;
+
+  result = ST_BAD_FORMAT;
+  frame = FIRST_ARG;
+  while (frame) {
+    if (zframe_size (frame) != sizeof (struct trunk_member))
+      goto out;
+    memcpy (&mem[n++], zframe_data (frame), sizeof (struct trunk_member));
+    if (n > 8)
+      goto out;
+    frame = NEXT_ARG;
+  }
+
+  result = trunk_set_members (id, n, mem);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GIF_TX)
+{
+  zframe_t *frame;
+  struct gif_id *id;
+  struct gif_tx_opts *opts;
+  enum status result = ST_BAD_FORMAT;
+
+  frame = FIRST_ARG;
+  if (zframe_size (frame) != sizeof (*id))
+    goto out;
+  id = (struct gif_id *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  if (zframe_size (frame) != sizeof (*opts))
+    goto out;
+  opts = (struct gif_tx_opts *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_QUEUE)
+{
+  port_id_t pid;
+  uint8_t q;
+  bool_t en;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&q);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&en);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_enable_queue (pid, q, en);
 
  out:
   report_status (result);

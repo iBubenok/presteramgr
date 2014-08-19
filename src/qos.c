@@ -20,6 +20,30 @@ const uint8_t qos_default_wrr_weights[8] = {
 
 static int prioq_num = 8;
 
+static enum status
+__qos_set_prioq_num (int num, int prof)
+{
+  int i, d;
+
+  if (num < 0 || num > 8)
+    return ST_BAD_VALUE;
+
+  for (i = 0; i < 8 - num; i++) {
+    DEBUG ("set %d:%d to WRR\r\n", prof, i);
+    for_each_dev (d)
+      CRP (cpssDxChPortTxQArbGroupSet
+           (d, i, CPSS_PORT_TX_WRR_ARB_GROUP_0_E, prof));
+  }
+  for ( ; i < 8; i++) {
+    DEBUG ("set %d:%d to SP\r\n", prof, i);
+    for_each_dev (d)
+      CRP (cpssDxChPortTxQArbGroupSet
+           (d, i, CPSS_PORT_TX_SP_ARB_GROUP_E, prof));
+  }
+
+  return ST_OK;
+}
+
 enum status
 qos_set_mls_qos_trust (int trust)
 {
@@ -90,6 +114,8 @@ qos_start (void)
 
   qos_set_cos_prio (cos_map);
 
+  __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E);
+  __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_3_E);
   qos_set_prioq_num (8);
   qos_set_wrr_queue_weights (qos_default_wrr_weights);
 
@@ -134,25 +160,7 @@ qos_set_cos_prio (const queue_id_t *map)
 enum status
 qos_set_prioq_num (int num)
 {
-  int i, d;
-
-  if (num < 0 || num > 8)
-    return ST_BAD_VALUE;
-
-  prioq_num = num;
-
-  for (i = 0; i < 8 - num; i++)
-    for_each_dev (d)
-      CRP (cpssDxChPortTxQArbGroupSet
-           (d, i, CPSS_PORT_TX_WRR_ARB_GROUP_0_E,
-            CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
-  for ( ; i < 8; i++)
-    for_each_dev (d)
-      CRP (cpssDxChPortTxQArbGroupSet
-           (d, i, CPSS_PORT_TX_SP_ARB_GROUP_E,
-            CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
-
-  return ST_OK;
+  return __qos_set_prioq_num (num, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E);
 }
 
 enum status
@@ -163,7 +171,7 @@ qos_set_wrr_queue_weights (const uint8_t *weights)
   for (i = 0; i < 8; i++)
     for_each_dev (d)
       CRP (cpssDxChPortTxQWrrProfileSet
-           (d, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
+           (d, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   return ST_OK;
 }

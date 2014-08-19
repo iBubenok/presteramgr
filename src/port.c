@@ -37,6 +37,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
+#include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -375,6 +376,59 @@ port_setup_stack (struct port *port)
        (port->ldev, port->lport,
         CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));
   CRP (cpssDxChPortMruSet (port->ldev, port->lport, 12000));
+  CRP (cpssDxChCscdQosPortTcRemapEnableSet
+       (port->ldev, port->lport, GT_TRUE));
+  CRP (cpssDxChTxPortShapersDisable (port->ldev, port->lport));
+
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+}
+
+static void
+__setup_cpu_codes (void)
+{
+  CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
+    .tc = 6,
+    .dp = CPSS_DP_GREEN_E,
+    .truncate = GT_FALSE,
+    .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
+    .cpuCodeRateLimiterIndex = 0,
+    .cpuCodeStatRateLimitIndex = 0,
+    .designatedDevNumIndex = 0
+  };
+  CRP (cpssDxChNetIfCpuCodeTableSet
+       (0, CPSS_NET_ALL_CPU_OPCODES_E, &cce));
+
+  cce.tc = 7;
+  CRP (cpssDxChNetIfCpuCodeTableSet
+       (0, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
+  CRP (cpssDxChNetIfCpuCodeTableSet
+       (0, CPSS_NET_CPU_TO_CPU_E, &cce));
+  CRP (cpssDxChNetIfCpuCodeTableSet
+       (0, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
+}
+
+static void
+setup_tc_remap (void)
+{
+  CPSS_DXCH_CSCD_QOS_TC_REMAP_STC tr = {
+    .toCpuLocalTc   = 7,
+    .toCpuStackTc   = 7,
+    .fromCpuLocalTc = 7,
+    .fromCpuStackTc = 7
+  };
+  int i;
+
+  for (i = 0; i < 7; i++) {
+    tr.forwardLocalTc    = i;
+    tr.forwardStackTc    = i;
+    tr.toAnalyzerLocalTc = i;
+    tr.toAnalyzerStackTc = i;
+    CRP (cpssDxChCscdQosTcRemapTableSet (0, i, &tr));
+  }
+  CRP (cpssDxChCscdQosTcRemapTableSet (0, 7, &tr));
 }
 
 static void
@@ -430,6 +484,9 @@ port_start (void)
          (d, stack_id, GT_TRUE, &all_ports_bmp[d]));
   }
 
+  setup_tc_remap ();
+  __setup_cpu_codes ();
+
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];
 
@@ -466,8 +523,6 @@ port_start (void)
          (port->ldev, port->lport,
           CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
           GT_TRUE));
-    CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
-         (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
     /* QoS initial setup. */
     CRP (cpssDxChCosPortReMapDSCPSet (port->ldev, port->lport, GT_FALSE));
@@ -542,10 +597,25 @@ port_start (void)
     port->update_sd (port);
   };
 
-  CRP (cpssDxChPortTxShaperProfileSet
-       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
-  CRP (cpssDxChPortTxShaperEnableSet
-       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+  /* GT_U32 rate = 5000; */
+  /* CRP (cpssDxChPortTxShaperProfileSet */
+  /*      (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate)); */
+  /* CRP (cpssDxChPortTxShaperEnableSet */
+  /*      (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE)); */
+
+  for_each_dev (d)
+    CRP (cpssDxChNetIfFromCpuDpSet (d, CPSS_DP_GREEN_E));
+
+  CRP (cpssDxChPortTxToCpuShaperModeSet
+       (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
+  CRP (cpssDxChTxPortShapersDisable (CPU_DEV, CPSS_CPU_PORT_NUM_CNS));
+
+  CRP (cpssDxChCscdQosPortTcRemapEnableSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, CPSS_PORT_TX_DROP_PROFILE_1_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   CRP (cpssDxChPortEnableSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
@@ -1394,7 +1464,13 @@ port_shutdown_fe (struct port *port, int shutdown)
 static enum status
 __port_setup_fe (GT_U8 dev, GT_U8 port)
 {
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (dev, port, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (dev, port, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
   CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+
   return ST_OK;
 }
 
@@ -1887,6 +1963,11 @@ port_setup_ge (struct port *port)
 {
   GT_U16 val;
 
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport, CPSS_PHY_SMI_INTERFACE_1_E));
 
@@ -1974,6 +2055,11 @@ port_setup_ge (struct port *port)
     IS_COMBO
   } ptype;
   GT_U16 val;
+
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport,
@@ -2183,6 +2269,11 @@ dump_xg_reg (const struct port *port, GT_U32 dev, GT_U32 reg)
 static enum status
 port_setup_xg (struct port *port)
 {
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
   CRP (cpssDxChPortInterfaceModeSet
        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
   CRP (cpssDxChPortSpeedSet
@@ -2192,14 +2283,6 @@ port_setup_xg (struct port *port)
   CRP (cpssXsmiPortGroupRegisterWrite
        (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
 
-  /*
-  dump_xg_reg (port, 1, 0xC319);
-  dump_xg_reg (port, 1, 0xC31A);
-  dump_xg_reg (port, 3, 0x0026);
-  dump_xg_reg (port, 3, 0x0027);
-  dump_xg_reg (port, 3, 0x0028);
-  dump_xg_reg (port, 3, 0x0029);
-  */
   return ST_OK;
 }
 
@@ -2559,4 +2642,36 @@ port_set_trunk_vlans (port_id_t pid, const uint8_t *bmp)
   }
 
   return ST_OK;
+}
+
+enum status
+port_enable_queue (port_id_t pid, uint8_t q, bool_t enable)
+{
+  GT_U8 d, p;
+  GT_STATUS rc;
+
+  if (q > 7)
+    return ST_BAD_VALUE;
+
+  if (pid == 0) {
+    d = 0;
+    p = CPSS_CPU_PORT_NUM_CNS;
+  } else {
+    struct port *port = port_ptr (pid);
+
+    if (!port)
+      return ST_DOES_NOT_EXIST;
+
+    d = port->ldev;
+    p = port->lport;
+  }
+
+  DEBUG ("%s queue %d on port %d:%d\r\n",
+         enable ? "enable" : "disable", q, d, p);
+
+  rc = CRP (cpssDxChPortTxQueueingEnableSet (d, p, q, gt_bool (enable)));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }

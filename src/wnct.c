@@ -44,21 +44,17 @@ wnct_enable_proto (uint8_t proto, int enable)
 enum status
 wnct_start (void)
 {
-  GT_STATUS rc;
   int d;
 
   memset (protos, 0, sizeof (protos));
 
-  for_each_dev (d) {
-    rc = CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (d, GT_TRUE));
-    ON_GT_ERROR (rc) goto gt_error;
-  }
+  for_each_dev (d)
+    CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (d, GT_TRUE));
 
-  return wnct_enable_proto (WNCT_STP, 1);
+  memset (protos, 0, sizeof (protos));
 
- gt_error:
-  switch (rc) {
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
+  wnct_enable_proto (WNCT_STP, 1);
+  wnct_enable_proto (WNCT_802_3_SP, 1);
+
+  return ST_OK;
 }

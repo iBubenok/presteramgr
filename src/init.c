@@ -50,9 +50,6 @@
 /* Policer library. */
 #include <cpss/dxCh/dxChxGen/policer/cpssDxChPolicer.h>
 
-/* Trunk library. */
-#include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
-
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
@@ -84,6 +81,7 @@
 #include <extsvc.h>
 #include <control.h>
 #include <port.h>
+#include <gif.h>
 #include <vlan.h>
 #include <qos.h>
 #include <pdsa.h>
@@ -100,8 +98,8 @@
 #include <stack.h>
 #include <dev.h>
 #include <tipc.h>
+#include <trunk.h>
 #include <presteramgr.h>
-
 
 int just_reset = 0;
 
@@ -336,10 +334,78 @@ dxChPortBufMgInit (IN GT_U8 dev)
   /*   } */
   /*   else */
   /*   { */
-  RCC ((rc = cpssDxChPortFcHolSysModeSet (dev, CPSS_DXCH_PORT_FC_E)),
-       cpssDxChPortFcHolSysModeSet);
+  /* RCC ((rc = cpssDxChPortFcHolSysModeSet (dev, CPSS_DXCH_PORT_FC_E)), */
+  /*      cpssDxChPortFcHolSysModeSet); */
 
   return GT_OK;
+}
+
+static void
+port_setup_td (void)
+{
+  CPSS_PORT_TX_Q_TAIL_DROP_PROF_TC_PARAMS tdp;
+  int i;
+
+  CRP (cpssDxChPortTxMcastPcktDescrLimitSet (0, 1664 / 128));
+  CRP (cpssDxChPortTxSharingGlobalResourceEnableSet (0, GT_TRUE));
+  CRP (cpssDxChPortTxSharedGlobalResourceLimitsSet (0, 1848, 1848));
+  CRP (cpssDxChPortTxDp1SharedEnableSet (0, GT_FALSE));
+  CRP (cpssDxChPortTxSharedPolicySet
+       (0, CPSS_DXCH_PORT_TX_SHARED_POLICY_CONSTRAINED_E));
+
+  for (i = 0; i < 8; i++) {
+    int j;
+
+    for (j = CPSS_PORT_TX_DROP_PROFILE_1_E;
+         j < CPSS_PORT_TX_DROP_PROFILE_5_E;
+         j++)
+      CRP (cpssDxChPortTxTcSharedProfileEnableSet
+           (0, j, i, CPSS_PORT_TX_SHARED_DP_MODE_ALL_E));
+  }
+
+  memset (&tdp, 0, sizeof (tdp));
+
+  /* Network ports. */
+  CRP (cpssDxChPortTxTailDropProfileSet
+       (0, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_TRUE, 528, 88));
+  tdp.dp0MaxBuffNum = 18;
+  tdp.dp0MaxDescrNum = 18;
+  tdp.dp1MaxBuffNum = 12;
+  tdp.dp1MaxDescrNum = 12;
+  for (i = 0; i < 8; i++)
+    CRP (cpssDxChPortTx4TcTailDropProfileSet
+         (0, CPSS_PORT_TX_DROP_PROFILE_2_E, i, &tdp));
+
+  /* Cascade ports. */
+  CRP (cpssDxChPortTxTailDropProfileSet
+       (0, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_TRUE, 1848, 308));
+  tdp.dp0MaxBuffNum = 40;
+  tdp.dp0MaxDescrNum = 28;
+  tdp.dp1MaxBuffNum = 40;
+  tdp.dp1MaxDescrNum = 28;
+  for (i = 0; i < 8; i++)
+    CRP (cpssDxChPortTx4TcTailDropProfileSet
+         (0, CPSS_PORT_TX_DROP_PROFILE_3_E, i, &tdp));
+
+  /* CPU port. */
+  CRP (cpssDxChPortTxTailDropProfileSet
+       (0, CPSS_PORT_TX_DROP_PROFILE_1_E, GT_TRUE, 264, 44));
+  tdp.dp0MaxBuffNum = 8;
+  tdp.dp0MaxDescrNum = 8;
+  tdp.dp1MaxBuffNum = 8;
+  tdp.dp1MaxDescrNum = 8;
+  for (i = 0; i < 7; i++)
+    CRP (cpssDxChPortTx4TcTailDropProfileSet
+         (0, CPSS_PORT_TX_DROP_PROFILE_1_E, i, &tdp));
+  tdp.dp0MaxBuffNum = 40;
+  tdp.dp0MaxDescrNum = 40;
+  tdp.dp1MaxBuffNum = 40;
+  tdp.dp1MaxDescrNum = 40;
+  CRP (cpssDxChPortTx4TcTailDropProfileSet
+       (0, CPSS_PORT_TX_DROP_PROFILE_1_E, 7, &tdp));
+
+  CRP (cpssDxChPortTxTailDropUcEnableSet (0, GT_TRUE));
+  CRP (cpssDxChPortTxRandomTailDropEnableSet (0, GT_TRUE));
 }
 
 static GT_STATUS
@@ -347,12 +413,17 @@ port_lib_init (int d)
 {
   GT_STATUS rc;
 
-  if (d == 0)
+  if (d == 0) {
     port_init ();
+    gif_init ();
+  }
 
   RCC ((rc = cpssDxChPortStatInit (d)), cpssDxChPortStatInit);
   RCC ((rc = dxChPortBufMgInit (d)), dxChPortBufMgInit);
   RCC ((rc = cpssDxChPortTxInit (d)), cpssDxChPortTxInit);
+
+  if (d == 0)
+    port_setup_td ();
 
   return GT_OK;
 }
@@ -508,18 +579,6 @@ policer_lib_init (int d)
 }
 
 static GT_STATUS
-trunk_lib_init (int d)
-{
-  GT_STATUS rc;
-  GT_U8 max = 127;
-
-  RCC ((rc = cpssDxChTrunkInit (d, max, CPSS_DXCH_TRUNK_MEMBERS_MODE_NATIVE_E)),
-       cpssDxChTrunkInit);
-
-  return rc;
-}
-
-static GT_STATUS
 lib_init (int d)
 {
   GT_STATUS rc;
@@ -554,9 +613,11 @@ lib_init (int d)
   RCC ((rc = policer_lib_init (d)), policer_lib_init);
   DEBUG ("policer library init done\n");
 
-  DEBUG ("doing trunk library init\n");
-  RCC ((rc = trunk_lib_init (d)), trunk_lib_init);
-  DEBUG ("trunk library init done\n");
+  if (d == 0) {
+    DEBUG ("doing trunk library init\n");
+    trunk_init ();
+    DEBUG ("trunk library init done\n");
+  }
 
   return GT_OK;
 }

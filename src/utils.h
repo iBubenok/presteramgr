@@ -46,4 +46,10 @@ errex (const char *msg)
 #define MAC_FMT "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MAC_ARG(n) n[0], n[1], n[2], n[3], n[4], n[5]
 
+static inline int
+in_range (val, min, max)
+{
+  return val >= min && val <= max;
+}
+
 #endif /* __UTILS_H__ */
