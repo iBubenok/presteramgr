@@ -457,7 +457,7 @@ port_disable_all (void)
 enum status
 port_start (void)
 {
-  /* GT_U32 rate = 5000; */
+  GT_U32 rate = 5000;
   int i, d;
 
 #if defined (VARIANT_FE)
@@ -597,18 +597,17 @@ port_start (void)
     port->update_sd (port);
   };
 
-  /* GT_U32 rate = 5000; */
-  /* CRP (cpssDxChPortTxShaperProfileSet */
-  /*      (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate)); */
-  /* CRP (cpssDxChPortTxShaperEnableSet */
-  /*      (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE)); */
+  CRP (cpssDxChPortTxShaperProfileSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
+  CRP (cpssDxChPortTxShaperEnableSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
 
   for_each_dev (d)
     CRP (cpssDxChNetIfFromCpuDpSet (d, CPSS_DP_GREEN_E));
 
-  CRP (cpssDxChPortTxToCpuShaperModeSet
-       (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
-  CRP (cpssDxChTxPortShapersDisable (CPU_DEV, CPSS_CPU_PORT_NUM_CNS));
+  /* CRP (cpssDxChPortTxToCpuShaperModeSet */
+  /*      (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E)); */
+  /* CRP (cpssDxChTxPortShapersDisable (CPU_DEV, CPSS_CPU_PORT_NUM_CNS)); */
 
   CRP (cpssDxChCscdQosPortTcRemapEnableSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
