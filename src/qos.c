@@ -18,8 +18,6 @@ const uint8_t qos_default_wrr_weights[8] = {
   1, 2, 4, 8, 16, 32, 64, 128
 };
 
-static int prioq_num = 8;
-
 static enum status
 __qos_set_prioq_num (int num, int prof)
 {

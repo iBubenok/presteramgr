@@ -457,7 +457,7 @@ port_disable_all (void)
 enum status
 port_start (void)
 {
-  GT_U32 rate = 5000;
+  /* GT_U32 rate = 5000; */
   int i, d;
 
 #if defined (VARIANT_FE)
