@@ -148,6 +148,18 @@ sysd_setup_ic (void)
   sysd_setup_cpu_codes ();
 }
 
+int
+sysd_hw_dev_num (int ldev)
+{
+  switch (ldev) {
+  case 0:
+    return stack_id;
+  default:
+    EMERG ("invalid logical device number %d\r\n", ldev);
+    abort ();
+  }
+}
+
 #elif defined (VARIANT_ARLAN_3424GE)
 
 static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};

@@ -78,6 +78,7 @@ PORT_STACK_ROLE (int n)
 #elif defined (VARIANT_SM_12F)
 
 #define NDEVS 1
+#define CPU_DEV 0
 #define NPORTS 16
 #define DECLARE_PORT_MAP(name)                              \
   struct pm name[NPORTS] = {                                \
