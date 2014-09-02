@@ -95,7 +95,6 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
-#define CPU_DEV 0
 enum status
 gif_tx (const struct gif_id *id,
         const struct gif_tx_opts *opts,
