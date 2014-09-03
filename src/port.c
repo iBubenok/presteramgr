@@ -419,16 +419,18 @@ setup_tc_remap (void)
     .fromCpuLocalTc = 7,
     .fromCpuStackTc = 7
   };
-  int i;
+  int i, d;
 
-  for (i = 0; i < 7; i++) {
-    tr.forwardLocalTc    = i;
-    tr.forwardStackTc    = i;
-    tr.toAnalyzerLocalTc = i;
-    tr.toAnalyzerStackTc = i;
-    CRP (cpssDxChCscdQosTcRemapTableSet (0, i, &tr));
+  for_each_dev (d) {
+    for (i = 0; i < 7; i++) {
+      tr.forwardLocalTc    = i;
+      tr.forwardStackTc    = i;
+      tr.toAnalyzerLocalTc = i;
+      tr.toAnalyzerStackTc = i;
+      CRP (cpssDxChCscdQosTcRemapTableSet (d, i, &tr));
+    }
+    CRP (cpssDxChCscdQosTcRemapTableSet (d, 7, &tr));
   }
-  CRP (cpssDxChCscdQosTcRemapTableSet (0, 7, &tr));
 }
 
 static void
