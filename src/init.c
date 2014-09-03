@@ -341,17 +341,17 @@ dxChPortBufMgInit (IN GT_U8 dev)
 }
 
 static void
-port_setup_td (void)
+port_setup_td (int d)
 {
   CPSS_PORT_TX_Q_TAIL_DROP_PROF_TC_PARAMS tdp;
   int i;
 
-  CRP (cpssDxChPortTxMcastPcktDescrLimitSet (0, 1664 / 128));
-  CRP (cpssDxChPortTxSharingGlobalResourceEnableSet (0, GT_TRUE));
-  CRP (cpssDxChPortTxSharedGlobalResourceLimitsSet (0, 1848, 1848));
-  CRP (cpssDxChPortTxDp1SharedEnableSet (0, GT_FALSE));
+  CRP (cpssDxChPortTxMcastPcktDescrLimitSet (d, 1664 / 128));
+  CRP (cpssDxChPortTxSharingGlobalResourceEnableSet (d, GT_TRUE));
+  CRP (cpssDxChPortTxSharedGlobalResourceLimitsSet (d, 1848, 1848));
+  CRP (cpssDxChPortTxDp1SharedEnableSet (d, GT_FALSE));
   CRP (cpssDxChPortTxSharedPolicySet
-       (0, CPSS_DXCH_PORT_TX_SHARED_POLICY_CONSTRAINED_E));
+       (d, CPSS_DXCH_PORT_TX_SHARED_POLICY_CONSTRAINED_E));
 
   for (i = 0; i < 8; i++) {
     int j;
@@ -360,52 +360,52 @@ port_setup_td (void)
          j < CPSS_PORT_TX_DROP_PROFILE_5_E;
          j++)
       CRP (cpssDxChPortTxTcSharedProfileEnableSet
-           (0, j, i, CPSS_PORT_TX_SHARED_DP_MODE_ALL_E));
+           (d, j, i, CPSS_PORT_TX_SHARED_DP_MODE_ALL_E));
   }
 
   memset (&tdp, 0, sizeof (tdp));
 
   /* Network ports. */
   CRP (cpssDxChPortTxTailDropProfileSet
-       (0, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_TRUE, 528, 88));
+       (d, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_TRUE, 528, 88));
   tdp.dp0MaxBuffNum = 18;
   tdp.dp0MaxDescrNum = 18;
   tdp.dp1MaxBuffNum = 12;
   tdp.dp1MaxDescrNum = 12;
   for (i = 0; i < 8; i++)
     CRP (cpssDxChPortTx4TcTailDropProfileSet
-         (0, CPSS_PORT_TX_DROP_PROFILE_2_E, i, &tdp));
+         (d, CPSS_PORT_TX_DROP_PROFILE_2_E, i, &tdp));
 
   /* Cascade ports. */
   CRP (cpssDxChPortTxTailDropProfileSet
-       (0, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_TRUE, 1848, 308));
+       (d, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_TRUE, 1848, 308));
   tdp.dp0MaxBuffNum = 40;
   tdp.dp0MaxDescrNum = 28;
   tdp.dp1MaxBuffNum = 40;
   tdp.dp1MaxDescrNum = 28;
   for (i = 0; i < 8; i++)
     CRP (cpssDxChPortTx4TcTailDropProfileSet
-         (0, CPSS_PORT_TX_DROP_PROFILE_3_E, i, &tdp));
+         (d, CPSS_PORT_TX_DROP_PROFILE_3_E, i, &tdp));
 
   /* CPU port. */
   CRP (cpssDxChPortTxTailDropProfileSet
-       (0, CPSS_PORT_TX_DROP_PROFILE_1_E, GT_TRUE, 264, 44));
+       (d, CPSS_PORT_TX_DROP_PROFILE_1_E, GT_TRUE, 264, 44));
   tdp.dp0MaxBuffNum = 8;
   tdp.dp0MaxDescrNum = 8;
   tdp.dp1MaxBuffNum = 8;
   tdp.dp1MaxDescrNum = 8;
   for (i = 0; i < 7; i++)
     CRP (cpssDxChPortTx4TcTailDropProfileSet
-         (0, CPSS_PORT_TX_DROP_PROFILE_1_E, i, &tdp));
+         (d, CPSS_PORT_TX_DROP_PROFILE_1_E, i, &tdp));
   tdp.dp0MaxBuffNum = 40;
   tdp.dp0MaxDescrNum = 40;
   tdp.dp1MaxBuffNum = 40;
   tdp.dp1MaxDescrNum = 40;
   CRP (cpssDxChPortTx4TcTailDropProfileSet
-       (0, CPSS_PORT_TX_DROP_PROFILE_1_E, 7, &tdp));
+       (d, CPSS_PORT_TX_DROP_PROFILE_1_E, 7, &tdp));
 
-  CRP (cpssDxChPortTxTailDropUcEnableSet (0, GT_TRUE));
-  CRP (cpssDxChPortTxRandomTailDropEnableSet (0, GT_TRUE));
+  CRP (cpssDxChPortTxTailDropUcEnableSet (d, GT_TRUE));
+  CRP (cpssDxChPortTxRandomTailDropEnableSet (d, GT_TRUE));
 }
 
 static GT_STATUS
@@ -421,9 +421,7 @@ port_lib_init (int d)
   RCC ((rc = cpssDxChPortStatInit (d)), cpssDxChPortStatInit);
   RCC ((rc = dxChPortBufMgInit (d)), dxChPortBufMgInit);
   RCC ((rc = cpssDxChPortTxInit (d)), cpssDxChPortTxInit);
-
-  if (d == 0)
-    port_setup_td ();
+  port_setup_td (d);
 
   return GT_OK;
 }
