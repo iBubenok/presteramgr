@@ -37,8 +37,7 @@ enum status
 trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
 {
   CPSS_TRUNK_MEMBER_STC e[TRUNK_MAX_MEMBERS], d[TRUNK_MAX_MEMBERS];
-  int ne, nd, i;
-  GT_STATUS rc;
+  int ne, nd, i, dev;
 
   if (!in_range (trunk, TRUNK_ID_MIN, TRUNK_ID_MAX))
     return ST_BAD_VALUE;
@@ -75,9 +74,8 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
     }
   }
 
-  rc = CRP (cpssDxChTrunkMembersSet (0, trunk, ne, e, nd, d));
-  switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
-  }
+  for_each_dev (dev)
+    CRP (cpssDxChTrunkMembersSet (dev, trunk, ne, e, nd, d));
+
+  return ST_OK;
 }
