@@ -4,7 +4,7 @@
 #include <port.h>
 
 #define TRUNK_MAX_MEMBERS 8
-#define TRUNK_MAX 8
+#define TRUNK_MAX 127
 
 struct trunk_port {
   int valid;
