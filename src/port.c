@@ -387,30 +387,6 @@ port_setup_stack (struct port *port)
 }
 
 static void
-__setup_cpu_codes (void)
-{
-  CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
-    .tc = 6,
-    .dp = CPSS_DP_GREEN_E,
-    .truncate = GT_FALSE,
-    .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
-    .cpuCodeRateLimiterIndex = 0,
-    .cpuCodeStatRateLimitIndex = 0,
-    .designatedDevNumIndex = 0
-  };
-  CRP (cpssDxChNetIfCpuCodeTableSet
-       (0, CPSS_NET_ALL_CPU_OPCODES_E, &cce));
-
-  cce.tc = 7;
-  CRP (cpssDxChNetIfCpuCodeTableSet
-       (0, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
-  CRP (cpssDxChNetIfCpuCodeTableSet
-       (0, CPSS_NET_CPU_TO_CPU_E, &cce));
-  CRP (cpssDxChNetIfCpuCodeTableSet
-       (0, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
-}
-
-static void
 setup_tc_remap (void)
 {
   CPSS_DXCH_CSCD_QOS_TC_REMAP_STC tr = {
@@ -487,7 +463,6 @@ port_start (void)
   }
 
   setup_tc_remap ();
-  __setup_cpu_codes ();
 
   for (i = 0; i < nports; i++) {
     struct port *port = &ports[i];

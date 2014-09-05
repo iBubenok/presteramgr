@@ -37,7 +37,7 @@ sysd_setup_cpu_codes (void)
 
   for_each_dev (d) {
     CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
-      .tc = 7,
+      .tc = 6,
       .dp = CPSS_DP_GREEN_E,
       .truncate = GT_FALSE,
       .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
@@ -46,44 +46,19 @@ sysd_setup_cpu_codes (void)
       .designatedDevNumIndex = 1
     };
 
-
     CRP (cpssDxChNetIfCpuCodeDesignatedDeviceTableSet
          (d, 1, phys_dev (CPU_DEV)));
 
     CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_INTERVENTION_ARP_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_INTERVENTION_IGMP_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_UDP_BC_MIRROR_TRAP0_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_ROUTED_PACKET_FORWARD_E, &cce));
+         (d, CPSS_NET_ALL_CPU_OPCODES_E, &cce));
+
+    cce.tc = 7;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_ROUTE_ENTRY_TRAP_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_UC_ROUTE1_TRAP_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_ARP_BC_TO_ME_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_FIRST_USER_DEFINED_E, &cce));
   }
 }
 
