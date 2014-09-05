@@ -9,6 +9,7 @@
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
+#include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 
 #include <pthread.h>
 #include <string.h>
@@ -241,6 +242,10 @@ sysd_setup_ic (void)
       CRP (cpssDxChIpPortRoutingEnable
            (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
             GT_FALSE));
+      CRP (cpssDxChPortTxBindPortToDpSet
+           (d, dp[d][p], CPSS_PORT_TX_DROP_PROFILE_2_E));
+      CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+           (d, dp[d][p], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
       DEBUG ("*** setup device %d cascade trunk port %d\r\n", d, dp[d][p]);
     }
