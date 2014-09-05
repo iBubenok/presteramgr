@@ -611,12 +611,6 @@ lib_init (int d)
   RCC ((rc = policer_lib_init (d)), policer_lib_init);
   DEBUG ("policer library init done\n");
 
-  if (d == 0) {
-    DEBUG ("doing trunk library init\n");
-    trunk_init ();
-    DEBUG ("trunk library init done\n");
-  }
-
   return GT_OK;
 }
 
@@ -742,6 +736,7 @@ init_cpss (void)
     DEBUG ("library init done\n");
   }
 
+  trunk_init ();
   sysd_setup_ic ();
 
   DEBUG ("doing IP library init\n");
