@@ -208,7 +208,7 @@ PORT_STACK_ROLE (int n)
 
 extern size_t sysdeps_default_stack_size;
 
-#define SYSD_CSCD_TRUNK 1
+#define SYSD_CSCD_TRUNK 127
 extern void sysd_setup_ic (void);
 extern int sysd_hw_dev_num (int);
 
