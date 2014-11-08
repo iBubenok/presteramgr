@@ -2040,11 +2040,21 @@ DEFINE_HANDLER (CC_STACK_SET_DEV_MAP)
   if (zframe_size (frame) != 2)
     goto destroy_frame;
 
-  result = stack_set_dev_map (dev, zframe_data (frame));
+  zframe_t *frame_pp = zmsg_pop(__args);
+  if (!frame_pp)
+    goto destroy_frame;
 
- destroy_frame:
+  uint8_t num_pp= * (uint8_t *) zframe_data(frame_pp);
+  if (zframe_size(frame_pp) != 1 || num_pp < 1 || num_pp > 2)
+    goto destroy_frame_pp;
+
+  result = stack_set_dev_map (dev, zframe_data (frame), num_pp);
+
+destroy_frame_pp:
+  zframe_destroy(&frame_pp);
+destroy_frame:
   zframe_destroy (&frame);
- out:
+out:
   report_status (result);
 }
 

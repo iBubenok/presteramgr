@@ -20,3 +20,7 @@ TAGS
 /install-sh
 /missing
 /compile
+.*.swp
+cscope.out
+/doxy/
+/Doxyfile

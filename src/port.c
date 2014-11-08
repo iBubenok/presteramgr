@@ -56,6 +56,7 @@ typedef port_id_t dev_ports_t[CPSS_MAX_PORTS_NUM_CNS];
 static dev_ports_t dev_ports[32];
 
 CPSS_PORTS_BMP_STC all_ports_bmp[NDEVS];
+/// non stack ports bmp but including interconnect ports
 CPSS_PORTS_BMP_STC nst_ports_bmp[NDEVS];
 
 static enum status port_set_speed_fe (struct port *, const struct port_speed_arg *);

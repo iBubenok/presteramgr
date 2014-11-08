@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <string.h>
 
+#include <control-proto.h>
 #include <sysdeps.h>
 #include <stack.h>
 #include <dev.h>
@@ -266,7 +267,7 @@ sysd_hw_dev_num (int ldev)
 {
   switch (ldev) {
   case 0:
-    return stack_id + 15;
+    return stack_id + NEXTDEV_INC;
   case 1:
     return stack_id;
   default:
