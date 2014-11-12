@@ -703,6 +703,8 @@ init_cpss (void)
     return GT_OK;
   }
 
+  stack_init ();
+
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
 

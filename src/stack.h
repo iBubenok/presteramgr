@@ -4,7 +4,10 @@
 #include <control-proto.h>
 
 extern int stack_id;
+extern int master_id;
+extern uint8_t master_mac[6];
 
+extern void stack_init (void);
 extern void stack_start (void);
 
 static inline int
@@ -21,6 +24,6 @@ extern void stack_handle_mail (port_id_t, uint8_t *, size_t);
 extern uint8_t stack_port_get_state (enum port_stack_role);
 extern enum status stack_set_dev_map (uint8_t, const uint8_t *);
 extern enum status stack_txen (uint8_t, int);
-
+extern enum status stack_set_master (uint8_t, const uint8_t *);
 
 #endif /* __STACK_H__ */
