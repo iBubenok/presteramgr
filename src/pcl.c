@@ -522,22 +522,19 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E
     }
   };
-  int d;
 
   DEBUG ("%s mc drop\r\n", enable ? "enabling" : "disabling");
 
-  for_each_dev (d) {
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_EGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &elc));
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_INGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &ilc));
-  }
+  CRP (cpssDxChPclCfgTblSet
+       (phys_dev (port->ldev), &iface,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &elc));
+  CRP (cpssDxChPclCfgTblSet
+       (phys_dev (port->ldev), &iface,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &ilc));
 
   return ST_OK;
 }
