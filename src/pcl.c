@@ -296,7 +296,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtNotIpv6.common.pclId = 2;
+  rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
   rule.ruleEgrExtNotIpv6.common.isL2Valid = 1;
   rule.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
@@ -315,7 +315,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtIpv6L2.common.pclId = 2;
+  rule.ruleEgrExtIpv6L2.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
   rule.ruleEgrExtIpv6L2.common.isL2Valid = 1;
   rule.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
@@ -334,7 +334,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = 2;
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
   rule.ruleExtNotIpv6.common.isL2Valid = 1;
   rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
@@ -353,7 +353,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleExtIpv6L2.common.pclId = 2;
+  rule.ruleExtIpv6L2.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
   rule.ruleExtIpv6L2.common.isL2Valid = 1;
   rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
@@ -502,7 +502,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC elc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = 2,
+    .pclId         = PORT_EPCL_ID (stack_sec_port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -513,7 +513,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC ilc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = 2,
+    .pclId         = PORT_IPCL_ID (stack_sec_port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
