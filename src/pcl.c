@@ -558,7 +558,8 @@ pcl_cpss_lib_init (int d)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
-  pcl_setup_mc_drop (d);
+  if (stack_active())
+    pcl_setup_mc_drop (d);
 
   return ST_OK;
 }
