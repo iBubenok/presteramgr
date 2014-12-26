@@ -493,6 +493,7 @@ enum status
 pcl_enable_mc_drop (port_id_t pid, int enable)
 {
   struct port *port = port_ptr (pid);
+  assert(port == stack_sec_port);
   CPSS_INTERFACE_INFO_STC iface = {
     .type    = CPSS_INTERFACE_PORT_E,
     .devPort = {
@@ -502,7 +503,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC elc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = PORT_EPCL_ID (stack_sec_port->id),
+    .pclId         = PORT_EPCL_ID (port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -513,7 +514,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC ilc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = PORT_IPCL_ID (stack_sec_port->id),
+    .pclId         = PORT_IPCL_ID (port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -526,12 +527,12 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   DEBUG ("%s mc drop\r\n", enable ? "enabling" : "disabling");
 
   CRP (cpssDxChPclCfgTblSet
-       (phys_dev (port->ldev), &iface,
+       (port->ldev, &iface,
         CPSS_PCL_DIRECTION_EGRESS_E,
         CPSS_PCL_LOOKUP_0_E,
         &elc));
   CRP (cpssDxChPclCfgTblSet
-       (phys_dev (port->ldev), &iface,
+       (port->ldev, &iface,
         CPSS_PCL_DIRECTION_INGRESS_E,
         CPSS_PCL_LOOKUP_0_E,
         &ilc));
