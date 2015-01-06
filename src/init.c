@@ -208,7 +208,7 @@ phase2_init (int d)
 
   DEBUG ("*** set hw dev num %d => %d\r\n", d, hw_dev_num);
   CRP (cpssDxChCfgHwDevNumSet (d, hw_dev_num));
-  dev_set_map (d, hw_dev_num);
+//  dev_set_map (d, hw_dev_num);
 
   extDrvSetIntLockUnlock (INTR_MODE_UNLOCK, &int_key);
   RCC (rc, cpssDxChHwPpPhase2Init);
@@ -701,6 +701,11 @@ init_cpss (void)
   if (just_reset) {
     do_reset ();
     return GT_OK;
+  }
+
+  for_each_dev(i) {
+    int hw_dev_num = sysd_hw_dev_num (i);
+    dev_set_map(i, hw_dev_num);
   }
 
   for_each_dev (i) {
