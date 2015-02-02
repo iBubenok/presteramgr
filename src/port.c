@@ -15,6 +15,7 @@
 #include <env.h>
 #include <pcl.h>
 #include <dev.h>
+#include <mac.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -25,6 +26,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgPrvEdgeVlan.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSecurityBreach.h>
 #include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/nst/cpssDxChNstPortIsolation.h>
@@ -486,6 +488,8 @@ port_start (void)
 
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
 
@@ -2650,4 +2654,60 @@ port_enable_queue (port_id_t pid, uint8_t q, bool_t enable)
   case GT_OK: return ST_OK;
   default:    return ST_HEX;
   }
+}
+
+static enum status
+__port_enable_eapol (struct port *port, bool_t enable)
+{
+  if (enable) {
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
+  } else {
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_FALSE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+  }
+
+  return ST_OK;
+}
+
+enum status
+port_enable_eapol (port_id_t pid, bool_t enable)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  return __port_enable_eapol (port, enable);
+}
+
+enum status
+port_eapol_auth (port_id_t pid, mac_addr_t mac, bool_t auth)
+{
+  static const mac_addr_t zm = {0, 0, 0, 0, 0, 0};
+  struct port *port;
+  struct mac_op_arg op;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (!memcmp (mac, zm, sizeof (zm)))
+    return __port_enable_eapol (port, !auth);
+
+  switch (port->mode) {
+  case PM_ACCESS:   op.vid = port->access_vid;   break;
+  case PM_TRUNK:    op.vid = port->native_vid;   break;
+  case PM_CUSTOMER: op.vid = port->customer_vid; break;
+  default:          op.vid = 0;
+  }
+  op.port = pid;
+  op.drop = 0;
+  op.delete = !auth;
+  memcpy (op.mac, mac, sizeof (mac));
+
+  return mac_op (&op);
 }

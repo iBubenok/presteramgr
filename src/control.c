@@ -276,6 +276,8 @@ DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
+DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
+DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -370,7 +372,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_GIF_TX),
   HANDLER (CC_PORT_ENABLE_QUEUE),
-  HANDLER (CC_PORT_ENABLE_LBD)
+  HANDLER (CC_PORT_ENABLE_LBD),
+  HANDLER (CC_PORT_ENABLE_EAPOL),
+  HANDLER (CC_PORT_EAPOL_AUTH)
 };
 
 static int
@@ -1400,6 +1404,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   notification_t type;
   port_id_t pid;
   int put_vid = 0;
+  uint16_t *etype;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1438,6 +1443,19 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
         goto out;
       }
       break;
+
+    case WNCT_802_3_SP_OAM:
+      etype = (uint16_t *) &frame->data[12];
+      switch (ntohs (*etype)) {
+      case 0x888E:
+        type = CN_EAPOL;
+        break;
+      default:
+        DEBUG ("Nearest Bridge ethertype %04X not supported\n", *etype);
+        goto out;
+      }
+      break;
+
     case WNCT_LLDP:
       type = CN_LLDP_MCAST;
       break;
@@ -2385,6 +2403,51 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LBD)
     goto out;
 
   result = pcl_enable_lbd_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_enable_eapol (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
+{
+  enum status result;
+  port_id_t pid;
+  mac_addr_t mac;
+  bool_t auth;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mac);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&auth);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_eapol_auth (pid, mac, auth);
 
  out:
   report_status (result);
