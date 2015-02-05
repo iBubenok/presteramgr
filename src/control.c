@@ -2432,10 +2432,15 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
 {
   enum status result;
   port_id_t pid;
+  vid_t vid;
   mac_addr_t mac;
   bool_t auth;
 
   result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
@@ -2447,7 +2452,7 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
   if (result != ST_OK)
     goto out;
 
-  result = port_eapol_auth (pid, mac, auth);
+  result = port_eapol_auth (pid, vid, mac, auth);
 
  out:
   report_status (result);

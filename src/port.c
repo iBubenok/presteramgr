@@ -2685,7 +2685,7 @@ port_enable_eapol (port_id_t pid, bool_t enable)
 }
 
 enum status
-port_eapol_auth (port_id_t pid, mac_addr_t mac, bool_t auth)
+port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
 {
   static const mac_addr_t zm = {0, 0, 0, 0, 0, 0};
   struct port *port;
@@ -2695,15 +2695,13 @@ port_eapol_auth (port_id_t pid, mac_addr_t mac, bool_t auth)
   if (!port)
     return ST_BAD_VALUE;
 
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
   if (!memcmp (mac, zm, sizeof (zm)))
     return __port_enable_eapol (port, !auth);
 
-  switch (port->mode) {
-  case PM_ACCESS:   op.vid = port->access_vid;   break;
-  case PM_TRUNK:    op.vid = port->native_vid;   break;
-  case PM_CUSTOMER: op.vid = port->customer_vid; break;
-  default:          op.vid = 0;
-  }
+  op.vid = vid;
   op.port = pid;
   op.drop = 0;
   op.delete = !auth;

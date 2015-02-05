@@ -112,6 +112,6 @@ extern enum status port_set_trunk_vlans (port_id_t, const uint8_t *);
 extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
-extern enum status port_eapol_auth (port_id_t, mac_addr_t, bool_t);
+extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
 
 #endif /* __PORT_H__ */
