@@ -2705,7 +2705,7 @@ port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
   op.port = pid;
   op.drop = 0;
   op.delete = !auth;
-  memcpy (op.mac, mac, sizeof (mac));
+  memcpy (op.mac, mac, sizeof (op.mac));
 
   return mac_op (&op);
 }
