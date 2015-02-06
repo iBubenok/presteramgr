@@ -2660,10 +2660,12 @@ static enum status
 __port_enable_eapol (struct port *port, bool_t enable)
 {
   if (enable) {
+    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
   } else {
+    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
