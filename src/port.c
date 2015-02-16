@@ -2668,7 +2668,7 @@ __port_enable_eapol (struct port *port, bool_t enable)
     CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbPortLearnStatusSet
-         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_SOFT_DROP_E));
 
     mac_flush (&aa, GT_FALSE);
   } else {
