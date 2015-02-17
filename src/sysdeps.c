@@ -147,7 +147,7 @@ static struct dev_info __dev_info[] = {
     .int_num    = GT_PCI_INT_B,
     .n_ic_ports = 0,
     .n_xg_phys  = 4,
-    .xg_phys    = xg_phys
+    .xg_phys    = xg_phys,
     .ph1_info   = {
       .devNum                 = 0,
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
@@ -164,6 +164,18 @@ void
 sysd_setup_ic (void)
 {
   sysd_setup_cpu_codes ();
+}
+
+int
+sysd_hw_dev_num (int ldev)
+{
+  switch (ldev) {
+  case 0:
+    return stack_id;
+  default:
+    EMERG ("invalid logical device number %d\r\n", ldev);
+    abort ();
+  }
 }
 
 #elif defined (VARIANT_ARLAN_3448PGE)
