@@ -17,10 +17,10 @@
 
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
-#define PORT_LBD_RULE_IX(n) ((n) - 1)
+#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64))
+#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64) + 1)
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
