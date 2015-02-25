@@ -17,10 +17,13 @@
 
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
+
+
 #define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */
+#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (65) + (n) * 2)
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64) + 1)
+#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (65))
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
@@ -459,6 +462,118 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
 }
 
 enum status
+pcl_enable_dhcp_trap (int enable)
+{
+  port_id_t pi;
+
+  if (enable) {
+    for (pi = 1; pi <= nports ; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+        continue;
+
+DEBUG("adding port %u\n", pi);
+
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.common.isIp = 0xFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+      mask.ruleExtNotIpv6.commonExt.isIpv6  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte2  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte3  = 0xff;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      rule.ruleExtNotIpv6.common.isIp = 1;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+
+      rule.ruleExtNotIpv6.commonExt.isIpv6  = 0;
+      rule.ruleExtNotIpv6.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtNotIpv6.commonExt.l4Byte2  = 0;
+      rule.ruleExtNotIpv6.commonExt.l4Byte3  = 67;
+
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            PORT_DHCPTRAP_RULE_IX (pi),
+            0,
+            &mask,
+            &rule,
+            &act));
+
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.common.isIp = 0xFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+      mask.ruleExtNotIpv6.commonExt.isIpv6  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte2  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte3  = 0xff;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      rule.ruleExtNotIpv6.common.isIp = 1;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+
+      rule.ruleExtNotIpv6.commonExt.isIpv6  = 0;
+      rule.ruleExtNotIpv6.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtNotIpv6.commonExt.l4Byte2  = 0;
+      rule.ruleExtNotIpv6.commonExt.l4Byte3  = 68;
+
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            PORT_DHCPTRAP_RULE_IX (pi) + 1,
+            0,
+            &mask,
+            &rule,
+            &act));
+
+    }
+  } else {
+    for (pi = 1; pi <= nports; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+        continue;
+
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi)));
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi) + 1));
+    }
+  }
+
+  return ST_OK;
+}
+
+enum status
 pcl_port_setup (port_id_t pid)
 {
   struct port *port = port_ptr (pid);
@@ -561,6 +676,8 @@ pcl_cpss_lib_init (int d)
 
   if (stack_active())
     pcl_setup_mc_drop (d);
+
+//pcl_enable_dhcp_trap (1);
 
   return ST_OK;
 }

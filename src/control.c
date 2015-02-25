@@ -278,6 +278,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
+DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -374,7 +375,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
-  HANDLER (CC_PORT_EAPOL_AUTH)
+  HANDLER (CC_PORT_EAPOL_AUTH),
+  HANDLER (CC_DHCP_TRAP_ENABLE)
 };
 
 static int
@@ -1487,6 +1489,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     type = CN_LBD_PDU;
     break;
 
+  case CPU_CODE_USER_DEFINED (1):
+    type = CN_DHCP_TRAP;
+    put_vid = 1;
+PRINTHexDump(frame->data, frame->len);
+    break;
+
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
     result = ST_OK;
@@ -2463,6 +2471,21 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
     goto out;
 
   result = port_eapol_auth (pid, vid, mac, auth);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_dhcp_trap (enable);
 
  out:
   report_status (result);
