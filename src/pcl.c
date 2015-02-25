@@ -17,10 +17,11 @@
 
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
-#define PORT_LBD_RULE_IX(n) ((n) - 1)
+
+#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64))
+#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (65))
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
@@ -389,25 +390,23 @@ pcl_enable_port (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
     }
   };
-  int d;
 
-  for_each_dev (d)
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_INGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &lc));
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
 
   lc.pclId                  = PORT_EPCL_ID (pid);
   lc.groupKeyTypes.nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E;
-  for_each_dev (d)
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_EGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &lc));
+
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
 
   return ST_OK;
 }
@@ -415,9 +414,9 @@ pcl_enable_port (port_id_t pid, int enable)
 enum status
 pcl_enable_lbd_trap (port_id_t pid, int enable)
 {
-  int d;
+  struct port *port = port_ptr (pid);
 
-  if (!port_ptr (pid))
+  if (!port)
     return ST_BAD_VALUE;
 
   if (enable) {
@@ -441,19 +440,17 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
 
-    for_each_dev (d)
-      CRP (cpssDxChPclRuleSet
-           (d,
-            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            PORT_LBD_RULE_IX (pid),
-            0,
-            &mask,
-            &rule,
-            &act));
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          PORT_LBD_RULE_IX (pid),
+          0,
+          &mask,
+          &rule,
+          &act));
   } else
-    for_each_dev (d)
       CRP (cpssDxChPclRuleInvalidate
-           (d, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
 
   return ST_OK;
 }
