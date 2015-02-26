@@ -603,7 +603,7 @@ mac_start (void)
   for_each_dev (d) {
     CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_FALSE));
 
-    CRP (cpssDxChBrgFdbActionActiveDevSet (d, d, 0x1F));
+    CRP (cpssDxChBrgFdbActionActiveDevSet (d, phys_dev(d), 0x1F));
     CRP (cpssDxChBrgFdbActionActiveVlanSet (d, 0, 0));
     CRP (cpssDxChBrgFdbActionActiveInterfaceSet (d, 0, 0, 0, 0));
     CRP (cpssDxChBrgFdbStaticDelEnable (d, GT_FALSE));
