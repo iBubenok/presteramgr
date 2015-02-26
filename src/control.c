@@ -1502,7 +1502,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
     put_vid = 1;
-PRINTHexDump(frame->data, frame->len);
     break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
