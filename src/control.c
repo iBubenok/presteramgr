@@ -1427,10 +1427,17 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
     case WNCT_STP:
-      tipc_notify_bpdu (pid, frame->len, frame->data);
-      result = ST_OK;
-      goto out;
-
+      etype = (uint16_t *) &frame->data[12];
+      switch (ntohs (*etype)) {
+      case 0x88CC:
+        type = CN_LLDP_MCAST;
+        break;
+      default:
+        tipc_notify_bpdu (pid, frame->len, frame->data);
+        result = ST_OK;
+        goto out;
+      }
+      break;
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
@@ -1452,8 +1459,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       case 0x888E:
         type = CN_EAPOL;
         break;
+      case 0x88CC:
+        type = CN_LLDP_MCAST;
+        break;
       default:
-        DEBUG ("Nearest Bridge ethertype %04X not supported\n", *etype);
+        DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
         goto out;
       }
       break;
