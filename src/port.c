@@ -2139,7 +2139,7 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x16, 0x0003));
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x11, 0x8840));
+         (port->ldev, port->lport, 0x11, 0x8845));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x10, 0x0666));
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -2154,6 +2154,11 @@ port_setup_ge (struct port *port)
     break;
 
   case IS_COPPER:
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x3));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x11, 0x8845));
+
     /* DEBUG ("port %d is copper\n", port->id); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 6));
@@ -2180,6 +2185,10 @@ port_setup_ge (struct port *port)
     /* Configure LEDs */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x3));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x11, 0x8845));
+
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x10, 0x1777));
 
