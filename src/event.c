@@ -95,7 +95,7 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
-  /* CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, */
+  CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
   CPSS_PP_EB_AUQ_PENDING_E
 };
@@ -219,12 +219,15 @@ event_enter_loop (void)
     if (rc != GT_OK)
       continue;
 
-    if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp))
+    if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp)) {
+      DEBUG("EVENT!!!: CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E\n"); // TODO remove
       event_handle_aging_done ();
+    }
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
       event_handle_link_change ();
-    if (eventp (CPSS_PP_EB_AUQ_PENDING_E, ebmp))
-      event_handle_au_msg ();
+    if (eventp (CPSS_PP_EB_AUQ_PENDING_E, ebmp))  {
+      DEBUG("EVENT!!!: CPSS_PP_EB_AUQ_PENDING_E\n"); // TODO remove
+      event_handle_au_msg ();}
   }
 }
 

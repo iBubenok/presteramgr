@@ -797,7 +797,7 @@ cpss_start (void)
   mgmt_init ();
 
   INFO ("start tipc interface\n");
-  tipc_start ();
+  tipc_start (zcontext);
 
   INFO ("start control interface\n");
   control_start ();

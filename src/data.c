@@ -6,6 +6,7 @@
 #include <mac.h>
 #include <port.h>
 #include <log.h>
+#include <utils.h>
 
 enum status
 data_encode_port_state (struct port_link_state *state,
@@ -83,6 +84,16 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
   port_id_t pid;
 
   for (i = 0; i < FDB_MAX_ADDRS; i++) {
+
+  if (fdb[i].valid ) { // TODO remove operator & block
+    DEBUG("%08x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+          " %s\n",
+          i, fdb[i].me.key.entryType, fdb[i].me.dstInterface.type, MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther),
+          fdb[i].me.dstInterface.devPort.devNum, fdb[i].me.dstInterface.devPort.portNum,
+          fdb[i].me.dstInterface.trunkId, fdb[i].me.key.key.macVlan.vlanId,
+          (fdb[i].me.userDefined == 0)? "UNUSED" : (fdb[i].me.userDefined == 1)? "FOREIGN" : (fdb[i].me.userDefined == 2)? "DYNAMIC" : (fdb[i].me.userDefined == 3)? "STATIC" : (fdb[i].me.userDefined == 4)? "OWN": "UNKNOWN" );
+  }
+
     if (fdb[i].valid &&
         fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
         (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&

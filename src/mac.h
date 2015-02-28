@@ -5,8 +5,10 @@
 
 #include <control-proto.h>
 #include <sysdeps.h>
+#include <tipc.h>
 
 #define FDB_NOTIFY_EP  "inproc://fdb-notify"
+#define FDB_CONTROL_EP "inproc://fdb-control"
 
 struct fdb_entry {
   int valid;
@@ -23,6 +25,7 @@ extern enum status mac_set_aging_time (aging_time_t);
 extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_start (void);
-enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
+extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
+extern enum status mac_op_foreign_blck(unsigned,  const struct pti_fdbr *);
 
 #endif /* __MAC_H__ */
