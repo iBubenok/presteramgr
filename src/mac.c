@@ -485,7 +485,6 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
       me.dstInterface.devPort.devNum = fr->port.hwdev;
       break;
     case IFTYPE_TRUNK:
-      return ST_NOT_IMPLEMENTED;
       me.dstInterface.type = CPSS_INTERFACE_TRUNK_E;
       me.dstInterface.trunkId = fr->trunk.trunkId;
       break;
@@ -495,7 +494,7 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
   me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   memcpy (me.key.key.macVlan.macAddr.arEther, fr->mac, sizeof (fr->mac));
   me.key.key.macVlan.vlanId = fr->vid;
-  me.isStatic = GT_FALSE;
+  me.isStatic = GT_TRUE;
 
   me.userDefined = FEP_FOREIGN;
   me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
@@ -603,13 +602,15 @@ fdb_upd_for_dev (int d)
 
       switch (fdb_addrs[i].macEntry.dstInterface.type) {
         case CPSS_INTERFACE_PORT_E:
-          DEBUG("fdb_upd_for_dev(): PORT fdb_addrs[i].updType==%u, macEntry.dstInterface.type==%hhu, macEntry.dstInterface.devPort.porNum==%hhu, macEntry.dstInterface.trunkId==%hhu\n", // TODO remove
+          DEBUG("fdb_upd_for_dev(): PORT fdb_updType==%u, mE.dst.type==%hhu, mE.dst.dPort.pN==%hhu, mE.dst.trunkId==%hhu\n", // TODO remove
               fdb_addrs[i].updType, fdb_addrs[i].macEntry.dstInterface.type, fdb_addrs[i].macEntry.dstInterface.devPort.portNum, fdb_addrs[i].macEntry.dstInterface.trunkId);
           fdbr[i].type = IFTYPE_PORT;
           fdbr[i].port.hwdev = fdb_addrs[i].macEntry.dstInterface.devPort.devNum;
           fdbr[i].port.hwport = fdb_addrs[i].macEntry.dstInterface.devPort.portNum;
           break;
         case CPSS_INTERFACE_TRUNK_E:
+          DEBUG("fdb_upd_for_dev(): !!!!TRUNK!!!! fdb_updType==%u, mE.dst.type==%hhu, mE.dst.dPort.pN==%hhu, mE.dst.trunkId==%hhu\n", // TODO remove
+              fdb_addrs[i].updType, fdb_addrs[i].macEntry.dstInterface.type, fdb_addrs[i].macEntry.dstInterface.devPort.portNum, fdb_addrs[i].macEntry.dstInterface.trunkId);
           fdbr[i].type = IFTYPE_TRUNK;
           fdbr[i].trunk.trunkId = fdb_addrs[i].macEntry.dstInterface.trunkId;
           break;

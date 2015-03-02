@@ -138,7 +138,6 @@ tipc_fdb_ctl(unsigned n, const struct pti_fdbr *arg) {
   unsigned cmd = PTI_CMD_FDB_SEND;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, &n, sizeof (n));
-DEBUG("n==%u, sizeof(*arg) ==%u\n", n, sizeof(*arg));
   zmsg_addmem (msg, arg, n * sizeof(*arg));
   zmsg_send (&msg, ctl_sock);
 
