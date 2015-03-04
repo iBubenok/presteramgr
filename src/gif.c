@@ -172,12 +172,12 @@ gif_tx (const struct gif_id *id,
     tp.dsaInfo.fromCpu.tc = 7;
     tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
     tp.dsaInfo.fromCpu.dstInterface.vidx = opts->mcg;
-    tp.dsaInfo.fromCpu.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
-    tp.dsaInfo.fromCpu.multiDest.mirrorToAllCPUs = gt_bool(true);
+    tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
+    tp.dsaInfo.fromCpu.extDestInfo.multiDest.mirrorToAllCPUs = gt_bool(1);
     if (opts->exclude_src_port) {
-      tp.dsaInfo.fromCpu.multiDest.excludedInterface.type = CPSS_INTERFACE_PORT_E;
-      tp.dsaInfo.fromCpu.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
-      tp.dsaInfo.fromCpu.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.type = CPSS_INTERFACE_PORT_E;
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
     }
     tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
     tp.dsaInfo.fromCpu.srcDev = stack_id;
