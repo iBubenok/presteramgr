@@ -142,7 +142,7 @@ gif_tx (const struct gif_id *id,
   struct hw_port hp;
 
   if (opts->find_iface_by_portid) {
-    result = gif_get_hw_port_by_index (&hp, id->dev, id->num);
+    result = gif_get_hw_port_by_index (&hp, id->dev, id->num - 1);
   } else {
     result = gif_get_hw_port (&hp, id->type, id->dev, id->num);
   }
