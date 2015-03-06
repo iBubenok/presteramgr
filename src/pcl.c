@@ -473,8 +473,6 @@ pcl_enable_dhcp_trap (int enable)
       if (is_stack_port(port))
         continue;
 
-DEBUG("adding port %u\n", pi);
-
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       CPSS_DXCH_PCL_ACTION_STC act;
 
