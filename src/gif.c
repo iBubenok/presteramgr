@@ -95,6 +95,41 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
+enum status 
+gif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
+{
+  int local;
+
+  if (!in_range (dev, 0, 16))
+    return ST_BAD_VALUE;
+
+  if (stack_id == 0) {
+    if (dev != 0)
+      return ST_BAD_VALUE;
+
+    local = 1;
+  } else {
+    if (dev == 0)
+      dev = stack_id;
+
+    local = dev == stack_id;
+    dev -= 1;
+  }
+
+  if ((num >= 64) || !in_range(__dev_ports[dev].port[num].id.type, GIFT_FE, GIFT_XG))
+    return ST_DOES_NOT_EXIST;
+
+  if (local) {
+    hp->hw_dev  = phys_dev (__dev_ports[dev].port[num].local->ldev);
+    hp->hw_port = __dev_ports[dev].port[num].local->lport;
+  } else {
+    hp->hw_dev  = __dev_ports[dev].port[num].remote.hw_dev;
+    hp->hw_port = __dev_ports[dev].port[num].remote.hw_port;
+  }
+
+  return ST_OK;
+}
+
 enum status
 gif_tx (const struct gif_id *id,
         const struct gif_tx_opts *opts,
@@ -106,22 +141,77 @@ gif_tx (const struct gif_id *id,
   enum status result;
   struct hw_port hp;
 
-  result = gif_get_hw_port (&hp, id->type, id->dev, id->num);
+  if (opts->find_iface_by_portid) {
+    result = gif_get_hw_port_by_index (&hp, id->dev, id->num - 1);
+  } else {
+    result = gif_get_hw_port (&hp, id->type, id->dev, id->num);
+  }
   if (result != ST_OK)
     return result;
 
   memset (&tp, 0, sizeof (tp));
-  tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
-  tp.commonParams.vid = opts->vid;
-  tp.commonParams.vpt = 7;
-  tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
-  tp.dsaInfo.fromCpu.tc = 7;
-  tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
-  tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
-  tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
-  tp.dsaInfo.fromCpu.srcDev = stack_id;
-  tp.dsaInfo.fromCpu.srcId = stack_id;
+
+  switch (opts->send_to)
+  {
+    case GIFD_PORT: {
+      tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
+      tp.commonParams.vid = opts->vid;
+      tp.commonParams.vpt = 7;
+      tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
+      tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
+      tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
+      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+      tp.dsaInfo.fromCpu.srcDev = stack_id;
+      tp.dsaInfo.fromCpu.srcId = stack_id;
+    } break;
+
+    case GIFD_VLAN: {
+      tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
+      tp.commonParams.vid = opts->vid;
+      tp.commonParams.vpt = 7;
+      tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VID_E;
+      tp.dsaInfo.fromCpu.dstInterface.vlanId = opts->vid;
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.mirrorToAllCPUs = GT_TRUE;
+      if (opts->exclude_src_port) {
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.type = CPSS_INTERFACE_PORT_E;
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
+      }
+      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+      tp.dsaInfo.fromCpu.srcDev = stack_id;
+      tp.dsaInfo.fromCpu.srcId = stack_id;
+    } break;
+
+    case GIFD_VIDX: {
+      tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
+      tp.commonParams.vid = opts->vid;
+      tp.commonParams.vpt = 7;
+      tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
+      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
+      tp.dsaInfo.fromCpu.dstInterface.vidx = opts->mcg;
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
+      tp.dsaInfo.fromCpu.extDestInfo.multiDest.mirrorToAllCPUs = GT_TRUE;
+      if (opts->exclude_src_port) {
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.type = CPSS_INTERFACE_PORT_E;
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
+        tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
+      }
+      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+      tp.dsaInfo.fromCpu.srcDev = stack_id;
+      tp.dsaInfo.fromCpu.srcId = stack_id;
+    } break;
+
+    default: {
+      return ST_BAD_VALUE;
+    } break;
+  }
+
   CRP (cpssDxChNetIfDsaTagBuild (CPU_DEV, &tp, tag));
 
   mgmt_send_gen_frame (tag, data, size);
