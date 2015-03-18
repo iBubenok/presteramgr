@@ -21,7 +21,7 @@
 
 #define PTI_FDB_VERSION (1)
 
-#define TIPC_MSG_MAX_LEN (65000)
+#define TIPC_MSG_MAX_LEN (11900)
 
 static int ntf_sock, fdb_tsock;
 static void *ctl_sock;
@@ -133,19 +133,16 @@ tipc_notify_link (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 
 enum status
 tipc_fdb_ctl(unsigned n, const struct pti_fdbr *arg) {
-
   zmsg_t *msg = zmsg_new ();
-  unsigned cmd = PTI_CMD_FDB_SEND;
+
+  uint8_t cmd = PTI_CMD_FDB_SEND;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, &n, sizeof (n));
   zmsg_addmem (msg, arg, n * sizeof(*arg));
+
   zmsg_send (&msg, ctl_sock);
 
-  msg = zmsg_recv (ctl_sock);
-  status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
-  zmsg_destroy (&msg);
-
-  return status;
+  return ST_OK;
 }
 
 static void
@@ -161,10 +158,12 @@ tipc_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdb_thrd *a) {
     fdb_msg->stack_id = stack_id;
     uint16_t nr = (n - nf > TIPC_FDB_NREC)? TIPC_FDB_NREC : n - nf;
     fdb_msg->nfdb = htons(nr);
-    memcpy(fdb_msg->data, pf+nf, sizeof(struct pti_fdbr) * fdb_msg->nfdb);
+    memcpy(fdb_msg->data, pf+nf, sizeof(struct pti_fdbr) * nr);
+
     unsigned i;
     for (i = 0; i < nr; i++)
       fdb_msg->data[i].vid = htons(fdb_msg->data[i].vid);
+
     size_t msglen = sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * nr;
 
     if (TEMP_FAILURE_RETRY
@@ -174,12 +173,12 @@ tipc_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdb_thrd *a) {
       err ("TIPC fdb sendmsg() failed");
 
     DEBUG("tipc-fdb-msg sent, msglen==%d\n", msglen); //TODO remove
-    DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, fdb_msg->nfdb);
+    DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, nr);
     PRINTHexDump(buf, msglen);
 
     nf += TIPC_FDB_NREC;
   } while (nf < n );
-  DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, fdb_msg->nfdb==%hu, TIPC_FDB_NREC==%u\n", nf, n, fdb_msg->nfdb, TIPC_FDB_NREC); // TODO remove
+  DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
 }
 
 void
@@ -205,14 +204,13 @@ tipc_bc_link_state (void)
 
 static int
 tipc_fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdb_thrd *a) {
-
   status_t status = ST_BAD_FORMAT;
 
   zmsg_t *msg = zmsg_recv (a->tipc_ctl_sock);
   zframe_t *cmdframe = zmsg_first (msg);
   if (!cmdframe)
     goto out;
-  unsigned cmd = *((unsigned *) zframe_data (cmdframe));
+  uint8_t cmd = *((uint8_t *) zframe_data (cmdframe));
 
   zframe_t *nframe = zmsg_next (msg);
   if (!nframe)
@@ -233,11 +231,6 @@ tipc_fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdb_thrd *a) {
 
 out:
   zmsg_destroy (&msg);
-
-  msg = zmsg_new ();
-  zmsg_addmem (msg, &status, sizeof (status));
-  zmsg_send (&msg, a->tipc_ctl_sock);
-
   return 1;
 }
 
@@ -267,7 +260,7 @@ tipc_fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdb_thrd *a) {
   for (i = 0; i < fdb_msg->nfdb; i++)
     fdb_msg->data[i].vid = ntohs(fdb_msg->data[i].vid);
 
-  mac_op_foreign_blck(fdb_msg->nfdb, fdb_msg->data);
+  mac_op_foreign_blck(fdb_msg->nfdb, fdb_msg->data, a->fdb_ctl_sock);
 
   return 1;
 }
@@ -298,8 +291,6 @@ tipc_thread(void *z) {
   taddr.family = AF_TIPC;
   taddr.addrtype  = TIPC_ADDR_MCAST;
   taddr.scope = TIPC_CLUSTER_SCOPE;
-//  taddr.addr.name.name.type = PTI_FDB_TYPE;
-//  taddr.addr.name.name.instance = stack_id;
 
   taddr.addr.nameseq.type     = PTI_FDB_TYPE;
   taddr.addr.nameseq.lower =  (1);
@@ -315,15 +306,16 @@ tipc_thread(void *z) {
   assert (ft.fdb_ctl_sock);
   rc=zsocket_connect (ft.fdb_ctl_sock, FDB_CONTROL_EP);
 
-  ft.tipc_ctl_sock = zsocket_new (zcontext, ZMQ_REP);
+  ft.tipc_ctl_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (ft.tipc_ctl_sock);
-  zsocket_bind (ft.tipc_ctl_sock, TIPC_CONTROL_EP);
+  rc=zmq_setsockopt (ft.tipc_ctl_sock, ZMQ_SUBSCRIBE, NULL, 0);
+  rc=zsocket_connect (ft.tipc_ctl_sock, TIPC_POST_EP);
 
   zmq_pollitem_t pitp = {NULL, ft.fdb_sock, ZMQ_POLLIN};
   zloop_poller(ft.loop, &pitp, zfn (tipc_fdb_handler), &ft);
 
   zmq_pollitem_t pit = { ft.tipc_ctl_sock, 0, ZMQ_POLLIN };
-  zloop_poller(ft.loop, &pit, zfn (tipc_fdb_ctl_handler), &ft);
+  rc=zloop_poller(ft.loop, &pit, zfn (tipc_fdb_ctl_handler), &ft);
 
   tipc_thread_started = 1;
   zloop_start(ft.loop);
@@ -336,6 +328,10 @@ tipc_start (zctx_t *zcontext)
   pthread_t tid;
   tipc_notify_init ();
 
+  ctl_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (ctl_sock);
+  zsocket_bind (ctl_sock, TIPC_POST_EP);
+
   pthread_create (&tid, NULL, tipc_thread, zcontext);
   DEBUG ("waiting for TIPCThr startup\r\n");
   unsigned n = 0;
@@ -344,10 +340,6 @@ tipc_start (zctx_t *zcontext)
     usleep (100000);
   }
   DEBUG ("TIPCThr startup finished after %d iteractions\r\n", n);
-
-  ctl_sock = zsocket_new (zcontext, ZMQ_REQ);
-  assert (ctl_sock);
-  zsocket_connect (ctl_sock, TIPC_CONTROL_EP);
 
   DEBUG ("TIPC stared \r\n");
 

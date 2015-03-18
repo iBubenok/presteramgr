@@ -6,18 +6,19 @@
 
 #include <control-proto.h>
 
-#define TIPC_CONTROL_EP "inproc://tipc-control"
+//#define TIPC_CONTROL_EP "inproc://tipc-control"
+#define TIPC_POST_EP "inproc://tipc-post"
 
-enum {
+enum pti_cmd {
   PTI_CMD_FDB_SEND = 0
-} pti_cmd;
+};
 
-enum {
-  PTI_FDB_OP_ADD,
-  PTI_FDB_OP_DEL
-} pti_fdb_op;
+enum pti_fdb_op {
+  PTI_FDB_OP_ADD = 0,
+  PTI_FDB_OP_DEL = 1
+};
 
-enum {
+enum iface_type {
   IFTYPE_PORT = 0,
   IFTYPE_TRUNK,
   IFTYPE_VIDX,
@@ -25,7 +26,7 @@ enum {
   IFTYPE_DEVICE,
   IFTYPE_FABRIC_VIDX,
   IFTYPE_INDEX
-} iface_type;
+};
 
 struct pti_fdbr {
   uint8_t operation;
