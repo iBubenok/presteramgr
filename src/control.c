@@ -276,6 +276,9 @@ DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
+DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
+DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
+DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -370,7 +373,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_GIF_TX),
   HANDLER (CC_PORT_ENABLE_QUEUE),
-  HANDLER (CC_PORT_ENABLE_LBD)
+  HANDLER (CC_PORT_ENABLE_LBD),
+  HANDLER (CC_PORT_ENABLE_EAPOL),
+  HANDLER (CC_PORT_EAPOL_AUTH),
+  HANDLER (CC_DHCP_TRAP_ENABLE)
 };
 
 static int
@@ -1400,6 +1406,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   notification_t type;
   port_id_t pid;
   int put_vid = 0;
+  uint16_t *etype;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1420,10 +1427,17 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
     case WNCT_STP:
-      tipc_notify_bpdu (pid, frame->len, frame->data);
-      result = ST_OK;
-      goto out;
-
+      etype = (uint16_t *) &frame->data[12];
+      switch (ntohs (*etype)) {
+      case 0x88CC:
+        type = CN_LLDP_MCAST;
+        break;
+      default:
+        tipc_notify_bpdu (pid, frame->len, frame->data);
+        result = ST_OK;
+        goto out;
+      }
+      break;
     case WNCT_802_3_SP:
       switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
@@ -1438,6 +1452,22 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
         goto out;
       }
       break;
+
+    case WNCT_802_3_SP_OAM:
+      etype = (uint16_t *) &frame->data[12];
+      switch (ntohs (*etype)) {
+      case 0x888E:
+        type = CN_EAPOL;
+        break;
+      case 0x88CC:
+        type = CN_LLDP_MCAST;
+        break;
+      default:
+        DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
+        goto out;
+      }
+      break;
+
     case WNCT_LLDP:
       type = CN_LLDP_MCAST;
       break;
@@ -1467,6 +1497,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (0):
     type = CN_LBD_PDU;
+    break;
+
+  case CPU_CODE_USER_DEFINED (1):
+    type = CN_DHCP_TRAP;
+    put_vid = 1;
     break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
@@ -2395,6 +2430,71 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LBD)
     goto out;
 
   result = pcl_enable_lbd_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_enable_eapol (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
+{
+  enum status result;
+  port_id_t pid;
+  vid_t vid;
+  mac_addr_t mac;
+  bool_t auth;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mac);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&auth);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_eapol_auth (pid, vid, mac, auth);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_dhcp_trap (enable);
 
  out:
   report_status (result);

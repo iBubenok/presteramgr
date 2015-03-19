@@ -17,10 +17,12 @@
 
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
-#define PORT_LBD_RULE_IX(n) ((n) - 1)
+
+#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */
+#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (65) + (n) * 2)
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_LBD_RULE_IX (64))
+#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (65))
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
@@ -296,7 +298,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtNotIpv6.common.pclId = 2;
+  rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
   rule.ruleEgrExtNotIpv6.common.isL2Valid = 1;
   rule.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
@@ -315,7 +317,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtIpv6L2.common.pclId = 2;
+  rule.ruleEgrExtIpv6L2.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
   rule.ruleEgrExtIpv6L2.common.isL2Valid = 1;
   rule.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
@@ -334,7 +336,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = 2;
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
   rule.ruleExtNotIpv6.common.isL2Valid = 1;
   rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
@@ -353,7 +355,7 @@ pcl_setup_mc_drop (int d)
   mask.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleExtIpv6L2.common.pclId = 2;
+  rule.ruleExtIpv6L2.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
   rule.ruleExtIpv6L2.common.isL2Valid = 1;
   rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
@@ -389,25 +391,23 @@ pcl_enable_port (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
     }
   };
-  int d;
 
-  for_each_dev (d)
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_INGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &lc));
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
 
   lc.pclId                  = PORT_EPCL_ID (pid);
   lc.groupKeyTypes.nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E;
   lc.groupKeyTypes.ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E;
-  for_each_dev (d)
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_EGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &lc));
+
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &lc));
 
   return ST_OK;
 }
@@ -415,9 +415,9 @@ pcl_enable_port (port_id_t pid, int enable)
 enum status
 pcl_enable_lbd_trap (port_id_t pid, int enable)
 {
-  int d;
+  struct port *port = port_ptr (pid);
 
-  if (!port_ptr (pid))
+  if (!port)
     return ST_BAD_VALUE;
 
   if (enable) {
@@ -441,19 +441,127 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
 
-    for_each_dev (d)
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          PORT_LBD_RULE_IX (pid),
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+
+  return ST_OK;
+}
+
+enum status
+pcl_enable_dhcp_trap (int enable)
+{
+  port_id_t pi;
+
+  if (enable) {
+    for (pi = 1; pi <= nports ; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+        continue;
+
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.common.isIp = 0xFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+      mask.ruleExtNotIpv6.commonExt.isIpv6  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte2  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte3  = 0xff;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      rule.ruleExtNotIpv6.common.isIp = 1;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+
+      rule.ruleExtNotIpv6.commonExt.isIpv6  = 0;
+      rule.ruleExtNotIpv6.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtNotIpv6.commonExt.l4Byte2  = 0;
+      rule.ruleExtNotIpv6.commonExt.l4Byte3  = 67;
+
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
+
       CRP (cpssDxChPclRuleSet
-           (d,
+           (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            PORT_LBD_RULE_IX (pid),
+            PORT_DHCPTRAP_RULE_IX (pi),
             0,
             &mask,
             &rule,
             &act));
-  } else
-    for_each_dev (d)
+
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.common.isIp = 0xFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+      mask.ruleExtNotIpv6.commonExt.isIpv6  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte2  = 0xff;
+      mask.ruleExtNotIpv6.commonExt.l4Byte3  = 0xff;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      rule.ruleExtNotIpv6.common.isIp = 1;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+
+      rule.ruleExtNotIpv6.commonExt.isIpv6  = 0;
+      rule.ruleExtNotIpv6.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtNotIpv6.commonExt.l4Byte2  = 0;
+      rule.ruleExtNotIpv6.commonExt.l4Byte3  = 68;
+
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            PORT_DHCPTRAP_RULE_IX (pi) + 1,
+            0,
+            &mask,
+            &rule,
+            &act));
+
+    }
+  } else {
+    for (pi = 1; pi <= nports; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+        continue;
+
       CRP (cpssDxChPclRuleInvalidate
-           (d, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi)));
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi) + 1));
+    }
+  }
 
   return ST_OK;
 }
@@ -493,6 +601,7 @@ enum status
 pcl_enable_mc_drop (port_id_t pid, int enable)
 {
   struct port *port = port_ptr (pid);
+  assert(port == stack_sec_port);
   CPSS_INTERFACE_INFO_STC iface = {
     .type    = CPSS_INTERFACE_PORT_E,
     .devPort = {
@@ -502,7 +611,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC elc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = 2,
+    .pclId         = PORT_EPCL_ID (port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -513,7 +622,7 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
   };
   CPSS_DXCH_PCL_LOOKUP_CFG_STC ilc = {
     .enableLookup  = gt_bool (enable),
-    .pclId         = 2,
+    .pclId         = PORT_IPCL_ID (port->id),
     .dualLookup    = GT_FALSE,
     .pclIdL01      = 0,
     .groupKeyTypes = {
@@ -522,22 +631,19 @@ pcl_enable_mc_drop (port_id_t pid, int enable)
       .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E
     }
   };
-  int d;
 
   DEBUG ("%s mc drop\r\n", enable ? "enabling" : "disabling");
 
-  for_each_dev (d) {
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_EGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &elc));
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_INGRESS_E,
-          CPSS_PCL_LOOKUP_0_E,
-          &ilc));
-  }
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_EGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &elc));
+  CRP (cpssDxChPclCfgTblSet
+       (port->ldev, &iface,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_0_E,
+        &ilc));
 
   return ST_OK;
 }
@@ -561,7 +667,10 @@ pcl_cpss_lib_init (int d)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
-  pcl_setup_mc_drop (d);
+  if (stack_active())
+    pcl_setup_mc_drop (d);
+
+//pcl_enable_dhcp_trap (1);
 
   return ST_OK;
 }
