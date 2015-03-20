@@ -202,6 +202,7 @@ DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
+DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
@@ -300,6 +301,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_DUMP_PHY_REG),
+  HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
@@ -887,6 +889,40 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_PHY_REG)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t page, reg, val;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&page);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&reg);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&val);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_phy_reg (pid, page, reg, val);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
   send_reply (reply);
   return;
 

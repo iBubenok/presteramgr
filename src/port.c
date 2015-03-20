@@ -1579,13 +1579,24 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
   if (!port)
     return ST_BAD_VALUE;
 
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+#endif
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x16, &pg));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, page));
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page - 1000));
+  else
+#endif /* XXX Achtung! Lebensgefahr! */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page));
   if (rc != GT_OK)
     goto out;
 
@@ -1598,6 +1609,67 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
             (port->ldev, port->lport, 0x16, pg));
   if (rc != GT_OK)
     goto out;
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+#endif
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
+
+enum status
+port_set_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t val)
+{
+  GT_STATUS rc;
+  GT_U16 pg;
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+#endif
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x16, &pg));
+  if (rc != GT_OK)
+    goto out;
+
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page - 1000));
+  else
+#endif /* XXX Achtung! Lebensgefahr! */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, reg, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x16, pg));
+  if (rc != GT_OK)
+    goto out;
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+#endif
 
  out:
   switch (rc) {
