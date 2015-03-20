@@ -22,11 +22,53 @@
 #include <sysdeps.h>
 #include <debug.h>
 
-int stack_id = 0;
+int stack_id = 0, master_id;
+uint8_t master_mac[6] = {0, 0, 0, 0, 0, 0};
 struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 static int ring = 0;
 static uint32_t dev_bmp  = 0;
 static uint32_t dev_mask = 0;
+
+void
+stack_init (void)
+{
+  const char *mac, *p;
+  char *e;
+  int i;
+
+  master_id = stack_id;
+
+  mac = getenv ("MAC");
+  if (!mac) {
+    ERR ("MAC environment variable not defined\r\n");
+    exit (1);
+  }
+
+  for (i = 0, p = mac; i < 6; i++, p = e + 1) {
+    unsigned long b = strtoul (p, &e, 16);
+    if ((b > 255) || ((i < 5) && (*e != ':'))) {
+      ERR ("bad MAC environment variable format\r\n");
+      exit (1);
+    }
+    master_mac[i] = b;
+  }
+  if (*e) {
+    ERR ("bad MAC environment variable format\r\n");
+    exit (1);
+  }
+}
+
+enum status
+stack_set_master (uint8_t master, const uint8_t *mac)
+{
+  if (master > 16)
+    return ST_BAD_VALUE;
+
+  master_id = master;
+  memcpy (master_mac, mac, 6);
+
+  return ST_OK;
+}
 
 void
 stack_start (void)

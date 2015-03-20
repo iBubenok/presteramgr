@@ -279,6 +279,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_STACK_SET_MASTER);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -376,7 +377,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
-  HANDLER (CC_DHCP_TRAP_ENABLE)
+  HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_STACK_SET_MASTER)
 };
 
 static int
@@ -2495,6 +2497,28 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_STACK_SET_MASTER)
+{
+  enum status result;
+  zframe_t *frame;
+  uint8_t master;
+
+  result = POP_ARG (&master);
+  if (result != ST_OK)
+    goto out;
+
+  frame = FIRST_ARG;
+  if (!frame || zframe_size (frame) != 6) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = stack_set_master (master, zframe_data (frame));
 
  out:
   report_status (result);

@@ -708,6 +708,8 @@ init_cpss (void)
     dev_set_map(i, hw_dev_num);
   }
 
+  stack_init ();
+
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
 
