@@ -280,6 +280,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -378,7 +379,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
-  HANDLER (CC_DHCP_TRAP_ENABLE)
+  HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_VLAN_MC_ROUTE)
 };
 
 static int
@@ -2531,6 +2533,26 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_MC_ROUTE)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_mc_route (vid, enable);
 
  out:
   report_status (result);
