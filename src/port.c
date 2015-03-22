@@ -1244,7 +1244,7 @@ port_update_sd_ge (struct port *port)
       break;
     case PORT_DUPLEX_AUTO:
       cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
@@ -1359,7 +1359,7 @@ port_update_sd_fe (struct port *port)
       break;
     case PORT_DUPLEX_AUTO:
       cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
