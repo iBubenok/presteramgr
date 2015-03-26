@@ -23,6 +23,9 @@
     (type *) ((char *) __mptr - offsetof (type, member));   \
   })
 
+#define IPv4_FMT "%d.%d.%d.%d"
+#define IPv4_ARG(p) p[0], p[1], p[2], p[3]
+
 static inline int
 gt_bool (int val)
 {

@@ -494,7 +494,7 @@ fdb_mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
   memset (&key, 0, sizeof (key));
   key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
   memcpy (key.key.ipMcast.sip, arg->src, sizeof (arg->src));
-  memcpy (key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  memcpy (key.key.ipMcast.dip, arg->dst, sizeof (arg->dst));
   key.key.ipMcast.vlanId = arg->vid;
 
   return fdb_remove (&key, 0);
@@ -508,7 +508,7 @@ fdb_mac_mc_ip_add (const struct mc_ip_op_arg *arg)
   memset (&me, 0, sizeof (me));
   me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_IPV4_MCAST_E;
   memcpy (me.key.key.ipMcast.sip, arg->src, sizeof (arg->src));
-  memcpy (me.key.key.ipMcast.dip, arg->src, sizeof (arg->dst));
+  memcpy (me.key.key.ipMcast.dip, arg->dst, sizeof (arg->dst));
   me.key.key.ipMcast.vlanId = arg->vid;
   me.isStatic           = GT_TRUE;
   me.userDefined        = FEP_STATIC;

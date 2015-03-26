@@ -647,13 +647,14 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = *attrs;
+//#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
     if (attrs->portLinkUp)
-      osPrintSync ("port %2d link up at %s, %s\n", n,
+      osPrintSync ("port %2d link up at %s, %s\n", port->id,
                    SHOW (CPSS_PORT_SPEED_ENT, attrs->portSpeed),
                    SHOW (CPSS_PORT_DUPLEX_ENT, attrs->portDuplexity));
     else
-      osPrintSync ("port %2d link down\n", n);
+      osPrintSync ("port %2d link down\n", port->id);
 #endif /* DEBUG_STATE */
   }
 
@@ -1232,10 +1233,18 @@ port_update_sd_ge (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~((1 << 6) | (1 << 8));
+      break;
+    case PORT_DUPLEX_AUTO:
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
@@ -1268,10 +1277,15 @@ port_update_sd_ge (struct port *port)
     if (rc != GT_OK)
       goto out;
 
-    if (port->c_duplex == PORT_DUPLEX_FULL)
+    if (port->c_duplex == PORT_DUPLEX_FULL) {
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg |= 1 << 8;
-    else
+    }else {
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~(1 << 8);
+    }
 
     switch (port->c_speed) {
     case PORT_SPEED_10:
@@ -1305,7 +1319,6 @@ port_update_sd_ge (struct port *port)
   }
 }
 
-
 static enum status
 port_update_sd_fe (struct port *port)
 {
@@ -1335,10 +1348,18 @@ port_update_sd_fe (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~((1 << 6) | (1 << 8));
+      break;
+    case PORT_DUPLEX_AUTO:
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
@@ -1366,10 +1387,15 @@ port_update_sd_fe (struct port *port)
     if (rc != GT_OK)
       goto out;
 
-    if (port->c_duplex == PORT_DUPLEX_FULL)
+    if (port->c_duplex == PORT_DUPLEX_FULL) {
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg |= 1 << 8;
-    else
+    }else {
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~(1 << 8);
+    }
 
     if (port->c_speed == PORT_SPEED_100)
       reg |= 1 << 13;
@@ -1451,6 +1477,9 @@ __port_setup_fe (GT_U8 dev, GT_U8 port)
        (dev, port, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+
+//  CRP (cpssDxChPortInbandAutoNegEnableSet //TODO
+//       (dev, port, GT_TRUE));
 
   return ST_OK;
 }
@@ -1579,13 +1608,24 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
   if (!port)
     return ST_BAD_VALUE;
 
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+#endif
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x16, &pg));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, page));
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page - 1000));
+  else
+#endif /* XXX Achtung! Lebensgefahr! */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page));
   if (rc != GT_OK)
     goto out;
 
@@ -1598,6 +1638,67 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
             (port->ldev, port->lport, 0x16, pg));
   if (rc != GT_OK)
     goto out;
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+#endif
+
+ out:
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
+
+enum status
+port_set_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t val)
+{
+  GT_STATUS rc;
+  GT_U16 pg;
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+#endif
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0x16, &pg));
+  if (rc != GT_OK)
+    goto out;
+
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page - 1000));
+  else
+#endif /* XXX Achtung! Lebensgefahr! */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, page));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, reg, val));
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+            (port->ldev, port->lport, 0x16, pg));
+  if (rc != GT_OK)
+    goto out;
+#if defined (VARIANT_FE)
+  if (page >= 1000)
+    CRP (cpssDxChPhyPortAddrSet
+         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+#endif
 
  out:
   switch (rc) {
@@ -1973,6 +2074,12 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x09, 0x0800)); /* workaround to enable autonegotiation */
+
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -2155,6 +2262,11 @@ port_setup_ge (struct port *port)
 
   case IS_COPPER:
     CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x09, 0x0800)); /* workaround to enable autonegotiation */
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x3));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x11, 0x8845));
@@ -2164,10 +2276,18 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x16, 6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0));
+
+    CRP (cpssDxChPortInbandAutoNegEnableSet
+         (port->ldev, port->lport, GT_TRUE));
     break;
 
   case IS_COMBO:
     /* DEBUG ("port %d is combo\n", port->id); */
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x09, 0x0800)); /* workaround to enable autonegotiation */
 
     /* Configure Auto-Media detect */
     CRP (cpssDxChPhyPortSmiRegisterWrite

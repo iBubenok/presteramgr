@@ -6,6 +6,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgMc.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
 
 #include <sysdeps.h>
@@ -347,6 +348,7 @@ vlan_delete (vid_t vid)
 int
 vlan_init (void)
 {
+  CPSS_PORTS_BMP_STC pbm;
   int i, d;
 
   for (i = 0; i < NVLANS; i++) {
@@ -357,6 +359,8 @@ vlan_init (void)
     vlans[i].state = VS_DELETED;
     vlans[i].vt_refc = 0;
   }
+
+  memset (&pbm, 0, sizeof (pbm));
 
   for_each_dev (d) {
     CRP (cpssDxChBrgVlanTableInvalidate (d));
@@ -374,6 +378,8 @@ vlan_init (void)
          (d, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
     CRP (cpssDxChBrgVlanTpidEntrySet
          (d, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+
+    CRP (cpssDxChBrgMcEntryWrite (d, 4092, &pbm));
   }
 
   vlan_add (1);
@@ -629,4 +635,24 @@ void
 vlan_stack_setup (void)
 {
   __vlan_add (4095);
+}
+
+enum status
+vlan_mc_route (vid_t vid, bool_t enable)
+{
+  int d;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  for_each_dev (d) {
+    if (enable)
+      CRP (cpssDxChBrgVlanFloodVidxModeSet
+           (d, vid, 4092, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+    else
+      CRP (cpssDxChBrgVlanFloodVidxModeSet
+           (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+  }
+
+  return ST_OK;
 }

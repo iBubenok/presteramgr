@@ -202,6 +202,7 @@ DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
+DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
@@ -280,6 +281,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
+DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -301,6 +303,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_DUMP_PHY_REG),
+  HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
@@ -378,7 +381,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_DHCP_TRAP_ENABLE),
-  HANDLER (CC_STACK_SET_MASTER)
+  HANDLER (CC_STACK_SET_MASTER),
+  HANDLER (CC_VLAN_MC_ROUTE)
 };
 
 static int
@@ -889,6 +893,40 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_PHY_REG)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t page, reg, val;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&page);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&reg);
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG (&val);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_phy_reg (pid, page, reg, val);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
   send_reply (reply);
   return;
 
@@ -2519,6 +2557,26 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
   }
 
   result = stack_set_master (master, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_MC_ROUTE)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_mc_route (vid, enable);
 
  out:
   report_status (result);
