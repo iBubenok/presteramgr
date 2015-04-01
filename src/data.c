@@ -111,17 +111,21 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
         fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
         (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&
         fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E &&
-        (pid = port_id (fdb[i].me.dstInterface.devPort.devNum,
+/*        (pid = port_id (fdb[i].me.dstInterface.devPort.devNum,
+                        fdb[i].me.dstInterface.devPort.portNum))) {  */
+        (pid = port_id (stack_id,    /* FIXME do it a right way through gif  */
                         fdb[i].me.dstInterface.devPort.portNum))) {
       struct {
         struct mac_entry me;
         port_id_t ports[1];
+        uint16_t dev;
       } __attribute__ ((packed)) tmp;
 
       memcpy (tmp.me.mac, fdb[i].me.key.key.macVlan.macAddr.arEther, 6);
       tmp.me.vid = fdb[i].me.key.key.macVlan.vlanId;
       tmp.me.dynamic = !fdb[i].me.isStatic;
       tmp.ports[0] = pid;
+      tmp.dev = fdb[i].me.dstInterface.devPort.devNum;
 
       zmsg_addmem (msg, &tmp, sizeof (tmp));
     }
