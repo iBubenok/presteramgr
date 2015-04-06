@@ -675,13 +675,30 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
 DEFINE_HANDLER (CC_VLAN_ADD)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_add (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_add_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_add (size_or_vid);
+  }
 
  out:
   report_status (result);
@@ -690,13 +707,30 @@ DEFINE_HANDLER (CC_VLAN_ADD)
 DEFINE_HANDLER (CC_VLAN_DELETE)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_delete (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_delete_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_delete (size_or_vid);
+  }
 
  out:
   report_status (result);
@@ -1191,18 +1225,37 @@ DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
 DEFINE_HANDLER (CC_VLAN_SET_CPU)
 {
   enum status result;
-  vid_t vid;
+  vid_t size_or_vid;
   bool_t cpu;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&cpu);
-  if (result != ST_OK)
-    goto out;
+  if ( size_or_vid > 11000 ) { /* size */
+    uint16_t size = size_or_vid - 11000;
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
 
-  result = vlan_set_cpu (vid, cpu);
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu_range (size / 2, arr, cpu);
+
+    free (arr);
+  } else { /* vid */
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu (size_or_vid, cpu);
+  }
 
  out:
   report_status (result);
