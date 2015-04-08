@@ -233,6 +233,13 @@ port_init (void)
     }
     dev_ports[phys_dev (ports[i].ldev)][ports[i].lport] = ports[i].id;
 
+    /* Port Security. */
+    pthread_mutex_init (&ports[i].psec_lock, NULL);
+    ports[i].psec_mode = PSECM_NONE;
+    ports[i].psec_max_addrs = 0;
+    ports[i].psec_naddrs = 0;
+    /* END: Port Security. */
+
     switch (ports[i].stack_role) {
     case PSR_PRIMARY:
       if (stack_pri_port) {
@@ -2847,4 +2854,172 @@ port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
   memcpy (op.mac, mac, sizeof (op.mac));
 
   return mac_op (&op);
+}
+
+static void
+psec_lock (struct port *port)
+{
+  pthread_mutex_lock (&port->psec_lock);
+}
+
+static void
+psec_unlock (struct port *port)
+{
+  pthread_mutex_unlock (&port->psec_lock);
+}
+
+enum status
+psec_set_mode (port_id_t pid, psec_mode_t mode)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (!in_range (mode, PSECM_NONE, PSECM_LOCK))
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  port->psec_mode = mode;
+
+  psec_unlock (port);
+
+  return ST_OK;
+}
+
+enum status
+psec_set_max_addrs (port_id_t pid, psec_max_addrs_t max)
+{
+  struct port *port;
+  enum status result = ST_OK;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (!in_range (max, PSEC_MIN_ADDRS, PSEC_MAX_ADDRS))
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  if (port->psec_mode != PSECM_NONE) {
+    result = ST_BAD_STATE;
+    goto out;
+  }
+
+  port->psec_max_addrs = max;
+
+ out:
+  psec_unlock (port);
+  return result;
+}
+
+static void
+__psec_limit_reached (struct port *port)
+{
+  if (port->psec_mode == PSECM_MAX_ADDRS) {
+    cpssDxChBrgFdbNaToCpuPerPortSet
+      (port->ldev, port->lport, GT_FALSE);
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_TRUE));
+  }
+}
+
+static void
+__psec_limit_left (struct port *port)
+{
+  if (port->psec_mode == PSECM_MAX_ADDRS) {
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_FALSE));
+    cpssDxChBrgFdbNaToCpuPerPortSet
+      (port->ldev, port->lport, GT_TRUE);
+  }
+}
+
+static void
+__psec_addr_del (struct port *op)
+{
+  if (op) {
+    psec_lock (op);
+
+    if (op->psec_naddrs-- == op->psec_max_addrs)
+      __psec_limit_left (op);
+
+    if (op->psec_naddrs < 0)
+      op->psec_naddrs = 0;
+
+    psec_unlock (op);
+  }
+}
+
+enum psec_addr_status
+psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
+{
+  struct port *op = NULL, *np = NULL;
+  enum psec_addr_status st;
+
+  if (o->valid
+      && o->me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && o->me.dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    op = port_ptr (port_id (o->me.dstInterface.devPort.devNum,
+                            o->me.dstInterface.devPort.portNum));
+  }
+
+  if (n->key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && n->dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    np = port_ptr (port_id (n->dstInterface.devPort.devNum,
+                            n->dstInterface.devPort.portNum));
+  }
+
+  if (np == op) {
+    st = PAS_OK;
+    goto out;
+  }
+
+  if (np) {
+    psec_lock (np);
+
+    st = PAS_OK;
+    if (np->psec_mode == PSECM_NONE) {
+      np->psec_naddrs += 1;
+      goto upd_old;
+    } else {
+      if (np->psec_naddrs >= np->psec_max_addrs) {
+        st = PAS_LIMIT;
+        goto out_unlock_np;
+      }
+      np->psec_naddrs += 1;
+      if (np->psec_naddrs == np->psec_max_addrs)
+        __psec_limit_reached (np);
+    }
+  }
+
+ upd_old:
+  if (op) {
+    __psec_addr_del (op);
+  }
+
+ out_unlock_np:
+  if (np)
+    psec_unlock (np);
+ out:
+  return st;
+}
+
+void
+psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *o)
+{
+  struct port *op;
+
+  if (o->key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && o->dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    op = port_ptr (port_id (o->dstInterface.devPort.devNum,
+                            o->dstInterface.devPort.portNum));
+
+    if (op) {
+      __psec_addr_del (op);
+    }
+  }
 }

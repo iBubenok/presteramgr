@@ -4,6 +4,7 @@
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
 #include <stack.h>
+#include <mac.h>
 
 struct port_state {
   CPSS_PORT_ATTRIBUTES_STC attrs;
@@ -44,6 +45,14 @@ struct port {
   trunk_id_t trunk_id;
   enum port_stack_role stack_role;
   CPSS_PORT_ATTRIBUTES_STC attrs;
+
+  /* Port Security. */
+  pthread_mutex_t psec_lock;
+  enum psec_mode psec_mode;
+  int psec_max_addrs;
+  int psec_naddrs;
+  /* END: Port Security. */
+
   enum status (*set_speed) (struct port *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct port *, enum port_duplex);
   enum status (*update_sd) (struct port *);
@@ -114,5 +123,22 @@ extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
 extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
+
+/* Port Security. */
+
+enum psec_addr_status {
+  PAS_OK,
+  PAS_FULL,
+  PAS_LIMIT,
+  PAS_PROHIBITED
+};
+
+extern enum status psec_set_mode (port_id_t, psec_mode_t);
+extern enum status psec_set_max_addrs (port_id_t, psec_max_addrs_t);
+extern enum psec_addr_status psec_addr_check (struct fdb_entry *, CPSS_MAC_ENTRY_EXT_STC *);
+extern void psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *);
+
+/* END: Port Security. */
+
 
 #endif /* __PORT_H__ */
