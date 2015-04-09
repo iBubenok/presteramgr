@@ -3130,3 +3130,32 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
 
   return ST_OK;
 }
+
+enum status
+psec_enable_na_sb (port_id_t pid, int enable)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  if (enable) {
+    if (port->psec_action == PSECA_RESTRICT
+        && (port->psec_mode == PSECM_LOCK
+            || (port->psec_mode == PSECM_MAX_ADDRS
+                && port->psec_naddrs >= port->psec_max_addrs))) {
+      CRP (cpssDxChBrgSecurBreachNaPerPortSet
+           (port->ldev, port->lport, GT_TRUE));
+    }
+  } else {
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_FALSE));
+  }
+
+  psec_unlock (port);
+
+  return ST_OK;
+}
