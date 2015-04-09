@@ -26,6 +26,7 @@
 #include <data.h>
 #include <tipc.h>
 #include <mac.h>
+#include <sec.h>
 #include <zcontext.h>
 #include <sysdeps.h>
 
@@ -97,7 +98,8 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   /* CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, */
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
-  CPSS_PP_EB_AUQ_PENDING_E
+  CPSS_PP_EB_AUQ_PENDING_E,
+  CPSS_PP_EB_SECURITY_BREACH_UPDATE_E
 };
 #define EVENT_NUM ARRAY_SIZE (events)
 
@@ -126,6 +128,26 @@ static inline int
 eventp (CPSS_UNI_EV_CAUSE_ENT e, const GT_U32 *b)
 {
   return b [e >> 5] & (1 << (e & 0x1f));
+}
+
+static GT_STATUS
+event_handle_security_breach_update(CPSS_UNI_EV_CAUSE_ENT evt) {
+
+  GT_U32 edata;
+  GT_U8 dev;
+  GT_STATUS rc;
+  unsigned long long nn = 0;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              evt,
+                              &edata, &dev)) == GT_OK)
+    nn++;
+  if (rc == GT_NO_MORE) {
+    sec_handle_security_breach_updates (dev, edata);
+  }else {
+    DEBUG("unappropriate GT_STATUS == %d after security breach events masspop\n", rc);
+  }
+  return GT_OK;
 }
 
 static GT_STATUS
@@ -219,6 +241,10 @@ event_enter_loop (void)
     if (rc != GT_OK)
       continue;
 
+    if (eventp (CPSS_PP_EB_SECURITY_BREACH_UPDATE_E, ebmp)){
+//      DEBUG("EVENT!!!: CPSS_PP_EB_SECURITY_BREACH_UPDATE_E\n"); // TODO remove
+      event_handle_security_breach_update(CPSS_PP_EB_SECURITY_BREACH_UPDATE_E);
+    }
     if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp))
       event_handle_aging_done ();
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))

@@ -6,7 +6,10 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <time.h>
+#include <assert.h>
 #include <errno.h>
 #include <log.h>
 
@@ -30,6 +33,14 @@ static inline int
 gt_bool (int val)
 {
   return val ? GT_TRUE : GT_FALSE;
+}
+
+static inline unsigned long long
+time_monotonic (void) {
+  struct timespec ts;
+  int rc = clock_gettime(CLOCK_MONOTONIC, &ts);
+  assert(!rc);
+  return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 static inline void
