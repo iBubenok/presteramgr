@@ -283,6 +283,7 @@ DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
+DECLARE_HANDLER (CC_PSEC_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -384,7 +385,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DHCP_TRAP_ENABLE),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
-  HANDLER (CC_PSEC_SET_MAX_ADDRS)
+  HANDLER (CC_PSEC_SET_MAX_ADDRS),
+  HANDLER (CC_PSEC_ENABLE)
 };
 
 static int
@@ -2597,6 +2599,36 @@ DEFINE_HANDLER (CC_PSEC_SET_MAX_ADDRS)
     goto out;
 
   result = psec_set_max_addrs (pid, max);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  psec_action_t act;
+  uint32_t intv;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&act);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&intv);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_enable (pid, enable, act, intv);
 
  out:
   report_status (result);

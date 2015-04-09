@@ -208,6 +208,8 @@ fdb_flush (const struct fdb_flush_arg *arg)
       }
   }
 
+  psec_after_flush ();
+
   do {
     all_done = 1;
     for_each_dev (d) {
