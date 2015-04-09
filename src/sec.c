@@ -27,17 +27,47 @@ struct sb_delay {
 struct sb_delay sb_delay[NPORTS + 1];
 
 enum status
-sec_set_sb_delay_port_na (port_id_t pid, uint32_t delay_secs) {
+sec_port_na_delay_set (port_id_t pid, uint32_t delay_secs) {
   assert(pid <= NPORTS);
   sb_delay[pid].tdelay_sb_port_na = delay_secs * 1000;
   return ST_OK;
 }
 
 enum status
-sec_set_sb_delay_moved_static (port_id_t pid, uint32_t delay_secs) {
+sec_moved_static_delay_set (port_id_t pid, uint32_t delay_secs) {
   assert(pid <= NPORTS);
   sb_delay[pid].tdelay_sb_moved_static = delay_secs * 1000;
   return ST_OK;
+}
+
+enum status
+sec_moved_static_enable (uint8_t dev, GT_BOOL enable) {
+
+  GT_STATUS rc;
+  rc = CRP(cpssDxChBrgSecurBreachMovedStaticAddrSet(dev, enable));
+
+  switch (rc) {
+  case GT_OK:                     return ST_OK;
+  case GT_BAD_PARAM:              return ST_BAD_VALUE;
+  case GT_HW_ERROR:               return ST_HW_ERROR;
+  case GT_NOT_APPLICABLE_DEVICE:  return ST_NOT_SUPPORTED;
+  default:                        return ST_HEX;
+  }
+}
+
+enum status
+sec_port_na_enable (const struct port *port, GT_BOOL enable) {
+
+  GT_STATUS rc;
+  rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
+
+  switch (rc) {
+  case GT_OK:                     return ST_OK;
+  case GT_BAD_PARAM:              return ST_BAD_VALUE;
+  case GT_HW_ERROR:               return ST_HW_ERROR;
+  case GT_NOT_APPLICABLE_DEVICE:  return ST_NOT_SUPPORTED;
+  default:                        return ST_HEX;
+  }
 }
 
 static zmsg_t *
@@ -109,7 +139,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
         sb_delay[pid].tst_port_na = ts;
         sb_type = SB_PORT_NA;
 /*        DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
-            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, edata); */
+            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
       }
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_MOVED_STATIC_E:
@@ -117,7 +147,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
         sb_delay[pid].tst_moved_static = ts;
         sb_type = SB_MOVED_STATIC;
 /*        DEBUG("SECBREACH: " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
-            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, edata); */
+            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
       }
       break;
     default:
@@ -182,8 +212,8 @@ sec_start(void) {
   uint64_t ts = time_monotonic();
   unsigned i;
   for (i = 1 ; i <= NPORTS; i++) {
-    sec_set_sb_delay_port_na (i, 5);
-    sec_set_sb_delay_moved_static (i, 5);
+    sec_port_na_delay_set (i, 30);
+    sec_moved_static_delay_set (i, 30);
     sb_delay[i].tst_port_na = ts;
     sb_delay[i].tst_moved_static = ts;
   }
@@ -201,10 +231,6 @@ sec_start(void) {
   sec_sock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (sec_sock);
   zsocket_connect (sec_sock, SEC_EVENT_NOTIFY_EP);
-
-//  CRP(cpssDxChBrgFdbSecureAutoLearnSet (0, CPSS_MAC_SECURE_AUTO_LEARN_UNK_TRAP_E);
-//  CRP(cpssDxChBrgSecurBreachNaPerPortSet(0, 6, GT_TRUE));   // TODO remove test initializations
-//  CRP(cpssDxChBrgSecurBreachMovedStaticAddrSet(0, GT_TRUE));
 
   return ST_OK;
 }
