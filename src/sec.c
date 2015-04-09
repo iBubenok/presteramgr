@@ -18,6 +18,8 @@ static void *pub_sock;
 static void *sec_sock;
 
 struct sb_delay {
+  uint8_t port_na_enabled;
+  uint8_t port_na_blocked;
   uint32_t tdelay_sb_port_na;
   uint32_t tdelay_sb_moved_static;
   uint64_t tst_port_na;
@@ -58,6 +60,8 @@ sec_moved_static_enable (uint8_t dev, GT_BOOL enable) {
 enum status
 sec_port_na_enable (const struct port *port, GT_BOOL enable) {
 
+  sb_delay[port->id].port_na_enabled = enable;
+  sb_delay[port->id].port_na_blocked = 0;
   GT_STATUS rc;
   rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
 
@@ -135,12 +139,12 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
 
   switch (sbmsg.code) {
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NA_E:
-      if (ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
-        sb_delay[pid].tst_port_na = ts;
-        sb_type = SB_PORT_NA;
-/*        DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+      sb_delay[pid].tst_port_na = ts;
+      sb_delay[pid].port_na_blocked = 1;
+      sb_type = SB_PORT_NA;
+      psec_enable_na_sb(pid, 0);
+/*      DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
             MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
-      }
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_MOVED_STATIC_E:
       if (ts > sb_delay[pid].tst_moved_static + sb_delay[pid].tdelay_sb_moved_static) {
@@ -166,6 +170,22 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
   return 0;
 }
 
+static int
+sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
+
+  uint64_t ts = time_monotonic();
+  unsigned pid;
+  for (pid = 1; pid <= NPORTS; pid++) {
+    if (sb_delay[pid].port_na_enabled && sb_delay[pid].port_na_blocked
+         && ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
+      struct port *port = port_ptr(pid);
+      sb_delay[pid].port_na_blocked = 0;
+      psec_enable_na_sb(pid, 1);
+    }
+  }
+  return 0;
+}
+
 static volatile int sec_thread_started = 0;
 
 static void *
@@ -185,6 +205,7 @@ sect_thread (void *_)
 
   zmq_pollitem_t sect_pi = { sect_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &sect_pi, sect_event_handler, sect_sock);
+  zloop_timer (loop, 1000, 0, sect_delay_timer, NULL);
 
   prctl(PR_SET_NAME, "sec-breach", 0, 0, 0);
 
@@ -216,6 +237,8 @@ sec_start(void) {
     sec_moved_static_delay_set (i, 30);
     sb_delay[i].tst_port_na = ts;
     sb_delay[i].tst_moved_static = ts;
+    sb_delay[i].port_na_enabled = 0;
+    sb_delay[i].port_na_blocked = 0;
   }
 
   pthread_create (&sec_tid, NULL, sect_thread, NULL);
