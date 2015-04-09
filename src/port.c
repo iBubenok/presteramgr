@@ -16,6 +16,7 @@
 #include <pcl.h>
 #include <dev.h>
 #include <mac.h>
+#include <sec.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -3118,6 +3119,10 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
   port->psec_enabled = enable;
   port->psec_action = act;
   port->psec_trap_interval = trap_interval;
+
+  sec_port_na_delay_set (pid, trap_interval);
+  sec_moved_static_delay_set (pid, trap_interval);
+
   if (do_enable)
     __psec_enable (port);
 
