@@ -178,7 +178,6 @@ sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
   for (pid = 1; pid <= NPORTS; pid++) {
     if (sb_delay[pid].port_na_enabled && sb_delay[pid].port_na_blocked
          && ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
-      struct port *port = port_ptr(pid);
       sb_delay[pid].port_na_blocked = 0;
       psec_enable_na_sb(pid, 1);
     }
