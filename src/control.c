@@ -15,6 +15,7 @@
 #include <linux/pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
+#include <sec.h>
 #include <qos.h>
 #include <zcontext.h>
 #include <debug.h>
@@ -46,6 +47,7 @@ static void *inp_pub_sock;
 static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
+static void *sec_sock;
 
 
 static void *
@@ -90,6 +92,10 @@ control_init (void)
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
+
+  sec_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (sec_sock);
+  zsocket_connect (sec_sock, SEC_PUBSUB_EP);
 
   rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (rtbd_sock);
@@ -392,6 +398,14 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 }
 
 static int
+secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (sec_sock);
+  notify_send (&msg);
+  return 0;
+}
+
+static int
 rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (rtbd_sock);
@@ -483,6 +497,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &evt_pi, evt_handler, NULL);
+
+  zmq_pollitem_t sec_pi = { sec_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &sec_pi, secbr_handler, NULL);
 
   zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);

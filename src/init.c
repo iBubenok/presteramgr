@@ -86,6 +86,7 @@
 #include <qos.h>
 #include <pdsa.h>
 #include <mac.h>
+#include <sec.h>
 #include <wnct.h>
 #include <ip.h>
 #include <zcontext.h>
@@ -795,6 +796,9 @@ cpss_start (void)
 
   event_init ();
 
+  INFO ("init security breach subsystem\n");
+  sec_init ();
+
   INFO ("init control interface\n");
   control_init ();
 
@@ -806,6 +810,9 @@ cpss_start (void)
 
   INFO ("start control interface\n");
   control_start ();
+
+  INFO ("start security breach subsystem\n");
+  sec_start ();
 
   INFO ("start routing subsystem");
   route_start ();
