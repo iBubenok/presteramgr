@@ -942,6 +942,7 @@ DEFINE_HANDLER (CC_MAC_LIST)
 {
   enum status result;
   vid_t vid;
+  port_id_t pid;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -952,8 +953,17 @@ DEFINE_HANDLER (CC_MAC_LIST)
     goto err;
   }
 
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(pid == ALL_PORTS || port_ptr (pid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
   zmsg_t *reply = make_reply (ST_OK);
-  data_encode_fdb_addrs (reply, vid);
+  data_encode_fdb_addrs (reply, vid, pid);
   send_reply (reply);
   return;
 
