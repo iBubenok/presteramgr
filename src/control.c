@@ -287,6 +287,9 @@ DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
+DECLARE_HANDLER (CC_PSEC_SET_MODE);
+DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
+DECLARE_HANDLER (CC_PSEC_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -386,7 +389,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_DHCP_TRAP_ENABLE),
-  HANDLER (CC_VLAN_MC_ROUTE)
+  HANDLER (CC_VLAN_MC_ROUTE),
+  HANDLER (CC_PSEC_SET_MODE),
+  HANDLER (CC_PSEC_SET_MAX_ADDRS),
+  HANDLER (CC_PSEC_ENABLE)
 };
 
 static int
@@ -953,6 +959,7 @@ DEFINE_HANDLER (CC_MAC_LIST)
 {
   enum status result;
   vid_t vid;
+  port_id_t pid;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -963,8 +970,17 @@ DEFINE_HANDLER (CC_MAC_LIST)
     goto err;
   }
 
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(pid == ALL_PORTS || port_ptr (pid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
   zmsg_t *reply = make_reply (ST_OK);
-  data_encode_fdb_addrs (reply, vid);
+  data_encode_fdb_addrs (reply, vid, pid);
   send_reply (reply);
   return;
 
@@ -2570,6 +2586,76 @@ DEFINE_HANDLER (CC_VLAN_MC_ROUTE)
     goto out;
 
   result = vlan_mc_route (vid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_SET_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  psec_mode_t mode;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_mode (pid, mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_SET_MAX_ADDRS)
+{
+  enum status result;
+  port_id_t pid;
+  psec_max_addrs_t max;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&max);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_max_addrs (pid, max);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  psec_action_t act;
+  uint32_t intv;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&act);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&intv);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_enable (pid, enable, act, intv);
 
  out:
   report_status (result);

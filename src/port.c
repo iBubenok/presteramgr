@@ -16,6 +16,7 @@
 #include <pcl.h>
 #include <dev.h>
 #include <mac.h>
+#include <sec.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -232,6 +233,16 @@ port_init (void)
       abort ();
     }
     dev_ports[phys_dev (ports[i].ldev)][ports[i].lport] = ports[i].id;
+
+    /* Port Security. */
+    pthread_mutex_init (&ports[i].psec_lock, NULL);
+    ports[i].psec_enabled = 0;
+    ports[i].psec_action = PSECA_RESTRICT;
+    ports[i].psec_trap_interval = 30;
+    ports[i].psec_mode = PSECM_LOCK;
+    ports[i].psec_max_addrs = 0;
+    ports[i].psec_naddrs = 0;
+    /* END: Port Security. */
 
     switch (ports[i].stack_role) {
     case PSR_PRIMARY:
@@ -2847,4 +2858,304 @@ port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
   memcpy (op.mac, mac, sizeof (op.mac));
 
   return mac_op (&op);
+}
+
+static void
+psec_lock (struct port *port)
+{
+  pthread_mutex_lock (&port->psec_lock);
+}
+
+static void
+psec_unlock (struct port *port)
+{
+  pthread_mutex_unlock (&port->psec_lock);
+}
+
+enum status
+psec_set_mode (port_id_t pid, psec_mode_t mode)
+{
+  struct port *port;
+  enum status result = ST_OK;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (!in_range (mode, PSECM_MAX_ADDRS, PSECM_LOCK))
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  if (port->psec_enabled) {
+    result = ST_BAD_STATE;
+    goto out;
+  }
+
+  port->psec_mode = mode;
+
+ out:
+  psec_unlock (port);
+  return result;
+}
+
+enum status
+psec_set_max_addrs (port_id_t pid, psec_max_addrs_t max)
+{
+  struct port *port;
+  enum status result = ST_OK;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (!in_range (max, PSEC_MIN_ADDRS, PSEC_MAX_ADDRS))
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  if (port->psec_enabled) {
+    result = ST_BAD_STATE;
+    goto out;
+  }
+
+  port->psec_max_addrs = max;
+
+ out:
+  psec_unlock (port);
+  return result;
+}
+
+static void
+__psec_disable_learning (struct port *port)
+{
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet
+       (port->ldev, port->lport, GT_FALSE));
+
+  switch (port->psec_action) {
+  case PSECA_FORWARD:
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+    break;
+  case PSECA_RESTRICT:
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_TRUE));
+  }
+}
+
+static void
+__psec_enable_learning (struct port *port)
+{
+  CRP (cpssDxChBrgSecurBreachNaPerPortSet
+       (port->ldev, port->lport, GT_FALSE));
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet
+       (port->ldev, port->lport, GT_TRUE));
+  CRP (cpssDxChBrgFdbPortLearnStatusSet
+       (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+}
+
+static void
+__psec_limit_reached (struct port *port)
+{
+  if (port->psec_enabled) {
+    __psec_disable_learning (port);
+  }
+}
+
+static void
+__psec_limit_left (struct port *port)
+{
+  if (port->psec_enabled && port->psec_mode == PSECM_MAX_ADDRS) {
+    __psec_enable_learning (port);
+  }
+}
+
+enum psec_addr_status
+psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
+{
+  struct port *op = NULL, *np = NULL;
+  enum psec_addr_status st;
+
+  if (o->valid
+      && o->me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && o->me.dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    op = port_ptr (port_id (o->me.dstInterface.devPort.devNum,
+                            o->me.dstInterface.devPort.portNum));
+  }
+
+  if (n->key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && n->dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    np = port_ptr (port_id (n->dstInterface.devPort.devNum,
+                            n->dstInterface.devPort.portNum));
+  }
+
+  if (np == op) {
+    st = PAS_OK;
+    goto out;
+  }
+
+  if (np) {
+    psec_lock (np);
+
+    st = PAS_OK;
+    if (!np->psec_enabled) {
+      np->psec_naddrs += 1;
+      goto upd_old;
+    } else {
+      if (np->psec_naddrs >= np->psec_max_addrs) {
+        st = PAS_LIMIT;
+        goto out_unlock_np;
+      }
+      np->psec_naddrs += 1;
+      if (np->psec_naddrs == np->psec_max_addrs)
+        __psec_limit_reached (np);
+    }
+  }
+
+ upd_old:
+  if (op) {
+    psec_lock (op);
+
+    if (op->psec_naddrs-- == op->psec_max_addrs)
+      __psec_limit_left (op);
+
+    if (op->psec_naddrs < 0)
+      op->psec_naddrs = 0;
+
+    psec_unlock (op);
+  }
+
+ out_unlock_np:
+  if (np)
+    psec_unlock (np);
+ out:
+  return st;
+}
+
+void
+psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *o)
+{
+  struct port *op;
+
+  if (o->key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E
+      && o->dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    op = port_ptr (port_id (o->dstInterface.devPort.devNum,
+                            o->dstInterface.devPort.portNum));
+    if (op) {
+      op->psec_naddrs -= 1;
+    }
+  }
+}
+
+void
+psec_after_flush (void)
+{
+  int p;
+
+  for (p = 0; p < nports; p++) {
+    struct port *port = &ports[p];
+
+    psec_lock (port);
+
+    if (port->psec_naddrs < 0)
+      port->psec_naddrs = 0;
+
+    if (port->psec_enabled) {
+      if (port->psec_naddrs < port->psec_max_addrs) {
+        __psec_limit_left (port);
+      }
+    }
+
+    psec_unlock (port);
+  }
+}
+
+
+static void
+__psec_enable (struct port *port)
+{
+  if (port->psec_enabled) {
+    switch (port->psec_mode) {
+    case PSECM_LOCK:
+      __psec_disable_learning (port);
+      break;
+    case PSECM_MAX_ADDRS:
+      if (port->psec_naddrs >= port->psec_max_addrs)
+        __psec_disable_learning (port);
+      else
+        __psec_enable_learning (port);
+    }
+  } else {
+    __psec_enable_learning (port);
+  }
+}
+
+enum status
+psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interval)
+{
+  struct port *port;
+  int do_enable;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  enable = !!enable;
+
+  if (!in_range (act, PSECA_FORWARD, PSECA_RESTRICT))
+    return ST_BAD_VALUE;
+
+  if (trap_interval == 0)
+    trap_interval = 30;
+  if (!in_range (trap_interval, 1, 1000000))
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  do_enable = port->psec_enabled != enable;
+
+  port->psec_enabled = enable;
+  port->psec_action = act;
+  port->psec_trap_interval = trap_interval;
+
+  sec_port_na_delay_set (pid, trap_interval);
+  sec_moved_static_delay_set (pid, trap_interval);
+
+  if (do_enable)
+    __psec_enable (port);
+
+  psec_unlock (port);
+
+  return ST_OK;
+}
+
+enum status
+psec_enable_na_sb (port_id_t pid, int enable)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  psec_lock (port);
+
+  if (enable) {
+    if (port->psec_action == PSECA_RESTRICT
+        && (port->psec_mode == PSECM_LOCK
+            || (port->psec_mode == PSECM_MAX_ADDRS
+                && port->psec_naddrs >= port->psec_max_addrs))) {
+      CRP (cpssDxChBrgSecurBreachNaPerPortSet
+           (port->ldev, port->lport, GT_TRUE));
+    }
+  } else {
+    CRP (cpssDxChBrgSecurBreachNaPerPortSet
+         (port->ldev, port->lport, GT_FALSE));
+  }
+
+  psec_unlock (port);
+
+  return ST_OK;
 }

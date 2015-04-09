@@ -77,18 +77,19 @@ data_decode_stp_state (CPSS_STP_STATE_ENT *cs, enum port_stp_state state)
 }
 
 void
-data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
+data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
 {
   GT_U32 i;
-  port_id_t pid;
+  port_id_t p;
 
   for (i = 0; i < FDB_MAX_ADDRS; i++) {
     if (fdb[i].valid &&
         fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
         (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&
         fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E &&
-        (pid = port_id (fdb[i].me.dstInterface.devPort.devNum,
-                        fdb[i].me.dstInterface.devPort.portNum))) {
+        ((p = port_id (fdb[i].me.dstInterface.devPort.devNum,
+                      fdb[i].me.dstInterface.devPort.portNum)) &&
+         (pid == ALL_PORTS || pid == p))) {
       struct {
         struct mac_entry me;
         port_id_t ports[1];
@@ -97,7 +98,7 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid)
       memcpy (tmp.me.mac, fdb[i].me.key.key.macVlan.macAddr.arEther, 6);
       tmp.me.vid = fdb[i].me.key.key.macVlan.vlanId;
       tmp.me.dynamic = !fdb[i].me.isStatic;
-      tmp.ports[0] = pid;
+      tmp.ports[0] = p;
 
       zmsg_addmem (msg, &tmp, sizeof (tmp));
     }

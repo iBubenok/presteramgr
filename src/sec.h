@@ -3,10 +3,11 @@
 
 #include <control-proto.h>
 #include <sysdeps.h>
-    
+#include <port.h>
+
 #define SEC_EVENT_NOTIFY_EP  "inproc://sec-notify"
 #define SEC_PUBSUB_EP  "inproc://sec-pubsub"
-    
+
 extern enum status sec_port_na_delay_set (port_id_t, uint32_t);
 extern enum status sec_moved_static_delay_set (port_id_t, uint32_t);
 extern enum status sec_handle_security_breach_updates (GT_U8, GT_U32);
