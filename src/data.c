@@ -97,7 +97,12 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
 
       memcpy (tmp.me.mac, fdb[i].me.key.key.macVlan.macAddr.arEther, 6);
       tmp.me.vid = fdb[i].me.key.key.macVlan.vlanId;
-      tmp.me.dynamic = !fdb[i].me.isStatic;
+      if (fdb[i].secure)
+        tmp.me.type = MET_SECURE;
+      else if (fdb[i].me.isStatic)
+        tmp.me.type = MET_STATIC;
+      else
+        tmp.me.type = MET_DYNAMIC;
       tmp.ports[0] = p;
 
       zmsg_addmem (msg, &tmp, sizeof (tmp));
