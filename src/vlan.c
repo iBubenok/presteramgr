@@ -330,13 +330,13 @@ vlan_add_range (uint16_t size, vid_t* arr)
   while (size) {
     if ( IS_IN_RANGE (*arr) ) {
     	vid_t v;
-    	for (v = (*arr - 10000); v <= (*(arr+1) - 10000); v++) {
+    	for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
     		if ( (result = vlan_add (v)) != ST_OK ) {
     			return result;
     		}
     	}
       if (size) {
-    	  arr += 2*sizeof (vid_t);
+    	  arr += 2;
     	  size -= 2;
       }
     } else {
@@ -383,19 +383,23 @@ vlan_delete_range (uint16_t size, vid_t* arr)
   while (size) {
     if ( IS_IN_RANGE (*arr) ) {
       vid_t v;
-      for (v = (*arr - 10000); v <= (*(arr+1) - 10000); v++) {
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
         if ( (result = vlan_delete (v)) != ST_OK ) {
           return result;
         }
       }
-      arr += 2*sizeof (vid_t);
-      size -= 2;
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
     } else {
       if ( (result = vlan_delete (*arr)) != ST_OK ) {
           return result;
       }
-      arr++;
-      size--;
+      if (size) {
+        arr++;
+        size--;
+      }
     }
   }
   
@@ -571,19 +575,23 @@ vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
   while (size) {
     if ( IS_IN_RANGE (*arr) ) {
       vid_t v;
-      for (v = (*arr - 10000); v <= (*(arr+1) - 10000); v++) {
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
         if ( (result = vlan_set_cpu (v, cpu)) != ST_OK ) {
           return result;
         }
       }
-      arr += 2*sizeof (vid_t);
-      size -= 2;
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
     } else {
       if ( (result = vlan_set_cpu (*arr, cpu)) != ST_OK ) {
           return result;
       }
-      arr++;
-      size--;
+      if (size) {
+        arr++;
+        size--;
+      }
     }
   }
   

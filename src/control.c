@@ -701,6 +701,7 @@ DEFINE_HANDLER (CC_VLAN_ADD)
   }
 
  out:
+  DEBUG("CC_VLAN_ADD returns %d\r\n", result);
   report_status (result);
 }
 
@@ -733,6 +734,7 @@ DEFINE_HANDLER (CC_VLAN_DELETE)
   }
 
  out:
+  DEBUG("CC_VLAN_DELETE returns %d\r\n", result);
   report_status (result);
 }
 
@@ -1258,6 +1260,7 @@ DEFINE_HANDLER (CC_VLAN_SET_CPU)
   }
 
  out:
+  DEBUG("CC_VLAN_SET_CPU returns %d\r\n", result);
   report_status (result);
 }
 
