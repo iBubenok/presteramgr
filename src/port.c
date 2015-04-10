@@ -3122,6 +3122,7 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
 
   sec_port_na_delay_set (pid, trap_interval);
   sec_moved_static_delay_set (pid, trap_interval);
+  sec_port_na_enable (port, gt_bool (enable && act == PSECA_RESTRICT));
 
   if (do_enable)
     __psec_enable (port);
