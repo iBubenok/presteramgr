@@ -32,6 +32,11 @@ get_system_params (void)
   pthread_attr_getstacksize (&attr, &sysdeps_default_stack_size);
 }
 
+volatile unsigned bpdu_count=0;
+void sys_info(void) {
+  DEBUG("BPDU's ==%u", bpdu_count);
+}
+
 static void
 sysd_setup_cpu_codes (void)
 {
@@ -54,7 +59,26 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ALL_CPU_OPCODES_E, &cce));
 
-    cce.tc = 7;
+    CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce_stp = {
+      .tc = 6,
+      .dp = CPSS_DP_GREEN_E,
+      .truncate = GT_FALSE,
+      .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
+      .cpuCodeRateLimiterIndex = 1,
+      .cpuCodeStatRateLimitIndex = 1,
+      .designatedDevNumIndex = 1
+    };
+    CRP (cpssDxChNetIfCpuCodeRateLimiterWindowResolutionSet
+         (d, 180000));
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+        (d, 1, 4095, 10));
+//        (d, 1, 100 ))
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 1, 0xFFFFFFFF));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_stp));
+
+     cce.tc = 7;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
