@@ -323,6 +323,36 @@ vlan_add (vid_t vid)
 }
 
 enum status
+vlan_add_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+    	vid_t v;
+    	for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+    		if ( (result = vlan_add (v)) != ST_OK ) {
+    			return result;
+    		}
+    	}
+      if (size) {
+    	  arr += 2;
+    	  size -= 2;
+      }
+    } else {
+    	if ( (result = vlan_add (*arr)) != ST_OK ) {
+    			return result;
+    	}
+      if (size) {
+    	  arr++;
+    	  size--;
+      }
+    }
+  }
+  return ST_OK;
+}
+
+enum status
 vlan_delete (vid_t vid)
 {
   GT_STATUS rc;
@@ -343,6 +373,37 @@ vlan_delete (vid_t vid)
   default:
     return ST_HEX;
   }
+}
+
+enum status
+vlan_delete_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_delete (v)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_delete (*arr)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+  
+  return ST_OK;
 }
 
 int
@@ -504,6 +565,37 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
     vlan_clear_mac_addr (vlan);
 
   return pdsa_vlan_if_op (vid, cpu);
+}
+
+enum status
+vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_set_cpu (v, cpu)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_set_cpu (*arr, cpu)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+  
+  return ST_OK;
 }
 
 enum status
