@@ -2114,7 +2114,7 @@ port_setup_ge (struct port *port)
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x3));
   CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x10, 0x1AA7));
+       (port->ldev, port->lport, 0x10, 0x1777));
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x11, 0x8845));
   /* END: Configure LEDs. */
