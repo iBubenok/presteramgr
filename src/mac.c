@@ -10,6 +10,7 @@
 #include <port.h>
 #include <vlan.h>
 #include <dev.h>
+#include <mcg.h>
 #include <utils.h>
 #include <debug.h>
 #include <log.h>
@@ -46,6 +47,9 @@ mac_mc_ip_op (const struct mc_ip_op_arg *arg)
 {
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
+
+  if (!mcg_exists (arg->mcg))
+    return ST_DOES_NOT_EXIST;
 
   return fdb_ctl (FCC_MC_IP_OP, arg, sizeof (*arg));
 }

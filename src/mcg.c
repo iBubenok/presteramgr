@@ -65,6 +65,16 @@ mcg_delete (mcg_t mcg)
   return ST_OK;
 }
 
+int
+mcg_exists (mcg_t mcg)
+{
+  struct mcast_group *group;
+  int key = mcg;
+
+  HASH_FIND_INT (groups, &key, group);
+  return group ? 1 : 0;
+}
+
 enum status
 mcg_add_port (mcg_t mcg, port_id_t pid)
 {
