@@ -48,7 +48,7 @@ mac_mc_ip_op (const struct mc_ip_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  if (!mcg_exists (arg->mcg))
+  if (!arg->delete && !mcg_exists (arg->mcg))
     return ST_DOES_NOT_EXIST;
 
   return fdb_ctl (FCC_MC_IP_OP, arg, sizeof (*arg));
