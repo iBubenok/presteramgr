@@ -578,6 +578,7 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     break;
   case FCC_MC_IP_OP:
     status = fdb_mac_mc_ip_op (arg);
+    break;
   case FCC_FLUSH:
     status = fdb_flush (arg);
     break;
