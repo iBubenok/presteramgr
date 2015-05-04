@@ -28,6 +28,9 @@ mcg_create (mcg_t mcg)
   int key = mcg;
   int i, d;
 
+  if (!mcg_valid (mcg))
+    return ST_BAD_VALUE;
+
   HASH_FIND_INT (groups, &key, group);
   if (group)
     return ST_ALREADY_EXISTS;
