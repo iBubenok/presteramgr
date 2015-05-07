@@ -1,7 +1,7 @@
-05.05.2015 Artem Mirgalyamov <amirgalyamov@plgn.ru>
-
-  * TRUNK: turn on traffic distribution within trunk. 
-
 06.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * QoS: fix unappropriate transmit queues shared resource (descriptors/buffers) distribution leading to QoS instability for more streams than 4. correct shared resources distributuion for BobCat FE since it has reduced resources pools
+
+05.05.2015 Artem Mirgalyamov <amirgalyamov@plgn.ru>
+
+  * TRUNK: turn on traffic distribution within trunk.
