@@ -1,3 +1,7 @@
+07.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * QoS: fix corrected stack ports initialization and here from now QoS L2/L3 traffic is unconditionally trusted from stack ports.
+
 06.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * QoS: fix unappropriate transmit queues shared resource (descriptors/buffers) distribution leading to QoS instability for more streams than 4. correct shared resources distributuion for BobCat FE since it has reduced resources pools
