@@ -399,7 +399,8 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
-  CRP (cpssDxChCosPortQosTrustModeSet (port->ldev, port->lport, CPSS_QOS_PORT_TRUST_L2_L3_E));
+  CRP (cpssDxChCosTrustDsaTagQosModeSet
+       (port->ldev, port->lport, GT_TRUE));
 }
 
 static void
