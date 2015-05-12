@@ -1,3 +1,7 @@
+08.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * QoS: fix corrected stack ports initialization and here from now QoS field in DSA-tag is trusted in traffic from stack ports, instead QoS L2/L3 fields. Congrats for Victory Day for all developers! Long Live Glorious Red Army!
+
 07.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * QoS: fix corrected stack ports initialization and here from now QoS L2/L3 traffic is unconditionally trusted from stack ports.
