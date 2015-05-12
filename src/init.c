@@ -816,6 +816,8 @@ cpss_start (void)
     return;
   }
 
+  event_start_notify_thread();
+
   init_cpss ();
   if (just_reset) {
     exit (EXIT_SUCCESS);
