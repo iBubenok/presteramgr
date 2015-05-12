@@ -1994,7 +1994,7 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       div = 5120;
     } else {
       if (IS_GE_PORT (pid - 1)) {
-        div = 5120;
+        div = 512000;
       } else {
         div = 51200;
       }
