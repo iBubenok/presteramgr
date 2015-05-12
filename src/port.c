@@ -1989,7 +1989,17 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       cfg.enableUcUnk = GT_FALSE;
     }
 
-    div = IS_XG_PORT (pid - 1) ? 5120 : 51200;
+    //div = IS_XG_PORT (pid - 1) ? 5120 : 51200;
+    if (IS_XG_PORT (pid - 1)) {
+      div = 5120;
+    } else {
+      if (IS_GE_PORT (pid - 1)) {
+        div = 5120;
+      } else {
+        div = 51200;
+      }
+    }
+
     cfg.rateLimit = (rl->limit / div) ? : 1;
   } else {
     cfg.enableBc = GT_FALSE;
