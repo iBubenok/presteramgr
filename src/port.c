@@ -1820,14 +1820,14 @@ enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 {
   const uint16_t mode_100mbps = 0x8203; /* 1000 0010 0000 0011 */
-  const uint16_t mode_1000mbps = 0x8206; /* 1000 0010 0000 0110 */
+  const uint16_t mode_1000mbps = 0x8206; /*1000 0010 0000 0110 */
   
   GT_STATUS rc;
   GT_U16 pg;
-  uint16_t page = 6, reg = 20, val;
+  const uint16_t page = 6, reg = 20;
+  uint16_t val;
   struct port *port = port_ptr (pid);
   
-  /* These return op in default branch is temporary */
   switch (mode) {
     case PSM_100: val = mode_100mbps; break;
     case PSM_1000: val = mode_1000mbps; break;
@@ -1838,22 +1838,11 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     return ST_BAD_VALUE;
 
   phy_lock();
-#if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
-#endif
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x16, &pg));
   if (rc != GT_OK)
     goto out;
 
-#if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
-#endif /* XXX Achtung! Lebensgefahr! */
     rc = CRP (cpssDxChPhyPortSmiRegisterWrite
               (port->ldev, port->lport, 0x16, page));
   if (rc != GT_OK)
@@ -1868,20 +1857,15 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
             (port->ldev, port->lport, 0x16, pg));
   if (rc != GT_OK)
     goto out;
-#if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
-#endif
 
  out:
   phy_unlock();
   switch (rc) {
-  case GT_OK:            return ST_OK;
-  case GT_HW_ERROR:      return ST_HW_ERROR;
-  case GT_BAD_PARAM:     return ST_BAD_VALUE;
-  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
-  default:               return ST_HEX;
+    case GT_OK:            return ST_OK;
+    case GT_HW_ERROR:      return ST_HW_ERROR;
+    case GT_BAD_PARAM:     return ST_BAD_VALUE;
+    case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+    default:               return ST_HEX;
   }
 }
 
