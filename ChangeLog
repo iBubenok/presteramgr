@@ -1,3 +1,7 @@
+13.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: implement BobCat FE only software PHY's link status polling replacing hardware polling. implement event.c zmq and tipc port link status notify messages in separate thread.
+
 08.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * QoS: fix corrected stack ports initialization and here from now QoS field in DSA-tag is trusted in traffic from stack ports, instead QoS L2/L3 fields. Congrats for Victory Day for all developers! Long Live Glorious Red Army!

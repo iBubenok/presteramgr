@@ -17,6 +17,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <sys/prctl.h>
 
 #include <presteramgr.h>
 #include <debug.h>
@@ -305,6 +307,7 @@ notify_thread(void *_) {
   zmq_pollitem_t tnot_pi = { not_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &tnot_pi, notify_evt_handler, tnot_sock);
 
+  prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
   notify_thread_started = 1;
 
   zloop_start(loop);
