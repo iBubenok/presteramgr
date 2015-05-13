@@ -565,7 +565,8 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
-  CRP (cpssDxChCosPortQosTrustModeSet (port->ldev, port->lport, CPSS_QOS_PORT_TRUST_L2_L3_E));
+  CRP (cpssDxChCosTrustDsaTagQosModeSet
+       (port->ldev, port->lport, GT_TRUE));
 }
 
 static void
@@ -2195,7 +2196,26 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       cfg.enableUcUnk = GT_FALSE;
     }
 
-    div = IS_XG_PORT (pid - 1) ? 5120 : 51200;
+    /*
+       For devices with FE ports (3424FE, 3424PFE, SM12F),
+       divider must be 10 times higher, when current port is GE port.
+    */
+    #if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE) || defined (VARIANT_SM_12F)
+
+              if (IS_XG_PORT (pid - 1)) {
+                div = 5120;
+              } else {
+                if (IS_GE_PORT (pid - 1)) {
+                  div = 512000;
+                } else {
+                  div = 51200;
+                }
+              }
+
+    #else
+              div = IS_XG_PORT (pid - 1) ? 5120 : 51200;
+    #endif
+
     cfg.rateLimit = (rl->limit / div) ? : 1;
   } else {
     cfg.enableBc = GT_FALSE;
