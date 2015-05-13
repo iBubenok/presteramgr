@@ -291,7 +291,6 @@ void *not_sock;
 
 static void
 notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
-fprintf(stderr, "port:notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLinkUp, attrs->portSpeed, attrs->portDuplexity);
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   zmsg_addmem (msg, &pid, sizeof (pid));
@@ -299,20 +298,16 @@ fprintf(stderr, "port:notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLin
   zmsg_send (&msg, not_sock);
 }
 
-/* CPSS emulation for sofware polling mode for 88e308[23], 88e1340, 88e1322 PHY's */
+/* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling
+ * mode for 88e308[23], 88e1340, 88e1322 PHY's */
 static enum status
 phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_STC *attrs, int link_up) {
   GT_U16 reg;
 
   phy_lock();
-/*  CRP (cpssDxChPhyPortSmiRegisterRead
-       (ldev, lport, 0x01, &reg));
-  attrs->portLinkUp = (reg & 4) ? GT_TRUE : GT_FALSE;
-*/
   CRP (cpssDxChPhyPortSmiRegisterRead
        (ldev, lport, 0x11, &reg));
   phy_unlock();
-//  attrs->portLinkUp = (reg & 0x0400) ? GT_TRUE : GT_FALSE;
 
   attrs->portLinkUp = (link_up) ? GT_TRUE : GT_FALSE;
   if (! (reg & 0x0800) && attrs->portLinkUp)
@@ -359,10 +354,8 @@ phy_handle_link_change (struct port *port, int link_up)
   CPSS_PORT_ATTRIBUTES_STC attrs;
   rc = phy_get_attibutes(port->ldev, port->lport, port->id, &attrs, link_up);
   if (rc != ST_OK) {
-    DEBUG("HEEEEEEEEEX!!!!!\n");
     return rc;
   }
-fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
   notify_port_state (port->id, &attrs);
 
   port_lock ();
@@ -371,7 +364,7 @@ fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = attrs;
-#define DEBUG_STATE //TODO remove
+//#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
     if (attrs.portLinkUp)
       osPrintSync ("port %2d link up at %s, %s\n", port->id,
@@ -390,7 +383,6 @@ fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
 static volatile int phy_thread_started = 0;
 
 #define PHY_POLLING_INTERVAL 100  /* millisecs */
-//#define PHY_POLLING_INTERVAL 10  /* millisecs */
 
 static void*
 phy_polling_thread(void *numports) {
@@ -398,13 +390,11 @@ phy_polling_thread(void *numports) {
   GT_U16 reg;
   struct timespec ts = {0, PHY_POLLING_INTERVAL * 1000000};
   int port_status[NPORTS+1];
-  long long pc[NPORTS+1];
   unsigned np = *(unsigned *)numports;
 
   unsigned i;
   for (i = 1; i <= np; i++) {
     port_status[i] = 0;
-    pc[i]=0;
   }
 
   prctl(PR_SET_NAME, "PHY-poller", 0, 0, 0);
@@ -420,11 +410,9 @@ phy_polling_thread(void *numports) {
     nanosleep(&ts, NULL);
     phy_lock();
     for (i = 1; i <= np; i++) {
-      pc[i]++;
       struct port* port = port_ptr (i);
       rc = CRP (cpssDxChPhyPortSmiRegisterRead
                 (port->ldev, port->lport, 0x01, &reg));
-//DEBUG("phy: %d rc==%d, reg==%hx\n", i, rc, reg);
       int link_up = reg & 4;
       if (port_status[i] && !link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
@@ -433,8 +421,6 @@ phy_polling_thread(void *numports) {
         phy_handle_link_change(port, 0);
         phy_lock();
         port_status[i] = 0;
-fprintf(stderr, "PORT #%d is down, pc==%lld\n", i, pc[i]);
-      pc[i]=0;
       } else
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
@@ -443,8 +429,6 @@ fprintf(stderr, "PORT #%d is down, pc==%lld\n", i, pc[i]);
         phy_handle_link_change(port, 1);
         phy_lock();
         port_status[i] = 1;
-fprintf(stderr, "PORT #%d is up, pc==%lld\n", i, pc[i]);
-      pc[i]=0;
       }
     }
     phy_unlock();
@@ -822,7 +806,6 @@ port_set_sgmii_mode (const struct port *port)
         (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
   CRPR (cpssDxChPortSerdesPowerStatusSet
         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
-/*  CRPR (cpssDxChPortInbandAutoNegEnableSet (port->ldev, port->lport, GT_TRUE)); */
 
   return GT_OK;
 }
@@ -855,7 +838,6 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
   if (attrs->portLinkUp    != port->state.attrs.portLinkUp ||
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
-fprintf(stderr, "ELINK is %d\n", attrs->portLinkUp);
     port->state.attrs = *attrs;
 //#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
@@ -1445,18 +1427,24 @@ port_update_sd_ge (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#endif
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#endif
       reg &= ~((1 << 6) | (1 << 8));
       break;
     case PORT_DUPLEX_AUTO:
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+#endif
       break;
     default:
       break;
@@ -1490,12 +1478,16 @@ port_update_sd_ge (struct port *port)
       goto out;
 
     if (port->c_duplex == PORT_DUPLEX_FULL) {
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#endif
       reg |= 1 << 8;
     }else {
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#endif
       reg &= ~(1 << 8);
     }
 
@@ -1563,18 +1555,18 @@ port_update_sd_fe (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~((1 << 6) | (1 << 8));
       break;
     case PORT_DUPLEX_AUTO:
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
@@ -1603,12 +1595,12 @@ port_update_sd_fe (struct port *port)
       goto out;
 
     if (port->c_duplex == PORT_DUPLEX_FULL) {
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg |= 1 << 8;
     }else {
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~(1 << 8);
     }
 
