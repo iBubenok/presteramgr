@@ -1820,7 +1820,7 @@ enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 {
   const uint16_t mode_100mbps = 0x8203; /* 1000 0010 0000 0011 */
-  const uint16_t mode_1000mbps = 0x8206; /*1000 0010 0000 0110 */
+  const uint16_t mode_1000mbps = 0x8207; /*1000 0010 0000 0111 */
   
   GT_STATUS rc;
   GT_U16 pg;
