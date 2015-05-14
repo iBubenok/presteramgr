@@ -1,0 +1,19 @@
+13.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: implement BobCat FE only software PHY's link status polling replacing hardware polling. implement event.c zmq and tipc port link status notify messages in separate thread.
+
+08.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * QoS: fix corrected stack ports initialization and here from now QoS field in DSA-tag is trusted in traffic from stack ports, instead QoS L2/L3 fields. Congrats for Victory Day for all developers! Long Live Glorious Red Army!
+
+07.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * QoS: fix corrected stack ports initialization and here from now QoS L2/L3 traffic is unconditionally trusted from stack ports.
+
+06.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * QoS: fix unappropriate transmit queues shared resource (descriptors/buffers) distribution leading to QoS instability for more streams than 4. correct shared resources distributuion for BobCat FE since it has reduced resources pools
+
+05.05.2015 Artem Mirgalyamov <amirgalyamov@plgn.ru>
+
+  * TRUNK: turn on traffic distribution within trunk.

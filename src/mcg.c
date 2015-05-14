@@ -28,6 +28,9 @@ mcg_create (mcg_t mcg)
   int key = mcg;
   int i, d;
 
+  if (!mcg_valid (mcg))
+    return ST_BAD_VALUE;
+
   HASH_FIND_INT (groups, &key, group);
   if (group)
     return ST_ALREADY_EXISTS;
@@ -63,6 +66,16 @@ mcg_delete (mcg_t mcg)
     CRP (cpssDxChBrgMcGroupDelete (d, mcg));
 
   return ST_OK;
+}
+
+int
+mcg_exists (mcg_t mcg)
+{
+  struct mcast_group *group;
+  int key = mcg;
+
+  HASH_FIND_INT (groups, &key, group);
+  return group ? 1 : 0;
 }
 
 enum status

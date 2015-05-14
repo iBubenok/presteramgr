@@ -11,7 +11,6 @@
 #include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInit.h>
 
 #include <control-proto.h>
-#include <port.h>
 
 #define FDB_MAX_ADDRS 16384
 

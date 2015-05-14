@@ -17,6 +17,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <sys/prctl.h>
 
 #include <presteramgr.h>
 #include <debug.h>
@@ -26,13 +28,16 @@
 #include <data.h>
 #include <tipc.h>
 #include <mac.h>
+#include <sec.h>
 #include <zcontext.h>
 #include <sysdeps.h>
+#include <variant.h>
 
 #include <czmq.h>
 
 
 static void *pub_sock;
+static void *not_sock;
 static void *fdb_sock;
 
 static zmsg_t *
@@ -69,7 +74,7 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 }
 
 static void
-notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+thr_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_id (msg, pid);
@@ -89,6 +94,14 @@ notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
   }
 }
 
+static void
+notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, attrs, sizeof (*attrs));
+  zmsg_send (&msg, not_sock);
+}
 
 DECLSHOW (CPSS_PORT_SPEED_ENT);
 DECLSHOW (CPSS_PORT_DUPLEX_ENT);
@@ -96,8 +109,11 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   /* CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, */
+#ifndef VARIANT_FE
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
-  CPSS_PP_EB_AUQ_PENDING_E
+#endif
+  CPSS_PP_EB_AUQ_PENDING_E,
+  CPSS_PP_EB_SECURITY_BREACH_UPDATE_E
 };
 #define EVENT_NUM ARRAY_SIZE (events)
 
@@ -126,6 +142,26 @@ static inline int
 eventp (CPSS_UNI_EV_CAUSE_ENT e, const GT_U32 *b)
 {
   return b [e >> 5] & (1 << (e & 0x1f));
+}
+
+static GT_STATUS
+event_handle_security_breach_update(CPSS_UNI_EV_CAUSE_ENT evt) {
+
+  GT_U32 edata;
+  GT_U8 dev;
+  GT_STATUS rc;
+  unsigned long long nn = 0;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              evt,
+                              &edata, &dev)) == GT_OK)
+    nn++;
+  if (rc == GT_NO_MORE) {
+    sec_handle_security_breach_updates (dev, edata);
+  }else {
+    DEBUG("unappropriate GT_STATUS == %d after security breach events masspop\n", rc);
+  }
+  return GT_OK;
 }
 
 static GT_STATUS
@@ -219,6 +255,9 @@ event_enter_loop (void)
     if (rc != GT_OK)
       continue;
 
+    if (eventp (CPSS_PP_EB_SECURITY_BREACH_UPDATE_E, ebmp)){
+      event_handle_security_breach_update(CPSS_PP_EB_SECURITY_BREACH_UPDATE_E);
+    }
     if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp))
       event_handle_aging_done ();
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
@@ -228,13 +267,76 @@ event_enter_loop (void)
   }
 }
 
-void
-event_init (void)
+static int
+notify_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 {
+  zmsg_t *msg = zmsg_recv (not_sock);
+
+  zframe_t *frame = zmsg_first (msg);
+  port_id_t pid = *((port_id_t *) zframe_data (frame));
+  assert(zframe_size(frame) == sizeof(pid));
+
+  frame = zmsg_next(msg);
+  assert(frame);
+  CPSS_PORT_ATTRIBUTES_STC *attrs = (CPSS_PORT_ATTRIBUTES_STC *) zframe_data(frame);
+  assert(zframe_size(frame) == sizeof(CPSS_PORT_ATTRIBUTES_STC));
+
+  thr_notify_port_state (pid, attrs);
+
+  zmsg_destroy (&msg);
+
+  return 0;
+}
+
+volatile static int notify_thread_started = 0;
+
+static void*
+notify_thread(void *_) {
+  void *tnot_sock;
+  zloop_t  *loop = zloop_new ();
+  assert (loop);
+
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
 
+  tnot_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (tnot_sock);
+  zsocket_bind (tnot_sock, NOTIFY_QUEUE_EP);
+
+  zmq_pollitem_t tnot_pi = { not_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &tnot_pi, notify_evt_handler, tnot_sock);
+
+  prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
+  notify_thread_started = 1;
+
+  zloop_start(loop);
+
+  return NULL;
+}
+
+void
+event_start_notify_thread (void) {
+  pthread_t tid;
+  pthread_create (&tid, NULL, notify_thread, NULL);
+
+  DEBUG ("waiting for event notify thread startup\r\n");
+  unsigned n = 0;
+  while (!notify_thread_started) {
+    n++;
+    usleep (10000);
+  }
+  DEBUG ("event notify thread startup finished after %u iteractions\r\n", n);
+
+  not_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  assert (not_sock);
+  zsocket_connect (not_sock, NOTIFY_QUEUE_EP);
+
+}
+
+void
+event_init (void)
+{
   fdb_sock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (fdb_sock);
   zsocket_connect (fdb_sock, FDB_NOTIFY_EP);

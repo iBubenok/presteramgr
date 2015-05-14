@@ -15,6 +15,7 @@
 #include <linux/pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
+#include <sec.h>
 #include <qos.h>
 #include <zcontext.h>
 #include <debug.h>
@@ -46,6 +47,7 @@ static void *inp_pub_sock;
 static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
+static void *sec_sock;
 
 
 static void *
@@ -90,6 +92,10 @@ control_init (void)
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
+
+  sec_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (sec_sock);
+  zsocket_connect (sec_sock, SEC_PUBSUB_EP);
 
   rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (rtbd_sock);
@@ -281,6 +287,9 @@ DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
+DECLARE_HANDLER (CC_PSEC_SET_MODE);
+DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
+DECLARE_HANDLER (CC_PSEC_ENABLE);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -380,13 +389,24 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_DHCP_TRAP_ENABLE),
-  HANDLER (CC_VLAN_MC_ROUTE)
+  HANDLER (CC_VLAN_MC_ROUTE),
+  HANDLER (CC_PSEC_SET_MODE),
+  HANDLER (CC_PSEC_SET_MAX_ADDRS),
+  HANDLER (CC_PSEC_ENABLE)
 };
 
 static int
 evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (evt_sock);
+  notify_send (&msg);
+  return 0;
+}
+
+static int
+secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (sec_sock);
   notify_send (&msg);
   return 0;
 }
@@ -483,6 +503,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &evt_pi, evt_handler, NULL);
+
+  zmq_pollitem_t sec_pi = { sec_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &sec_pi, secbr_handler, NULL);
 
   zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);
@@ -675,30 +698,66 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
 DEFINE_HANDLER (CC_VLAN_ADD)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_add (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_add_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_add (size_or_vid);
+  }
 
  out:
+  DEBUG("CC_VLAN_ADD returns %d\r\n", result);
   report_status (result);
 }
 
 DEFINE_HANDLER (CC_VLAN_DELETE)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_delete (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_delete_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_delete (size_or_vid);
+  }
 
  out:
+  DEBUG("CC_VLAN_DELETE returns %d\r\n", result);
   report_status (result);
 }
 
@@ -946,6 +1005,7 @@ DEFINE_HANDLER (CC_MAC_LIST)
 {
   enum status result;
   vid_t vid;
+  port_id_t pid;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -956,8 +1016,17 @@ DEFINE_HANDLER (CC_MAC_LIST)
     goto err;
   }
 
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(pid == ALL_PORTS || port_ptr (pid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
   zmsg_t *reply = make_reply (ST_OK);
-  data_encode_fdb_addrs (reply, vid);
+  data_encode_fdb_addrs (reply, vid, pid);
   send_reply (reply);
   return;
 
@@ -1201,20 +1270,40 @@ DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
 DEFINE_HANDLER (CC_VLAN_SET_CPU)
 {
   enum status result;
-  vid_t vid;
+  vid_t size_or_vid;
   bool_t cpu;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&cpu);
-  if (result != ST_OK)
-    goto out;
+  if ( size_or_vid > 11000 ) { /* size */
+    uint16_t size = size_or_vid - 11000;
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
 
-  result = vlan_set_cpu (vid, cpu);
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu_range (size / 2, arr, cpu);
+
+    free (arr);
+  } else { /* vid */
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu (size_or_vid, cpu);
+  }
 
  out:
+  DEBUG("CC_VLAN_SET_CPU returns %d\r\n", result);
   report_status (result);
 }
 
@@ -2564,6 +2653,76 @@ DEFINE_HANDLER (CC_VLAN_MC_ROUTE)
     goto out;
 
   result = vlan_mc_route (vid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_SET_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  psec_mode_t mode;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_mode (pid, mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_SET_MAX_ADDRS)
+{
+  enum status result;
+  port_id_t pid;
+  psec_max_addrs_t max;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&max);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_max_addrs (pid, max);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  psec_action_t act;
+  uint32_t intv;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&act);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&intv);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_enable (pid, enable, act, intv);
 
  out:
   report_status (result);

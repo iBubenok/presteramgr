@@ -29,7 +29,17 @@ trunk_lib_init (void)
 void
 trunk_init (void)
 {
+  int dev;
+
   trunk_lib_init ();
+
+  for_each_dev (dev) {
+    CRP (cpssDxChTrunkHashGlobalModeSet (dev, CPSS_DXCH_TRUNK_LBH_PACKETS_INFO_E));
+    CRP (cpssDxChTrunkHashIpModeSet (dev, GT_TRUE));
+    CRP (cpssDxChTrunkHashL4ModeSet (dev, GT_TRUE));
+    CRP (cpssDxChTrunkHashIpAddMacModeSet (dev, GT_TRUE));
+  }
+
   memset (trunks, 0, sizeof (trunks));
 }
 
