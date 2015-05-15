@@ -301,12 +301,24 @@ notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
 /* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling
  * mode for 88e308[23], 88e1340, 88e1322 PHY's */
 static enum status
-phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_STC *attrs, int link_up) {
+phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_STC *attrs, int link_up, int fiber_used) {
   GT_U16 reg;
 
   phy_lock();
-  CRP (cpssDxChPhyPortSmiRegisterRead
-       (ldev, lport, 0x11, &reg));
+  if (fiber_used) {
+    GT_U16 preg;
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x16, &preg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (ldev, lport, 0x16, 0x01));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x11, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (ldev, lport, 0x16, preg));
+  }else {
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x11, &reg));
+  }
   phy_unlock();
 
   attrs->portLinkUp = (link_up) ? GT_TRUE : GT_FALSE;
@@ -347,12 +359,12 @@ phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_S
 }
 
 enum status
-phy_handle_link_change (struct port *port, int link_up)
+phy_handle_link_change (struct port *port, int link_up, int fiber_used)
 {
   GT_STATUS rc;
 
   CPSS_PORT_ATTRIBUTES_STC attrs;
-  rc = phy_get_attibutes(port->ldev, port->lport, port->id, &attrs, link_up);
+  rc = phy_get_attibutes(port->ldev, port->lport, port->id, &attrs, link_up, fiber_used);
   if (rc != ST_OK) {
     return rc;
   }
@@ -384,17 +396,23 @@ static volatile int phy_thread_started = 0;
 
 #define PHY_POLLING_INTERVAL 100  /* millisecs */
 
+enum phy_status {
+  PHS_NOLINK,
+  PHS_COPPER,
+  PHS_FIBER
+};
+
 static void*
 phy_polling_thread(void *numports) {
   GT_STATUS rc;
   GT_U16 reg;
   struct timespec ts = {0, PHY_POLLING_INTERVAL * 1000000};
-  int port_status[NPORTS+1];
+  enum phy_status port_status[NPORTS+1];
   unsigned np = *(unsigned *)numports;
 
   unsigned i;
   for (i = 1; i <= np; i++) {
-    port_status[i] = 0;
+    port_status[i] = PHS_NOLINK;
   }
 
   prctl(PR_SET_NAME, "PHY-poller", 0, 0, 0);
@@ -411,24 +429,67 @@ phy_polling_thread(void *numports) {
     phy_lock();
     for (i = 1; i <= np; i++) {
       struct port* port = port_ptr (i);
-      rc = CRP (cpssDxChPhyPortSmiRegisterRead
-                (port->ldev, port->lport, 0x01, &reg));
-      int link_up = reg & 4;
+      int fiber_used = 0;
+      int link_up = 0;
+
+      switch (port_status[i]) {
+        case PHS_NOLINK:
+          rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                    (port->ldev, port->lport, 0x01, &reg));
+          link_up = reg & 4;
+          if (!link_up && IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              fiber_used = 1;
+          }
+          break;
+        case PHS_COPPER:
+          rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                    (port->ldev, port->lport, 0x01, &reg));
+          link_up = reg & 4;
+          break;
+        case PHS_FIBER:
+          if (IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              fiber_used = 1;
+          } else
+            assert(0);
+      }
+
       if (port_status[i] && !link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
         phy_unlock();
-        phy_handle_link_change(port, 0);
+        phy_handle_link_change(port, 0, (port_status[i] == PHS_COPPER)? 0 : 1 );
         phy_lock();
-        port_status[i] = 0;
+        port_status[i] = PHS_NOLINK;
       } else
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_TRUE));
         phy_unlock();
-        phy_handle_link_change(port, 1);
+        phy_handle_link_change(port, 1, fiber_used);
         phy_lock();
-        port_status[i] = 1;
+        port_status[i] = (fiber_used)? PHS_FIBER : PHS_COPPER;
       }
     }
     phy_unlock();
