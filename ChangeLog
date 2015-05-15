@@ -1,5 +1,9 @@
 15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
+  * PHY: change software PHY's link status polling to prefer FIBER (SFP) over COPPER.
+
+15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
   * PHY: fix software PHY's link status polling to detect SFP link status too.
 
 13.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>

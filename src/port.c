@@ -434,10 +434,7 @@ phy_polling_thread(void *numports) {
 
       switch (port_status[i]) {
         case PHS_NOLINK:
-          rc = CRP (cpssDxChPhyPortSmiRegisterRead
-                    (port->ldev, port->lport, 0x01, &reg));
-          link_up = reg & 4;
-          if (!link_up && IS_GE_PORT(i-1)) {
+          if (IS_GE_PORT(i-1)) {
             GT_U16 preg;
             rc = CRP (cpssDxChPhyPortSmiRegisterRead
                       (port->ldev, port->lport, 0x16, &preg));
@@ -451,11 +448,34 @@ phy_polling_thread(void *numports) {
             if (link_up)
               fiber_used = 1;
           }
+          if (!link_up) {
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            link_up = reg & 4;
+          }
           break;
         case PHS_COPPER:
-          rc = CRP (cpssDxChPhyPortSmiRegisterRead
-                    (port->ldev, port->lport, 0x01, &reg));
-          link_up = reg & 4;
+          if (IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              {
+              fiber_used = 1;
+              }
+          }
+          if (!link_up) {
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            link_up = reg & 4;
+          }
           break;
         case PHS_FIBER:
           if (IS_GE_PORT(i-1)) {
@@ -473,9 +493,10 @@ phy_polling_thread(void *numports) {
               fiber_used = 1;
           } else
             assert(0);
+          break;
       }
 
-      if (port_status[i] && !link_up) {
+      if ((port_status[i] && !link_up) || ((port_status[i] == PHS_COPPER) && link_up && fiber_used)) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
         phy_unlock();
@@ -2382,8 +2403,11 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
+/*  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8207)); */
+/* set Auto Media Detect Preffered Media to "Fiber Preferred" */
   CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x8207));
+       (port->ldev, port->lport, 0x14, 0x8227));
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x4));
   CRP (cpssDxChPhyPortSmiRegisterWrite
