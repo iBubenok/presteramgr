@@ -1823,14 +1823,12 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   const uint16_t mode_1000mbps = 0x8207; /*1000 0010 0000 0111 */
   
   GT_STATUS rc;
-  GT_U16 pg;
-  const uint16_t page = 6, reg = 20;
-  uint16_t val;
+  uint16_t mode_val;
   struct port *port = port_ptr (pid);
   
   switch (mode) {
-    case PSM_100: val = mode_100mbps; break;
-    case PSM_1000: val = mode_1000mbps; break;
+    case PSM_100: mode_val = mode_100mbps; break;
+    case PSM_1000: mode_val = mode_1000mbps; break;
     default: return ST_BAD_VALUE;
   }
 
@@ -1838,25 +1836,68 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     return ST_BAD_VALUE;
 
   phy_lock();
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
+  rc = CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+       
   if (rc != GT_OK)
     goto out;
-
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
-
+       
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, reg, val));
+       (port->ldev, port->lport, 0x16, 0x6));
+       
   if (rc != GT_OK)
     goto out;
-
+       
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
+       (port->ldev, port->lport, 0x14, 0x8205));
+       
   if (rc != GT_OK)
     goto out;
+       
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+       
+  if (rc != GT_OK)
+    goto out;
+       
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+  
+  if (rc != GT_OK)
+    goto out;
+  
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1B, 0x4203));
+       
+  if (rc != GT_OK)
+    goto out;
+       
+  rc = CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+       
+  if (rc != GT_OK)
+    goto out;
+       
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+  
+  if (rc != GT_OK)
+    goto out;
+  
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, mode_val));
+  
+  if (rc != GT_OK)
+    goto out;
+  
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+       
+  if (rc != GT_OK)
+    goto out;
+       
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x9140));
 
  out:
   phy_unlock();
@@ -2434,6 +2475,41 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+       
+  /* my crap again */
+  //~ CRP (cpssDxChPhyPortAddrSet
+       //~ (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x16, 0x6));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x14, 0x8205));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x16, 0x4));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x00, 0x9140));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x1B, 0x4203));
+//~ 
+  //~ CRP (cpssDxChPhyPortAddrSet
+       //~ (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x16, 0x6));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x14, 0x8203));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x16, 0x4));
+       //~ 
+  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
+       //~ (port->ldev, port->lport, 0x14, 0x9140));
+  /* end of my crap */
 
   port_set_sgmii_mode (port);
 
