@@ -1,3 +1,7 @@
+22.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PktRateLimit: implement packet rate limits per distinct CPU_CODE. disable CPU Port Tx Shaper.
+
 13.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PHY: implement BobCat FE only software PHY's link status polling replacing hardware polling. implement event.c zmq and tipc port link status notify messages in separate thread.
