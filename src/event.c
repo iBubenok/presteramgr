@@ -249,6 +249,8 @@ event_enter_loop (void)
 
   intr_unlock (key);
 
+  prctl(PR_SET_NAME, "evt-loop", 0, 0, 0);
+
   while (1) {
     rc = CRP (cpssEventSelect (event_handle, NULL, ebmp,
                                CPSS_UNI_EV_BITMAP_SIZE_CNS));
