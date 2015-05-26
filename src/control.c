@@ -926,9 +926,6 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
   report_status (result);
 }
 
-extern void sys_info(void);
-extern volatile unsigned bpdu_count;
-
 DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
 {
   enum status result;
@@ -946,11 +943,6 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   result = POP_ARG (&reg);
   if (result != ST_OK)
     goto err;
-
-  if (page ==2000) {
-    val = 0;
-    sys_info();
-    }
 
   else {
   result = port_dump_phy_reg (pid, page, reg, &val);
@@ -1570,7 +1562,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
         type = CN_LLDP_MCAST;
         break;
       default:
-        bpdu_count++;
         tipc_notify_bpdu (pid, frame->len, frame->data);
         result = ST_OK;
         goto out;
