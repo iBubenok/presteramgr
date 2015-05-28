@@ -1802,24 +1802,79 @@ port_set_duplex_ge (struct port *port, enum port_duplex duplex)
 static enum status
 port_shutdown_ge (struct port *port, int shutdown)
 {
-  GT_STATUS rc;
+  GT_STATUS rc = GT_OK;
   GT_U16 reg;
 
   phy_lock();
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
-  if (rc != GT_OK)
-    goto out;
+  /* LEDs */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 22, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 29, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 30, shutdown ? 0x20 : 0));
+  /* END_LEDs */
 
-  if (shutdown)
-    reg |= (1 << 11);
-  else
-    reg &= ~(1 << 11);
+#if defined (VARIANT_FE)
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &reg));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00,
+       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  if (IS_GE_PORT (port->id -1)) { /* FIXME: maybe always true */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+  }
+#elif defined (VARIANT_GE)
+  enum {
+    IS_FIBER,
+    IS_COPPER,
+    IS_COMBO
+  } ptype;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
+#if defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#else /* !VARIANT_ARLAN_3448PGE */
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    ptype = IS_FIBER;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
+    break;
+  default:
+    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
+  }
+#endif /* VARIANT_* */
 
- out:
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &reg));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00,
+       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+
+  if ((ptype == IS_FIBER) || (ptype == IS_COMBO)) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+  }
+#endif
+
+// out:
   phy_unlock();
   switch (rc) {
   case GT_OK:       return ST_OK;
