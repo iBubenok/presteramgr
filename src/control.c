@@ -949,9 +949,11 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   if (result != ST_OK)
     goto err;
 
+  else {
   result = port_dump_phy_reg (pid, page, reg, &val);
   if (result != ST_OK)
     goto err;
+  }
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));

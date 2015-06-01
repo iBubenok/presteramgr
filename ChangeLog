@@ -1,3 +1,6 @@
+26.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PktRateLimit: fix removed debugging code artefacts.
 
 25.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
@@ -6,6 +9,7 @@
 22.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * arch: change set up naming for all explicitly started threads.
+  * PktRateLimit: implement packet rate limits per distinct CPU_CODE. disable CPU Port Tx Shaper.
 
 15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
