@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <linux/pdsa-mgmt.h>
 #include <pthread.h>
+#include <sys/prctl.h>
 #include <mgmt.h>
 #include <port.h>
 #include <control.h>
@@ -135,6 +136,8 @@ mgmt_thread (void *unused)
     ERR ("mgmt_tx(): %s\r\n", strerror (errno));
     return NULL;
   }
+
+  prctl(PR_SET_NAME, "mgmt", 0, 0, 0);
 
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {

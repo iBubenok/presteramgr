@@ -1,6 +1,11 @@
+
 25.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * FDB: fix FDB messages rate limits to 4000 msg/sec.
+
+22.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * arch: change set up naming for all explicitly started threads.
 
 15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
