@@ -1,3 +1,7 @@
+25.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * FDB: fix FDB messages rate limits to 4000 msg/sec.
+
 15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PHY: change software PHY's link status polling to prefer FIBER (SFP) over COPPER.

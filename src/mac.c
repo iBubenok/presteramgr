@@ -681,6 +681,7 @@ mac_start (void)
   fdb_flush (&fa);
 
   for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAuMsgRateLimitSet (d, 4000, GT_TRUE));
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
     CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (d, GT_TRUE));
   }
