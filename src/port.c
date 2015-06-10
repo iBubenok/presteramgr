@@ -2475,41 +2475,6 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
-       
-  /* my crap again */
-  //~ CRP (cpssDxChPhyPortAddrSet
-       //~ (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x16, 0x6));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x14, 0x8205));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x16, 0x4));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x00, 0x9140));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x1B, 0x4203));
-//~ 
-  //~ CRP (cpssDxChPhyPortAddrSet
-       //~ (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x16, 0x6));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x14, 0x8203));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x16, 0x4));
-       //~ 
-  //~ CRP (cpssDxChPhyPortSmiRegisterWrite
-       //~ (port->ldev, port->lport, 0x14, 0x9140));
-  /* end of my crap */
 
   port_set_sgmii_mode (port);
 
