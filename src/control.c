@@ -290,6 +290,9 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -392,7 +395,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
-  HANDLER (CC_PSEC_ENABLE)
+  HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_SOURCE_GUARD_ADD),
+  HANDLER (CC_SOURCE_GUARD_DELETE)
 };
 
 static int
@@ -1631,6 +1636,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (2):
+    printf("Packed trapped!\r\n");
+    result = ST_OK;
+    goto out;
+
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
     result = ST_OK;
@@ -2714,5 +2724,40 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
   result = psec_enable (pid, enable, act, intv);
 
  out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
+{
+  enum status result;
+  port_id_t pid;
+  mac_addr_t mac;
+  vid_t vid;
+  ip_addr_t ip;
+
+  DEBUG("CC_SOURCE_GUARD_ADD\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&mac)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&ip)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_rule_set (pid, mac, vid, ip);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
+{
+  enum status result;
+
+  DEBUG("CC_SOURCE_GUARD_DELETE\r\n");
+  result = ST_OK;
+// out:
   report_status (result);
 }

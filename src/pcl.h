@@ -13,5 +13,7 @@ extern enum status pcl_remove_vt (port_id_t, vid_t, int);
 extern void pcl_port_enable_vt (port_id_t, int);
 extern void pcl_port_clear_vt (port_id_t);
 extern enum status pcl_enable_mc_drop (port_id_t, int);
+extern void pcl_source_guard_drop_enable (port_id_t);
+extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t);
 
 #endif /* __PCL_H__ */

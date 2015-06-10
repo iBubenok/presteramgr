@@ -27,6 +27,9 @@
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
 
+#define PORT_IP_SOURCEGUARD_RULE_IX(n) (PORT_EPCL_DEF_IX (65) + (n)) /* n = 0, 1, .. */
+#define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) (1000 + (n))
+
 static struct stack {
   int sp;
   int n_free;
@@ -280,6 +283,113 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
     pcl_enable_vt (ix, 1);
 
   return ST_OK;
+}
+
+void
+pcl_source_guard_drop_enable (port_id_t pi) {
+  struct port *port = port_ptr (pi);
+  
+  if (is_stack_port(port))
+    return;
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+
+  memset (&mask, 0, sizeof (mask));
+  memset (&rule, 0, sizeof (rule));
+  memset (&act, 0, sizeof (act));
+
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+  mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+  rule.ruleExtNotIpv6.common.isL2Valid = 1;
+  rule.ruleExtNotIpv6.common.isIp = 1;
+
+  act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+
+  act.actionStop = GT_TRUE;
+  act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 2;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,                                       /* devNum         */
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi),            /* ruleIndex      */
+        0,                                                /* ruleOptionsBmp */
+        &mask,                                            /* maskPtr        */
+        &rule,                                            /* patternPtr     */
+        &act));                                           /* actionPtr      */
+}
+
+void
+pcl_source_guard_rule_set (port_id_t pi,
+                           mac_addr_t mac,
+                           vid_t vid,
+                           ip_addr_t ip) {
+  struct port *port = port_ptr (pi);
+  DEBUG("PORT %hu\r\n", port->id);
+  
+  if (is_stack_port(port))
+    return;
+
+  GT_ETHERADDR source_mac;
+  memcpy (&source_mac.arEther, mac, sizeof(mac_addr_t));
+  
+  GT_U16 vlan_id;
+  memcpy (&vlan_id, &vid, sizeof(vid_t));
+
+  GT_IPADDR source_ip;
+  memcpy (&source_ip.arIP, ip, sizeof(ip_addr_t));
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+
+  memset (&mask, 0, sizeof (mask));
+  memset (&rule, 0, sizeof (rule));
+  memset (&act, 0, sizeof (act));
+
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+  mask.ruleExtNotIpv6.common.isIp = 0xFF;
+  /* Source MAC */
+  mask.ruleExtNotIpv6.macSa.arEther[5] = 0xFF;
+  mask.ruleExtNotIpv6.macSa.arEther[4] = 0xFF;
+  mask.ruleExtNotIpv6.macSa.arEther[3] = 0xFF;
+  mask.ruleExtNotIpv6.macSa.arEther[2] = 0xFF;
+  mask.ruleExtNotIpv6.macSa.arEther[1] = 0xFF;
+  mask.ruleExtNotIpv6.macSa.arEther[0] = 0xFF;
+  /* VID */
+  mask.ruleExtNotIpv6.common.vid  = 0xFFFF;
+  /* Source IP */
+  mask.ruleExtNotIpv6.sip.arIP[0] = 0xFF;
+  mask.ruleExtNotIpv6.sip.arIP[1] = 0xFF;
+  mask.ruleExtNotIpv6.sip.arIP[2] = 0xFF;
+  mask.ruleExtNotIpv6.sip.arIP[3] = 0xFF;
+
+
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+  rule.ruleExtNotIpv6.common.isL2Valid = 1;
+  rule.ruleExtNotIpv6.common.isIp = 1;  
+  /* Source MAC */
+  rule.ruleExtNotIpv6.macSa = source_mac;
+  /* VID */
+  rule.ruleExtNotIpv6.common.vid  = vlan_id;
+  /* Source IP */
+  rule.ruleExtNotIpv6.sip = source_ip;
+
+
+  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+  act.actionStop = GT_TRUE;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,                                       /* devNum         */
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+        PORT_IP_SOURCEGUARD_RULE_IX (pi),                 /* ruleIndex      */
+        0,                                                /* ruleOptionsBmp */
+        &mask,                                            /* maskPtr        */
+        &rule,                                            /* patternPtr     */
+        &act));                                           /* actionPtr      */
 }
 
 static void
@@ -669,7 +779,22 @@ pcl_cpss_lib_init (int d)
 
   if (stack_active())
     pcl_setup_mc_drop (d);
+/*
+  GT_ETHERADDR source_mac = {
+    .arEther = {
+      0x00, 0x1e, 0x8c, 0x26, 0xf7, 0xaf
+    }
+  };
 
+  GT_IPADDR source_ip = {
+    .arIP = {
+      192, 168, 254, 103
+    }
+  };
+
+  GT_U16 vid = 1;
+*/
+  pcl_source_guard_drop_enable (1);
 //pcl_enable_dhcp_trap (1);
 
   return ST_OK;
