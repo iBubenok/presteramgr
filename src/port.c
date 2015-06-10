@@ -1836,6 +1836,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     return ST_BAD_VALUE;
 
   phy_lock();
+  #ifdef VARIANT_FE
   rc = CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
        
@@ -1898,6 +1899,33 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
        
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x14, 0x9140));
+  #endif /* VARIANT_FE */
+  
+  #ifdef VARIANT_GE
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+  
+  if (rc != GT_OK)
+    goto out;
+  
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8203));
+  
+  if (rc != GT_OK)
+    goto out;
+  
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+       
+  if (rc != GT_OK)
+    goto out;
+       
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x9140));
+       
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+  #endif /* VARIANT_GE */
 
  out:
   phy_unlock();
@@ -2477,7 +2505,7 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
-
+  
   return ST_OK;
 }
 #elif defined (VARIANT_GE)
