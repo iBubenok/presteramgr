@@ -1820,7 +1820,7 @@ enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 {
   const uint16_t mode_100mbps = 0x8203; /* 1000 0010 0000 0011 */
-  const uint16_t mode_1000mbps = 0x8207; /*1000 0010 0000 0111 */
+  const uint16_t mode_1000mbps = 0x8202; /*1000 0010 0000 0010 */
   
   GT_STATUS rc;
   uint16_t mode_val;
@@ -1836,7 +1836,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     return ST_BAD_VALUE;
 
   phy_lock();
-  #ifdef VARIANT_FE
+#if defined (VARIANT_FE)
   rc = CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
        
@@ -1898,10 +1898,10 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     goto out;
        
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x9140));
-  #endif /* VARIANT_FE */
+       (port->ldev, port->lport, 0x00, 0x9140));
+/* VARIANT_FE */
   
-  #ifdef VARIANT_GE
+#elif defined (VARIANT_GE)
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
   
@@ -1909,7 +1909,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     goto out;
   
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x8203));
+       (port->ldev, port->lport, 0x14, mode_val));
   
   if (rc != GT_OK)
     goto out;
@@ -1920,12 +1920,24 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
        
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x9140));
-       
-  CRP (cpssDxChPhyPortSmiRegisterWrite
+  CRP (cpssDxChPortInbandAutoNegEnableSet
+         (port->ldev, port->lport, GT_TRUE));
+  
+  if (env_hw_subtype () == HWST_ARLAN_3424GE_F) {    
+         
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0001));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+  }
+  
+  else {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
-  #endif /* VARIANT_GE */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+  }
+#endif /* VARIANT_GE */
 
  out:
   phy_unlock();
@@ -2505,6 +2517,7 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
+  port_set_sfp_mode (port->id, PSM_100);
   
   return ST_OK;
 }
@@ -2633,6 +2646,9 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x16, 0x0001));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
+
+    port_set_sfp_mode (port->id, PSM_100);
+         
     break;
 
   case IS_COPPER:
@@ -2734,6 +2750,8 @@ port_setup_ge (struct port *port)
 
     CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
+         
+    port_set_sfp_mode (port->id, PSM_100);
   }
 
   return ST_OK;
