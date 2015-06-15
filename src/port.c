@@ -2694,7 +2694,6 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
-  //port_set_sfp_mode (port->id, PSM_1000);
   
   return ST_OK;
 }
@@ -2826,8 +2825,6 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
 
-    //port_set_sfp_mode (port->id, PSM_1000);
-         
     break;
 
   case IS_COPPER:
@@ -2929,8 +2926,6 @@ port_setup_ge (struct port *port)
 
     CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
-         
-    //port_set_sfp_mode (port->id, PSM_1000);
   }
 
   return ST_OK;
