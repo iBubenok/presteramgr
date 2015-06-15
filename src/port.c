@@ -1818,22 +1818,58 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 
 enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
-{
-  const uint16_t mode_100mbps = 0x8203; /* 1000 0010 0000 0011 */
-  const uint16_t mode_1000mbps = 0x8202; /*1000 0010 0000 0010 */
-  
+{  
   GT_STATUS rc;
   uint16_t mode_val;
   struct port *port = port_ptr (pid);
+  
+  if (!port) {
+    return ST_BAD_VALUE;
+  }
+  
+  uint16_t mode_100mbps = 0x8203;
+  uint16_t mode_1000mbps = 0x8202;
+  
+#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+  if (pid > 24) {
+    mode_1000mbps = 0x8207;
+  }
+  
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_GE)
+  switch (env_hw_subtype()) {
+    case HWST_ARLAN_3424GE_F:
+    case HWST_ARLAN_3424GE_F_S:
+      if (pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+    
+    case HWST_ARLAN_3424GE_U:
+      if (pid <= 12 || pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+    
+    default:
+      if (pid == 23 || pid == 24) {
+        mode_1000mbps = 0x8207;
+      }
+      
+      else {
+        return GT_BAD_PARAM;
+      }
+    break;
+  }
+#endif
   
   switch (mode) {
     case PSM_100: mode_val = mode_100mbps; break;
     case PSM_1000: mode_val = mode_1000mbps; break;
     default: return ST_BAD_VALUE;
   }
-
-  if (!port)
-    return ST_BAD_VALUE;
 
   phy_lock();
 #if defined (VARIANT_FE)
@@ -1899,8 +1935,11 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
        
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x00, 0x9140));
-/* VARIANT_FE */
   
+  if (rc != GT_OK)
+    goto out;
+
+    
 #elif defined (VARIANT_GE)
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
@@ -1920,24 +1959,28 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
        
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+       
+  if (rc != GT_OK)
+    goto out;
+       
   CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
   
-  if (env_hw_subtype () == HWST_ARLAN_3424GE_F) {    
-         
+  if (mode_1000mbps == 0x8202) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x00, 0x9140));
   }
   
   else {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x00, 0x9140));
   }
-#endif /* VARIANT_GE */
+  
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+#endif
 
  out:
   phy_unlock();
@@ -2517,7 +2560,7 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
-  port_set_sfp_mode (port->id, PSM_100);
+  //port_set_sfp_mode (port->id, PSM_1000);
   
   return ST_OK;
 }
@@ -2647,7 +2690,7 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
 
-    port_set_sfp_mode (port->id, PSM_100);
+    //port_set_sfp_mode (port->id, PSM_1000);
          
     break;
 
@@ -2751,7 +2794,7 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
          
-    port_set_sfp_mode (port->id, PSM_100);
+    //port_set_sfp_mode (port->id, PSM_1000);
   }
 
   return ST_OK;
