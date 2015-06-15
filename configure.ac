@@ -63,6 +63,7 @@ case "$variant" in
      sm-12f)        AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
      arlan-3424pfe) AC_DEFINE([VARIANT_ARLAN_3424PFE], [1], [Arlan-3424PFE variant]) ;;
      arlan-3448pge) AC_DEFINE([VARIANT_ARLAN_3448PGE], [1], [Arlan-3448PGE variant]) ;;
+     arlan-3448ge)  AC_DEFINE([VARIANT_ARLAN_3448GE], [1], [Arlan-3448GE variant]) ;;
      *)             AC_MSG_ERROR([unsupported variant]) ;;
 esac
 

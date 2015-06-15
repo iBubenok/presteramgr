@@ -1,3 +1,28 @@
+26.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PktRateLimit: fix removed debugging code artefacts.
+
+25.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * FDB: fix FDB messages rate limits to 4000 msg/sec.
+
+22.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * arch: change set up naming for all explicitly started threads.
+  * PktRateLimit: implement packet rate limits per distinct CPU_CODE. disable CPU Port Tx Shaper.
+
+15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: change software PHY's link status polling to prefer FIBER (SFP) over COPPER.
+
+15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: fix software PHY's link status polling to detect SFP link status too.
+
+13.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: implement BobCat FE only software PHY's link status polling replacing hardware polling. implement event.c zmq and tipc port link status notify messages in separate thread.
+
 08.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * QoS: fix corrected stack ports initialization and here from now QoS field in DSA-tag is trusted in traffic from stack ports, instead QoS L2/L3 fields. Congrats for Victory Day for all developers! Long Live Glorious Red Army!

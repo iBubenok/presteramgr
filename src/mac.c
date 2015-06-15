@@ -15,6 +15,7 @@
 #include <debug.h>
 #include <log.h>
 
+#include <sys/prctl.h>
 
 #define FDB_CONTROL_EP "inproc://fdb-control"
 
@@ -626,6 +627,8 @@ fdb_thread (void *_)
   zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &ctl_pi, fdb_ctl_handler, ctl_sock);
 
+  prctl(PR_SET_NAME, "fdb", 0, 0, 0);
+
   DEBUG ("FDB startup done\r\n");
   fdb_thread_started = 1;
   zloop_start (loop);
@@ -681,6 +684,7 @@ mac_start (void)
   fdb_flush (&fa);
 
   for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAuMsgRateLimitSet (d, 4000, GT_TRUE));
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
     CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (d, GT_TRUE));
   }

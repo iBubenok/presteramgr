@@ -291,7 +291,6 @@ void *not_sock;
 
 static void
 notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
-fprintf(stderr, "port:notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLinkUp, attrs->portSpeed, attrs->portDuplexity);
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   zmsg_addmem (msg, &pid, sizeof (pid));
@@ -299,20 +298,28 @@ fprintf(stderr, "port:notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLin
   zmsg_send (&msg, not_sock);
 }
 
-/* CPSS emulation for sofware polling mode for 88e308[23], 88e1340, 88e1322 PHY's */
+/* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling
+ * mode for 88e308[23], 88e1340, 88e1322 PHY's */
 static enum status
-phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_STC *attrs, int link_up) {
+phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_STC *attrs, int link_up, int fiber_used) {
   GT_U16 reg;
 
   phy_lock();
-/*  CRP (cpssDxChPhyPortSmiRegisterRead
-       (ldev, lport, 0x01, &reg));
-  attrs->portLinkUp = (reg & 4) ? GT_TRUE : GT_FALSE;
-*/
-  CRP (cpssDxChPhyPortSmiRegisterRead
-       (ldev, lport, 0x11, &reg));
+  if (fiber_used) {
+    GT_U16 preg;
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x16, &preg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (ldev, lport, 0x16, 0x01));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x11, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (ldev, lport, 0x16, preg));
+  }else {
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (ldev, lport, 0x11, &reg));
+  }
   phy_unlock();
-//  attrs->portLinkUp = (reg & 0x0400) ? GT_TRUE : GT_FALSE;
 
   attrs->portLinkUp = (link_up) ? GT_TRUE : GT_FALSE;
   if (! (reg & 0x0800) && attrs->portLinkUp)
@@ -352,17 +359,15 @@ phy_get_attibutes(GT_U8 ldev, GT_U8 lport, port_id_t pid, CPSS_PORT_ATTRIBUTES_S
 }
 
 enum status
-phy_handle_link_change (struct port *port, int link_up)
+phy_handle_link_change (struct port *port, int link_up, int fiber_used)
 {
   GT_STATUS rc;
 
   CPSS_PORT_ATTRIBUTES_STC attrs;
-  rc = phy_get_attibutes(port->ldev, port->lport, port->id, &attrs, link_up);
+  rc = phy_get_attibutes(port->ldev, port->lport, port->id, &attrs, link_up, fiber_used);
   if (rc != ST_OK) {
-    DEBUG("HEEEEEEEEEX!!!!!\n");
     return rc;
   }
-fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
   notify_port_state (port->id, &attrs);
 
   port_lock ();
@@ -371,7 +376,7 @@ fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
       attrs.portSpeed     != port->state.attrs.portSpeed  ||
       attrs.portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = attrs;
-#define DEBUG_STATE //TODO remove
+//#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
     if (attrs.portLinkUp)
       osPrintSync ("port %2d link up at %s, %s\n", port->id,
@@ -390,21 +395,24 @@ fprintf(stderr, "LINK is %d\n", attrs.portLinkUp);
 static volatile int phy_thread_started = 0;
 
 #define PHY_POLLING_INTERVAL 100  /* millisecs */
-//#define PHY_POLLING_INTERVAL 10  /* millisecs */
+
+enum phy_status {
+  PHS_NOLINK,
+  PHS_COPPER,
+  PHS_FIBER
+};
 
 static void*
 phy_polling_thread(void *numports) {
   GT_STATUS rc;
   GT_U16 reg;
   struct timespec ts = {0, PHY_POLLING_INTERVAL * 1000000};
-  int port_status[NPORTS+1];
-  long long pc[NPORTS+1];
+  enum phy_status port_status[NPORTS+1];
   unsigned np = *(unsigned *)numports;
 
   unsigned i;
   for (i = 1; i <= np; i++) {
-    port_status[i] = 0;
-    pc[i]=0;
+    port_status[i] = PHS_NOLINK;
   }
 
   prctl(PR_SET_NAME, "PHY-poller", 0, 0, 0);
@@ -420,31 +428,89 @@ phy_polling_thread(void *numports) {
     nanosleep(&ts, NULL);
     phy_lock();
     for (i = 1; i <= np; i++) {
-      pc[i]++;
       struct port* port = port_ptr (i);
-      rc = CRP (cpssDxChPhyPortSmiRegisterRead
-                (port->ldev, port->lport, 0x01, &reg));
-//DEBUG("phy: %d rc==%d, reg==%hx\n", i, rc, reg);
-      int link_up = reg & 4;
-      if (port_status[i] && !link_up) {
+      int fiber_used = 0;
+      int link_up = 0;
+
+      switch (port_status[i]) {
+        case PHS_NOLINK:
+          if (IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              fiber_used = 1;
+          }
+          if (!link_up) {
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            link_up = reg & 4;
+          }
+          break;
+        case PHS_COPPER:
+          if (IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              {
+              fiber_used = 1;
+              }
+          }
+          if (!link_up) {
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            link_up = reg & 4;
+          }
+          break;
+        case PHS_FIBER:
+          if (IS_GE_PORT(i-1)) {
+            GT_U16 preg;
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x16, &preg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, 0x01));
+            rc = CRP (cpssDxChPhyPortSmiRegisterRead
+                      (port->ldev, port->lport, 0x01, &reg));
+            rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                      (port->ldev, port->lport, 0x16, preg));
+            link_up = reg & 4;
+            if (link_up)
+              fiber_used = 1;
+          } else
+            assert(0);
+          break;
+      }
+
+      if ((port_status[i] && !link_up) || ((port_status[i] == PHS_COPPER) && link_up && fiber_used)) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
         phy_unlock();
-        phy_handle_link_change(port, 0);
+        phy_handle_link_change(port, 0, (port_status[i] == PHS_COPPER)? 0 : 1 );
         phy_lock();
-        port_status[i] = 0;
-fprintf(stderr, "PORT #%d is down, pc==%lld\n", i, pc[i]);
-      pc[i]=0;
+        port_status[i] = PHS_NOLINK;
       } else
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_TRUE));
         phy_unlock();
-        phy_handle_link_change(port, 1);
+        phy_handle_link_change(port, 1, fiber_used);
         phy_lock();
-        port_status[i] = 1;
-fprintf(stderr, "PORT #%d is up, pc==%lld\n", i, pc[i]);
-      pc[i]=0;
+        port_status[i] = (fiber_used)? PHS_FIBER : PHS_COPPER;
       }
     }
     phy_unlock();
@@ -634,7 +700,7 @@ port_disable_all (void)
 enum status
 port_start (void)
 {
-  GT_U32 rate = 5000;
+/*   GT_U32 rate = 5000; */
   int i, d;
 
 #if defined (VARIANT_FE)
@@ -775,10 +841,10 @@ port_start (void)
     port->update_sd (port);
   };
 
-  CRP (cpssDxChPortTxShaperProfileSet
+/*  CRP (cpssDxChPortTxShaperProfileSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
   CRP (cpssDxChPortTxShaperEnableSet
-       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE)); */
 
   for_each_dev (d)
     CRP (cpssDxChNetIfFromCpuDpSet (d, CPSS_DP_GREEN_E));
@@ -823,7 +889,6 @@ port_set_sgmii_mode (const struct port *port)
         (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
   CRPR (cpssDxChPortSerdesPowerStatusSet
         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
-/*  CRPR (cpssDxChPortInbandAutoNegEnableSet (port->ldev, port->lport, GT_TRUE)); */
 
   return GT_OK;
 }
@@ -856,7 +921,6 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
   if (attrs->portLinkUp    != port->state.attrs.portLinkUp ||
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
-fprintf(stderr, "ELINK is %d\n", attrs->portLinkUp);
     port->state.attrs = *attrs;
 //#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
@@ -1446,18 +1510,24 @@ port_update_sd_ge (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#endif
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#endif
       reg &= ~((1 << 6) | (1 << 8));
       break;
     case PORT_DUPLEX_AUTO:
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+#endif
       break;
     default:
       break;
@@ -1491,12 +1561,16 @@ port_update_sd_ge (struct port *port)
       goto out;
 
     if (port->c_duplex == PORT_DUPLEX_FULL) {
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+#endif
       reg |= 1 << 8;
     }else {
-//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#ifndef VARIANT_FE
+      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+#endif
       reg &= ~(1 << 8);
     }
 
@@ -1564,18 +1638,18 @@ port_update_sd_fe (struct port *port)
 
     switch (port->c_duplex) {
     case PORT_DUPLEX_FULL:
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg &= ~((1 << 5) | (1 << 7));
       break;
     case PORT_DUPLEX_HALF:
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~((1 << 6) | (1 << 8));
       break;
     case PORT_DUPLEX_AUTO:
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_TRUE);
       break;
     default:
       break;
@@ -1604,12 +1678,12 @@ port_update_sd_fe (struct port *port)
       goto out;
 
     if (port->c_duplex == PORT_DUPLEX_FULL) {
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
       reg |= 1 << 8;
     }else {
-      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
-      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
+//      cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+//      cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_HALF_DUPLEX_E);
       reg &= ~(1 << 8);
     }
 
@@ -1728,24 +1802,81 @@ port_set_duplex_ge (struct port *port, enum port_duplex duplex)
 static enum status
 port_shutdown_ge (struct port *port, int shutdown)
 {
-  GT_STATUS rc;
+  GT_STATUS rc = GT_OK;
   GT_U16 reg;
 
   phy_lock();
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
-  if (rc != GT_OK)
-    goto out;
+  /* LEDs */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 22, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 29, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 30, shutdown ? 0x20 : 0));
+  /* END_LEDs */
 
-  if (shutdown)
-    reg |= (1 << 11);
-  else
-    reg &= ~(1 << 11);
+#if defined (VARIANT_FE)
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &reg));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00,
+       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  if (IS_GE_PORT (port->id -1)) { /* FIXME: maybe always true */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+  }
+#elif defined (VARIANT_GE)
+  enum {
+    IS_FIBER,
+    IS_COPPER,
+    IS_COMBO
+  } ptype;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
+#if defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    ptype = IS_FIBER;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
+    break;
+  default:
+    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
+  }
+#endif /* VARIANT_* */
 
- out:
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &reg));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00,
+       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+
+  if ((ptype == IS_FIBER) || (ptype == IS_COMBO)) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+  }
+#endif
+
+// out:
   phy_unlock();
   switch (rc) {
   case GT_OK:       return ST_OK;
@@ -1818,22 +1949,58 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 
 enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
-{
-  const uint16_t mode_100mbps = 0x8203; /* 1000 0010 0000 0011 */
-  const uint16_t mode_1000mbps = 0x8202; /*1000 0010 0000 0010 */
-  
+{  
   GT_STATUS rc;
   uint16_t mode_val;
   struct port *port = port_ptr (pid);
+  
+  if (!port) {
+    return ST_BAD_VALUE;
+  }
+  
+  uint16_t mode_100mbps = 0x8203;
+  uint16_t mode_1000mbps = 0x8202;
+  
+#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+  if (pid > 24) {
+    mode_1000mbps = 0x8207;
+  }
+  
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_GE)
+  switch (env_hw_subtype()) {
+    case HWST_ARLAN_3424GE_F:
+    case HWST_ARLAN_3424GE_F_S:
+      if (pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+    
+    case HWST_ARLAN_3424GE_U:
+      if (pid <= 12 || pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+    
+    default:
+      if (pid == 23 || pid == 24) {
+        mode_1000mbps = 0x8207;
+      }
+      
+      else {
+        return GT_BAD_PARAM;
+      }
+    break;
+  }
+#endif
   
   switch (mode) {
     case PSM_100: mode_val = mode_100mbps; break;
     case PSM_1000: mode_val = mode_1000mbps; break;
     default: return ST_BAD_VALUE;
   }
-
-  if (!port)
-    return ST_BAD_VALUE;
 
   phy_lock();
 #if defined (VARIANT_FE)
@@ -1899,8 +2066,11 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
        
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x00, 0x9140));
-/* VARIANT_FE */
   
+  if (rc != GT_OK)
+    goto out;
+
+    
 #elif defined (VARIANT_GE)
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
@@ -1920,24 +2090,28 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
        
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+       
+  if (rc != GT_OK)
+    goto out;
+       
   CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
   
-  if (env_hw_subtype () == HWST_ARLAN_3424GE_F) {    
-         
+  if (mode_1000mbps == 0x8202) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x00, 0x9140));
   }
   
   else {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x00, 0x9140));
   }
-#endif /* VARIANT_GE */
+  
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+#endif
 
  out:
   phy_unlock();
@@ -2463,8 +2637,11 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
+/*  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8207)); */
+/* set Auto Media Detect Preffered Media to "Fiber Preferred" */
   CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x8207));
+       (port->ldev, port->lport, 0x14, 0x8227));
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x4));
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -2517,7 +2694,7 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
-  port_set_sfp_mode (port->id, PSM_100);
+  //port_set_sfp_mode (port->id, PSM_1000);
   
   return ST_OK;
 }
@@ -2548,7 +2725,9 @@ port_setup_ge (struct port *port)
 
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
-#else /* !VARIANT_ARLAN_3448PGE */
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
   case HWST_ARLAN_3424GE_F_S:
@@ -2647,7 +2826,7 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
 
-    port_set_sfp_mode (port->id, PSM_100);
+    //port_set_sfp_mode (port->id, PSM_1000);
          
     break;
 
@@ -2751,7 +2930,7 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
          
-    port_set_sfp_mode (port->id, PSM_100);
+    //port_set_sfp_mode (port->id, PSM_1000);
   }
 
   return ST_OK;
