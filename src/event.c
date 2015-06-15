@@ -17,6 +17,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <sys/prctl.h>
 
 #include <presteramgr.h>
 #include <debug.h>
@@ -74,7 +76,6 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 static void
 thr_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
-fprintf(stderr, "thr_notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLinkUp, attrs->portSpeed, attrs->portDuplexity);
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_id (msg, pid);
   put_port_state (msg, attrs);
@@ -95,7 +96,6 @@ fprintf(stderr, "thr_notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLink
 
 static void
 notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
-fprintf(stderr, "event:notify_port_state(%hd, %d, %d, %d)\n", pid, attrs->portLinkUp, attrs->portSpeed, attrs->portDuplexity);
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   zmsg_addmem (msg, &pid, sizeof (pid));
@@ -109,8 +109,7 @@ DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
   /* CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, */
-#ifdef VARIANT_FE
-#else
+#ifndef VARIANT_FE
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
 #endif
   CPSS_PP_EB_AUQ_PENDING_E,
@@ -175,13 +174,10 @@ event_handle_link_change (void)
   while ((rc = cpssEventRecv (event_handle,
                               CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
                               &edata, &dev)) == GT_OK) {
-//#ifdef VARIANT_FE
-//#else
     port_id_t pid;
     CPSS_PORT_ATTRIBUTES_STC attrs;
     if (port_handle_link_change (dev, (GT_U8) edata, &pid, &attrs) == ST_OK)
       notify_port_state (pid, &attrs);
-//#endif
   }
 
   if (rc == GT_NO_MORE)
@@ -253,6 +249,8 @@ event_enter_loop (void)
 
   intr_unlock (key);
 
+  prctl(PR_SET_NAME, "evt-loop", 0, 0, 0);
+
   while (1) {
     rc = CRP (cpssEventSelect (event_handle, NULL, ebmp,
                                CPSS_UNI_EV_BITMAP_SIZE_CNS));
@@ -311,6 +309,7 @@ notify_thread(void *_) {
   zmq_pollitem_t tnot_pi = { not_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &tnot_pi, notify_evt_handler, tnot_sock);
 
+  prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
   notify_thread_started = 1;
 
   zloop_start(loop);
@@ -340,14 +339,7 @@ event_start_notify_thread (void) {
 void
 event_init (void)
 {
-/*
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
-  assert (pub_sock);
-  zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
-*/
-
   fdb_sock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (fdb_sock);
   zsocket_connect (fdb_sock, FDB_NOTIFY_EP);
-DEBUG("event_init: done\n");
 }

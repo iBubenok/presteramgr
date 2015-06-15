@@ -18,6 +18,7 @@
 #include <sec.h>
 #include <qos.h>
 #include <zcontext.h>
+#include <sys/prctl.h>
 #include <debug.h>
 #include <wnct.h>
 #include <mcg.h>
@@ -58,6 +59,8 @@ forwarder_thread (void *dummy)
   inp_sub_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (inp_sub_sock);
   zsocket_connect (inp_sub_sock, INP_PUB_SOCK_EP);
+
+  prctl(PR_SET_NAME, "ctl-forwarder", 0, 0, 0);
 
   DEBUG ("start forwarder device");
   zmq_device (ZMQ_FORWARDER, inp_sub_sock, pub_sock);
@@ -514,6 +517,8 @@ control_loop (void *dummy)
 
   zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
+
+  prctl(PR_SET_NAME, "ctl-loop", 0, 0, 0);
 
   zloop_start (loop);
 
@@ -974,9 +979,11 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   if (result != ST_OK)
     goto err;
 
+  else {
   result = port_dump_phy_reg (pid, page, reg, &val);
   if (result != ST_OK)
     goto err;
+  }
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));

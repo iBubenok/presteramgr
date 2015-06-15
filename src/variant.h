@@ -10,7 +10,8 @@
   || defined (VARIANT_SM_12F)
 #define VARIANT_FE
 #elif defined (VARIANT_ARLAN_3424GE)            \
-  || defined (VARIANT_ARLAN_3448PGE)
+  || defined (VARIANT_ARLAN_3448PGE)            \
+  || defined (VARIANT_ARLAN_3448GE)
 #define VARIANT_GE
 #else
 #error Undefined or unsupported variant.
