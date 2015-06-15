@@ -1958,6 +1958,17 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     return ST_BAD_VALUE;
   }
   
+  /*
+    The value that we should put into register to switch to 100 Mbps fiber mode
+    is the same for both fiber and combo ports. However, the value for 1000 Mbps
+    on fiber ports should be 0x8202 which means QSGMII to 1000BASE-X; for combo
+    ports it's 0x8207 which means QSGMII to auto media detect 1000BASE-X. It's
+    done this way because we still care about the copper on combo ports, and if
+    we dont set auto media detect mode on them, the copper won't work.
+    If we're in 100BASE-FX mode, then we don't want copper to work, so it
+    doesn't with the 0x8203 value.
+  */ 
+  
   uint16_t mode_100mbps = 0x8203;
   uint16_t mode_1000mbps = 0x8202;
   
@@ -2099,16 +2110,25 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
   
+  /*
+    If requested port is fiber, we should return on page 1
+  */
   if (mode_1000mbps == 0x8202) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
   }
   
+  /* else if combo return to page 0 */
   else {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
   }
   
+  /*
+    then reset either copper or fiber (page 0 is copper, page 1 is fiber).
+    On 3424GE it's necessary to reset copper, not QSGMII like on 3424FE to make
+    combo ports work.
+  */
   CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
 #endif
