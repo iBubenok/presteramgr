@@ -27,8 +27,13 @@
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
 
-#define PORT_IP_SOURCEGUARD_RULE_IX(n) (PORT_EPCL_DEF_IX (65) + (n)) /* n = 0, 1, .. */
-#define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) (1000 + (n))
+#define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
+#define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
+                    (PORT_EPCL_DEF_IX (65) + \
+                    (n) * PER_PORT_IP_SOURCE_GUARD_RULES_COUNT)
+#define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
+                    (PORT_IP_SOURCEGUARD_RULE_START_IX(65) + (n))
+
 
 static struct stack {
   int sp;
@@ -288,7 +293,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 void
 pcl_source_guard_drop_enable (port_id_t pi) {
   struct port *port = port_ptr (pi);
-  
+
   if (is_stack_port(port))
     return;
 
@@ -323,13 +328,26 @@ pcl_source_guard_drop_enable (port_id_t pi) {
 }
 
 void
+pcl_source_guard_drop_disable (port_id_t pi) {
+  struct port *port = port_ptr (pi);
+
+  if (is_stack_port(port))
+    return;
+
+  CRP (cpssDxChPclRuleInvalidate
+       (port->ldev,
+        CPSS_PCL_RULE_SIZE_EXT_E,
+        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+}
+
+void
 pcl_source_guard_rule_set (port_id_t pi,
                            mac_addr_t mac,
                            vid_t vid,
-                           ip_addr_t ip) {
+                           ip_addr_t ip,
+                           uint16_t rule_ix) {
   struct port *port = port_ptr (pi);
-  DEBUG("PORT %hu\r\n", port->id);
-  
+
   if (is_stack_port(port))
     return;
 
@@ -385,11 +403,24 @@ pcl_source_guard_rule_set (port_id_t pi,
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-        PORT_IP_SOURCEGUARD_RULE_IX (pi),                 /* ruleIndex      */
+        rule_ix,                                          /* ruleIndex      */
         0,                                                /* ruleOptionsBmp */
         &mask,                                            /* maskPtr        */
         &rule,                                            /* patternPtr     */
         &act));                                           /* actionPtr      */
+}
+
+void
+pcl_source_guard_rule_unset (port_id_t pi, uint16_t rule_ix) {
+  struct port *port = port_ptr (pi);
+
+  if (is_stack_port(port))
+    return;
+  
+  CRP (cpssDxChPclRuleInvalidate
+       (port->ldev,
+        CPSS_PCL_RULE_SIZE_EXT_E,
+        rule_ix));
 }
 
 static void
@@ -779,23 +810,6 @@ pcl_cpss_lib_init (int d)
 
   if (stack_active())
     pcl_setup_mc_drop (d);
-/*
-  GT_ETHERADDR source_mac = {
-    .arEther = {
-      0x00, 0x1e, 0x8c, 0x26, 0xf7, 0xaf
-    }
-  };
-
-  GT_IPADDR source_ip = {
-    .arIP = {
-      192, 168, 254, 103
-    }
-  };
-
-  GT_U16 vid = 1;
-*/
-  pcl_source_guard_drop_enable (1);
-//pcl_enable_dhcp_trap (1);
 
   return ST_OK;
 }

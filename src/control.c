@@ -290,6 +290,8 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 
@@ -396,6 +398,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
   HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_SOURCE_GUARD_ENABLE),
+  HANDLER (CC_SOURCE_GUARD_DISABLE),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE)
 };
@@ -2727,6 +2731,38 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+
+  DEBUG("CC_SOURCE_GUARD_ENABLE\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_drop_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE)
+{
+  enum status result;
+  port_id_t pid;
+
+  DEBUG("CC_SOURCE_GUARD_DiSABLE\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_drop_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
 {
   enum status result;
@@ -2734,6 +2770,7 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
   mac_addr_t mac;
   vid_t vid;
   ip_addr_t ip;
+  uint16_t rule_ix;
 
   DEBUG("CC_SOURCE_GUARD_ADD\r\n");
 
@@ -2745,8 +2782,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
     goto out;
   if ((result = POP_ARG (&ip)) != ST_OK)
     goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
 
-  pcl_source_guard_rule_set (pid, mac, vid, ip);
+  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix);
   result = ST_OK;
  out:
   report_status (result);
@@ -2755,9 +2794,18 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
 DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
 {
   enum status result;
+  port_id_t pid;
+  uint16_t rule_ix;
 
   DEBUG("CC_SOURCE_GUARD_DELETE\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_rule_unset (pid, rule_ix);
   result = ST_OK;
-// out:
+ out:
   report_status (result);
 }
