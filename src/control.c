@@ -2771,6 +2771,7 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
   vid_t vid;
   ip_addr_t ip;
   uint16_t rule_ix;
+  uint8_t verify_mac;
 
   DEBUG("CC_SOURCE_GUARD_ADD\r\n");
 
@@ -2784,8 +2785,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
     goto out;
   if ((result = POP_ARG (&rule_ix)) != ST_OK)
     goto out;
+  if ((result = POP_ARG (&verify_mac)) != ST_OK)
+    goto out;
 
-  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix);
+  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
   result = ST_OK;
  out:
   report_status (result);

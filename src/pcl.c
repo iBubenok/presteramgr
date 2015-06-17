@@ -345,7 +345,8 @@ pcl_source_guard_rule_set (port_id_t pi,
                            mac_addr_t mac,
                            vid_t vid,
                            ip_addr_t ip,
-                           uint16_t rule_ix) {
+                           uint16_t rule_ix,
+                           uint8_t  verify_mac) {
   struct port *port = port_ptr (pi);
 
   if (is_stack_port(port))
@@ -370,13 +371,17 @@ pcl_source_guard_rule_set (port_id_t pi,
   mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
   mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
   mask.ruleExtNotIpv6.common.isIp = 0xFF;
-  /* Source MAC */
-  mask.ruleExtNotIpv6.macSa.arEther[5] = 0xFF;
-  mask.ruleExtNotIpv6.macSa.arEther[4] = 0xFF;
-  mask.ruleExtNotIpv6.macSa.arEther[3] = 0xFF;
-  mask.ruleExtNotIpv6.macSa.arEther[2] = 0xFF;
-  mask.ruleExtNotIpv6.macSa.arEther[1] = 0xFF;
-  mask.ruleExtNotIpv6.macSa.arEther[0] = 0xFF;
+
+  if (verify_mac) {
+    /* Source MAC */
+    mask.ruleExtNotIpv6.macSa.arEther[5] = 0xFF;
+    mask.ruleExtNotIpv6.macSa.arEther[4] = 0xFF;
+    mask.ruleExtNotIpv6.macSa.arEther[3] = 0xFF;
+    mask.ruleExtNotIpv6.macSa.arEther[2] = 0xFF;
+    mask.ruleExtNotIpv6.macSa.arEther[1] = 0xFF;
+    mask.ruleExtNotIpv6.macSa.arEther[0] = 0xFF;
+  };
+
   /* VID */
   mask.ruleExtNotIpv6.common.vid  = 0xFFFF;
   /* Source IP */
@@ -388,9 +393,13 @@ pcl_source_guard_rule_set (port_id_t pi,
 
   rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
   rule.ruleExtNotIpv6.common.isL2Valid = 1;
-  rule.ruleExtNotIpv6.common.isIp = 1;  
-  /* Source MAC */
-  rule.ruleExtNotIpv6.macSa = source_mac;
+  rule.ruleExtNotIpv6.common.isIp = 1;
+
+  if (verify_mac) {
+    /* Source MAC */
+    rule.ruleExtNotIpv6.macSa = source_mac;
+  }
+
   /* VID */
   rule.ruleExtNotIpv6.common.vid  = vlan_id;
   /* Source IP */

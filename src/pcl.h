@@ -16,7 +16,7 @@ extern enum status pcl_enable_mc_drop (port_id_t, int);
 
 extern void pcl_source_guard_drop_enable (port_id_t);
 extern void pcl_source_guard_drop_disable (port_id_t);
-extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t, uint16_t);
+extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t, uint16_t, uint8_t);
 extern void pcl_source_guard_rule_unset (port_id_t, uint16_t);
 
 #endif /* __PCL_H__ */
