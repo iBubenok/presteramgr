@@ -1983,41 +1983,45 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
@@ -2041,41 +2045,45 @@ port_set_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
