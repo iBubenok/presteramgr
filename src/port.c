@@ -1803,8 +1803,11 @@ static enum status
 port_shutdown_ge (struct port *port, int shutdown)
 {
   GT_STATUS rc = GT_OK;
-  GT_U16 reg;
+  GT_U16 reg, start_reg;
 
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 22, &start_reg));
+       
   phy_lock();
   /* LEDs */
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -1841,7 +1844,9 @@ port_shutdown_ge (struct port *port, int shutdown)
 
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
-#else /* !VARIANT_ARLAN_3448PGE */
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
   case HWST_ARLAN_3424GE_F_S:
@@ -1855,11 +1860,15 @@ port_shutdown_ge (struct port *port, int shutdown)
   }
 #endif /* VARIANT_* */
 
-  CRP (cpssDxChPhyPortSmiRegisterRead
-       (port->ldev, port->lport, 0x00, &reg));
-  CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x00,
-       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  if (ptype == IS_COPPER) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  }
 
   if ((ptype == IS_FIBER) || (ptype == IS_COMBO)) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -1869,12 +1878,12 @@ port_shutdown_ge (struct port *port, int shutdown)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00,
          (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 22, 0));
   }
 #endif
 
-// out:
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, start_reg));
+
   phy_unlock();
   switch (rc) {
   case GT_OK:       return ST_OK;
