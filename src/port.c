@@ -499,6 +499,17 @@ phy_polling_thread(void *numports) {
       if ((port_status[i] && !link_up) || ((port_status[i] == PHS_COPPER) && link_up && fiber_used)) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, disable LED */
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+          reg |= 0x0002;
+          reg &= ~0x0001;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 0, (port_status[i] == PHS_COPPER)? 0 : 1 );
         phy_lock();
@@ -507,6 +518,16 @@ phy_polling_thread(void *numports) {
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_TRUE));
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, enable normal LED operation*/
+          reg &= ~0x0003;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 1, fiber_used);
         phy_lock();
@@ -1770,6 +1791,10 @@ __port_setup_fe (GT_U8 dev, GT_U8 port)
        (dev, port, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+  /* workaround for activated speed LED without active link status in no
+     autoneg portconfiguretion, disable LED */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (dev, port, 0x19, 0x0002));
 
   return ST_OK;
 }
