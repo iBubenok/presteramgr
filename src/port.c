@@ -1842,7 +1842,7 @@ port_shutdown_ge (struct port *port, int shutdown)
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
 #elif defined (VARIANT_ARLAN_3448GE)
-  ptype = IS_COPPER;
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
 #else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
@@ -2548,7 +2548,7 @@ port_setup_ge (struct port *port)
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
 #elif defined (VARIANT_ARLAN_3448GE)
-  ptype = IS_COPPER;
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
 #else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
