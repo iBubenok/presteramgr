@@ -210,6 +210,7 @@ DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
+DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
@@ -313,6 +314,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
+  HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
@@ -928,6 +930,34 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
   result = port_set_duplex (pid, duplex);
 
  out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_SFP_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t mode;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&mode, sizeof (mode));
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_sfp_mode (pid, mode);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
   report_status (result);
 }
 
