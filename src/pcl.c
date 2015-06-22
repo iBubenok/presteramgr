@@ -291,7 +291,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 }
 
 void
-pcl_source_guard_drop_enable (port_id_t pi) {
+pcl_source_guard_trap_enable (port_id_t pi) {
   struct port *port = port_ptr (pi);
 
   if (is_stack_port(port))
@@ -316,6 +316,55 @@ pcl_source_guard_drop_enable (port_id_t pi) {
 
   act.actionStop = GT_TRUE;
   act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 2;
+
+  CRP (cpssDxChPclRuleSet
+       (port->ldev,                                       /* devNum         */
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi),            /* ruleIndex      */
+        0,                                                /* ruleOptionsBmp */
+        &mask,                                            /* maskPtr        */
+        &rule,                                            /* patternPtr     */
+        &act));                                           /* actionPtr      */
+}
+
+void
+pcl_source_guard_trap_disable (port_id_t pi) {
+  struct port *port = port_ptr (pi);
+
+  if (is_stack_port(port))
+    return;
+
+  CRP (cpssDxChPclRuleInvalidate
+       (port->ldev,
+        CPSS_PCL_RULE_SIZE_EXT_E,
+        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+}
+
+void
+pcl_source_guard_drop_enable (port_id_t pi) {
+  struct port *port = port_ptr (pi);
+
+  if (is_stack_port(port))
+    return;
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+
+  memset (&mask, 0, sizeof (mask));
+  memset (&rule, 0, sizeof (rule));
+  memset (&act, 0, sizeof (act));
+
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+  mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+  rule.ruleExtNotIpv6.common.isL2Valid = 1;
+  rule.ruleExtNotIpv6.common.isIp = 1;
+
+  act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
+
+  act.actionStop = GT_TRUE;
 
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */

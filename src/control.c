@@ -161,6 +161,24 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
   notify_send (&msg);
 }
 
+static void
+control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
+{
+  printf("Packed trapped!\r\n");
+  zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
+  put_vlan_id (sg_msg, frame->vid);
+  put_port_id (sg_msg, pid);
+  /* MAC: 6, 7, 8, 9 bytes */
+  uint8_t src_mac[6];
+  memcpy (src_mac, (frame->data)+6, 6);
+  zmsg_addmem (sg_msg, src_mac, 6);
+  /* IP: 26, 27, 28, 29 bytes */
+  uint8_t src_ip[4];
+  memcpy (src_ip, (frame->data)+26, 4);
+  zmsg_addmem (sg_msg, src_ip, 4);
+  notify_send (&sg_msg);
+}
+
 void
 cn_port_vid_set (port_id_t pid, vid_t vid)
 {
@@ -290,8 +308,10 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
-DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE);
-DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 
@@ -398,8 +418,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
   HANDLER (CC_PSEC_ENABLE),
-  HANDLER (CC_SOURCE_GUARD_ENABLE),
-  HANDLER (CC_SOURCE_GUARD_DISABLE),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE)
 };
@@ -1641,19 +1663,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     break;
 
   case CPU_CODE_USER_DEFINED (2):
-    printf("Packed trapped!\r\n");
-    zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
-    put_vlan_id (sg_msg, frame->vid);
-    put_port_id (sg_msg, pid);
-    /* MAC: 6, 7, 8, 9 bytes */
-    uint8_t src_mac[6];
-    memcpy (src_mac, (frame->data)+6, 6);
-    zmsg_addmem (sg_msg, src_mac, 6);
-    /* IP: 26, 27, 28, 29 bytes */
-    uint8_t src_ip[4];
-    memcpy (src_ip, (frame->data)+26, 4);
-    zmsg_addmem (sg_msg, src_ip, 4);
-    notify_send (&sg_msg);
+    control_notify_ip_sg_trap (pid, frame);
     result = ST_OK;
     goto out;
 
@@ -2743,12 +2753,44 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE)
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
 {
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_ENABLE\r\n");
+  DEBUG("CC_SOURCE_GUARD_ENABLE_TRAP\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_trap_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
+{
+  enum status result;
+  port_id_t pid;
+
+  DEBUG("CC_SOURCE_GUARD_DISABLE_TRAP\r\n");
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_trap_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
+{
+  enum status result;
+  port_id_t pid;
+
+  DEBUG("CC_SOURCE_GUARD_ENABLE_DROP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
@@ -2759,12 +2801,12 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE)
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
 {
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_DiSABLE\r\n");
+  DEBUG("CC_SOURCE_GUARD_DISABLE_DROP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
