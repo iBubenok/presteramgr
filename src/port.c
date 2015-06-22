@@ -2841,9 +2841,9 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x11, 0x8845));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x10, 0x0666));
+         (port->ldev, port->lport, 0x10, 0x1777));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x12, 0x4C05));
+         (port->ldev, port->lport, 0x12, 0x4905));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x13, 0x0073));
 
