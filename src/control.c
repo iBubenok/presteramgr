@@ -1642,6 +1642,18 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (2):
     printf("Packed trapped!\r\n");
+    zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
+    put_vlan_id (sg_msg, frame->vid);
+    put_port_id (sg_msg, pid);
+    /* MAC: 6, 7, 8, 9 bytes */
+    uint8_t src_mac[6];
+    memcpy (src_mac, (frame->data)+6, 6);
+    zmsg_addmem (sg_msg, src_mac, 6);
+    /* IP: 26, 27, 28, 29 bytes */
+    uint8_t src_ip[4];
+    memcpy (src_ip, (frame->data)+26, 4);
+    zmsg_addmem (sg_msg, src_ip, 4);
+    notify_send (&sg_msg);
     result = ST_OK;
     goto out;
 
