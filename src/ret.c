@@ -173,11 +173,6 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     return ST_DOES_NOT_EXIST;
 
   if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
-    if (pid == re->pid) {
-      DEBUG ("MAC addr is already known");
-      return ST_OK;
-    }
-
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
