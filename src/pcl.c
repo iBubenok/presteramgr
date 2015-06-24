@@ -14,6 +14,8 @@
 #include <sysdeps.h>
 #include <uthash.h>
 #include <debug.h>
+#include <zmq.h>
+#include <czmq.h>
 
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
@@ -33,7 +35,6 @@
                     (n) * PER_PORT_IP_SOURCE_GUARD_RULES_COUNT)
 #define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
                     (PORT_IP_SOURCEGUARD_RULE_START_IX(65) + (n))
-
 
 static struct stack {
   int sp;
@@ -290,6 +291,12 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
   return ST_OK;
 }
 
+/******************************************************************************/
+/* IP SOURCE GUARD                                                            */
+/******************************************************************************/
+
+static int sg_trap_enabled = 0;
+
 void
 pcl_source_guard_trap_enable (port_id_t pi) {
   struct port *port = port_ptr (pi);
@@ -325,6 +332,8 @@ pcl_source_guard_trap_enable (port_id_t pi) {
         &mask,                                            /* maskPtr        */
         &rule,                                            /* patternPtr     */
         &act));                                           /* actionPtr      */
+
+  sg_trap_enabled = 1;
 }
 
 void
@@ -338,6 +347,8 @@ pcl_source_guard_trap_disable (port_id_t pi) {
        (port->ldev,
         CPSS_PCL_RULE_SIZE_EXT_E,
         PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+
+  sg_trap_enabled = 0;
 }
 
 void
@@ -374,6 +385,8 @@ pcl_source_guard_drop_enable (port_id_t pi) {
         &mask,                                            /* maskPtr        */
         &rule,                                            /* patternPtr     */
         &act));                                           /* actionPtr      */
+
+  sg_trap_enabled = 0;
 }
 
 void
@@ -387,6 +400,8 @@ pcl_source_guard_drop_disable (port_id_t pi) {
        (port->ldev,
         CPSS_PCL_RULE_SIZE_EXT_E,
         PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+
+  sg_trap_enabled = 0;
 }
 
 void
@@ -480,6 +495,19 @@ pcl_source_guard_rule_unset (port_id_t pi, uint16_t rule_ix) {
         CPSS_PCL_RULE_SIZE_EXT_E,
         rule_ix));
 }
+
+int
+pcl_source_guard_trap_enabled (port_id_t pi) {
+  struct port *port = port_ptr (pi);
+
+  if (is_stack_port(port))
+    return 0;
+  return sg_trap_enabled;
+}
+
+/******************************************************************************/
+/* MULTICAST DROP                                                                 */
+/******************************************************************************/
 
 static void
 pcl_setup_mc_drop (int d)

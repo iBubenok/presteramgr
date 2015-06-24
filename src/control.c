@@ -164,19 +164,22 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
 static void
 control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
 {
-  printf("Packed trapped!\r\n");
-  zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
-  put_vlan_id (sg_msg, frame->vid);
-  put_port_id (sg_msg, pid);
-  /* MAC: 6, 7, 8, 9 bytes */
-  uint8_t src_mac[6];
-  memcpy (src_mac, (frame->data)+6, 6);
-  zmsg_addmem (sg_msg, src_mac, 6);
-  /* IP: 26, 27, 28, 29 bytes */
-  uint8_t src_ip[4];
-  memcpy (src_ip, (frame->data)+26, 4);
-  zmsg_addmem (sg_msg, src_ip, 4);
-  notify_send (&sg_msg);
+  if (pcl_source_guard_trap_enabled (pid)) {
+    zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
+    put_vlan_id (sg_msg, frame->vid);
+    put_port_id (sg_msg, pid);
+    /* MAC: 6, 7, 8, 9 bytes */
+    uint8_t src_mac[6];
+    memcpy (src_mac, (frame->data)+6, 6);
+    zmsg_addmem (sg_msg, src_mac, 6);
+    /* IP: 26, 27, 28, 29 bytes */
+    uint8_t src_ip[4];
+    memcpy (src_ip, (frame->data)+26, 4);
+    zmsg_addmem (sg_msg, src_ip, 4);
+
+    pcl_source_guard_drop_enable(pid);
+    notify_send (&sg_msg);
+  }
 }
 
 void
