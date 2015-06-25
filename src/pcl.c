@@ -295,7 +295,11 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 /* IP SOURCE GUARD                                                            */
 /******************************************************************************/
 
-static int sg_trap_enabled = 0;
+static int sg_trap_enabled[65 /* MAXPORTS */];
+static void __attribute__((constructor))
+sg_init () {
+  memset (sg_trap_enabled, 0, 65);
+}
 
 void
 pcl_source_guard_trap_enable (port_id_t pi) {
@@ -333,7 +337,7 @@ pcl_source_guard_trap_enable (port_id_t pi) {
         &rule,                                            /* patternPtr     */
         &act));                                           /* actionPtr      */
 
-  sg_trap_enabled = 1;
+  sg_trap_enabled[pi] = 1;
 }
 
 void
@@ -348,7 +352,7 @@ pcl_source_guard_trap_disable (port_id_t pi) {
         CPSS_PCL_RULE_SIZE_EXT_E,
         PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
 
-  sg_trap_enabled = 0;
+  sg_trap_enabled[pi] = 0;
 }
 
 void
@@ -386,7 +390,7 @@ pcl_source_guard_drop_enable (port_id_t pi) {
         &rule,                                            /* patternPtr     */
         &act));                                           /* actionPtr      */
 
-  sg_trap_enabled = 0;
+  sg_trap_enabled[pi] = 0;
 }
 
 void
@@ -401,7 +405,7 @@ pcl_source_guard_drop_disable (port_id_t pi) {
         CPSS_PCL_RULE_SIZE_EXT_E,
         PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
 
-  sg_trap_enabled = 0;
+  sg_trap_enabled[pi] = 0;
 }
 
 void
@@ -502,7 +506,11 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
 
   if (is_stack_port(port))
     return 0;
-  return sg_trap_enabled;
+
+  if ((pi < 1) || (pi > 65) || !port)
+    return 0;
+
+  return sg_trap_enabled[pi];
 }
 
 /******************************************************************************/

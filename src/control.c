@@ -178,6 +178,8 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     zmsg_addmem (sg_msg, src_ip, 4);
 
     pcl_source_guard_drop_enable(pid);
+    DEBUG("packet trapped! enable drop! port #%d\r\n", pid);
+
     notify_send (&sg_msg);
   }
 }
@@ -2761,10 +2763,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_ENABLE_TRAP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_ENABLE_TRAP port#%d\r\n", pid);
 
   pcl_source_guard_trap_enable (pid);
   result = ST_OK;
@@ -2777,10 +2779,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_DISABLE_TRAP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_DISABLE_TRAP port#%d\r\n", pid);
 
   pcl_source_guard_trap_disable (pid);
   result = ST_OK;
@@ -2793,10 +2795,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_ENABLE_DROP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_ENABLE_DROP port#%d\r\n", pid);
 
   pcl_source_guard_drop_enable (pid);
   result = ST_OK;
@@ -2809,10 +2811,10 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
   enum status result;
   port_id_t pid;
 
-  DEBUG("CC_SOURCE_GUARD_DISABLE_DROP\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_DISABLE_DROP port#%d\r\n", pid);
 
   pcl_source_guard_drop_disable (pid);
   result = ST_OK;
@@ -2830,7 +2832,6 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
   uint16_t rule_ix;
   uint8_t verify_mac;
 
-  DEBUG("CC_SOURCE_GUARD_ADD\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
@@ -2844,6 +2845,7 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
     goto out;
   if ((result = POP_ARG (&verify_mac)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_ADD rule\r\n");
 
   pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
   result = ST_OK;
@@ -2857,12 +2859,12 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
   port_id_t pid;
   uint16_t rule_ix;
 
-  DEBUG("CC_SOURCE_GUARD_DELETE\r\n");
 
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
   if ((result = POP_ARG (&rule_ix)) != ST_OK)
     goto out;
+  DEBUG("CC_SOURCE_GUARD_DELETE rule\r\n");
 
   pcl_source_guard_rule_unset (pid, rule_ix);
   result = ST_OK;
