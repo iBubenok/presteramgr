@@ -2152,6 +2152,23 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 }
 
 enum status
+port_read_sfp_idprom (port_id_t pid, uint16_t addr, uint8_t *out)
+{
+  const int sz = 128;
+  uint8_t *cur = out;
+  struct port *port = port_ptr (pid);
+  int i;
+  for (i = 0; i < sz; ++i) {
+    cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, addr,
+                                   3, (uint16_t *)cur);
+    cur++;
+    addr++;
+  }
+  
+  return ST_OK;
+}
+
+enum status
 port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
 {
   GT_STATUS rc;
