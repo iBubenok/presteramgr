@@ -968,25 +968,22 @@ DEFINE_HANDLER (CC_PORT_READ_SFP_IDPROM)
   enum status result;
   port_id_t pid;
   uint16_t addr;
-  uint8_t *out;
-
+  
   /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
    * Check it later */
   result = POP_ARG_SZ (&pid, sizeof (pid));
-  if (result != ST_OK)
+  if (result != ST_OK) 
     goto err;
 
   result = POP_ARG_SZ (&addr, sizeof (addr));
-  if (result != ST_OK)
+  if (result != ST_OK) 
     goto err;
     
-  result = POP_ARG_SZ (&out, sizeof (out));
-  if (result != ST_OK)
-    goto err;
-
-  result = port_read_sfp_idprom (pid, addr, out);
-
-  zmsg_t *reply = make_reply (result);
+  const int bufsz = 128;
+  uint8_t *buf = port_read_sfp_idprom (pid, addr);
+  
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, buf, bufsz);
   send_reply (reply);
   return;
 
