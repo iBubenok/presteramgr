@@ -2152,7 +2152,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 }
 
 uint8_t*
-port_read_sfp_idprom (port_id_t pid, uint16_t addr)
+port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
 {
   const int sz = 128;
   uint8_t *ret = malloc (sz);
