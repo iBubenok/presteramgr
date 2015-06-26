@@ -2188,6 +2188,13 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
     ready = !((ready_val >> 1) & 1);
   } while (!ready);
   
+  /*
+    Seems that the 98x2025x PHY needs some time to copy SFP EEPROM bytes into
+    the MDIO register space (see page 104 of datasheet). I was experimenting and
+    found out that 0.5 sec is quite good delay. I also tried smaller values, say
+    0.3 sec, and the memory was sometimes uninitialized (filled with zeroes).
+  */
+  usleep (500000); /* 0.5 sec */
   for (i = 0; i < sz; ++i) {
     cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, addr,
                                    3, (uint16_t *) cur);
