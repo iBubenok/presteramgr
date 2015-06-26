@@ -1009,6 +1009,7 @@ DEFINE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, buf, bufsz);
   send_reply (reply);
+  free (buf);
   return;
 
  err:
