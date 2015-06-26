@@ -2171,6 +2171,23 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   
   struct port *port = port_ptr (pid);
   int i;
+  
+  uint16_t ready_val;
+  bool_t ready;
+  
+  /*
+    We should wait for bit 1 of 3.D100 register to be zero (see page 113 of
+    QT2025 programmer's reference manual). The ready variable is true when the
+    mentioned bit is zero (hence these NOT operations).
+  */
+  do {
+    usleep (3000);
+    cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD100, phydev, &ready_val);
+    
+    ready = !((ready_val >> 1) & 1);
+  } while (!ready);
+  
   for (i = 0; i < sz; ++i) {
     cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, addr,
                                    3, (uint16_t *) cur);
