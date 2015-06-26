@@ -2184,7 +2184,7 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   do {
     usleep (3000);
     cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xD100, phydev, &ready_val);
+                                   0xD100, 3, &ready_val);
     
     ready = !((ready_val >> 1) & 1);
   } while (!ready);
