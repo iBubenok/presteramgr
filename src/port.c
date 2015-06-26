@@ -2166,6 +2166,7 @@ uint8_t*
 port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
 {
   const int sz = 128;
+  const int phydev = addr == 0xD000 ? 3 : 1;
   uint8_t *ret = malloc (sz);
   uint8_t *cur = ret;
   
@@ -2197,7 +2198,7 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   usleep (500000); /* 0.5 sec */
   for (i = 0; i < sz; ++i) {
     cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, addr,
-                                   3, (uint16_t *) cur);
+                                   phydev, &val);
     cur++;
     addr++;
   }
