@@ -2151,6 +2151,17 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   }
 }
 
+bool_t
+port_is_xg_sfp_present (port_id_t pid)
+{
+  struct port *port = port_ptr (pid);
+  uint16_t val;
+  cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, 0xC200,
+                                   1, &val);
+
+  return val & 1;
+}
+
 uint8_t*
 port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
 {
