@@ -2157,9 +2157,9 @@ port_is_xg_sfp_present (port_id_t pid)
   struct port *port = port_ptr (pid);
   uint16_t val;
   cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, 0xC200,
-                                   1, &val);
+                                 1, &val);
 
-  return val & 1;
+  return !(val & 1);
 }
 
 uint8_t*
