@@ -1807,7 +1807,7 @@ port_shutdown_ge (struct port *port, int shutdown)
 
   CRP (cpssDxChPhyPortSmiRegisterRead
        (port->ldev, port->lport, 22, &start_reg));
-       
+
   phy_lock();
   /* LEDs */
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -1956,15 +1956,15 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 
 enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
-{  
+{
   GT_STATUS rc;
   uint16_t mode_val;
   struct port *port = port_ptr (pid);
-  
+
   if (!port) {
     return ST_BAD_VALUE;
   }
-  
+
   /*
     The value that we should put into register to switch to 100 Mbps fiber mode
     is the same for both fiber and combo ports. However, the value for 1000 Mbps
@@ -1974,16 +1974,16 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     we dont set auto media detect mode on them, the copper won't work.
     If we're in 100BASE-FX mode, then we don't want copper to work, so it
     doesn't with the 0x8203 value.
-  */ 
-  
+  */
+
   uint16_t mode_100mbps = 0x8203;
   uint16_t mode_1000mbps = 0x8202;
-  
+
 #if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
   if (pid > 24) {
     mode_1000mbps = 0x8207;
   }
-  
+
   else {
     return GT_BAD_PARAM;
   }
@@ -1995,25 +1995,25 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
         return GT_BAD_PARAM;
       }
     break;
-    
+
     case HWST_ARLAN_3424GE_U:
       if (pid <= 12 || pid >= 25) {
         return GT_BAD_PARAM;
       }
     break;
-    
+
     default:
       if (pid == 23 || pid == 24) {
         mode_1000mbps = 0x8207;
       }
-      
+
       else {
         return GT_BAD_PARAM;
       }
     break;
   }
 #endif
-  
+
   switch (mode) {
     case PSM_100: mode_val = mode_100mbps; break;
     case PSM_1000: mode_val = mode_1000mbps; break;
@@ -2024,99 +2024,99 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 #if defined (VARIANT_FE)
   rc = CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x16, 0x6));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x8205));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x16, 0x4));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x00, 0x9140));
-  
-  if (rc != GT_OK)
-    goto out;
-  
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x1B, 0x4203));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortAddrSet
-       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x16, 0x6));
-  
-  if (rc != GT_OK)
-    goto out;
-  
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, mode_val));
-  
-  if (rc != GT_OK)
-    goto out;
-  
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x16, 0x4));
-       
-  if (rc != GT_OK)
-    goto out;
-       
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x00, 0x9140));
-  
+
   if (rc != GT_OK)
     goto out;
 
-    
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8205));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1B, 0x4203));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, mode_val));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  if (rc != GT_OK)
+    goto out;
+
+
 #elif defined (VARIANT_GE)
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x6));
-  
+
   if (rc != GT_OK)
     goto out;
-  
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x14, mode_val));
-  
+
   if (rc != GT_OK)
     goto out;
-  
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x4));
-       
+
   if (rc != GT_OK)
     goto out;
-       
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x00, 0x9140));
-       
+
   if (rc != GT_OK)
     goto out;
-       
+
   CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
-  
+
   /*
     If requested port is fiber, we should return on page 1
   */
@@ -2124,13 +2124,13 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
   }
-  
+
   /* else if combo return to page 0 */
   else {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0000));
   }
-  
+
   /*
     then reset either copper or fiber (page 0 is copper, page 1 is fiber).
     On 3424GE it's necessary to reset copper, not QSGMII like on 3424FE to make
@@ -2169,13 +2169,13 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   const int phydev = addr == 0xD000 ? 3 : 1;
   uint8_t *ret = malloc (sz);
   uint8_t *cur = ret;
-  
+
   struct port *port = port_ptr (pid);
   int i;
-  
+
   uint16_t ready_val;
   bool_t ready;
-  
+
   /*
     We should wait for bit 1 of 3.D100 register to be zero (see page 113 of
     QT2025 programmer's reference manual). The ready variable is true when the
@@ -2185,7 +2185,7 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
     usleep (3000);
     cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xD100, 3, &ready_val);
-    
+
     ready = !((ready_val >> 1) & 1);
   } while (!ready);
   
@@ -2202,7 +2202,7 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
     cur++;
     addr++;
   }
-  
+
   return ret;
 }
 
@@ -2776,7 +2776,7 @@ port_setup_ge (struct port *port)
        (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 
   port_set_sgmii_mode (port);
-  
+
   return ST_OK;
 }
 #elif defined (VARIANT_GE)
