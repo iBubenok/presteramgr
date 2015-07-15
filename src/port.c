@@ -2198,6 +2198,138 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   return ret;
 }
 
+extern enum status port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
+{
+  struct port *port = port_ptr (pid);
+
+  /* PHY must be configured first */
+  if (mode == PSM_1000) {
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0000, 1, 0x8000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC302, 1, 0x0004);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, 0x0088);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC31A, 1, 0x0098);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0026, 3, 0x0E00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0027, 3, 0x1092);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0028, 3, 0xA528);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0029, 3, 0x0003);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0002);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x00C0);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x0040);
+
+    uint16_t asd;
+    do {
+      usleep (30);
+      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD7FD, 3, &asd);
+
+      DEBUG ("asd is %d\n", asd);
+
+    } while (asd == 0x0 || asd == 0x10);
+
+    /* End of PHY configuration. Now configure Prestera and SERDES */
+
+    cpssDxChPortInterfaceModeSet (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E);
+    cpssDxChPortSpeedAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+    cpssDxChPortSpeedSet(port->ldev, port->lport, CPSS_PORT_SPEED_1000_E);
+    cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+    cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+    cpssDxChPortFlowCntrlAutoNegEnableSet(port->ldev, port->lport, GT_FALSE, GT_FALSE);
+    cpssDxChPortFlowControlEnableSet(port->ldev, port->lport, CPSS_PORT_FLOW_CONTROL_DISABLE_E);
+    cpssDxChPortSerdesPowerStatusSet(port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x1, GT_TRUE);
+  }
+
+  else if (mode == PSM_10G) {
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0000, 1, 0x8000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC05F, 4, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC05F, 4, 0x3C00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC302, 1, 0x0004);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, 0x0038);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC31A, 1, 0x0098);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0026, 3, 0x0E00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0027, 3, 0x0892);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0028, 3, 0xA528);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0029, 3, 0x0003);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0002);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x00C0);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x0050);
+
+    uint16_t asd;
+    do {
+      usleep (30);
+      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD7FD, 3, &asd);
+
+      DEBUG ("asd is %d\n", asd);
+
+    } while (asd == 0x0 || asd == 0x10);
+
+    CRP (cpssDxChPortInterfaceModeSet
+         (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
+    CRP (cpssDxChPortSpeedSet
+         (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
+    CRP (cpssDxChPortSerdesPowerStatusSet
+         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
+    CRP (cpssXsmiPortGroupRegisterWrite
+         (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
+  }
+
+  else return GT_BAD_PARAM;
+
+  return ST_OK;
+}
+
 enum status
 port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
 {

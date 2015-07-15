@@ -108,6 +108,7 @@ extern enum status port_dump_phy_reg (port_id_t, uint16_t, uint16_t, uint16_t *)
 extern enum status port_set_sfp_mode (port_id_t, enum port_sfp_mode mode);
 extern bool_t port_is_xg_sfp_present (port_id_t pid);
 extern uint8_t* port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr);
+extern enum status port_set_xg_sfp_mode (port_id_t, enum port_sfp_mode mode);
 extern enum status port_set_phy_reg (port_id_t, uint16_t, uint16_t, uint16_t);
 extern enum status port_set_mdix_auto (port_id_t, int);
 extern enum status port_set_flow_control (port_id_t, flow_control_t);
