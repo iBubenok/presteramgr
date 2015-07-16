@@ -499,6 +499,17 @@ phy_polling_thread(void *numports) {
       if ((port_status[i] && !link_up) || ((port_status[i] == PHS_COPPER) && link_up && fiber_used)) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, disable LED */
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+          reg |= 0x0002;
+          reg &= ~0x0001;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 0, (port_status[i] == PHS_COPPER)? 0 : 1 );
         phy_lock();
@@ -507,6 +518,16 @@ phy_polling_thread(void *numports) {
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_TRUE));
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, enable normal LED operation*/
+          reg &= ~0x0003;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 1, fiber_used);
         phy_lock();
@@ -1770,6 +1791,10 @@ __port_setup_fe (GT_U8 dev, GT_U8 port)
        (dev, port, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+  /* workaround for activated speed LED without active link status in no
+     autoneg portconfiguretion, disable LED */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (dev, port, 0x19, 0x0002));
 
   return ST_OK;
 }
@@ -1845,7 +1870,7 @@ port_shutdown_ge (struct port *port, int shutdown)
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
 #elif defined (VARIANT_ARLAN_3448GE)
-  ptype = IS_COPPER;
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
 #else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
@@ -2342,41 +2367,45 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
@@ -2400,41 +2429,45 @@ port_set_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
@@ -2932,7 +2965,7 @@ port_setup_ge (struct port *port)
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
 #elif defined (VARIANT_ARLAN_3448GE)
-  ptype = IS_COPPER;
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
 #else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
