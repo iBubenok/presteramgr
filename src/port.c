@@ -2198,7 +2198,8 @@ port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
   return ret;
 }
 
-extern enum status port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
+enum status
+port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 {
   struct port *port = port_ptr (pid);
 
