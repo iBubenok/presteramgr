@@ -211,6 +211,9 @@ DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT);
+DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
@@ -315,6 +318,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
+  HANDLER (CC_PORT_SET_XG_SFP_MODE),
+  HANDLER (CC_PORT_IS_XG_SFP_PRESENT),
+  HANDLER (CC_PORT_READ_XG_SFP_IDPROM),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
@@ -955,6 +961,85 @@ DEFINE_HANDLER (CC_PORT_SET_SFP_MODE)
 
   zmsg_t *reply = make_reply (ST_OK);
   send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_XG_SFP_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t mode;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&mode, sizeof (mode));
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_xg_sfp_mode (pid, mode);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT)
+{
+  enum status result;
+  port_id_t pid;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  bool_t ret = port_is_xg_sfp_present (pid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ret, sizeof (ret));
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t addr;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&addr, sizeof (addr));
+  if (result != ST_OK)
+    goto err;
+
+  const int bufsz = 128;
+  uint8_t *buf = port_read_xg_sfp_idprom (pid, addr);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, buf, bufsz);
+  send_reply (reply);
+  free (buf);
   return;
 
  err:
