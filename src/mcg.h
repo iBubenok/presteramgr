@@ -12,8 +12,9 @@ extern void mcg_dgasp_setup (void);
 extern enum status mcg_dgasp_port_op (port_id_t, int);
 extern void mcg_stack_setup (void);
 
-#define LAST_USER_MCG 4092
-#define DGASP_MCG     4093
+#define LAST_USER_MCG 4091
+#define DROP_ALL_MCG 4092
+#define DGASP_MCG 4093
 #define STACK_MCG 4094
 
 static inline int

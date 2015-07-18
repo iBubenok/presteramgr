@@ -18,7 +18,9 @@
 #include <fib.h>
 #include <arpc.h>
 #include <sysdeps.h>
+#include <mcg.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -124,8 +126,8 @@ cpss_lib_init (void)
     CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1));
 
     memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
-    mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    mcRouteEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_DROP_HARD_E;
     CRP (cpssDxChIpMcRouteEntriesWrite (d, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
@@ -502,4 +504,79 @@ route_handle_udt (const uint8_t *data, int len)
          (daddr >> 8) & 0xFF, daddr & 0xFF,
          (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
          (rt >> 8) & 0xFF, rt & 0xFF);
+}
+
+enum status
+route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
+{
+  CPSS_DXCH_IP_LTT_ENTRY_STC le;
+  GT_STATUS rc;
+  GT_IPADDR s, d;
+  int idx, splen;
+
+  memcpy (&d.arIP, dst, sizeof (d.arIP));
+  memcpy (&s.arIP, src, sizeof (s.arIP));
+  if (s.u32Ip == 0)
+    splen = 0;
+  else
+    splen = 32;
+
+  if (via == 0xFFFF)
+    idx = DROP_MC_RE_IDX;
+  else if (mcg_valid (via)) {
+    idx = mcre_get (via, vid);
+    if (idx == -1)
+      return ST_BAD_STATE;
+  } else
+    return ST_BAD_VALUE;
+
+  le.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
+  le.numOfPaths               = 0;
+  le.routeEntryBaseIndex      = idx;
+  le.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
+  le.sipSaCheckMismatchEnable = GT_FALSE;
+  le.ucRPFCheckEnable         = GT_FALSE;
+
+  rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
+            (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
+  if (rc == GT_OK)
+    return ST_OK;
+
+  if (via != 0xFFFF)
+    mcre_put (via, vid);
+  return ST_HEX;
+}
+
+enum status
+route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src)
+{
+  CPSS_DXCH_IP_LTT_ENTRY_STC le;
+  GT_STATUS rc;
+  GT_IPADDR s, d;
+  int splen;
+  GT_U32 gri, gci, sri, sci;
+
+  memcpy (&d.arIP, dst, sizeof (d.arIP));
+  memcpy (&s.arIP, src, sizeof (s.arIP));
+  if (s.u32Ip == 0)
+    splen = 0;
+  else
+    splen = 32;
+
+  rc = CRP (cpssDxChIpLpmIpv4McEntrySearch
+            (0, 0, d, 32, s, splen, &le, &gri, &gci, &sri, &sci));
+  ON_GT_ERROR (rc)
+    goto out_err;
+
+  if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
+    mcre_put_idx (le.routeEntryBaseIndex);
+
+  rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));
+  ON_GT_ERROR (rc)
+    goto out_err;
+
+  return ST_OK;
+
+ out_err:
+  return ST_HEX;
 }

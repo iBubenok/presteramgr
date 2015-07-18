@@ -60,6 +60,7 @@ extern int stg_is_active (stp_id_t);
 extern void vlan_svc_enable_port (port_id_t, int);
 extern enum status vlan_set_xlate_tunnel (int);
 extern void vlan_stack_setup (void);
+extern enum status vlan_igmp_snoop (vid_t, int);
 extern enum status vlan_mc_route (vid_t, bool_t);
 
 

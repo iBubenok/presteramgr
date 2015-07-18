@@ -17,6 +17,8 @@
 #include <route-p.h>
 #include <dev.h>
 #include <sysdeps.h>
+#include <mll.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -248,4 +250,180 @@ ret_init (void)
   res.sp = 0;
 
   return ST_OK;
+}
+
+/*
+ * Multicast.
+ */
+
+struct mcre {
+  int key;
+  int refc;
+  int idx;
+  int mll_idx;
+  UT_hash_handle hh;
+};
+
+static inline int
+mcre_key (mcg_t mcg, vid_t vid)
+{
+  int m = mcg & 0xFFFF, v = vid & 0xFFFF;
+  return (m << 16) | v;
+}
+
+static struct mcre *mcret;
+
+struct mcre_bp {
+  mcg_t mcg;
+  vid_t vid;
+};
+
+static struct mcre_bp mcre_bp[4096];
+
+static int
+mcre_mll_get (mcg_t mcg, vid_t vid)
+{
+  CPSS_DXCH_IP_MLL_PAIR_STC p;
+  int idx;
+
+  memset (&p, 0, sizeof (p));
+
+  p.firstMllNode.mllRPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
+  p.firstMllNode.isTunnelStart = GT_FALSE;
+  p.firstMllNode.nextHopInterface.type = CPSS_INTERFACE_VIDX_E;
+  p.firstMllNode.nextHopInterface.vidx = mcg;
+  p.firstMllNode.nextHopVlanId = vid;
+  p.firstMllNode.ttlHopLimitThreshold = 0;
+  p.firstMllNode.excludeSrcVlan = GT_FALSE;
+  p.firstMllNode.last = GT_TRUE;
+  /* Just in case; shouldn't be really necessary. */
+  memcpy (&p.secondMllNode, &p.firstMllNode, sizeof (p.secondMllNode));
+
+  idx = mll_get ();
+  if (idx == -1)
+    return -1;
+
+  ON_GT_ERROR
+    (CRP (cpssDxChIpMLLPairWrite
+          (0, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p))) {
+    mll_put (idx);
+    return -1;
+  }
+
+  return idx;
+}
+
+static struct mcre *
+mcre_new (mcg_t mcg, vid_t vid)
+{
+  struct mcre *re;
+  int idx, mll_idx;
+  CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
+
+  idx = res_pop ();
+  if (idx == -1)
+    goto err;
+
+  mll_idx = mcre_mll_get (mcg, vid);
+  if (mll_idx == -1)
+    goto err_res;
+
+  memset (&c, 0, sizeof (c));
+  c.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  c.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_0_E;
+  c.appSpecificCpuCodeEnable = GT_FALSE;
+  c.ttlHopLimitDecEnable = GT_FALSE;
+  c.ttlHopLimDecOptionsExtChkByPass = GT_TRUE;
+  c.ingressMirror = GT_FALSE;
+  c.qosProfileMarkingEnable = GT_FALSE;
+  c.qosProfileIndex = 0;
+  c.qosPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E;
+  c.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
+  c.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
+  c.countSet = CPSS_IP_CNT_SET3_E;
+  c.multicastRPFCheckEnable = GT_FALSE;
+  c.multicastRPFVlan = 0;
+  c.multicastRPFFailCommandMode =
+    CPSS_DXCH_IP_MULTICAST_ROUTE_ENTRY_RPF_FAIL_COMMAND_MODE_E;
+  c.RPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
+  c.scopeCheckingEnable = GT_FALSE;
+  c.siteId = CPSS_IP_SITE_ID_INTERNAL_E;
+  c.mtuProfileIndex = 0;
+  c.internalMLLPointer = mll_idx;
+  c.externalMLLPointer = 0;
+
+  ON_GT_ERROR (CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c)))
+    goto err_mll;
+
+  re = calloc (1, sizeof (*re));
+  re->idx = idx;
+  re->mll_idx = mll_idx;
+
+  mcre_bp[idx].mcg = mcg;
+  mcre_bp[idx].vid = vid;
+
+  return re;
+
+ err_mll:
+  mll_put (mll_idx);
+ err_res:
+  res_push (idx);
+ err:
+  return NULL;
+}
+
+static void
+mcre_del (struct mcre *re)
+{
+  HASH_DEL (mcret, re);
+
+  mll_put (re->mll_idx);
+  res_push (re->idx);
+
+  free (re);
+}
+
+int
+mcre_get (mcg_t mcg, vid_t vid)
+{
+  struct mcre *re;
+  int key = mcre_key (mcg, vid);
+
+  HASH_FIND_INT (mcret, &key, re);
+  if (!re) {
+    re = mcre_new (mcg, vid);
+    if (!re)
+      return -1;
+
+    re->key = key;
+    re->refc = 1;
+    HASH_ADD_INT (mcret, key, re);
+  }
+
+  return re->idx;
+}
+
+int
+mcre_put (mcg_t mcg, vid_t vid)
+{
+  struct mcre *re;
+  int key = mcre_key (mcg, vid);
+
+  HASH_FIND_INT (mcret, &key, re);
+  if (!re)
+    return -1;
+
+  re->refc--;
+  if (!re->refc) {
+    mcre_del (re);
+    return 0;
+  }
+
+  return re->refc;
+}
+
+int
+mcre_put_idx (int idx)
+{
+  return mcre_put (mcre_bp[idx].mcg, mcre_bp[idx].vid);
 }

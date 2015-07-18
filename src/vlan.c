@@ -402,7 +402,7 @@ vlan_delete_range (uint16_t size, vid_t* arr)
       }
     }
   }
-  
+
   return ST_OK;
 }
 
@@ -594,7 +594,7 @@ vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
       }
     }
   }
-  
+
   return ST_OK;
 }
 
@@ -723,6 +723,22 @@ vlan_set_xlate_tunnel (int enable)
   return ST_OK;
 }
 
+enum status
+vlan_igmp_snoop (vid_t vid, int enable)
+{
+  GT_STATUS rc;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (0, vid, gt_bool (enable)));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 void
 vlan_stack_setup (void)
 {
@@ -738,12 +754,17 @@ vlan_mc_route (vid_t vid, bool_t enable)
     return ST_BAD_VALUE;
 
   for_each_dev (d) {
-    if (enable)
+    if (enable) {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4092, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
-    else
+    } else {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_FALSE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+    }
   }
 
   return ST_OK;
