@@ -499,6 +499,17 @@ phy_polling_thread(void *numports) {
       if ((port_status[i] && !link_up) || ((port_status[i] == PHS_COPPER) && link_up && fiber_used)) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_FALSE));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, disable LED */
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+          reg |= 0x0002;
+          reg &= ~0x0001;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 0, (port_status[i] == PHS_COPPER)? 0 : 1 );
         phy_lock();
@@ -507,6 +518,16 @@ phy_polling_thread(void *numports) {
       if (!port_status[i] && link_up) {
         CRP(cpssDxChPortForceLinkPassEnableSet
             (port->ldev, port->lport, GT_TRUE));
+        if (IS_FE_PORT(i-1)) {
+          GT_U16 reg;
+          CRP (cpssDxChPhyPortSmiRegisterRead
+               (port->ldev, port->lport, 0x19, &reg));
+  /* workaround for activated speed LED without active link status in no
+     autoneg port configuration, enable normal LED operation*/
+          reg &= ~0x0003;
+          CRP (cpssDxChPhyPortSmiRegisterWrite
+               (port->ldev, port->lport, 0x19, reg));
+        }
         phy_unlock();
         phy_handle_link_change(port, 1, fiber_used);
         phy_lock();
@@ -700,7 +721,7 @@ port_disable_all (void)
 enum status
 port_start (void)
 {
-  GT_U32 rate = 5000;
+/*   GT_U32 rate = 5000; */
   int i, d;
 
 #if defined (VARIANT_FE)
@@ -841,10 +862,10 @@ port_start (void)
     port->update_sd (port);
   };
 
-  CRP (cpssDxChPortTxShaperProfileSet
+/*  CRP (cpssDxChPortTxShaperProfileSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
   CRP (cpssDxChPortTxShaperEnableSet
-       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE)); */
 
   for_each_dev (d)
     CRP (cpssDxChNetIfFromCpuDpSet (d, CPSS_DP_GREEN_E));
@@ -1770,6 +1791,10 @@ __port_setup_fe (GT_U8 dev, GT_U8 port)
        (dev, port, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   CRP (cpssDxChPhyPortAddrSet (dev, port, (GT_U8) (port % 16)));
+  /* workaround for activated speed LED without active link status in no
+     autoneg portconfiguretion, disable LED */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (dev, port, 0x19, 0x0002));
 
   return ST_OK;
 }
@@ -1802,24 +1827,88 @@ port_set_duplex_ge (struct port *port, enum port_duplex duplex)
 static enum status
 port_shutdown_ge (struct port *port, int shutdown)
 {
-  GT_STATUS rc;
-  GT_U16 reg;
+  GT_STATUS rc = GT_OK;
+  GT_U16 reg, start_reg;
+
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 22, &start_reg));
 
   phy_lock();
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x00, &reg));
-  if (rc != GT_OK)
-    goto out;
+  /* LEDs */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 22, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 29, 0));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 30, shutdown ? 0x20 : 0));
+  /* END_LEDs */
 
-  if (shutdown)
-    reg |= (1 << 11);
-  else
-    reg &= ~(1 << 11);
+#if defined (VARIANT_FE)
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x00, &reg));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00,
+       (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  if (IS_GE_PORT (port->id -1)) { /* FIXME: maybe always true */
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+  }
+#elif defined (VARIANT_GE)
+  enum {
+    IS_FIBER,
+    IS_COPPER,
+    IS_COMBO
+  } ptype;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x00, reg));
+#if defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    ptype = IS_FIBER;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
+    break;
+  default:
+    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
+  }
+#endif /* VARIANT_* */
 
- out:
+  if (ptype == IS_COPPER) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  }
+
+  if ((ptype == IS_FIBER) || (ptype == IS_COMBO)) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  }
+#endif
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, start_reg));
+
   phy_unlock();
   switch (rc) {
   case GT_OK:       return ST_OK;
@@ -1891,6 +1980,383 @@ port_set_duplex (port_id_t pid, port_duplex_t duplex)
 }
 
 enum status
+port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
+{
+  GT_STATUS rc;
+  uint16_t mode_val;
+  struct port *port = port_ptr (pid);
+
+  if (!port) {
+    return ST_BAD_VALUE;
+  }
+
+  /*
+    The value that we should put into register to switch to 100 Mbps fiber mode
+    is the same for both fiber and combo ports. However, the value for 1000 Mbps
+    on fiber ports should be 0x8202 which means QSGMII to 1000BASE-X; for combo
+    ports it's 0x8207 which means QSGMII to auto media detect 1000BASE-X. It's
+    done this way because we still care about the copper on combo ports, and if
+    we dont set auto media detect mode on them, the copper won't work.
+    If we're in 100BASE-FX mode, then we don't want copper to work, so it
+    doesn't with the 0x8203 value.
+  */
+
+  uint16_t mode_100mbps = 0x8203;
+  uint16_t mode_1000mbps = 0x8202;
+
+#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+  if (pid > 24) {
+    mode_1000mbps = 0x8207;
+  }
+
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_GE)
+  switch (env_hw_subtype()) {
+    case HWST_ARLAN_3424GE_F:
+    case HWST_ARLAN_3424GE_F_S:
+      if (pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+
+    case HWST_ARLAN_3424GE_U:
+      if (pid <= 12 || pid >= 25) {
+        return GT_BAD_PARAM;
+      }
+    break;
+
+    default:
+      if (pid == 23 || pid == 24) {
+        mode_1000mbps = 0x8207;
+      }
+
+      else {
+        return GT_BAD_PARAM;
+      }
+    break;
+  }
+#endif
+
+  switch (mode) {
+    case PSM_100: mode_val = mode_100mbps; break;
+    case PSM_1000: mode_val = mode_1000mbps; break;
+    default: return ST_BAD_VALUE;
+  }
+
+  phy_lock();
+#if defined (VARIANT_FE)
+  rc = CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, 0x8205));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x1B, 0x4203));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortAddrSet
+       (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, mode_val));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  if (rc != GT_OK)
+    goto out;
+
+
+#elif defined (VARIANT_GE)
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, mode_val));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x4));
+
+  if (rc != GT_OK)
+    goto out;
+
+  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x00, 0x9140));
+
+  if (rc != GT_OK)
+    goto out;
+
+  CRP (cpssDxChPortInbandAutoNegEnableSet
+         (port->ldev, port->lport, GT_TRUE));
+
+  /*
+    If requested port is fiber, we should return on page 1
+  */
+  if (mode_1000mbps == 0x8202) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0001));
+  }
+
+  /* else if combo return to page 0 */
+  else {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x16, 0x0000));
+  }
+
+  /*
+    then reset either copper or fiber (page 0 is copper, page 1 is fiber).
+    On 3424GE it's necessary to reset copper, not QSGMII like on 3424FE to make
+    combo ports work.
+  */
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00, 0x9140));
+#endif
+
+ out:
+  phy_unlock();
+  switch (rc) {
+    case GT_OK:            return ST_OK;
+    case GT_HW_ERROR:      return ST_HW_ERROR;
+    case GT_BAD_PARAM:     return ST_BAD_VALUE;
+    case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+    default:               return ST_HEX;
+  }
+}
+
+bool_t
+port_is_xg_sfp_present (port_id_t pid)
+{
+  struct port *port = port_ptr (pid);
+  uint16_t val;
+  cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, 0xC200,
+                                 1, &val);
+
+  return !(val & 1);
+}
+
+uint8_t*
+port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
+{
+  const int sz = 128;
+  const int phydev = addr == 0xD000 ? 3 : 1;
+  uint8_t *ret = malloc (sz);
+  uint8_t *cur = ret;
+
+  struct port *port = port_ptr (pid);
+  int i;
+
+  uint16_t ready_val;
+  bool_t ready;
+
+  /*
+    We should wait for bit 1 of 3.D100 register to be zero (see page 113 of
+    QT2025 programmer's reference manual). The ready variable is true when the
+    mentioned bit is zero (hence these NOT operations).
+  */
+  do {
+    cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD100, 3, &ready_val);
+
+    ready = !((ready_val >> 1) & 1);
+  } while (!ready);
+
+  for (i = 0; i < sz; ++i) {
+    cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, addr,
+                                   phydev, (uint16_t *) cur);
+    cur++;
+    addr++;
+  }
+
+  return ret;
+}
+
+enum status
+port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
+{
+  struct port *port = port_ptr (pid);
+
+  /* PHY must be configured first */
+  if (mode == PSM_1000) {
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0000, 1, 0x8000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC302, 1, 0x0004);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, 0x0088);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC31A, 1, 0x0098);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0026, 3, 0x0E00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0027, 3, 0x1092);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0028, 3, 0xA528);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0029, 3, 0x0003);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0002);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x00C0);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x0040);
+
+    uint16_t asd;
+    do {
+      usleep (30);
+      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD7FD, 3, &asd);
+
+      DEBUG ("asd is %d\n", asd);
+
+    } while (asd == 0x0 || asd == 0x10);
+
+    /* End of PHY configuration. Now configure Prestera and SERDES */
+
+    cpssDxChPortInterfaceModeSet (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E);
+    cpssDxChPortSpeedAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+    cpssDxChPortSpeedSet(port->ldev, port->lport, CPSS_PORT_SPEED_1000_E);
+    cpssDxChPortDuplexAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
+    cpssDxChPortDuplexModeSet(port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E);
+    cpssDxChPortFlowCntrlAutoNegEnableSet(port->ldev, port->lport, GT_FALSE, GT_FALSE);
+    cpssDxChPortFlowControlEnableSet(port->ldev, port->lport, CPSS_PORT_FLOW_CONTROL_DISABLE_E);
+    cpssDxChPortSerdesPowerStatusSet(port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x1, GT_TRUE);
+  }
+
+  else if (mode == PSM_10G) {
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0000, 1, 0x8000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC05F, 4, 0x0000);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC05F, 4, 0x3C00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC302, 1, 0x0004);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, 0x0038);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC31A, 1, 0x0098);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0026, 3, 0x0E00);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0027, 3, 0x0892);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0028, 3, 0xA528);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0x0029, 3, 0x0003);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC300, 1, 0x0002);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x00C0);
+
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xE854, 3, 0x0050);
+
+    uint16_t asd;
+    do {
+      usleep (30);
+      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD7FD, 3, &asd);
+
+      DEBUG ("asd is %d\n", asd);
+
+    } while (asd == 0x0 || asd == 0x10);
+
+    CRP (cpssDxChPortInterfaceModeSet
+         (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
+    CRP (cpssDxChPortSpeedSet
+         (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
+    CRP (cpssDxChPortSerdesPowerStatusSet
+         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
+    CRP (cpssXsmiPortGroupRegisterWrite
+         (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
+  }
+
+  else return GT_BAD_PARAM;
+
+  return ST_OK;
+}
+
+enum status
 port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
 {
   GT_STATUS rc;
@@ -1901,41 +2367,45 @@ port_dump_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t *val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
@@ -1959,41 +2429,45 @@ port_set_phy_reg (port_id_t pid, uint16_t page, uint16_t reg, uint16_t val)
     return ST_BAD_VALUE;
 
   phy_lock();
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
 #endif
-  rc = CRP (cpssDxChPhyPortSmiRegisterRead
-            (port->ldev, port->lport, 0x16, &pg));
-  if (rc != GT_OK)
-    goto out;
+    rc = CRP (cpssDxChPhyPortSmiRegisterRead
+              (port->ldev, port->lport, 0x16, &pg));
+    if (rc != GT_OK)
+      goto out;
 
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page - 1000));
-  else
+    if (page >= 1000)
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page - 1000));
+    else
 #endif /* XXX Achtung! Lebensgefahr! */
-    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-              (port->ldev, port->lport, 0x16, page));
-  if (rc != GT_OK)
-    goto out;
+      rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+                (port->ldev, port->lport, 0x16, page));
+    if (rc != GT_OK)
+      goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
             (port->ldev, port->lport, reg, val));
   if (rc != GT_OK)
     goto out;
 
-  rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-            (port->ldev, port->lport, 0x16, pg));
-  if (rc != GT_OK)
-    goto out;
+  if (!IS_FE_PORT(pid - 1)) { /* if phy is of 88E1340 series */
+    rc = CRP (cpssDxChPhyPortSmiRegisterWrite
+              (port->ldev, port->lport, 0x16, pg));
+    if (rc != GT_OK)
+      goto out;
 #if defined (VARIANT_FE)
-  if (page >= 1000)
-    CRP (cpssDxChPhyPortAddrSet
-         (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
+    if (page >= 1000)
+      CRP (cpssDxChPhyPortAddrSet
+           (port->ldev, port->lport, 0x11 + (port->lport - 24) * 2));
 #endif
+  }
 
  out:
   phy_unlock();
@@ -2490,7 +2964,9 @@ port_setup_ge (struct port *port)
 
 #if defined (VARIANT_ARLAN_3448PGE)
   ptype = IS_COPPER;
-#else /* !VARIANT_ARLAN_3448PGE */
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
   switch (env_hw_subtype ()) {
   case HWST_ARLAN_3424GE_F:
   case HWST_ARLAN_3424GE_F_S:
@@ -2578,9 +3054,9 @@ port_setup_ge (struct port *port)
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x11, 0x8845));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x10, 0x0666));
+         (port->ldev, port->lport, 0x10, 0x1777));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x12, 0x4C05));
+         (port->ldev, port->lport, 0x12, 0x4905));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x13, 0x0073));
 
@@ -2588,6 +3064,7 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 0x16, 0x0001));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x00, 0x9140));
+
     break;
 
   case IS_COPPER:

@@ -1,3 +1,24 @@
+19.06.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: fix phy debugging functions set/dump to work with non-paged phys
+
+18.06.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PHY: fix disrespectful to link status behaviour of speed LED on BobCatFE when port is configured to speed 100 duplex half/full. implement explicit disable to speed LED in phy poller thread when link status non-active.
+
+26.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PktRateLimit: fix removed debugging code artefacts.
+
+25.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * FDB: fix FDB messages rate limits to 4000 msg/sec.
+
+22.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * arch: change set up naming for all explicitly started threads.
+  * PktRateLimit: implement packet rate limits per distinct CPU_CODE. disable CPU Port Tx Shaper.
+
 15.05.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PHY: change software PHY's link status polling to prefer FIBER (SFP) over COPPER.

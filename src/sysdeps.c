@@ -54,6 +54,75 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ALL_CPU_OPCODES_E, &cce));
 
+    CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce_rlim = {
+      .tc = 6,
+      .dp = CPSS_DP_GREEN_E,
+      .truncate = GT_FALSE,
+      .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
+      .cpuCodeRateLimiterIndex = 1,
+      .cpuCodeStatRateLimitIndex = 1,
+      .designatedDevNumIndex = 1
+    };
+    CRP (cpssDxChNetIfCpuCodeRateLimiterWindowResolutionSet
+         (d, 250000));
+    GT_U32 wr;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterWindowResolutionGet
+         (d, &wr));
+    DEBUG ("cpssDxChNetIfCpuCodeRateLimiterWindowResolutionGet(d, %d)\n", wr);
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 1, 0xFFFFFFFF));
+
+/* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP) within 1 sec
+   but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 1, 4000, 600));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
+
+/* allowing ARP Requests & Replies bursts within 1 sec
+   but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
+    cce_rlim.cpuCodeRateLimiterIndex = 2;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 2, 4000, 120));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_INTERVENTION_ARP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce_rlim));
+
+/* allowing trapping IGMP packets bursts within 1 sec
+   but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_INTERVENTION_IGMP_E, &cce_rlim));
+
+/* allowing trapping LBD packets bursts within 1 sec
+   but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E, &cce_rlim));
+
+/* allowing trapping to kernel to be routed packets bursts within 0.1 sec
+   but with sustained rate 16000 pkts/sec. target: no more 25% CPU load  */
+    cce_rlim.cpuCodeRateLimiterIndex = 3;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 3, 200, 1600));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_ROUTE_ENTRY_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
+
+/* allowing trapping DHCP packets bursts within 1 sec
+   but with sustained rate 100 pkts/sec. target: no more 25% CPU load  */
+    cce_rlim.cpuCodeRateLimiterIndex = 4;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 4, 4000, 100));
+     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
+
     cce.tc = 7;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
