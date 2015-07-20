@@ -1941,7 +1941,14 @@ port_update_sd_xg (struct port *port)
 static enum status
 port_shutdown_xg (struct port *port, int shutdown)
 {
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  uint16_t val;
+  cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, &val);
+
+  val = shutdown ? (val | (1 << 1)) : (val & ~(1 << 1));
+  cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, val);
+
   return ST_OK;
 }
 
