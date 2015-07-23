@@ -1491,6 +1491,34 @@ port_update_sd_ge (struct port *port)
   GT_STATUS rc;
   GT_U16 reg, reg1;
 
+  enum {
+    IS_FIBER,
+    IS_COPPER,
+    IS_COMBO
+  } ptype;
+
+#if defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    ptype = IS_FIBER;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
+    break;
+  default:
+    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
+  }
+#endif /* VARIANT_* */
+  if (ptype == IS_FIBER) {
+    /* Fiber speed changed handled by sfp-utils */
+    return ST_OK;
+  }
+
   phy_lock();
   if (port->c_speed_auto || port->c_duplex == PORT_DUPLEX_AUTO) {
     /* Speed or duplex is AUTO. */
@@ -1941,7 +1969,14 @@ port_update_sd_xg (struct port *port)
 static enum status
 port_shutdown_xg (struct port *port, int shutdown)
 {
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  uint16_t val;
+  cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, &val);
+
+  val = shutdown ? (val | (1 << 1)) : (val & ~(1 << 1));
+  cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xC319, 1, val);
+
   return ST_OK;
 }
 
