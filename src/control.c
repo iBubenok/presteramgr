@@ -1653,7 +1653,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
-    put_vid = 1;
+    // put_vid = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
@@ -2705,6 +2705,7 @@ DEFINE_HANDLER (CC_ROUTE_MC_DEL)
   enum status result;
   vid_t vid;
   ip_addr_t d, s;
+  mcg_t via;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -2718,7 +2719,11 @@ DEFINE_HANDLER (CC_ROUTE_MC_DEL)
   if (result != ST_OK)
     goto out;
 
-  result = route_mc_del (vid, d, s);
+  result = POP_ARG (&via);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_mc_del (vid, d, s, via);
 
  out:
   report_status (result);

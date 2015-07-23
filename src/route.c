@@ -512,7 +512,7 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
   CPSS_DXCH_IP_LTT_ENTRY_STC le;
   GT_STATUS rc;
   GT_IPADDR s, d;
-  int idx, splen;
+  int idx, splen, res;
 
   memcpy (&d.arIP, dst, sizeof (d.arIP));
   memcpy (&s.arIP, src, sizeof (s.arIP));
@@ -524,36 +524,48 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
   if (via == 0xFFFF)
     idx = DROP_MC_RE_IDX;
   else if (mcg_valid (via)) {
-    idx = mcre_get (via, vid);
-    if (idx == -1)
-      return ST_BAD_STATE;
+    // idx = mcre_get (via, vid);
+    idx = mcre_find (dst, src);
+    if (idx == -1) { // idx does not exist
+
+      idx = mcre_create (dst, src, via, vid);
+      if (idx == -1)
+        return ST_BAD_STATE;
+
+      le.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
+      le.numOfPaths               = 0;
+      le.routeEntryBaseIndex      = idx;
+      le.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
+      le.sipSaCheckMismatchEnable = GT_FALSE;
+      le.ucRPFCheckEnable         = GT_FALSE;
+
+      rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
+                (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
+      if (rc == GT_OK)
+        return ST_OK;
+
+      if (via != 0xFFFF)
+        // mcre_put (via, vid);
+        mcre_put (dst, src);
+      return ST_HEX;
+    } else { // idx already exists
+      res = mcre_add_node (idx, via, vid);
+      if (!res)
+        return ST_OK;
+    }
+
   } else
     return ST_BAD_VALUE;
-
-  le.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
-  le.numOfPaths               = 0;
-  le.routeEntryBaseIndex      = idx;
-  le.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
-  le.sipSaCheckMismatchEnable = GT_FALSE;
-  le.ucRPFCheckEnable         = GT_FALSE;
-
-  rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
-            (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
-  if (rc == GT_OK)
-    return ST_OK;
-
-  if (via != 0xFFFF)
-    mcre_put (via, vid);
-  return ST_HEX;
+  return ST_BAD_VALUE;
 }
 
 enum status
-route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src)
+route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
 {
   CPSS_DXCH_IP_LTT_ENTRY_STC le;
   GT_STATUS rc;
   GT_IPADDR s, d;
-  int splen;
+  int splen, res;
   GT_U32 gri, gci, sri, sci;
 
   memcpy (&d.arIP, dst, sizeof (d.arIP));
@@ -569,13 +581,17 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src)
     goto out_err;
 
   if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
-    mcre_put_idx (le.routeEntryBaseIndex);
+  {
+    res = mcre_put_idx (le.routeEntryBaseIndex, via, vid);
 
-  rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));
-  ON_GT_ERROR (rc)
-    goto out_err;
+    if (!res) {
+      rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));
+      ON_GT_ERROR (rc)
+        goto out_err;
+    }
 
-  return ST_OK;
+    return ST_OK;
+  }
 
  out_err:
   return ST_HEX;
