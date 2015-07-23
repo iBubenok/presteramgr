@@ -2311,6 +2311,10 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     } while (asd == 0x0 || asd == 0x10);
 
+    /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD71A, 3, 0x0001);
+
     /* End of PHY configuration. Now configure Prestera and SERDES */
 
     cpssDxChPortInterfaceModeSet (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E);
@@ -2375,6 +2379,10 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       DEBUG ("asd is %d\n", asd);
 
     } while (asd == 0x0 || asd == 0x10);
+
+    /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
+                                   0xD71A, 3, 0x0001);
 
     CRP (cpssDxChPortInterfaceModeSet
          (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
