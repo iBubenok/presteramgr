@@ -2284,7 +2284,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
                                    0x0026, 3, 0x0E00);
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0027, 3, 0x1092);
+                                   0x0027, 3, 0x1012);
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0x0028, 3, 0xA528);
@@ -2349,7 +2349,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
                                    0x0026, 3, 0x0E00);
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0027, 3, 0x0892);
+                                   0x0027, 3, 0x0812);
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0x0028, 3, 0xA528);
