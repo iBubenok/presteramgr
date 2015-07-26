@@ -1,3 +1,7 @@
+26.07.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * ARCH: split PUB_SOCK_EP to former, PUB_SOCK_DHCP_EP and PUB_SOCK_ARP_EP, set ZMQ_HWM highwatermarks to new queues in order to prevent memory overusage
+
 19.06.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PHY: fix phy debugging functions set/dump to work with non-paged phys
