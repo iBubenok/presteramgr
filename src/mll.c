@@ -519,25 +519,16 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
       if (head) {
         if (complete_tail) { // (10) !(firstnode) && !(tail) &&
                              // head && complete_tail
+          new_head_idx = mll_pt[idx].succ;
+          pair_modify_chain (new_head_idx, SKIP, SKIP, SKIP, idx, SKIP, SKIP);
+          pair_modify_chain (last_idx, SKIP, RESET_FLAG, SKIP, idx, SKIP, SKIP);
+          mll_pt[last_idx].succ = idx;
 
-          pair_modify_chain (idx, SET_FLAG, SKIP, CP_SECD_NODE_TO_FIRST_NODE,
-                               SKIP, last_idx, SET_LAST_NEXT_TO_CUR);
-
-          mll_pt[idx].fvid = mll_pt[idx].svid;
-          mll_pt[idx].fmcg = mll_pt[idx].smcg;
+          pair_modify_chain (idx, SET_FLAG, SKIP, SKIP, SKIP, SKIP, SKIP);
 
           mll_pt[idx].svid = 0;
           mll_pt[idx].smcg = 0;
-
-          succ_idx = mll_pt[idx].succ;
-
-          mll_pt[succ_idx].pred = mll_pt[idx].pred;
-
-          new_head_idx = mll_pt[idx].succ;
-
           mll_pt[idx].succ = -1;
-
-          mll_pt[last_idx].succ = idx;
 
           // Know the second record become the head
           return new_head_idx;

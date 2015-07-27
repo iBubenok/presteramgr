@@ -1694,7 +1694,21 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
-  zmsg_addmem (msg, frame->data, frame->len);
+
+
+  // Mud mad hack
+
+  unsigned char buf[60];
+  memset (buf, 0, 60);
+
+  if ((type == CN_IPv4_IGMP_PDU) && (frame->len == 56)) {
+    memcpy (buf, frame->data, frame->len);
+    zmsg_addmem (msg, buf, 60);
+  } else
+    zmsg_addmem (msg, frame->data, frame->len);
+
+  // End of Mud mad hack
+
   notify_send (&msg);
 
   result = ST_OK;
