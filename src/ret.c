@@ -259,15 +259,8 @@ ret_init (void)
 struct mcre_key {
   GT_U8 dst[4];
   GT_U8 src[4];
+  vid_t src_vid;
 };
-
-// struct mcre {
-//   int key;
-//   int refc;
-//   int idx;
-//   int mll_idx;
-//   UT_hash_handle hh;
-// };
 
 struct mcre {
   struct mcre_key key;
@@ -279,146 +272,38 @@ struct mcre {
 
 static struct mcre_key mcrek, mcre_key_bp[4096];
 
-// static inline int
-// mcre_key (mcg_t mcg, vid_t vid)
-// {
-//   int m = mcg & 0xFFFF, v = vid & 0xFFFF;
-//   return (m << 16) | v;
-// }
-
 static inline int
-mcre_key (struct mcre *re , const uint8_t *dst, const uint8_t *src)
+mcre_key (struct mcre *re , const uint8_t *dst, const uint8_t *src,
+          vid_t src_vid)
 {
   memcpy (&(re->key.dst), dst, sizeof (re->key.dst));
-  memcpy (&(re->key.src), src, sizeof (re->key.dst));
+  memcpy (&(re->key.src), src, sizeof (re->key.src));
+  memcpy (&(re->key.src_vid), &src_vid, sizeof (re->key.src_vid));
   return 0;
 }
 
 static struct mcre *mcret;
 
-// struct mcre_bp {
-//   mcg_t mcg;
-//   vid_t vid;
-// };
-
-// struct mcre_bp {
-//   mcg_t mcg;
-//   vid_t vid;
-// };
-
-// static struct mcre_bp mcre_bp[4096];
-
-// static int
-// mcre_mll_get (mcg_t mcg, vid_t vid)
-// {
-//   CPSS_DXCH_IP_MLL_PAIR_STC p;
-//   int idx;
-
-//   memset (&p, 0, sizeof (p));
-
-//   p.firstMllNode.mllRPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
-//   p.firstMllNode.isTunnelStart = GT_FALSE;
-//   p.firstMllNode.nextHopInterface.type = CPSS_INTERFACE_VIDX_E;
-//   p.firstMllNode.nextHopInterface.vidx = mcg;
-//   p.firstMllNode.nextHopVlanId = vid;
-//   p.firstMllNode.ttlHopLimitThreshold = 0;
-//   p.firstMllNode.excludeSrcVlan = GT_FALSE;
-//   p.firstMllNode.last = GT_FALSE;
-//   /* Just in case; shouldn't be really necessary. */
-//   memcpy (&p.secondMllNode, &p.firstMllNode, sizeof (p.secondMllNode));
-
-//   p.secondMllNode.nextHopInterface.vidx = mcg + (mcg_t)1;
-//   p.secondMllNode.nextHopVlanId = vid + 2;
-//   p.secondMllNode.last = GT_TRUE;
-
-//   idx = mll_get ();
-//   if (idx == -1)
-//     return -1;
-
-//   ON_GT_ERROR
-//     (CRP (cpssDxChIpMLLPairWrite
-//           (0, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p))) {
-//     mll_put (idx);
-//     return -1;
-//   }
-
-//   return idx;
-// }
-
-// static struct mcre *
-// mcre_new (mcg_t mcg, vid_t vid)
-// {
-//   struct mcre *re;
-//   int idx, mll_idx;
-//   CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
-
-//   idx = res_pop ();
-//   if (idx == -1)
-//     goto err;
-
-//   mll_idx = mcre_mll_get (mcg, vid);
-//   if (mll_idx == -1)
-//     goto err_res;
-
-//   memset (&c, 0, sizeof (c));
-//   c.cmd = CPSS_PACKET_CMD_ROUTE_E;
-//   c.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_0_E;
-//   c.appSpecificCpuCodeEnable = GT_FALSE;
-//   c.ttlHopLimitDecEnable = GT_FALSE;
-//   c.ttlHopLimDecOptionsExtChkByPass = GT_TRUE;
-//   c.ingressMirror = GT_FALSE;
-//   c.qosProfileMarkingEnable = GT_FALSE;
-//   c.qosProfileIndex = 0;
-//   c.qosPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E;
-//   c.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
-//   c.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
-//   c.countSet = CPSS_IP_CNT_SET3_E;
-//   c.multicastRPFCheckEnable = GT_FALSE;
-//   c.multicastRPFVlan = 0;
-//   c.multicastRPFFailCommandMode =
-//     CPSS_DXCH_IP_MULTICAST_ROUTE_ENTRY_RPF_FAIL_COMMAND_MODE_E;
-//   c.RPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
-//   c.scopeCheckingEnable = GT_FALSE;
-//   c.siteId = CPSS_IP_SITE_ID_INTERNAL_E;
-//   c.mtuProfileIndex = 0;
-//   c.internalMLLPointer = mll_idx;
-//   c.externalMLLPointer = 0;
-
-//   ON_GT_ERROR (CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c)))
-//     goto err_mll;
-
-//   re = calloc (1, sizeof (*re));
-//   re->idx = idx;
-//   re->mll_idx = mll_idx;
-
-//   mcre_bp[idx].mcg = mcg;
-//   mcre_bp[idx].vid = vid;
-
-//   return re;
-
-//  err_mll:
-//   mll_put (mll_idx);
-//  err_res:
-//   res_push (idx);
-//  err:
-//   return NULL;
-// }
-
 static struct mcre *
-mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid)
+mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
+          vid_t src_vid)
 {
   struct mcre *re;
   int idx, mll_idx;
   CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
 
+  DEBUG ("Popping new idx...\n");
+
   idx = res_pop ();
   if (idx == -1)
     goto err;
 
-  // mll_idx = mcre_mll_get (mcg, vid);
+  DEBUG ("New idx = %d. Adding first node\n", idx);
+
   mll_idx = add_node (-idx, mcg, vid);
   if (mll_idx == -1)
     goto err_res;
+
 
   memset (&c, 0, sizeof (c));
   c.cmd = CPSS_PACKET_CMD_ROUTE_E;
@@ -433,8 +318,8 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid)
   c.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
   c.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
   c.countSet = CPSS_IP_CNT_SET3_E;
-  c.multicastRPFCheckEnable = GT_FALSE;
-  c.multicastRPFVlan = 0;
+  c.multicastRPFCheckEnable = GT_TRUE;
+  c.multicastRPFVlan = src_vid;
   c.multicastRPFFailCommandMode =
     CPSS_DXCH_IP_MULTICAST_ROUTE_ENTRY_RPF_FAIL_COMMAND_MODE_E;
   c.RPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
@@ -451,14 +336,12 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid)
   re->idx = idx;
   re->mll_idx = mll_idx;
 
-  // mcre_bp[idx].mcg = mcg;
-  // mcre_bp[idx].vid = vid;
-
-  // mcre_key_bp[idx].mcg = mcg;
-  // mcre_key_bp[idx].vid = vid;
-
   memcpy (&(mcre_key_bp[idx].dst), dst, sizeof (mcre_key_bp[idx].dst));
   memcpy (&(mcre_key_bp[idx].src), src, sizeof (mcre_key_bp[idx].src));
+  memcpy (&(mcre_key_bp[idx].src_vid), &src_vid,
+          sizeof (mcre_key_bp[idx].src_vid));
+
+  DEBUG ("8\n");
 
   return re;
 
@@ -481,31 +364,11 @@ mcre_del (struct mcre *re)
   free (re);
 }
 
-// int
-// mcre_get (mcg_t mcg, vid_t vid)
-// {
-//   struct mcre *re;
-//   int key = mcre_key (mcg, vid);
-
-//   HASH_FIND_INT (mcret, &key, re);
-//   if (!re) {
-//     re = mcre_new (mcg, vid);
-//     if (!re)
-//       return -1;
-
-//     re->key = key;
-//     re->refc = 1;
-//     HASH_ADD_INT (mcret, key, re);
-//   }
-
-//   return re->idx;
-// }
-
 int
-mcre_find (const uint8_t *dst, const uint8_t *src)
+mcre_find (const uint8_t *dst, const uint8_t *src, vid_t src_vid)
 {
   struct mcre re_key, *re;
-  mcre_key (&re_key, dst, src);
+  mcre_key (&re_key, dst, src, src_vid);
 
   HASH_FIND (hh, mcret, &re_key.key, sizeof (struct mcre_key), re);
   if (!re) {
@@ -516,18 +379,22 @@ mcre_find (const uint8_t *dst, const uint8_t *src)
 }
 
 int
-mcre_create (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid)
+mcre_create (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
+             vid_t src_vid)
 {
   struct mcre re_key, *re;
-  mcre_key (&re_key, dst, src);
+  mcre_key (&re_key, dst, src, src_vid);
 
-  re = mcre_new (dst, src, mcg, vid);
+
+  re = mcre_new (dst, src, mcg, vid, src_vid);
   if (!re)
     return -1;
 
   re->key = re_key.key;
   re->refc = 1;
   HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), re);
+
+  DEBUG ("Re idx = %d\n", re->idx);
 
   return re->idx;
 }
@@ -536,7 +403,8 @@ int
 mcre_add_node (int idx, mcg_t mcg, vid_t vid)
 {
   memcpy (&(mcrek.dst), &mcre_key_bp[idx].dst, sizeof (mcrek.dst));
-  memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.dst));
+  memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.src));
+  memcpy (&(mcrek.src_vid), &mcre_key_bp[idx].src_vid, sizeof (mcrek.src_vid));
 
   struct mcre *re, *upd_re;
 
@@ -560,30 +428,11 @@ mcre_add_node (int idx, mcg_t mcg, vid_t vid)
   return 0;
 }
 
-// int
-// mcre_put (mcg_t mcg, vid_t vid)
-// {
-//   struct mcre *re;
-//   int key = mcre_key (mcg, vid);
-
-//   HASH_FIND_INT (mcret, &key, re);
-//   if (!re)
-//     return -1;
-
-//   re->refc--;
-//   if (!re->refc) {
-//     mcre_del (re);
-//     return 0;
-//   }
-
-//   return re->refc;
-// }
-
 int
-mcre_put (const uint8_t *dst, const uint8_t *src)
+mcre_put (const uint8_t *dst, const uint8_t *src, vid_t src_vid)
 {
   struct mcre re_key, *re;
-  mcre_key (&re_key, dst, src);
+  mcre_key (&re_key, dst, src, src_vid);
 
   HASH_FIND (hh, mcret, &re_key.key, sizeof (struct mcre_key), re);
   if (!re)
@@ -598,21 +447,15 @@ mcre_put (const uint8_t *dst, const uint8_t *src)
   return re->refc;
 }
 
-// int
-// mcre_put_idx (int idx)
-// {
-//   return mcre_put (mcre_bp[idx].mcg, mcre_bp[idx].vid);
-// }
-
 int
-mcre_put_idx (int idx, mcg_t via, vid_t vid)
+mcre_put_idx (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 {
   struct mcre *re, *upd_re;
 
   memcpy (&(mcrek.dst), &mcre_key_bp[idx].dst, sizeof (mcrek.dst));
   memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.dst));
+  memcpy (&(mcrek.src_vid), &mcre_key_bp[idx].src_vid, sizeof (mcrek.src_vid));
 
-  // return mcre_put (&(mcrek.dst[1]), &(mcrek.src[1]));
   HASH_FIND (hh, mcret, &mcrek, sizeof (struct mcre_key), re);
   if (!re)
     return -1;

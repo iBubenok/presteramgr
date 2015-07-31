@@ -507,7 +507,8 @@ route_handle_udt (const uint8_t *data, int len)
 }
 
 enum status
-route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
+route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
+              vid_t src_vid)
 {
   CPSS_DXCH_IP_LTT_ENTRY_STC le;
   GT_STATUS rc;
@@ -521,14 +522,21 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
   else
     splen = 32;
 
+  DEBUG ("Adding route for vlan %d, vidx %d from "
+         "group %d.%d.%d.%d src vlan %d\n",
+         vid, via,
+         d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3],
+         src_vid);
+
   if (via == 0xFFFF)
     idx = DROP_MC_RE_IDX;
   else if (mcg_valid (via)) {
-    // idx = mcre_get (via, vid);
-    idx = mcre_find (dst, src);
+    DEBUG ("Looking for idx...\n");
+    idx = mcre_find (dst, src, src_vid);
     if (idx == -1) { // idx does not exist
+      DEBUG ("Idx does not exist. Creating mcre.\n");
 
-      idx = mcre_create (dst, src, via, vid);
+      idx = mcre_create (dst, src, via, vid, src_vid);
       if (idx == -1)
         return ST_BAD_STATE;
 
@@ -541,14 +549,17 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
 
       rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
                 (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
-      if (rc == GT_OK)
+      if (rc == GT_OK) {
+        DEBUG ("Route added.\n");
         return ST_OK;
+      }
 
       if (via != 0xFFFF)
         // mcre_put (via, vid);
-        mcre_put (dst, src);
+        mcre_put (dst, src, src_vid);
       return ST_HEX;
     } else { // idx already exists
+      DEBUG ("Idx = %d. Adding node.\n", idx);
       res = mcre_add_node (idx, via, vid);
       if (!res)
         return ST_OK;
@@ -560,7 +571,8 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
 }
 
 enum status
-route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
+route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
+              vid_t src_vid)
 {
   CPSS_DXCH_IP_LTT_ENTRY_STC le;
   GT_STATUS rc;
@@ -582,7 +594,7 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via)
 
   if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
   {
-    res = mcre_put_idx (le.routeEntryBaseIndex, via, vid);
+    res = mcre_put_idx (le.routeEntryBaseIndex, via, vid, src_vid);
 
     if (!res) {
       rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));

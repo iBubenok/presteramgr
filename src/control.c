@@ -2688,7 +2688,7 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
 DEFINE_HANDLER (CC_ROUTE_MC_ADD)
 {
   enum status result;
-  vid_t vid;
+  vid_t vid, src_vid;
   ip_addr_t d, s;
   mcg_t via;
 
@@ -2708,7 +2708,13 @@ DEFINE_HANDLER (CC_ROUTE_MC_ADD)
   if (result != ST_OK)
     goto out;
 
-  result = route_mc_add (vid, d, s, via);
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  DEBUG ("Route mc add src vid %d\n", src_vid);
+
+  result = route_mc_add (vid, d, s, via, src_vid);
 
  out:
   report_status (result);
@@ -2717,7 +2723,7 @@ DEFINE_HANDLER (CC_ROUTE_MC_ADD)
 DEFINE_HANDLER (CC_ROUTE_MC_DEL)
 {
   enum status result;
-  vid_t vid;
+  vid_t vid, src_vid;
   ip_addr_t d, s;
   mcg_t via;
 
@@ -2737,7 +2743,11 @@ DEFINE_HANDLER (CC_ROUTE_MC_DEL)
   if (result != ST_OK)
     goto out;
 
-  result = route_mc_del (vid, d, s, via);
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_mc_del (vid, d, s, via, src_vid);
 
  out:
   report_status (result);

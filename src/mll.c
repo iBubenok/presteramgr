@@ -86,9 +86,13 @@ static int create_pair (int pred, mcg_t mcg, vid_t vid)
   /* Just in case; shouldn't be really necessary. */
   memcpy (&p.secondMllNode, &p.firstMllNode, sizeof (p.secondMllNode));
 
+  DEBUG ("Getting new mll.\n");
+
   idx = mll_get ();
   if (idx == -1)
     return -1;
+
+  DEBUG ("Mll = %d\n", idx);
 
   ON_GT_ERROR
     (CRP (cpssDxChIpMLLPairWrite
@@ -100,6 +104,7 @@ static int create_pair (int pred, mcg_t mcg, vid_t vid)
   struct mll_pair pair = {pred, -1, vid, mcg, 0, 0};
   mll_pt [idx] = pair;
 
+  DEBUG ("Pair created.\n");
   return idx;
 }
 
@@ -179,10 +184,16 @@ static int append_node (int pred, mcg_t mcg, vid_t vid)
 
 int add_node (int pred, mcg_t mcg, vid_t vid)
 {
-  if (pred < 0)
+  DEBUG ("Add node. Predecessor = %d.\n", pred);
+  if (pred < 0) {
+    DEBUG ("Creating first pair. Mcg = %d, vid = %d\n", mcg, vid);
     return create_pair (pred, mcg, vid);
-  else
+  }
+
+  else {
+    DEBUG ("Appending node Mcg = %d, vid = %d, to chain %d\n", mcg, vid, pred);
     append_node (pred, mcg, vid);
+  }
 
   return pred;
 }
