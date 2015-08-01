@@ -174,7 +174,7 @@ static int append_node (int pred, mcg_t mcg, vid_t vid)
   if (mll_pt[last_pair].svid == 0)
     insert_second_node (last_pair, mcg, vid);
   else {
-    new_pair = create_pair (pred, mcg, vid);
+    new_pair = create_pair (last_pair, mcg, vid);
     pair_set_next_pair (last_pair, new_pair);
   }
 
