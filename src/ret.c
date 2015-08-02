@@ -448,7 +448,7 @@ mcre_put (const uint8_t *dst, const uint8_t *src, vid_t src_vid)
 }
 
 int
-mcre_put_idx (int idx, mcg_t via, vid_t vid, vid_t src_vid)
+mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 {
   struct mcre *re, *upd_re;
 

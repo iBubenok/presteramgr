@@ -594,7 +594,7 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
 
   if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
   {
-    res = mcre_put_idx (le.routeEntryBaseIndex, via, vid, src_vid);
+    res = mcre_del_node (le.routeEntryBaseIndex, via, vid, src_vid);
 
     if (!res) {
       rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));
