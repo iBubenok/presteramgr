@@ -492,6 +492,7 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
           upd_re = calloc (1, sizeof (*upd_re));
           *upd_re = *re;
           upd_re->refc--;
+          upd_re->mll_idx = new_head;
 
           HASH_DEL (mcret, re);
           HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
