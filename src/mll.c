@@ -323,7 +323,7 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
     single_node = 0;
 
   // Check if we delete first node in the struct
-  if (mll_pt[idx].fvid == vid)
+  if ((mll_pt[idx].fvid == vid) && (mll_pt[idx].fmcg == mcg))
     firstnode = 1;
   else
     firstnode = 0;
