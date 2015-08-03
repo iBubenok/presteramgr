@@ -68,10 +68,19 @@ mll_put (int ix)
   return 0;
 }
 
+static int debug_pair (int idx) {
+  DEBUG ("Pred = %d, Succ = %d, 1Vlan = %d, 1Mcg = %d, 2Vlan = %d, 2Mcg = %d\n",
+         mll_pt[idx].pred, mll_pt[idx].succ, mll_pt[idx].fvid,
+         mll_pt[idx].fmcg, mll_pt[idx].svid, mll_pt[idx].smcg);
+  return 0;
+}
+
 static int create_pair (int pred, mcg_t mcg, vid_t vid)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
   int idx;
+
+  DEBUG ("Creating new pair.\n");
 
   memset (&p, 0, sizeof (p));
 
@@ -104,16 +113,21 @@ static int create_pair (int pred, mcg_t mcg, vid_t vid)
   struct mll_pair pair = {pred, -1, vid, mcg, 0, 0};
   mll_pt [idx] = pair;
 
-  DEBUG ("Pair created.\n");
+  DEBUG ("Pair created. Pair is\n");
+  debug_pair (idx);
   return idx;
 }
 
 static int find_last_pair (int head)
 {
+  DEBUG ("Finding last pair in chain %d", head);
   int cur = head;
   while (1) {
-    if (mll_pt[cur].succ == -1)
+    debug_pair (cur);
+    if (mll_pt[cur].succ == -1) {
+      DEBUG ("Last pair found! It is %d\n", cur);
       return cur;
+    }
     else
       cur = mll_pt[cur].succ;
   }
@@ -122,6 +136,8 @@ static int find_last_pair (int head)
 static int pair_set_next_pair (int pred, int succ)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
+
+  DEBUG ("Linking pair %d to %d\n", pred, succ);
 
   memset (&p, 0, sizeof (p));
 
@@ -136,6 +152,9 @@ static int pair_set_next_pair (int pred, int succ)
   CRP (cpssDxChIpMLLPairWrite
           (0, pred, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
 
+  DEBUG ("New chain is \n");
+  debug_pair (pred);
+  debug_pair (succ);
 
   return 0;
 }
@@ -143,6 +162,9 @@ static int pair_set_next_pair (int pred, int succ)
 static int insert_second_node (int pair, mcg_t mcg, vid_t vid)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
+
+  DEBUG ("Inserting second node to pair %d\n", pair);
+  debug_pair (pair);
 
   memset (&p, 0, sizeof (p));
 
@@ -161,6 +183,9 @@ static int insert_second_node (int pair, mcg_t mcg, vid_t vid)
 
   mll_pt[pair].svid = vid;
   mll_pt[pair].smcg = mcg;
+
+  DEBUG ("Updated pair %d is \n", pair);
+  debug_pair (pair);
 
   return 0;
 }
@@ -186,12 +211,12 @@ int add_node (int pred, mcg_t mcg, vid_t vid)
 {
   DEBUG ("Add node. Predecessor = %d.\n", pred);
   if (pred < 0) {
-    DEBUG ("Creating first pair. Mcg = %d, vid = %d\n", mcg, vid);
+    DEBUG ("Creating first pair of chain. Mcg = %d, vid = %d\n", mcg, vid);
     return create_pair (pred, mcg, vid);
   }
 
   else {
-    DEBUG ("Appending node Mcg = %d, vid = %d, to chain %d\n", mcg, vid, pred);
+    DEBUG ("Appending node. Mcg = %d, vid = %d, to chain %d\n", mcg, vid, pred);
     append_node (pred, mcg, vid);
   }
 
@@ -204,6 +229,8 @@ static int find_pair (int pred, mcg_t mcg, vid_t vid)
 {
   int cur = pred;
 
+  DEBUG ("Finding pair vlan %d mcg %d in chain %d", vid, mcg, pred);
+
   while (((mll_pt[cur].fmcg != mcg) ||
           (mll_pt[cur].fvid != vid))
          &&
@@ -211,8 +238,11 @@ static int find_pair (int pred, mcg_t mcg, vid_t vid)
           (mll_pt[cur].svid != vid))) {
     if (mll_pt[cur].succ == -1)
       return -1;
+    debug_pair (cur);
     cur = mll_pt[cur].succ;
   }
+
+  DEBUG ("Pair found! It is %d\n", cur);
 
   return cur;
 }
@@ -316,6 +346,9 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
 {
   int single_node, firstnode, head, tail, complete_tail;
 
+  DEBUG ("Do del node vid %d mcg %d of pair %d in chain %d",
+         vid, mcg, idx, head_idx);
+
   // Check whether there is only one (the first) node in the record
   if (mll_pt[idx].svid == 0)
     single_node = 1;
@@ -348,6 +381,10 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
   else
     complete_tail = 1;
 
+  DEBUG ("Flags are: sgnode - %d, fnode - %d, "
+         "head %d, tail - %d, comp_tl - %d\n",
+         single_node, firstnode, head, tail, complete_tail);
+
   //--------------------------------------------------------------------
 
   int w_idx, new_head_idx, succ_idx;
@@ -357,16 +394,27 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
     if (single_node) {
       if (head) { // (1) firstnode && single_node && head
 
+        DEBUG ("CASE 1. Delete the only node in the head-tail.\n");
+
         mll_pt[idx] = nullnode;
+        debug_pair (idx);
         mll_put (idx);
+
+        DEBUG ("MLL pair %d is free.\n", idx);
 
         // There is no more chain
         return -2;
 
       } else {    // (2) firstnode && single_node && !(head)
 
+        DEBUG ("CASE 2. Delete the first node in the incomplete tail\n");
+
         //find predecessor
         w_idx = mll_pt[idx].pred;
+
+        DEBUG ("Last two pairs were:\n");
+        debug_pair (w_idx);
+        debug_pair (idx);
 
         //make predecessor tail
         pair_modify_chain (w_idx, SKIP, SET_FLAG, SKIP, SKIP, SKIP, SKIP);
@@ -376,6 +424,10 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
 
         mll_pt[w_idx].succ = -1;
 
+        DEBUG ("Last two pairs are:\n");
+        debug_pair (w_idx);
+        debug_pair (idx);
+
         // Chain keep head
         return head_idx;
 
@@ -384,9 +436,15 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
       if (head) { // firstnode && !(single_node) && head
         if (tail) {  // (3) firstnode && !(single_node) && head && tail
 
+          DEBUG ("CASE 3. Delete the first node in the complete head-tail\n");
+
           // copy second node to first node
           pair_modify_chain (idx, SET_FLAG, SKIP, CP_SECD_NODE_TO_FIRST_NODE,
                              SKIP, SKIP, SKIP);
+
+          DEBUG ("Pair was:\n");
+          debug_pair (idx);
+
 
           mll_pt[idx].fvid = mll_pt[idx].svid;
           mll_pt[idx].fmcg = mll_pt[idx].smcg;
@@ -394,12 +452,23 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           mll_pt[idx].svid = 0;
           mll_pt[idx].smcg = 0;
 
+          DEBUG ("Pair is:\n");
+          debug_pair (idx);
+
           // Chain keep head
           return head_idx;
 
         } else {
           if (complete_tail) { // (4) firstnode && !(single_node) &&
                                     // head && !(tail) && complete_tail
+
+            DEBUG ("CASE 4. Delete the first node in the head when "
+                   "tail is complete\n");
+
+            DEBUG ("Head, second and tail pairs were:\n");
+            debug_pair (idx);
+            debug_pair (mll_pt[idx].succ);
+            debug_pair (last_idx);
 
             pair_modify_chain (idx, SET_FLAG, SKIP, CP_SECD_NODE_TO_FIRST_NODE,
                                SKIP, last_idx, SET_LAST_NEXT_TO_CUR);
@@ -419,12 +488,26 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
             mll_pt[idx].succ = -1;
 
             mll_pt[last_idx].succ = idx;
+            mll_pt[idx].pred = last_idx;
+
+            DEBUG ("OldHead, tail and OldSecond-NewHead pairs are:\n");
+            debug_pair (idx);
+            debug_pair (last_idx);
+            debug_pair (new_head_idx);
 
             // Know the second record become the head
             return new_head_idx;
 
           } else { // (5) firstnode && !(single_node) &&
                  // head && !(tail) && !(complete_tail)
+
+            DEBUG ("CASE 5. Delete the first node in the head when "
+                   "tail is incomplete\n");
+
+            DEBUG ("Head, second and tail pairs were:\n");
+            debug_pair (idx);
+            debug_pair (mll_pt[idx].succ);
+            debug_pair (last_idx);
 
             pair_modify_chain (idx, SKIP, SET_FLAG, SKIP,
                                SKIP, last_idx, CP_CUR_SECD_TO_LAST_SECD);
@@ -441,6 +524,13 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
             mll_pt[idx] = nullnode;
             mll_put (idx);
 
+            DEBUG ("MLL pair %d is free.\n", idx);
+
+            DEBUG ("OldHead, tail and OldSecond-NewHead pairs are:\n");
+            debug_pair (idx);
+            debug_pair (last_idx);
+            debug_pair (new_head_idx);
+
             // Know the second record become the head
             return new_head_idx;
           }
@@ -448,14 +538,22 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
       } else {
         if (tail) { // (6) firstnode && !(single_node) && !(head) && tail
 
+          DEBUG ("CASE 6. Delete the first node in the complete tail\n");
+
           pair_modify_chain (idx, SET_FLAG, SKIP, CP_SECD_NODE_TO_FIRST_NODE,
                              SKIP, SKIP, SKIP);
+
+          DEBUG ("Pair was:\n");
+          debug_pair (idx);
 
           mll_pt[idx].fvid = mll_pt[idx].svid;
           mll_pt[idx].fmcg = mll_pt[idx].smcg;
 
           mll_pt[idx].svid = 0;
           mll_pt[idx].smcg = 0;
+
+          DEBUG ("Pair is:\n");
+          debug_pair (idx);
 
           // Chain keep head
           return head_idx;
@@ -465,12 +563,23 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           if (complete_tail) { // (7) firstnode && !(single_node) &&
                                // !(head) && !(tail) && complete_tail
 
+            DEBUG ("CASE 7. Delete the first node in regular pair, when "
+                   "tail is complete\n");
+
             w_idx = mll_pt[idx].pred;
             succ_idx = mll_pt[idx].succ;
+
+            DEBUG ("Predecessor, pair, successor and tail were:\n");
+            debug_pair (w_idx);
+            debug_pair (idx);
+            debug_pair (succ_idx);
+            debug_pair (last_idx);
+
 
             pair_modify_chain (w_idx, SKIP, SKIP, SKIP, succ_idx, SKIP, SKIP);
 
             mll_pt[w_idx].succ = succ_idx;
+            mll_pt[succ_idx].pred = w_idx;
 
             pair_modify_chain (idx, SET_FLAG, SKIP, CP_SECD_NODE_TO_FIRST_NODE,
                                SKIP, SKIP, SKIP);
@@ -486,6 +595,13 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
             pair_modify_chain (last_idx, SKIP, RESET_FLAG, SKIP, idx, SKIP, SKIP);
 
             mll_pt[last_idx].succ = idx;
+            mll_pt[idx].pred = last_idx;
+
+            DEBUG ("Predecessor, pair, successor and tail is:\n");
+            debug_pair (w_idx);
+            debug_pair (idx);
+            debug_pair (succ_idx);
+            debug_pair (last_idx);
 
             // Chain keep head
             return head_idx;
@@ -493,8 +609,17 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           } else { // (8) firstnode && !(single_node) &&
                    // !(head) && !(tail) && !(complete_tail)
 
+            DEBUG ("CASE 8. Delete the first node in regular pair, when "
+                   "tail is incomplete\n");
+
             w_idx = mll_pt[idx].pred;
             succ_idx = mll_pt[idx].succ;
+
+            DEBUG ("Predecessor, pair, successor and tail were:\n");
+            debug_pair (w_idx);
+            debug_pair (idx);
+            debug_pair (succ_idx);
+            debug_pair (last_idx);
 
             pair_modify_chain (w_idx, SKIP, SKIP, SKIP, succ_idx, SKIP, SKIP);
 
@@ -509,6 +634,14 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
             mll_pt[idx] = nullnode;
             mll_put (idx);
 
+            DEBUG ("Predecessor, pair, successor and tail is:\n");
+            debug_pair (w_idx);
+            debug_pair (idx);
+            debug_pair (succ_idx);
+            debug_pair (last_idx);
+
+            DEBUG ("MLL pair %d is free.\n", idx);
+
             // Chain keep head
             return head_idx;
 
@@ -519,10 +652,18 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
   } else { // !(firstnode)
     if (tail) { // (9) !(firstnode) && tail
 
+      DEBUG ("CASE 9. Delete the second node in the complete tail\n");
+
       pair_modify_chain (idx, SET_FLAG, SKIP, SKIP, SKIP, SKIP, SKIP);
+
+      DEBUG ("Pair was:\n");
+      debug_pair (idx);
 
       mll_pt[idx].svid = 0;
       mll_pt[idx].smcg = 0;
+
+      DEBUG ("Pair is:\n");
+      debug_pair (idx);
 
       // Chain keep head
       return head_idx;
@@ -530,16 +671,33 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
       if (head) {
         if (complete_tail) { // (10) !(firstnode) && !(tail) &&
                              // head && complete_tail
-          new_head_idx = mll_pt[idx].succ;
-          pair_modify_chain (new_head_idx, SKIP, SKIP, SKIP, idx, SKIP, SKIP);
-          pair_modify_chain (last_idx, SKIP, RESET_FLAG, SKIP, idx, SKIP, SKIP);
-          mll_pt[last_idx].succ = idx;
 
+          DEBUG ("CASE 10. Delete the second node in the head when "
+                 "tail is complete\n");
+
+          DEBUG ("Head and tail were:\n");
+          debug_pair (idx);
+          debug_pair (last_idx);
+
+          new_head_idx = mll_pt[idx].succ;
+          mll_pt[new_head_idx].pred = mll_pt[idx].pred;
+
+          pair_modify_chain (new_head_idx, SKIP, SKIP, SKIP, idx, SKIP, SKIP);
           pair_modify_chain (idx, SET_FLAG, SKIP, SKIP, SKIP, SKIP, SKIP);
+          pair_modify_chain (last_idx, SKIP, RESET_FLAG, SKIP, idx, SKIP, SKIP);
+
+          mll_pt[last_idx].succ = idx;
+          mll_pt[idx].pred = last_idx;
 
           mll_pt[idx].svid = 0;
           mll_pt[idx].smcg = 0;
           mll_pt[idx].succ = -1;
+
+
+          DEBUG ("NewHead, OldTail and OldHead are:\n");
+          debug_pair (new_head_idx);
+          debug_pair (last_idx);
+          debug_pair (idx);
 
           // Know the second record become the head
           return new_head_idx;
@@ -547,7 +705,14 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
         } else { // (11) !(firstnode) && !(tail) &&
                  // head && !(complete_tail)
 
-          pair_modify_chain (idx, SKIP, SKIP, SKIP,
+          DEBUG ("CASE 11. Delete the second node in the head when "
+                 "tail is incomplete\n");
+
+          DEBUG ("Head and tail were:\n");
+          debug_pair (idx);
+          debug_pair (last_idx);
+
+          pair_modify_chain (idx, SET_FLAG, SKIP, SKIP,
                              SKIP, last_idx, CP_CUR_FRST_TO_LAST_SECD);
 
           mll_pt[last_idx].svid = mll_pt[idx].fvid;
@@ -562,18 +727,36 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           mll_pt[idx] = nullnode;
           mll_put (idx);
 
+          DEBUG ("NewHead, OldTail and OldHead are:\n");
+          debug_pair (new_head_idx);
+          debug_pair (last_idx);
+          debug_pair (idx);
+
+          DEBUG ("MLL pair %d is free.\n", idx);
+
           // Know the second record become the head
           return new_head_idx;
         }
       } else { // !(firstnode) && !(tail) && !(head)
         if (complete_tail) { // (12 !(firstnode) && !(tail) &&
                              // !(head) && complete_tail
+
+          DEBUG ("CASE 12. Delete the second node in regular pair, when "
+                   "tail is complete\n");
+
           w_idx = mll_pt[idx].pred;
           succ_idx = mll_pt[idx].succ;
+
+          DEBUG ("Predecessor, pair, successor and tail were:\n");
+          debug_pair (w_idx);
+          debug_pair (idx);
+          debug_pair (succ_idx);
+          debug_pair (last_idx);
 
           pair_modify_chain (w_idx, SKIP, SKIP, SKIP, succ_idx, SKIP, SKIP);
 
           mll_pt[w_idx].succ = succ_idx;
+          mll_pt[succ_idx].pred = w_idx;
 
 
           pair_modify_chain (idx, SET_FLAG, SKIP, SKIP, SKIP, SKIP, SKIP);
@@ -585,12 +768,36 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           pair_modify_chain (last_idx, SKIP, RESET_FLAG, SKIP, idx, SKIP, SKIP);
 
           mll_pt[last_idx].succ = idx;
+          mll_pt[idx].pred = last_idx;
+
+          DEBUG ("Predecessor, pair, successor and tail is:\n");
+          debug_pair (w_idx);
+          debug_pair (idx);
+          debug_pair (succ_idx);
+          debug_pair (last_idx);
 
           // Chain keep head
           return head_idx;
 
         } else { // (13 !(firstnode) && !(tail) &&
                  // !(head) && complete_tail
+
+          DEBUG ("CASE 13. Delete the second node in regular pair, when "
+                 "tail is incomplete\n");
+
+          w_idx = mll_pt[idx].pred;
+          succ_idx = mll_pt[idx].succ;
+
+          DEBUG ("Predecessor, pair, successor and tail were:\n");
+          debug_pair (w_idx);
+          debug_pair (idx);
+          debug_pair (succ_idx);
+          debug_pair (last_idx);
+
+          pair_modify_chain (w_idx, SKIP, SKIP, SKIP, succ_idx, SKIP, SKIP);
+
+          mll_pt[w_idx].succ = succ_idx;
+          mll_pt[succ_idx].pred = w_idx;
 
           pair_modify_chain (idx, SKIP, SKIP, SKIP,
                              SKIP, last_idx, CP_CUR_FRST_TO_LAST_SECD);
@@ -601,6 +808,15 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
           mll_pt[idx] = nullnode;
           mll_put (idx);
 
+          DEBUG ("Predecessor, pair, successor and tail is:\n");
+          debug_pair (w_idx);
+          debug_pair (idx);
+          debug_pair (succ_idx);
+          debug_pair (last_idx);
+
+          DEBUG ("MLL pair %d is free.\n", idx);
+
+          // Chain keep head
           return head_idx;
         }
       }
@@ -612,10 +828,12 @@ static int do_del_node (int idx, mcg_t mcg, vid_t vid, int head_idx)
 
 int del_node (int head_idx, mcg_t mcg, vid_t vid)
 {
+  DEBUG ("Deleting node vlan %d mcg %d from chain %d...", vid, mcg, head_idx);
   int idx = find_pair (head_idx, mcg, vid);
 
   if (idx == -1) {
-    return -1; //there is no such node
+    DEBUG ("Such node does not found.\n");
+    return -3; //there is no such node
   }
   else {
     return do_del_node (idx, mcg, vid, head_idx);

@@ -523,7 +523,7 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
     splen = 32;
 
   DEBUG ("Adding route for vlan %d, vidx %d from "
-         "group %d.%d.%d.%d src vlan %d\n",
+         "group %d.%d.%d.%d of vlan %d\n",
          vid, via,
          d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3],
          src_vid);
@@ -550,12 +550,12 @@ route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
       rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
                 (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
       if (rc == GT_OK) {
-        DEBUG ("Route added.\n");
+        DEBUG ("Add route from group %d.%d.%d.%d to idx %d.\n",
+               d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3], idx);
         return ST_OK;
       }
 
       if (via != 0xFFFF)
-        // mcre_put (via, vid);
         mcre_put (dst, src, src_vid);
       return ST_HEX;
     } else { // idx already exists
@@ -582,10 +582,19 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
 
   memcpy (&d.arIP, dst, sizeof (d.arIP));
   memcpy (&s.arIP, src, sizeof (s.arIP));
+
+  DEBUG ("Deleting route of vlan %d, vidx %d from "
+         "group %d.%d.%d.%d of vlan %d\n",
+         vid, via,
+         d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3],
+         src_vid);
+
   if (s.u32Ip == 0)
     splen = 0;
   else
     splen = 32;
+
+  DEBUG ("Looking such prefix...\n");
 
   rc = CRP (cpssDxChIpLpmIpv4McEntrySearch
             (0, 0, d, 32, s, splen, &le, &gri, &gci, &sri, &sci));
@@ -594,6 +603,7 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
 
   if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
   {
+    DEBUG ("Prefix found.\n");
     res = mcre_del_node (le.routeEntryBaseIndex, via, vid, src_vid);
 
     if (!res) {
@@ -606,5 +616,6 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
   }
 
  out_err:
+  DEBUG ("Prefix was not found/\n");
   return ST_HEX;
 }

@@ -304,6 +304,7 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
   if (mll_idx == -1)
     goto err_res;
 
+  DEBUG ("New mll chain is %d. Src for it is %d\n", mll_idx, src_vid),
 
   memset (&c, 0, sizeof (c));
   c.cmd = CPSS_PACKET_CMD_ROUTE_E;
@@ -341,7 +342,7 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
   memcpy (&(mcre_key_bp[idx].src_vid), &src_vid,
           sizeof (mcre_key_bp[idx].src_vid));
 
-  DEBUG ("8\n");
+  DEBUG ("Re created. RE: %d, MLL: %d\n", idx, mll_idx);
 
   return re;
 
@@ -357,6 +358,8 @@ static void
 mcre_del (struct mcre *re)
 {
   HASH_DEL (mcret, re);
+
+  DEBUG ("Delete mcre. MLL: %d, RE: %d\n", re->mll_idx, re->idx);
 
   mll_put (re->mll_idx);
   res_push (re->idx);
@@ -394,7 +397,7 @@ mcre_create (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
   re->refc = 1;
   HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), re);
 
-  DEBUG ("Re idx = %d\n", re->idx);
+  DEBUG ("New Route entry idx = %d was added ho hash\n", re->idx);
 
   return re->idx;
 }
@@ -410,15 +413,23 @@ mcre_add_node (int idx, mcg_t mcg, vid_t vid)
 
   upd_re = calloc (1, sizeof (*upd_re));
 
+  DEBUG ("Looking for re of group %d.%d.%d.%d vlan %d\n",
+         mcrek.dst[0], mcrek.dst[1], mcrek.dst[2], mcrek.dst[3],
+         mcrek.src_vid);
+
   HASH_FIND (hh, mcret, &mcrek, sizeof (struct mcre_key), re);
 
   *upd_re = *re;
 
   int res, mll_head = re->mll_idx;
 
+  DEBUG ("Re found. Chain head is %d.\n", mll_head),
+
   res = add_node (mll_head, mcg, vid);
 
   upd_re->refc++;
+
+  DEBUG ("Chain %d now has %d nodes.\n", mll_head, upd_re->refc);
 
   HASH_DEL (mcret, re);
   HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
@@ -456,6 +467,10 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
   memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.dst));
   memcpy (&(mcrek.src_vid), &mcre_key_bp[idx].src_vid, sizeof (mcrek.src_vid));
 
+  DEBUG ("Finding idx of group %d.%d.%d.%d of src_vid %d\n",
+         mcrek.dst[0], mcrek.dst[1], mcrek.dst[2], mcrek.dst[3],
+         src_vid);
+
   HASH_FIND (hh, mcret, &mcrek, sizeof (struct mcre_key), re);
   if (!re)
     return -1;
@@ -464,9 +479,15 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 
   head = re->mll_idx;
 
+  DEBUG ("Idx found. Chain head is %d. Deleting node...\n", head);
+
   new_head = del_node (head, via, vid);
 
+  DEBUG ("New head is %d\n", new_head);
+
   if (new_head == -2) {// There is no more chain
+
+    DEBUG ("There is no more chain\n");
 
     HASH_DEL (mcret, re);
 
@@ -477,6 +498,7 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
     return 0;
   } else {
     if (new_head == -3) { //No such node
+      DEBUG ("Node was not found!\n");
       return re->refc;
     } else {
       if (new_head != head) {
@@ -499,6 +521,9 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 
           free (re);
 
+        DEBUG ("Change head from %d to %d! Nodes left: %d\n",
+               head, new_head, upd_re->refc);
+
         return upd_re->refc;
 
       } else {// new_head == head
@@ -511,6 +536,8 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
         HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
 
         free (re);
+
+        DEBUG ("Head remain the same. Nodes left: %d\n", upd_re->refc);
 
         return upd_re->refc;
       }
