@@ -1,3 +1,7 @@
+06.08.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * PDSA: increase maximum allowed CPU SPEC_FRAME size, truncate oversized recieved frames
+
 19.06.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PHY: fix phy debugging functions set/dump to work with non-paged phys

@@ -20,7 +20,7 @@
 #include <debug.h>
 #include <log.h>
 
-#define MAX_PAYLOAD 1024
+#define MAX_PAYLOAD 2048
 
 static int sock;
 static void *inp_sock;
@@ -87,7 +87,10 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 
   command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
+  unsigned pdsasize = (PDSA_SPEC_FRAME_SIZE (frame->len) >= MAX_PAYLOAD)?
+            MAX_PAYLOAD : PDSA_SPEC_FRAME_SIZE (frame->len);
+  frame->len = pdsasize - sizeof(struct pdsa_spec_frame) ;
+  zmsg_addmem (msg, frame, pdsasize);
   zmsg_send (&msg, inp_sock);
 
   msg = zmsg_recv (inp_sock);
