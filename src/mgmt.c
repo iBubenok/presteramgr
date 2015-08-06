@@ -83,14 +83,17 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
     return;
   }
 
+  if (PDSA_SPEC_FRAME_SIZE (frame->len) > MAX_PAYLOAD) {
+    ERR ("CPU captured oversized for %u bytes buffer frame in %u bytes\n",
+        MAX_PAYLOAD - sizeof(struct pdsa_spec_frame), frame->len);
+    return;
+  }
+
   zmsg_t *msg = zmsg_new ();
 
   command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
-  unsigned pdsasize = (PDSA_SPEC_FRAME_SIZE (frame->len) >= MAX_PAYLOAD)?
-            MAX_PAYLOAD : PDSA_SPEC_FRAME_SIZE (frame->len);
-  frame->len = pdsasize - sizeof(struct pdsa_spec_frame) ;
-  zmsg_addmem (msg, frame, pdsasize);
+  zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
   zmsg_send (&msg, inp_sock);
 
   msg = zmsg_recv (inp_sock);
