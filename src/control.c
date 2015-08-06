@@ -297,6 +297,7 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -403,7 +404,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
-  HANDLER (CC_PSEC_ENABLE)
+  HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
 };
 
 static int
@@ -2834,6 +2836,31 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
     goto out;
 
   result = psec_enable (pid, enable, act, intv);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
+{
+  enum status result;
+  port_id_t pid;
+  combo_pref_media_t media;
+  bool_t failover;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&media);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&failover);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_combo_preferred_media (pid, media, failover);
 
  out:
   report_status (result);
