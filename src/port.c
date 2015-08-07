@@ -3393,7 +3393,7 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
 }
 
 enum status
-port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media, bool_t failover)
+port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media)
 {
   enum {
     IS_FIBER,

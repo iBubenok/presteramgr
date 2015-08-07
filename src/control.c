@@ -2846,7 +2846,6 @@ DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
   enum status result;
   port_id_t pid;
   combo_pref_media_t media;
-  bool_t failover;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
@@ -2856,11 +2855,7 @@ DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&failover);
-  if (result != ST_OK)
-    goto out;
-
-  result = port_set_combo_preferred_media (pid, media, failover);
+  result = port_set_combo_preferred_media (pid, media);
 
  out:
   report_status (result);
