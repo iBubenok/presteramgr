@@ -3438,17 +3438,17 @@ port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media, bool_t 
        (port->ldev, port->lport, 0x14, &reg_val));
 
   switch (media) {
-    case MEDIA_AUTOSELECT :
+    case PREF_MEDIA_NONE :
       reg_val &= ~(1 << 5);
       reg_val &= ~(1 << 4);
       break;
 
-    case MEDIA_RJ45 :
+    case PREF_MEDIA_RJ45 :
       reg_val &= ~(1 << 5);
       reg_val |= (1 << 4);
       break;
 
-    case MEDIA_SFP :
+    case PREF_MEDIA_SFP :
       reg_val |= (1 << 5);
       reg_val &= ~(1 << 4);
       break;
