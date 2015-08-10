@@ -326,6 +326,8 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+DECLARE_HANDLER (CC_USER_ACL_RULE);
+
 
 
 static cmd_handler_t handlers[] = {
@@ -439,7 +441,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
-  HANDLER (CC_SOURCE_GUARD_DELETE)
+  HANDLER (CC_SOURCE_GUARD_DELETE),
+  HANDLER (CC_USER_ACL_RULE)
 };
 
 static int
@@ -2990,6 +2993,54 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
 
   pcl_source_guard_rule_unset (pid, rule_ix);
   result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_RULE) {
+  DEBUG("CC_USER_ACL_RULE\r\n");
+  enum status result;
+  port_id_t pid;
+  uint8_t destination;
+  uint8_t rule_type;
+  bool_t enable;
+
+  if ((result = POP_ARG (&pid)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: pid: %d\r\n", pid);
+    goto out;
+  }
+  if ((result = POP_ARG (&destination)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: destination: %d\r\n", destination);
+    goto out;
+  }
+  if ((result = POP_ARG (&rule_type)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: rule_type: %d\r\n", rule_type);
+    goto out;
+  }
+  if ((result = POP_ARG (&enable)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: enable: %d\r\n", enable);
+    goto out;
+  }
+
+  switch (rule_type) {
+    case PCL_RULE_TYPE_IP: {
+      struct ip_pcl_rule rule;
+      if ((result = POP_ARG (&rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+
+      pcl_ip_rule_set(pid, &rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_MAC:
+      break;
+    case PCL_RULE_TYPE_IPV4:
+      break;
+    default:
+      DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
+  };
+
  out:
   report_status (result);
 }
