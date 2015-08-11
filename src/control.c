@@ -3024,17 +3024,25 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
 
   switch (rule_type) {
     case PCL_RULE_TYPE_IP: {
-      struct ip_pcl_rule rule;
-      if ((result = POP_ARG (&rule)) != ST_OK) {
+      struct ip_pcl_rule ip_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(ip_rule));
+      if ((result = POP_ARG (&ip_rule)) != ST_OK) {
         DEBUG("ST_BAD_FORMAT: rule\r\n");
         goto out;
       }
-
-      pcl_ip_rule_set(pid, &rule, destination, enable);
+      pcl_ip_rule_set(pid, &ip_rule, destination, enable);
       break;
     }
-    case PCL_RULE_TYPE_MAC:
+    case PCL_RULE_TYPE_MAC: {
+      struct mac_pcl_rule mac_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(mac_rule));
+      if ((result = POP_ARG (&mac_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_mac_rule_set(pid, &mac_rule, destination, enable);
       break;
+    }
     case PCL_RULE_TYPE_IPV4:
       break;
     default:

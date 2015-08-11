@@ -577,13 +577,22 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
   DEBUG("%s: pclId: %d\r\n", __FUNCTION__, pcl_id); \
 }
 
-#define set_packet_type(rule, mask, format, is_ip) { \
-  rule.format.common.isL2Valid = 1;                  \
-  mask.format.common.isL2Valid = 0xFF;               \
-  if (is_ip) {                                       \
-    rule.format.common.isIp = 1;                     \
-    mask.format.common.isIp = 0xFF;                  \
-  }                                                  \
+#define set_packet_type(rule, mask, format, rule_type) {       \
+  rule.format.common.isL2Valid = 1;                            \
+  mask.format.common.isL2Valid = 0xFF;                         \
+  switch (rule_type) {                                         \
+    case PCL_RULE_TYPE_IP:                                     \
+      rule.format.common.isIp = 1;                             \
+      mask.format.common.isIp = 0xFF;                          \
+      break;                                                   \
+    case PCL_RULE_TYPE_MAC:                                    \
+      rule.format.l2Encap =1;                                  \
+      mask.format.l2Encap = 0xFF;                              \
+      break;                                                   \
+    default:                                                   \
+      DEBUG("%s, unknown rule type: %d, function returns\r\n", \
+            __FUNCTION__, rule_type);                          \
+  };                                                           \
 }
 
 #define set_ip_protocol(rule, mask, format, proto) {                         \
@@ -698,7 +707,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
 
 #define set_ip_rule(port, rule, mask, format, type, pcl_id, act, ip_rule) {  \
   set_pcl_id (rule, mask, format, pcl_id);                                   \
-  set_packet_type (rule, mask, format, 1);                                   \
+  set_packet_type (rule, mask, format, PCL_RULE_TYPE_IP);                    \
   set_ip_protocol (rule, mask, format, ip_rule->proto);                      \
   set_src_ip (rule, mask, format, ip_rule->src_ip, ip_rule->src_ip_mask);    \
   set_dst_ip (rule, mask, format, ip_rule->dst_ip, ip_rule->dst_ip_mask);    \
@@ -722,6 +731,65 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
                    ip_rule->tcp_flags_mask);                                 \
   }                                                                          \
   activate_rule (port->ldev, type, ip_rule->rule_ix, 0, &mask, &rule, &act); \
+}
+
+#define set_src_mac(rule, mask, format, src_mac, src_mac_mask) {       \
+  memcpy (&rule.format.macSa, &src_mac, sizeof(GT_ETHERADDR));         \
+  memcpy (&mask.format.macSa, &src_mac_mask, sizeof(GT_ETHERADDR));    \
+  DEBUG("%s: src_mac: "mac_addr_fmt", macSa: "mac_addr_fmt"\r\n",      \
+        __FUNCTION__, mac_addr_to_printf_arg(src_mac),                 \
+        mac_addr_to_printf_arg(rule.format.macSa));                    \
+  DEBUG("%s: src_mac_mask: "mac_addr_fmt", macSa: "mac_addr_fmt"\r\n", \
+        __FUNCTION__, mac_addr_to_printf_arg(src_mac_mask),            \
+        mac_addr_to_printf_arg(mask.format.macSa));                    \
+}
+
+#define set_dst_mac(rule, mask, format, dst_mac, dst_mac_mask) {       \
+  memcpy (&rule.format.macDa, &dst_mac, sizeof(GT_ETHERADDR));         \
+  memcpy (&mask.format.macDa, &dst_mac_mask, sizeof(GT_ETHERADDR));    \
+  DEBUG("%s: dst_mac: "mac_addr_fmt", macDa: "mac_addr_fmt"\r\n",      \
+        __FUNCTION__, mac_addr_to_printf_arg(dst_mac),                 \
+        mac_addr_to_printf_arg(rule.format.macDa));                    \
+  DEBUG("%s: dst_mac_mask: "mac_addr_fmt", macDa: "mac_addr_fmt"\r\n", \
+        __FUNCTION__, mac_addr_to_printf_arg(dst_mac_mask),            \
+        mac_addr_to_printf_arg(mask.format.macDa));                    \
+}
+
+#define set_eth_type(rule, mask, format, eth_type, eth_type_mask) {   \
+  rule.format.etherType = eth_type;                                   \
+  mask.format.etherType = eth_type_mask;                              \
+  DEBUG("%s: eth_type: 0x%X, etherType: 0x%X\r\n", __FUNCTION__,      \
+        eth_type, rule.format.etherType);                             \
+  DEBUG("%s: eth_type_mask: 0x%X, etherType: 0x%X\r\n", __FUNCTION__, \
+        eth_type_mask, mask.format.etherType);                        \
+}
+
+#define set_vid(rule, mask, format, vlan, vlan_mask) {             \
+  rule.format.common.vid = vlan;                                   \
+  mask.format.common.vid = vlan_mask;                              \
+  DEBUG("%s: vlan: %d, common.vid: 0x%X\r\n", __FUNCTION__,        \
+        vlan, rule.format.common.vid);                             \
+  DEBUG("%s: vlan_mask: 0x%X, common.vid: 0x%X\r\n", __FUNCTION__, \
+        vlan_mask, mask.format.common.vid);                        \
+}
+
+#define set_cos(rule, mask, format, cos, cos_mask) {             \
+  rule.format.common.up = cos;                                   \
+  mask.format.common.up = cos_mask;                              \
+  DEBUG("%s: cos: %d, common.up: 0x%X\r\n", __FUNCTION__,        \
+        cos, rule.format.common.up);                             \
+  DEBUG("%s: cos_mask: 0x%X, common.up: 0x%X\r\n", __FUNCTION__, \
+        cos_mask, mask.format.common.up);                        \
+}
+
+#define set_mac_rule(port, rule, mask, format, type, pcl_id, act, mac_rule) {  \
+  set_pcl_id (rule, mask, format, pcl_id);                                     \
+  set_packet_type (rule, mask, format, PCL_RULE_TYPE_MAC);                     \
+  set_src_mac (rule, mask, format, mac_rule->src_mac, mac_rule->src_mac_mask); \
+  set_dst_mac (rule, mask, format, mac_rule->dst_mac, mac_rule->dst_mac_mask); \
+  set_eth_type (rule,mask,format,mac_rule->eth_type,mac_rule->eth_type_mask);  \
+  set_vid (rule, mask, format, mac_rule->vid, mac_rule->vid_mask);             \
+  set_cos (rule, mask, format, mac_rule->cos, mac_rule->cos_mask);             \
 }
 
 void
@@ -764,6 +832,58 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
       set_ip_rule (port, rule, mask, ruleEgrExtNotIpv6,
                    CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
                    PORT_EPCL_ID(pid), act, ip_rule);
+      break;
+
+    default:
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+}
+
+void
+pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
+                  enum PCL_DESTINATION destination, int enable) {
+  PRINT_SEPARATOR('=', 100);
+  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
+        bool_to_str(enable), pcl_dest_to_str(destination));
+
+  struct port *port;
+  get_port_ptr (port, pid);
+
+  if (!enable) {
+    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
+  }
+
+  if (!mac_rule) {
+    DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (mac_rule->action, &act)) {
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      set_mac_rule (port, rule, mask, ruleExtNotIpv6,
+                    CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                    PORT_IPCL_ID(pid), act, mac_rule);
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      set_mac_rule (port, rule, mask, ruleEgrExtNotIpv6,
+                    CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+                    PORT_EPCL_ID(pid), act, mac_rule);
       break;
 
     default:

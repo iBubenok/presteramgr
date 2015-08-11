@@ -60,11 +60,27 @@ struct ip_pcl_rule {
   uint8_t   igmp_type_mask;    /* 36 */
   uint8_t   tcp_flags;         /* 37 */
   uint8_t   tcp_flags_mask;    /* 38 */
-};
+} __attribute__ ((packed));
+
+struct mac_pcl_rule {
+  uint16_t   rule_ix;          /* 2  */
+  uint8_t    action;           /* 3  */
+  mac_addr_t src_mac;          /* 9  */
+  mac_addr_t src_mac_mask;     /* 15 */
+  mac_addr_t dst_mac;          /* 21 */
+  mac_addr_t dst_mac_mask;     /* 27 */
+  uint16_t   eth_type;         /* 29 */
+  uint16_t   eth_type_mask;    /* 31 */
+  vid_t      vid;              /* 33 */
+  vid_t      vid_mask;         /* 35 */
+  uint8_t    cos;              /* 36 */
+  uint8_t    cos_mask;         /* 37 */
+} __attribute__ ((packed));
 
 extern void pcl_ip_rule_set (port_id_t, struct ip_pcl_rule*,
                              enum PCL_DESTINATION, int);
-extern void pcl_mac_rule_set ();
+extern void pcl_mac_rule_set (port_id_t, struct mac_pcl_rule*,
+                              enum PCL_DESTINATION, int);
 extern void pcl_ipv6_rule_set ();
 
 #ifndef bool_to_str
@@ -85,8 +101,22 @@ extern void pcl_ipv6_rule_set ();
 #define nth_byte(n, value) ((uint8_t)(((value) & (0xff << ((n)*8))) >> ((n)*8)))
 #endif
 
+#ifndef ip_addr_fmt
+#define ip_addr_fmt "%d.%d.%d.%d"
+#endif
+
+#ifndef mac_addr_fmt
+#define mac_addr_fmt "%02X:%02X:%02X:%02X:%02X:%02X"
+#endif
+
 #ifndef ip_addr_to_printf_arg
-#define ip_addr_to_printf_arg(ip) (ip)[0], (ip)[1], (ip)[2], (ip)[3]
+#define ip_addr_to_printf_arg(ip) (ip)[0],(ip)[1],(ip)[2],(ip)[3]
+#endif
+
+#ifndef mac_addr_to_printf_arg
+#define mac_addr_to_printf_arg(m)                          \
+  ((uint8_t*)&m)[0], ((uint8_t*)&m)[1], ((uint8_t*)&m)[2], \
+  ((uint8_t*)&m)[3], ((uint8_t*)&m)[4], ((uint8_t*)&m)[5]
 #endif
 
 #endif /* __PCL_H__ */
