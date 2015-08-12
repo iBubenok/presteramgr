@@ -35,8 +35,12 @@ enum PCL_DESTINATION {
 enum PCL_RULE_TYPE {
   PCL_RULE_TYPE_IP   = 0,
   PCL_RULE_TYPE_MAC  = 1,
-  PCL_RULE_TYPE_IPV4 = 2
+  PCL_RULE_TYPE_IPV6 = 2
 };
+
+typedef struct {
+  uint8_t value[16];
+} ipv6_addr_t;
 
 struct ip_pcl_rule {
   uint16_t  rule_ix;           /* 2  */
@@ -77,11 +81,34 @@ struct mac_pcl_rule {
   uint8_t    cos_mask;         /* 37 */
 } __attribute__ ((packed));
 
+struct ipv6_pcl_rule {
+  uint16_t    rule_ix;         /* 2  */
+  uint8_t     action;          /* 3  */
+  uint8_t     proto;           /* 4  */
+  ipv6_addr_t src;             /* 20 */
+  ipv6_addr_t src_mask;        /* 36 */
+  uint16_t    src_ip_port;     /* 38 */
+  uint16_t    src_ip_port_mask;/* 40 */
+  ipv6_addr_t dst;             /* 56 */
+  ipv6_addr_t dst_mask;        /* 72 */
+  uint16_t    dst_ip_port;     /* 74 */
+  uint16_t    dst_ip_port_mask;/* 76 */
+  uint8_t     dscp;            /* 77 */
+  uint8_t     dscp_mask;       /* 78 */
+  uint8_t     icmp_type;       /* 79 */
+  uint8_t     icmp_type_mask;  /* 80 */
+  uint8_t     icmp_code;       /* 81 */
+  uint8_t     icmp_code_mask;  /* 82 */
+  uint8_t     tcp_flags;       /* 83 */
+  uint8_t     tcp_flags_mask;  /* 84 */
+} __attribute__ ((packed));
+
 extern void pcl_ip_rule_set (port_id_t, struct ip_pcl_rule*,
                              enum PCL_DESTINATION, int);
 extern void pcl_mac_rule_set (port_id_t, struct mac_pcl_rule*,
                               enum PCL_DESTINATION, int);
-extern void pcl_ipv6_rule_set ();
+extern void pcl_ipv6_rule_set (port_id_t, struct ipv6_pcl_rule*,
+                               enum PCL_DESTINATION, int);
 
 #ifndef bool_to_str
 #define bool_to_str(value) ((value) ? "true" : "false")
@@ -109,6 +136,10 @@ extern void pcl_ipv6_rule_set ();
 #define mac_addr_fmt "%02X:%02X:%02X:%02X:%02X:%02X"
 #endif
 
+#ifndef ipv6_addr_fmt
+#define ipv6_addr_fmt "%X:%X:%X:%X:%X:%X:%X:%X"
+#endif
+
 #ifndef ip_addr_to_printf_arg
 #define ip_addr_to_printf_arg(ip) (ip)[0],(ip)[1],(ip)[2],(ip)[3]
 #endif
@@ -117,6 +148,12 @@ extern void pcl_ipv6_rule_set ();
 #define mac_addr_to_printf_arg(m)                          \
   ((uint8_t*)&m)[0], ((uint8_t*)&m)[1], ((uint8_t*)&m)[2], \
   ((uint8_t*)&m)[3], ((uint8_t*)&m)[4], ((uint8_t*)&m)[5]
+#endif
+
+#ifndef ipv6_addr_to_printf_arg
+#define ipv6_addr_to_printf_arg(ip)                                             \
+((uint16_t*)&ip)[0],((uint16_t*)&ip)[1],((uint16_t*)&ip)[2],((uint16_t*)&ip)[3],\
+((uint16_t*)&ip)[4],((uint16_t*)&ip)[5],((uint16_t*)&ip)[6],((uint16_t*)&ip)[7]
 #endif
 
 #endif /* __PCL_H__ */

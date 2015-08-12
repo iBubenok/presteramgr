@@ -3043,8 +3043,16 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       pcl_mac_rule_set(pid, &mac_rule, destination, enable);
       break;
     }
-    case PCL_RULE_TYPE_IPV4:
+    case PCL_RULE_TYPE_IPV6: {
+      struct ipv6_pcl_rule ipv6_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(ipv6_rule));
+      if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_ipv6_rule_set(pid, &ipv6_rule, destination, enable);
       break;
+    }
     default:
       DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
   };
