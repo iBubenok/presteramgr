@@ -4,6 +4,7 @@
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/pcl/cpssDxChPcl.h>
+#include <cpss/dxCh/dxChxGen/cnc/cpssDxChCnc.h>
 
 #include <pcl.h>
 #include <port.h>
@@ -17,25 +18,26 @@
 #include <zmq.h>
 #include <czmq.h>
 
+#define MAX_PORTS 32
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
 
 #define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */ /* 5..(n+4) */
-#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (65) + (n) * 2) /* 71..(69+n*2) */
+#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (MAX_PORTS) + (n) * 2) /* 71..(69+n*2) */
 
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (65)) /* 199 */
+#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (MAX_PORTS)) /* 199 */
 #define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)  /* 499 */
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)      /* 501..(499+n*2) */
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)  /* 502..(500+n*2) */
 
 #define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
 #define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
-                    (PORT_EPCL_DEF_IX (65) + \
+                    (PORT_EPCL_DEF_IX (MAX_PORTS) + \
                     (n) * PER_PORT_IP_SOURCE_GUARD_RULES_COUNT)
                     /* 640..(630+n*10) */
 #define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
-                    (PORT_IP_SOURCEGUARD_RULE_START_IX(65) + (n))
+                    (PORT_IP_SOURCEGUARD_RULE_START_IX(MAX_PORTS) + (n))
                     /* 1281..(n+1280) */
 
 static struct stack {
@@ -790,6 +792,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
   set_eth_type (rule,mask,format,mac_rule->eth_type,mac_rule->eth_type_mask);  \
   set_vid (rule, mask, format, mac_rule->vid, mac_rule->vid_mask);             \
   set_cos (rule, mask, format, mac_rule->cos, mac_rule->cos_mask);             \
+  activate_rule (port->ldev, type, mac_rule->rule_ix, 0, &mask, &rule, &act);  \
 }
 
 void
@@ -802,14 +805,14 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
   struct port *port;
   get_port_ptr (port, pid);
 
-  if (!enable) {
-    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
-  }
-
   if (!ip_rule) {
     DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  }
+
+  if (!enable) {
+    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -854,14 +857,14 @@ pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
   struct port *port;
   get_port_ptr (port, pid);
 
-  if (!enable) {
-    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
-  }
-
   if (!mac_rule) {
     DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  }
+
+  if (!enable) {
+    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
