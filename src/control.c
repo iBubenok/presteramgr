@@ -164,6 +164,29 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
   notify_send (&msg);
 }
 
+static void
+control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
+{
+  if (pcl_source_guard_trap_enabled (pid)) {
+    zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
+    put_vlan_id (sg_msg, frame->vid);
+    put_port_id (sg_msg, pid);
+    /* MAC: 6, 7, 8, 9 bytes */
+    uint8_t src_mac[6];
+    memcpy (src_mac, (frame->data)+6, 6);
+    zmsg_addmem (sg_msg, src_mac, 6);
+    /* IP: 26, 27, 28, 29 bytes */
+    uint8_t src_ip[4];
+    memcpy (src_ip, (frame->data)+26, 4);
+    zmsg_addmem (sg_msg, src_ip, 4);
+
+    pcl_source_guard_drop_enable(pid);
+    DEBUG("packet trapped! enable drop! port #%d\r\n", pid);
+
+    notify_send (&sg_msg);
+  }
+}
+
 void
 cn_port_vid_set (port_id_t pid, vid_t vid)
 {
@@ -297,6 +320,15 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+DECLARE_HANDLER (CC_USER_ACL_RULE);
+
+
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -403,7 +435,14 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
-  HANDLER (CC_PSEC_ENABLE)
+  HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_ADD),
+  HANDLER (CC_SOURCE_GUARD_DELETE),
+  HANDLER (CC_USER_ACL_RULE)
 };
 
 static int
@@ -1753,6 +1792,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (2):
+    control_notify_ip_sg_trap (pid, frame);
+    result = ST_OK;
+    goto out;
+
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
     result = ST_OK;
@@ -2834,6 +2878,184 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
     goto out;
 
   result = psec_enable (pid, enable, act, intv);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
+{
+  enum status result;
+  port_id_t pid;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_ENABLE_TRAP port#%d\r\n", pid);
+
+  pcl_source_guard_trap_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
+{
+  enum status result;
+  port_id_t pid;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_DISABLE_TRAP port#%d\r\n", pid);
+
+  pcl_source_guard_trap_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
+{
+  enum status result;
+  port_id_t pid;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_ENABLE_DROP port#%d\r\n", pid);
+
+  pcl_source_guard_drop_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
+{
+  enum status result;
+  port_id_t pid;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_DISABLE_DROP port#%d\r\n", pid);
+
+  pcl_source_guard_drop_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
+{
+  enum status result;
+  port_id_t pid;
+  mac_addr_t mac;
+  vid_t vid;
+  ip_addr_t ip;
+  uint16_t rule_ix;
+  uint8_t verify_mac;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&mac)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&ip)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&verify_mac)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_ADD rule\r\n");
+
+  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t rule_ix;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_DELETE rule\r\n");
+
+  pcl_source_guard_rule_unset (pid, rule_ix);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_RULE) {
+  DEBUG("CC_USER_ACL_RULE\r\n");
+  enum status result;
+  port_id_t pid;
+  uint8_t destination;
+  uint8_t rule_type;
+  bool_t enable;
+
+  if ((result = POP_ARG (&pid)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: pid: %d\r\n", pid);
+    goto out;
+  }
+  if ((result = POP_ARG (&destination)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: destination: %d\r\n", destination);
+    goto out;
+  }
+  if ((result = POP_ARG (&rule_type)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: rule_type: %d\r\n", rule_type);
+    goto out;
+  }
+  if ((result = POP_ARG (&enable)) != ST_OK) {
+    DEBUG("ST_BAD_FORMAT: enable: %d\r\n", enable);
+    goto out;
+  }
+
+  switch (rule_type) {
+    case PCL_RULE_TYPE_IP: {
+      struct ip_pcl_rule ip_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(ip_rule));
+      if ((result = POP_ARG (&ip_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_ip_rule_set(pid, &ip_rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_MAC: {
+      struct mac_pcl_rule mac_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(mac_rule));
+      if ((result = POP_ARG (&mac_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_mac_rule_set(pid, &mac_rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_IPV6: {
+      struct ipv6_pcl_rule ipv6_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(ipv6_rule));
+      if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_ipv6_rule_set(pid, &ipv6_rule, destination, enable);
+      break;
+    }
+    default:
+      DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
+  };
 
  out:
   report_status (result);
