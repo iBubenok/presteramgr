@@ -1927,7 +1927,25 @@ port_shutdown_ge (struct port *port, int shutdown)
          (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
   }
 
-  if ((ptype == IS_FIBER) || (ptype == IS_COMBO)) {
+  if (ptype == IS_FIBER) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 1));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+  }
+
+  if (ptype == IS_COMBO) {
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0));
+    CRP (cpssDxChPhyPortSmiRegisterRead
+         (port->ldev, port->lport, 0x00, &reg));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x00,
+         (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
+
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 1));
     CRP (cpssDxChPhyPortSmiRegisterRead
