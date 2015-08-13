@@ -17,6 +17,8 @@
 #include <route-p.h>
 #include <dev.h>
 #include <sysdeps.h>
+#include <mll.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -248,4 +250,300 @@ ret_init (void)
   res.sp = 0;
 
   return ST_OK;
+}
+
+/*
+ * Multicast.
+ */
+
+struct mcre_key {
+  GT_U8 dst[4];
+  GT_U8 src[4];
+  vid_t src_vid;
+};
+
+struct mcre {
+  struct mcre_key key;
+  int refc;
+  int idx;
+  int mll_idx;
+  UT_hash_handle hh;
+};
+
+static struct mcre_key mcrek, mcre_key_bp[4096];
+
+static inline int
+mcre_key (struct mcre *re , const uint8_t *dst, const uint8_t *src,
+          vid_t src_vid)
+{
+  memcpy (&(re->key.dst), dst, sizeof (re->key.dst));
+  memcpy (&(re->key.src), src, sizeof (re->key.src));
+  memcpy (&(re->key.src_vid), &src_vid, sizeof (re->key.src_vid));
+  return 0;
+}
+
+static struct mcre *mcret;
+
+static struct mcre *
+mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
+          vid_t src_vid)
+{
+  struct mcre *re;
+  int idx, mll_idx;
+  CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
+
+  DEBUG ("Popping new idx...\n");
+
+  idx = res_pop ();
+  if (idx == -1)
+    goto err;
+
+  DEBUG ("New idx = %d. Adding first node\n", idx);
+
+  mll_idx = add_node (-idx, mcg, vid);
+  if (mll_idx == -1)
+    goto err_res;
+
+  DEBUG ("New mll chain is %d. Src for it is %d\n", mll_idx, src_vid),
+
+  memset (&c, 0, sizeof (c));
+  c.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  c.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_0_E;
+  c.appSpecificCpuCodeEnable = GT_FALSE;
+  c.ttlHopLimitDecEnable = GT_FALSE;
+  c.ttlHopLimDecOptionsExtChkByPass = GT_TRUE;
+  c.ingressMirror = GT_FALSE;
+  c.qosProfileMarkingEnable = GT_FALSE;
+  c.qosProfileIndex = 0;
+  c.qosPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E;
+  c.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
+  c.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
+  c.countSet = CPSS_IP_CNT_SET3_E;
+  c.multicastRPFCheckEnable = GT_TRUE;
+  c.multicastRPFVlan = src_vid;
+  c.multicastRPFFailCommandMode =
+    CPSS_DXCH_IP_MULTICAST_ROUTE_ENTRY_RPF_FAIL_COMMAND_MODE_E;
+  c.RPFFailCommand = CPSS_PACKET_CMD_DROP_SOFT_E;
+  c.scopeCheckingEnable = GT_FALSE;
+  c.siteId = CPSS_IP_SITE_ID_INTERNAL_E;
+  c.mtuProfileIndex = 0;
+  c.internalMLLPointer = mll_idx;
+  c.externalMLLPointer = 0;
+
+  ON_GT_ERROR (CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c)))
+    goto err_mll;
+
+  re = calloc (1, sizeof (*re));
+  re->idx = idx;
+  re->mll_idx = mll_idx;
+
+  memcpy (&(mcre_key_bp[idx].dst), dst, sizeof (mcre_key_bp[idx].dst));
+  memcpy (&(mcre_key_bp[idx].src), src, sizeof (mcre_key_bp[idx].src));
+  memcpy (&(mcre_key_bp[idx].src_vid), &src_vid,
+          sizeof (mcre_key_bp[idx].src_vid));
+
+  DEBUG ("Re created. RE: %d, MLL: %d\n", idx, mll_idx);
+
+  return re;
+
+ err_mll:
+  mll_put (mll_idx);
+ err_res:
+  res_push (idx);
+ err:
+  return NULL;
+}
+
+static void
+mcre_del (struct mcre *re)
+{
+  HASH_DEL (mcret, re);
+
+  DEBUG ("Delete mcre. MLL: %d, RE: %d\n", re->mll_idx, re->idx);
+
+  mll_put (re->mll_idx);
+  res_push (re->idx);
+
+  free (re);
+}
+
+int
+mcre_find (const uint8_t *dst, const uint8_t *src, vid_t src_vid)
+{
+  struct mcre re_key, *re;
+  mcre_key (&re_key, dst, src, src_vid);
+
+  HASH_FIND (hh, mcret, &re_key.key, sizeof (struct mcre_key), re);
+  if (!re) {
+      return -1;
+  }
+
+  return re->idx;
+}
+
+int
+mcre_create (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
+             vid_t src_vid)
+{
+  struct mcre re_key, *re;
+  mcre_key (&re_key, dst, src, src_vid);
+
+
+  re = mcre_new (dst, src, mcg, vid, src_vid);
+  if (!re)
+    return -1;
+
+  re->key = re_key.key;
+  re->refc = 1;
+  HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), re);
+
+  DEBUG ("New Route entry idx = %d was added ho hash\n", re->idx);
+
+  return re->idx;
+}
+
+int
+mcre_add_node (int idx, mcg_t mcg, vid_t vid)
+{
+  memcpy (&(mcrek.dst), &mcre_key_bp[idx].dst, sizeof (mcrek.dst));
+  memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.src));
+  memcpy (&(mcrek.src_vid), &mcre_key_bp[idx].src_vid, sizeof (mcrek.src_vid));
+
+  struct mcre *re, *upd_re;
+
+  upd_re = calloc (1, sizeof (*upd_re));
+
+  DEBUG ("Looking for re of group %d.%d.%d.%d vlan %d\n",
+         mcrek.dst[0], mcrek.dst[1], mcrek.dst[2], mcrek.dst[3],
+         mcrek.src_vid);
+
+  HASH_FIND (hh, mcret, &mcrek, sizeof (struct mcre_key), re);
+
+  *upd_re = *re;
+
+  int res, mll_head = re->mll_idx;
+
+  DEBUG ("Re found. Chain head is %d.\n", mll_head),
+
+  res = add_node (mll_head, mcg, vid);
+
+  upd_re->refc++;
+
+  DEBUG ("Chain %d now has %d nodes.\n", mll_head, upd_re->refc);
+
+  HASH_DEL (mcret, re);
+  HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
+
+  free (re);
+
+  return 0;
+}
+
+int
+mcre_put (const uint8_t *dst, const uint8_t *src, vid_t src_vid)
+{
+  struct mcre re_key, *re;
+  mcre_key (&re_key, dst, src, src_vid);
+
+  HASH_FIND (hh, mcret, &re_key.key, sizeof (struct mcre_key), re);
+  if (!re)
+    return -1;
+
+  re->refc--;
+  if (!re->refc) {
+    mcre_del (re);
+    return 0;
+  }
+
+  return re->refc;
+}
+
+int
+mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
+{
+  struct mcre *re, *upd_re;
+
+  memcpy (&(mcrek.dst), &mcre_key_bp[idx].dst, sizeof (mcrek.dst));
+  memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.dst));
+  memcpy (&(mcrek.src_vid), &mcre_key_bp[idx].src_vid, sizeof (mcrek.src_vid));
+
+  DEBUG ("Finding idx of group %d.%d.%d.%d of src_vid %d\n",
+         mcrek.dst[0], mcrek.dst[1], mcrek.dst[2], mcrek.dst[3],
+         src_vid);
+
+  HASH_FIND (hh, mcret, &mcrek, sizeof (struct mcre_key), re);
+  if (!re)
+    return -1;
+
+  int head, new_head;
+
+  head = re->mll_idx;
+
+  DEBUG ("Idx found. Chain head is %d. Deleting node...\n", head);
+
+  new_head = del_node (head, via, vid);
+
+  DEBUG ("New head is %d\n", new_head);
+
+  if (new_head == -2) {// There is no more chain
+
+    DEBUG ("There is no more chain\n");
+
+    HASH_DEL (mcret, re);
+
+    res_push (re->idx);
+
+    free (re);
+
+    return 0;
+  } else {
+    if (new_head == -3) { //No such node
+      DEBUG ("Node was not found!\n");
+      return re->refc;
+    } else {
+      if (new_head != head) {
+
+        CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
+
+        CRP (cpssDxChIpMcRouteEntriesRead (0, idx, &c));
+
+        c.internalMLLPointer = new_head;
+
+        CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c));
+
+          upd_re = calloc (1, sizeof (*upd_re));
+          *upd_re = *re;
+          upd_re->refc--;
+          upd_re->mll_idx = new_head;
+
+          HASH_DEL (mcret, re);
+          HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
+
+          free (re);
+
+        DEBUG ("Change head from %d to %d! Nodes left: %d\n",
+               head, new_head, upd_re->refc);
+
+        return upd_re->refc;
+
+      } else {// new_head == head
+
+        upd_re = calloc (1, sizeof (*upd_re));
+        *upd_re = *re;
+        upd_re->refc--;
+
+        HASH_DEL (mcret, re);
+        HASH_ADD (hh, mcret, key, sizeof (struct mcre_key), upd_re);
+
+        free (re);
+
+        DEBUG ("Head remain the same. Nodes left: %d\n", upd_re->refc);
+
+        return upd_re->refc;
+      }
+    }
+  }
+
+  // We should not get here
+  return -2;
 }

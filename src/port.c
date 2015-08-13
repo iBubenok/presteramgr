@@ -788,6 +788,10 @@ port_start (void)
          (port->ldev, port->lport,
           CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
           GT_TRUE));
+    CRP (cpssDxChIpPortRoutingEnable
+         (port->ldev, port->lport,
+          CPSS_IP_MULTICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          GT_TRUE));
 
     /* QoS initial setup. */
     CRP (cpssDxChCosPortReMapDSCPSet (port->ldev, port->lport, GT_FALSE));

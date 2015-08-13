@@ -103,6 +103,8 @@ mcg_add_port (mcg_t mcg, port_id_t pid)
     return ST_OK;
   }
 
+  return ST_OK;
+
   switch (rc) {
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;

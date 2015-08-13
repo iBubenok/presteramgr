@@ -316,6 +316,9 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_ROUTE_MC_ADD);
+DECLARE_HANDLER (CC_ROUTE_MC_DEL);
+DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
@@ -432,6 +435,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_ROUTE_MC_ADD),
+  HANDLER (CC_ROUTE_MC_DEL),
+  HANDLER (CC_VLAN_IGMP_SNOOP),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
@@ -1771,6 +1777,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
+    // put_vid = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
@@ -1816,7 +1823,21 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
-  zmsg_addmem (msg, frame->data, frame->len);
+
+
+  // Mud mad hack
+
+  unsigned char buf[60];
+  memset (buf, 0, 60);
+
+  if ((type == CN_IPv4_IGMP_PDU) && (frame->len == 56)) {
+    memcpy (buf, frame->data, frame->len);
+    zmsg_addmem (msg, buf, 60);
+  } else
+    zmsg_addmem (msg, frame->data, frame->len);
+
+  // End of Mud mad hack
+
   notify_send (&msg);
 
   result = ST_OK;
@@ -2788,6 +2809,94 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ROUTE_MC_ADD)
+{
+  enum status result;
+  vid_t vid, src_vid;
+  ip_addr_t d, s;
+  mcg_t via;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&s);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&via);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  DEBUG ("Route mc add src vid %d\n", src_vid);
+
+  result = route_mc_add (vid, d, s, via, src_vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ROUTE_MC_DEL)
+{
+  enum status result;
+  vid_t vid, src_vid;
+  ip_addr_t d, s;
+  mcg_t via;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&s);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&via);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_mc_del (vid, d, s, via, src_vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_IGMP_SNOOP)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_igmp_snoop (vid, enable);
 
  out:
   report_status (result);
