@@ -17,8 +17,10 @@ static void *arpd_sock;
 void
 arpc_start (void)
 {
-  arpd_sock = zsocket_new (zcontext, ZMQ_PUSH);
-  zsocket_connect (arpd_sock, ARPD_COMMAND_EP);
+  arpd_sock = zsocket_new (zcontext, ZMQ_PUB);
+/*  uint64_t hwm = 1000;
+  zmq_setsockopt(arpd_sock, ZMQ_HWM, &hwm, sizeof (hwm)); */
+  zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
 }
 
 static void

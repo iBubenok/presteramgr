@@ -42,6 +42,8 @@
 static void *control_loop (void *);
 
 static void *pub_sock;
+static void *pub_arp_sock;
+static void *pub_dhcp_sock;
 static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
@@ -77,6 +79,19 @@ control_init (void)
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
+
+  uint64_t hwm=250;
+  pub_arp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_arp_sock);
+/*  rc = zmq_setsockopt(pub_arp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0); */
+  rc = zsocket_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
+
+  pub_dhcp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_dhcp_sock);
+  rc = zmq_setsockopt(pub_dhcp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0);
+  rc = zsocket_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
 
   inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (inp_pub_sock);
@@ -127,6 +142,18 @@ static inline void
 notify_send (zmsg_t **msg)
 {
   zmsg_send (msg, inp_pub_sock);
+}
+
+static inline void
+notify_send_arp (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_arp_sock);
+}
+
+static inline void
+notify_send_dhcp (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_dhcp_sock);
 }
 
 static inline void
@@ -1824,13 +1851,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
 
-
-  // Mud mad hack
+  // Mud mad hack  - added dirty duty hack? kif
 
   unsigned char buf[60];
-  memset (buf, 0, 60);
 
   if ((type == CN_IPv4_IGMP_PDU) && (frame->len == 56)) {
+    memset (buf, 0, 60);
     memcpy (buf, frame->data, frame->len);
     zmsg_addmem (msg, buf, 60);
   } else
@@ -1838,7 +1864,18 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   // End of Mud mad hack
 
-  notify_send (&msg);
+  switch (type) {
+    case CN_ARP_BROADCAST:
+    case CN_ARP_REPLY_TO_ME:
+      notify_send_arp (&msg);
+      break;
+    case CN_DHCP_TRAP:
+      notify_send_dhcp (&msg);
+      break;
+    default:
+      notify_send (&msg);
+      break;
+  }
 
   result = ST_OK;
 
