@@ -20,7 +20,7 @@
 #include <debug.h>
 #include <log.h>
 
-#define MAX_PAYLOAD 1024
+#define MAX_PAYLOAD 2048
 
 static int sock;
 static void *inp_sock;
@@ -80,6 +80,12 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 
   if (!pid) {
     ERR ("invalid port spec %d-%d\n", frame->dev, frame->port);
+    return;
+  }
+
+  if (PDSA_SPEC_FRAME_SIZE (frame->len) > MAX_PAYLOAD) {
+    ERR ("CPU captured oversized for %u bytes buffer frame in %u bytes\n",
+        MAX_PAYLOAD - sizeof(struct pdsa_spec_frame), frame->len);
     return;
   }
 
