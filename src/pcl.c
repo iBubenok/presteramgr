@@ -18,7 +18,7 @@
 #include <zmq.h>
 #include <czmq.h>
 
-#define MAX_PORTS 32
+#define MAX_PORTS 30
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
 
@@ -1442,6 +1442,20 @@ pcl_cpss_lib_init (int d)
 
   if (stack_active())
     pcl_setup_mc_drop (d);
+
+  CRP(cpssDxCh2PclTcpUdpPortComparatorSet
+      (d,
+       CPSS_PCL_DIRECTION_INGRESS_E,
+       CPSS_PCL_LOOKUP_0_E,
+       0,
+       CPSS_L4_PROTOCOL_PORT_DST_E,
+       CPSS_COMPARE_OPERATOR_GTE,
+       5678));
+  CRP(cpssDxChPclUserDefinedByteSet
+      (d,
+       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+       CPSS_DXCH_PCL_PACKET_TYPE_IPV4_TCP_E,
+       0))
 
   return ST_OK;
 }
