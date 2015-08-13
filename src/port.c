@@ -2040,7 +2040,7 @@ enum status
 port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 {
   GT_STATUS rc;
-  uint16_t mode_val;
+  uint16_t mode_val, reg_val;
   struct port *port = port_ptr (pid);
 
   if (!port) {
@@ -2050,20 +2050,20 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   /*
     The value that we should put into register to switch to 100 Mbps fiber mode
     is the same for both fiber and combo ports. However, the value for 1000 Mbps
-    on fiber ports should be 0x8202 which means QSGMII to 1000BASE-X; for combo
-    ports it's 0x8207 which means QSGMII to auto media detect 1000BASE-X. It's
+    on fiber ports should be 0x0002 which means QSGMII to 1000BASE-X; for combo
+    ports it's 0x0007 which means QSGMII to auto media detect 1000BASE-X. It's
     done this way because we still care about the copper on combo ports, and if
     we dont set auto media detect mode on them, the copper won't work.
     If we're in 100BASE-FX mode, then we don't want copper to work, so it
-    doesn't with the 0x8203 value.
+    doesn't with the 0x0003 value.
   */
 
-  uint16_t mode_100mbps = 0x8203;
-  uint16_t mode_1000mbps = 0x8202;
+  uint16_t mode_100mbps = 0x0003;
+  uint16_t mode_1000mbps = 0x0002;
 
 #if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
   if (pid > 24) {
-    mode_1000mbps = 0x8207;
+    mode_1000mbps = 0x0007;
   }
 
   else {
@@ -2086,7 +2086,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     default:
       if (pid == 23 || pid == 24) {
-        mode_1000mbps = 0x8207;
+        mode_1000mbps = 0x0007;
       }
 
       else {
@@ -2116,8 +2116,17 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
 
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x14, &reg_val));
+
+  reg_val &= ~(1 << 0);
+  reg_val &= ~(1 << 1);
+  reg_val &= ~(1 << 2);
+  reg_val |= (1 << 15);
+  reg_val += 0x0005;
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, 0x8205));
+       (port->ldev, port->lport, 0x14, reg_val));
 
   if (rc != GT_OK)
     goto out;
@@ -2134,8 +2143,15 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
 
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x1B, &reg_val));
+
+  reg_val |= (1 << 0);
+  reg_val |= (1 << 1);
+  reg_val |= (1 << 14);
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x1B, 0x4203));
+       (port->ldev, port->lport, 0x1B, reg_val));
 
   if (rc != GT_OK)
     goto out;
@@ -2152,8 +2168,17 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
 
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x14, &reg_val));
+
+  reg_val &= ~(1 << 0);
+  reg_val &= ~(1 << 1);
+  reg_val &= ~(1 << 2);
+  reg_val |= (1 << 15);
+  reg_val += mode_val;
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, mode_val));
+       (port->ldev, port->lport, 0x14, reg_val));
 
   if (rc != GT_OK)
     goto out;
@@ -2178,8 +2203,17 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   if (rc != GT_OK)
     goto out;
 
+  rc = CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x14, &reg_val));
+
+  reg_val &= ~(1 << 0);
+  reg_val &= ~(1 << 1);
+  reg_val &= ~(1 << 2);
+  reg_val |= (1 << 15);
+  reg_val += mode_val;
+
   rc = CRP (cpssDxChPhyPortSmiRegisterWrite
-       (port->ldev, port->lport, 0x14, mode_val));
+       (port->ldev, port->lport, 0x14, reg_val));
 
   if (rc != GT_OK)
     goto out;
@@ -2202,7 +2236,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   /*
     If requested port is fiber, we should return on page 1
   */
-  if (mode_1000mbps == 0x8202) {
+  if (mode_1000mbps == 0x0002) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0001));
   }
