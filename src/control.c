@@ -36,6 +36,7 @@
 #include <trunk.h>
 #include <gif.h>
 #include <pcl.h>
+#include <ip.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -357,6 +358,7 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
+DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 
 
 
@@ -475,7 +477,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
-  HANDLER (CC_USER_ACL_RULE)
+  HANDLER (CC_USER_ACL_RULE),
+  HANDLER (CC_ARP_TRAP_ENABLE)
 };
 
 static int
@@ -1519,6 +1522,7 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
     goto out;
 
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
+DEBUG("vlan_set_mac_addr (%hu, " MAC_FMT ")", addr->vid, MAC_ARG(addr->addr));
   vlan_set_mac_addr (addr->vid, addr->addr);
   result = ST_OK;
 
@@ -1808,11 +1812,13 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     break;
 
   case CPU_CODE_ARP_BC_TM:
+DEBUG("===============ARP TRAP BC\n");
     type = CN_ARP_BROADCAST;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
+DEBUG("===============ARP TRAP RP\n");
     type = CN_ARP_REPLY_TO_ME;
     put_vid = 1;
     break;
@@ -1830,6 +1836,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     control_notify_ip_sg_trap (pid, frame);
     result = ST_OK;
     goto out;
+
+  case CPU_CODE_USER_DEFINED (3):
+DEBUG("===============ARP TRAP ANY\n");
+    type = CN_ARP;
+    put_vid = 1;
+    break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
@@ -3202,6 +3214,22 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
     default:
       DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
   };
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  ip_arp_trap_enable (enable);
+  result = pcl_enable_arp_trap (enable);
 
  out:
   report_status (result);

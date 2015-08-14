@@ -21,6 +21,7 @@ extern void pcl_source_guard_drop_disable (port_id_t);
 extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t, uint16_t, uint8_t);
 extern void pcl_source_guard_rule_unset (port_id_t, uint16_t);
 extern int pcl_source_guard_trap_enabled (port_id_t);
+extern enum status pcl_enable_arp_trap (int);
 
 enum PCL_ACTION {
   PCL_ACTION_PERMIT = 0,
