@@ -18,7 +18,7 @@
 #include <zmq.h>
 #include <czmq.h>
 
-#define MAX_PORTS 30
+#define MAX_PORTS 52
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
 
