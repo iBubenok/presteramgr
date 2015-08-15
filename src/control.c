@@ -1524,6 +1524,7 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
 DEBUG("vlan_set_mac_addr (%hu, " MAC_FMT ")", addr->vid, MAC_ARG(addr->addr));
   vlan_set_mac_addr (addr->vid, addr->addr);
+  arpc_send_set_mac_addr(addr->addr);
   result = ST_OK;
 
  out:
