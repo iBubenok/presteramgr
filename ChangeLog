@@ -1,3 +1,7 @@
+15.08.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
+
+  * ARP Inspector: add ARP trapping to CN_ARP notify message for ARP inspector, add ARPD_CC_SET_MAC_ADDR message to arpd, add CC_INJECT_FRAME command to inject frame to specific kernel vlan pv-xxxx interface 
+
 06.08.2015 Ildar Kindibulatov <ikindibulatov@plgn.ru>
 
   * PDSA: change drop oversized recieved frames

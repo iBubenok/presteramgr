@@ -233,3 +233,19 @@ mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
 
   free (frame);
 }
+
+void
+mgmt_inject_frame (vid_t vid, const void *data, size_t len)
+{
+  struct pdsa_inj_frame *frame;
+
+  frame = malloc (PDSA_INJ_FRAME_SIZE (len));
+  frame->iface_type = PDSA_MGMT_IFTYPE_VLAN;
+  frame->iface.vid = vid;
+  frame->len = len;
+  memcpy (frame->data, data, len);
+
+  mgmt_tx (0, PDSA_MGMT_INJECT_FRAME, frame, PDSA_INJ_FRAME_SIZE (len));
+
+  free (frame);
+}

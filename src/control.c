@@ -359,6 +359,7 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_INJECT_FRAME);
 
 
 
@@ -478,7 +479,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
   HANDLER (CC_USER_ACL_RULE),
-  HANDLER (CC_ARP_TRAP_ENABLE)
+  HANDLER (CC_ARP_TRAP_ENABLE),
+  HANDLER (CC_INJECT_FRAME)
 };
 
 static int
@@ -1725,6 +1727,35 @@ DEFINE_HANDLER (CC_SEND_FRAME)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_INJECT_FRAME)
+{
+  vid_t vid;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  mgmt_inject_frame (vid, zframe_data (frame), len);
+  result = ST_OK;
+
+ destroy_frame:
+  zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
@@ -1813,13 +1844,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     break;
 
   case CPU_CODE_ARP_BC_TM:
-DEBUG("===============ARP TRAP BC\n");
     type = CN_ARP_BROADCAST;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
-DEBUG("===============ARP TRAP RP\n");
     type = CN_ARP_REPLY_TO_ME;
     put_vid = 1;
     break;
@@ -1839,7 +1868,6 @@ DEBUG("===============ARP TRAP RP\n");
     goto out;
 
   case CPU_CODE_USER_DEFINED (3):
-DEBUG("===============ARP TRAP ANY\n");
     type = CN_ARP;
     put_vid = 1;
     break;
