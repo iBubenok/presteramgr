@@ -9,6 +9,7 @@
 #include <arpd.h>
 #include <arpc.h>
 #include <ret.h>
+#include <control-proto.h>
 #include <zcontext.h>
 #include <debug.h>
 
@@ -21,6 +22,18 @@ arpc_start (void)
 /*  uint64_t hwm = 1000;
   zmq_setsockopt(arpd_sock, ZMQ_HWM, &hwm, sizeof (hwm)); */
   zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
+}
+
+void
+arpc_send_set_mac_addr (const mac_addr_t addr) {
+
+  zmsg_t *msg = zmsg_new ();
+
+  arpd_command_t cmd = ARPD_CC_SET_MAC_ADDR;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, addr, sizeof (*addr));
+
+  zmsg_send (&msg, arpd_sock);
 }
 
 static void

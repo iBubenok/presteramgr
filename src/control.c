@@ -36,6 +36,7 @@
 #include <trunk.h>
 #include <gif.h>
 #include <pcl.h>
+#include <ip.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -357,6 +358,8 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
+DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_INJECT_FRAME);
 
 
 
@@ -475,7 +478,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
-  HANDLER (CC_USER_ACL_RULE)
+  HANDLER (CC_USER_ACL_RULE),
+  HANDLER (CC_ARP_TRAP_ENABLE),
+  HANDLER (CC_INJECT_FRAME)
 };
 
 static int
@@ -1519,7 +1524,9 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
     goto out;
 
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
+DEBUG("vlan_set_mac_addr (%hu, " MAC_FMT ")", addr->vid, MAC_ARG(addr->addr));
   vlan_set_mac_addr (addr->vid, addr->addr);
+  arpc_send_set_mac_addr(addr->addr);
   result = ST_OK;
 
  out:
@@ -1720,6 +1727,35 @@ DEFINE_HANDLER (CC_SEND_FRAME)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_INJECT_FRAME)
+{
+  vid_t vid;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  mgmt_inject_frame (vid, zframe_data (frame), len);
+  result = ST_OK;
+
+ destroy_frame:
+  zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
@@ -1830,6 +1866,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     control_notify_ip_sg_trap (pid, frame);
     result = ST_OK;
     goto out;
+
+  case CPU_CODE_USER_DEFINED (3):
+    type = CN_ARP;
+    put_vid = 1;
+    break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     route_handle_udt (frame->data, frame->len);
@@ -3202,6 +3243,22 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
     default:
       DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
   };
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  ip_arp_trap_enable (enable);
+  result = pcl_enable_arp_trap (enable);
 
  out:
   report_status (result);

@@ -35,3 +35,18 @@ ip_start (void)
 
   return ST_OK;
 }
+
+enum status
+ip_arp_trap_enable (int enable) {
+
+  int d;
+
+  for_each_dev (d) {
+    CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
+       (d,
+        (enable) ?
+          CPSS_PACKET_CMD_TRAP_TO_CPU_E :
+          CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+  }
+  return ST_OK;
+}
