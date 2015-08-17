@@ -3240,6 +3240,16 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       pcl_ipv6_rule_set(pid, &ipv6_rule, destination, enable);
       break;
     }
+    case PCL_RULE_TYPE_DEFAULT: {
+      struct default_pcl_rule default_rule;
+      DEBUG("rule struct size: %d\r\n", sizeof(default_rule));
+      if ((result = POP_ARG (&default_rule)) != ST_OK) {
+        DEBUG("ST_BAD_FORMAT: rule\r\n");
+        goto out;
+      }
+      pcl_default_rule_set(pid, &default_rule, destination, enable);
+      break;
+    }
     default:
       DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
   };

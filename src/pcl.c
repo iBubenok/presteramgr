@@ -864,6 +864,8 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
     DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ip_rule->rule_ix);
   }
 
   if (!enable) {
@@ -916,6 +918,8 @@ pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
     DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, mac_rule->rule_ix);
   }
 
   if (!enable) {
@@ -968,6 +972,8 @@ pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
     DEBUG("%s: ipv6_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ipv6_rule->rule_ix);
   }
 
   if (!enable) {
@@ -1000,6 +1006,68 @@ pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
       DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
             __FUNCTION__, destination);
   };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+}
+
+void
+pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
+                      enum PCL_DESTINATION destination, int enable) {
+  PRINT_SEPARATOR('=', 100);
+  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
+        bool_to_str(enable), pcl_dest_to_str(destination));
+
+  struct port *port;
+  get_port_ptr (port, pid);
+
+  if (!default_rule) {
+    DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, default_rule->rule_ix);
+  }
+
+  if (!enable) {
+    inactivate_rule (
+      port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix
+    );
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (default_rule->action, &act)) {
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid));
+      activate_rule (
+        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        default_rule->rule_ix, 0, &mask, &rule, &act
+      );
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid));
+      activate_rule (
+        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        default_rule->rule_ix, 0, &mask, &rule, &act
+      );
+      break;
+
+    default:
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+
 
   DEBUG("out\r\n");
 out:
