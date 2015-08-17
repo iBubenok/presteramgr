@@ -1002,6 +1002,66 @@ out:
   PRINT_SEPARATOR('=', 100);
 }
 
+void
+pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
+                      enum PCL_DESTINATION destination, int enable) {
+  PRINT_SEPARATOR('=', 100);
+  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
+        bool_to_str(enable), pcl_dest_to_str(destination));
+
+  struct port *port;
+  get_port_ptr (port, pid);
+
+  if (!default_rule) {
+    DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    goto out;
+  }
+
+  if (!enable) {
+    inactivate_rule (
+      port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix
+    );
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (default_rule->action, &act)) {
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid));
+      activate_rule (
+        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        default_rule->rule_ix, 0, &mask, &rule, &act
+      );
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid));
+      activate_rule (
+        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        default_rule->rule_ix, 0, &mask, &rule, &act
+      );
+      break;
+
+    default:
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+}
+
 static void __attribute__ ((unused))
 pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
   PRINT_SEPARATOR('=', 100);

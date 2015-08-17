@@ -33,9 +33,10 @@ enum PCL_DESTINATION {
 };
 
 enum PCL_RULE_TYPE {
-  PCL_RULE_TYPE_IP   = 0,
-  PCL_RULE_TYPE_MAC  = 1,
-  PCL_RULE_TYPE_IPV6 = 2
+  PCL_RULE_TYPE_IP      = 0,
+  PCL_RULE_TYPE_MAC     = 1,
+  PCL_RULE_TYPE_IPV6    = 2,
+  PCL_RULE_TYPE_DEFAULT = 3
 };
 
 typedef struct {
@@ -103,12 +104,19 @@ struct ipv6_pcl_rule {
   uint8_t     tcp_flags_mask;  /* 84 */
 } __attribute__ ((packed));
 
+struct default_pcl_rule {
+  uint16_t    rule_ix;         /* 2  */
+  uint8_t     action;          /* 3  */
+} __attribute__ ((packed));
+
 extern void pcl_ip_rule_set (port_id_t, struct ip_pcl_rule*,
                              enum PCL_DESTINATION, int);
 extern void pcl_mac_rule_set (port_id_t, struct mac_pcl_rule*,
                               enum PCL_DESTINATION, int);
 extern void pcl_ipv6_rule_set (port_id_t, struct ipv6_pcl_rule*,
                                enum PCL_DESTINATION, int);
+extern void pcl_default_rule_set (port_id_t, struct default_pcl_rule*,
+                                  enum PCL_DESTINATION, int);
 
 #ifndef bool_to_str
 #define bool_to_str(value) ((value) ? "true" : "false")
@@ -121,7 +129,7 @@ extern void pcl_ipv6_rule_set (port_id_t, struct ipv6_pcl_rule*,
 #endif
 
 #ifndef is_tcp_or_udp
-#define is_tcp_or_udp(proto) (((proto) == 0x6) || ((proto) == 0x17))
+#define is_tcp_or_udp(proto) (((proto) == 0x6) || ((proto) == 0x11))
 #endif
 
 #ifndef nth_byte
