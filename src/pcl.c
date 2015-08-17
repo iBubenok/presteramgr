@@ -860,6 +860,8 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
     DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ip_rule->rule_ix);
   }
 
   if (!enable) {
@@ -912,6 +914,8 @@ pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
     DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, mac_rule->rule_ix);
   }
 
   if (!enable) {
@@ -964,6 +968,8 @@ pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
     DEBUG("%s: ipv6_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ipv6_rule->rule_ix);
   }
 
   if (!enable) {
@@ -1016,6 +1022,8 @@ pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
     DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
           __FUNCTION__);
     goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, default_rule->rule_ix);
   }
 
   if (!enable) {
