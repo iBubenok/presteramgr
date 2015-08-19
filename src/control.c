@@ -1908,6 +1908,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
+    case CN_ARP:
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
