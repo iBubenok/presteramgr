@@ -126,7 +126,7 @@ sysd_setup_cpu_codes (void)
 
     cce_rlim.cpuCodeRateLimiterIndex = 5;
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
-         (d, 4, 4000, 1));
+         (d, 5, 4000, 1));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 2, &cce_rlim));
 
