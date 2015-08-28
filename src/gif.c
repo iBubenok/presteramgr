@@ -95,7 +95,7 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
-enum status 
+enum status
 gif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
 {
   int local;
@@ -154,6 +154,8 @@ gif_tx (const struct gif_id *id,
   switch (opts->send_to)
   {
     case GIFD_PORT: {
+      DEBUG("%s: GIFD_PORT: vlan: %d hw_port: %d\r\n", __FUNCTION__,
+        opts->vid, hp.hw_port);
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -168,6 +170,8 @@ gif_tx (const struct gif_id *id,
     } break;
 
     case GIFD_VLAN: {
+      DEBUG("%s: GIFD_VLAN: vlan: %d\r\n", __FUNCTION__,
+        opts->vid);
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
