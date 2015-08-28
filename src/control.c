@@ -122,7 +122,7 @@ control_init (void)
 
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
-  zsocket_connect (arpd_sock, ARPD_NOTIFY_EP);
+  zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
 
   return 0;
 }

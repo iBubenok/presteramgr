@@ -31,7 +31,7 @@ arpc_send_set_mac_addr (const mac_addr_t addr) {
 
   arpd_command_t cmd = ARPD_CC_SET_MAC_ADDR;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, addr, sizeof (*addr));
+  zmsg_addmem (msg, addr, sizeof (mac_addr_t));
 
   zmsg_send (&msg, arpd_sock);
 }
