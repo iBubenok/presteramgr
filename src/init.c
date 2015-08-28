@@ -675,6 +675,7 @@ after_init (int d)
 static void
 do_reset (void)
 {
+  return; /* TODO  3050 only */
   CPSS_PP_DEVICE_TYPE dev_type;
   int i;
 

@@ -73,12 +73,21 @@ static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
 static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
+
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
+
+static enum status port_set_speed_tge (struct port *, const struct port_speed_arg *);
+static enum status port_set_duplex_tge (struct port *, enum port_duplex);
+static enum status port_update_sd_tge (struct port *);
+static enum status port_shutdown_tge (struct port *, int);
+static enum status port_set_mdix_auto_tge (struct port *, int);
+static enum status port_setup_tge (struct port *);
+
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
 static enum status port_update_sd_xg (struct port *);
@@ -222,6 +231,14 @@ port_init (void)
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
+     } else if (IS_TGE_PORT (i)) {
+      ports[i].max_speed = PORT_SPEED_1000;
+      ports[i].set_speed = port_set_speed_tge;
+      ports[i].set_duplex = port_set_duplex_tge;
+      ports[i].update_sd = port_update_sd_tge;
+      ports[i].shutdown = port_shutdown_tge;
+      ports[i].set_mdix_auto = port_set_mdix_auto_tge;
+      ports[i].setup = port_setup_tge;
     } else if (IS_XG_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_10000;
       ports[i].set_speed = port_set_speed_xg;
@@ -1630,6 +1647,13 @@ port_update_sd_ge (struct port *port)
 }
 
 static enum status
+port_update_sd_tge (struct port *port)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
 port_update_sd_fe (struct port *port)
 {
   GT_STATUS rc;
@@ -1915,6 +1939,30 @@ port_shutdown_ge (struct port *port, int shutdown)
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
+}
+
+static enum status
+port_set_speed_tge (struct port *port, const struct port_speed_arg *psa)
+{
+  if (psa->speed != PORT_SPEED_1000)
+    return ST_BAD_VALUE;
+
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_set_duplex_tge (struct port *port, enum port_duplex duplex)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_shutdown_tge (struct port *port, int shutdown)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
 }
 
 static enum status
@@ -2368,6 +2416,13 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
   case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
   default:               return ST_HEX;
   }
+}
+
+static enum status
+port_set_mdix_auto_tge (struct port *port, int mdix_auto)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
 }
 
 static enum status
@@ -2976,6 +3031,50 @@ port_setup_ge (struct port *port)
   return ST_OK;
 }
 #endif /* VARIANT_* */
+
+static enum status
+port_setup_tge (struct port *port) {
+//return ST_OK;
+/*CPSS_PORT_INTERFACE_MODE_ENT
+CPSS_PORT_SPEED_ENT
+CPSS_PORT_MODE_SPEED_STC
+PRV_CPSS_PORT_INFO_ARRAY_STC*/
+
+
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
+  CRP (cpssDxChPortInterfaceModeSet
+        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E));
+//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
+//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_100BASE_FX_E));
+//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
+  CRP (cpssDxChPortSpeedSet
+//        (port->ldev, port->lport, CPSS_PORT_SPEED_100_E));
+//        (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
+        (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
+//        (port->ldev, port->lport, CPSS_PORT_SPEED_2500_E));
+  CRP (cpssDxChPortSerdesPowerStatusSet
+        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
+//        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0f, GT_TRUE));
+
+
+//   cpssDxChPortXgLanesSwapEnableSet(devNum,portNum,GT_TRUE);
+//  cpssDxChPortSerdesPowerStatusSet
+
+  CRP (cpssDxChPortInbandAutoNegEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortInBandAutoNegBypassEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+//  CRP(cpssDxChPortForceLinkPassEnableSet
+//       (port->ldev, port->lport, GT_TRUE));
+
+  return ST_OK;
+}
 
 static void __attribute__ ((unused))
 dump_xg_reg (const struct port *port, GT_U32 dev, GT_U32 reg)

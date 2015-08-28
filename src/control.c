@@ -481,6 +481,8 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     frame = zmsg_next (msg);
     struct arpd_ip_addr_msg *iam =
       (struct arpd_ip_addr_msg *) zframe_data (frame);
+
+DEBUG("arp_notify vid=%hu, ", iam->vid);
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
     break;
