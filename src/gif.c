@@ -95,7 +95,7 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
-enum status 
+enum status
 gif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
 {
   int local;
@@ -154,6 +154,8 @@ gif_tx (const struct gif_id *id,
   switch (opts->send_to)
   {
     case GIFD_PORT: {
+      DEBUG("%s: GIFD_PORT: vlan: %d port_num: %d hw_port: %d\r\n",
+        __FUNCTION__, opts->vid, id->num, hp.hw_port);
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -165,9 +167,22 @@ gif_tx (const struct gif_id *id,
       tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
+
+      struct port *port = port_ptr (id->num);
+      DEBUG("%s: port->mode == PM_TRUNK: %d port->native_vid: %d\r\n",
+        __FUNCTION__, (port->mode == PM_TRUNK), port->native_vid);
+      if ((port->mode == PM_TRUNK) &&
+          (port->native_vid != opts->vid) &&
+          (opts->vid)) {
+        DEBUG("%s: dstIsTagged = GT_TRUE\r\n", __FUNCTION__);
+        tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
+      }
+
     } break;
 
     case GIFD_VLAN: {
+      DEBUG("%s: GIFD_VLAN: vlan: %d\r\n", __FUNCTION__,
+        opts->vid);
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -188,6 +203,8 @@ gif_tx (const struct gif_id *id,
     } break;
 
     case GIFD_VIDX: {
+      DEBUG("%s: GIFD_VIDX: vlan: %d\r\n", __FUNCTION__,
+        opts->vid);
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
