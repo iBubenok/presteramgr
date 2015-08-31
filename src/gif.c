@@ -171,7 +171,9 @@ gif_tx (const struct gif_id *id,
       struct port *port = port_ptr (id->num);
       DEBUG("%s: port->mode == PM_TRUNK: %d port->native_vid: %d\r\n",
         __FUNCTION__, (port->mode == PM_TRUNK), port->native_vid);
-      if ((port->mode == PM_TRUNK) && (port->native_vid != opts->vid)) {
+      if ((port->mode == PM_TRUNK) &&
+          (port->native_vid != opts->vid) &&
+          (opts->vid)) {
         DEBUG("%s: dstIsTagged = GT_TRUE\r\n", __FUNCTION__);
         tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
       }
