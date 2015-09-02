@@ -3415,6 +3415,78 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
 }
 
 enum status
+port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media)
+{
+  enum {
+    IS_FIBER,
+    IS_COPPER,
+    IS_COMBO
+  } ptype;
+
+#if defined VARIANT_FE
+  ptype = (pid > 24) ? IS_COMBO : IS_COPPER;
+#elif defined (VARIANT_ARLAN_3448PGE)
+  ptype = IS_COPPER;
+#elif defined (VARIANT_ARLAN_3448GE)
+  ptype = (pid > 48) ? IS_FIBER : IS_COPPER;
+#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
+  switch (env_hw_subtype ()) {
+  case HWST_ARLAN_3424GE_F:
+  case HWST_ARLAN_3424GE_F_S:
+    ptype = IS_FIBER;
+    break;
+  case HWST_ARLAN_3424GE_U:
+    ptype = (pid > 12) ? IS_FIBER : IS_COPPER;
+    break;
+  default:
+    ptype = (pid > 22) ? IS_COMBO : IS_COPPER;
+  }
+#endif /* VARIANT_* */
+
+  if (ptype != IS_COMBO) {
+    return ST_BAD_VALUE;
+  }
+
+  struct port *port = port_ptr (pid);
+  uint16_t reg_val, page;
+
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x16, &page));
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x6));
+
+  CRP (cpssDxChPhyPortSmiRegisterRead
+       (port->ldev, port->lport, 0x14, &reg_val));
+
+  switch (media) {
+    case PREF_MEDIA_NONE :
+      reg_val &= ~(1 << 5);
+      reg_val &= ~(1 << 4);
+      break;
+
+    case PREF_MEDIA_RJ45 :
+      reg_val &= ~(1 << 5);
+      reg_val |= (1 << 4);
+      break;
+
+    case PREF_MEDIA_SFP :
+      reg_val |= (1 << 5);
+      reg_val &= ~(1 << 4);
+      break;
+  }
+  reg_val |= (1 << 15);
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x14, reg_val));
+
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, page));
+
+  return ST_OK;
+}
+
+enum status
 port_tdr_test_start (port_id_t pid)
 {
   struct port *port = port_ptr (pid);

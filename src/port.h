@@ -120,6 +120,7 @@ extern enum status port_set_comm (port_id_t, port_comm_t);
 extern enum status port_set_igmp_snoop (port_id_t, bool_t);
 extern enum status port_set_mru (uint16_t);
 extern enum status port_set_pve_dst (port_id_t, port_id_t, int);
+extern enum status port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media);
 extern enum status port_tdr_test_start (port_id_t);
 extern enum status port_tdr_test_get_result (port_id_t, struct vct_cable_status *);
 extern enum status port_set_customer_vid (port_id_t, vid_t);

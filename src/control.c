@@ -360,8 +360,7 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
-
-
+DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -480,7 +479,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DELETE),
   HANDLER (CC_USER_ACL_RULE),
   HANDLER (CC_ARP_TRAP_ENABLE),
-  HANDLER (CC_INJECT_FRAME)
+  HANDLER (CC_INJECT_FRAME),
+  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
 };
 
 static int
@@ -3270,6 +3270,26 @@ DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
 
   ip_arp_trap_enable (enable);
   result = pcl_enable_arp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
+{
+  enum status result;
+  port_id_t pid;
+  combo_pref_media_t media;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&media);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_combo_preferred_media (pid, media);
 
  out:
   report_status (result);
