@@ -741,6 +741,7 @@ port_start (void)
   for_each_dev (d) {
     CRP (cpssDxChNstPortIsolationEnableSet (d, GT_TRUE));
     CRP (cpssDxChBrgVlanEgressFilteringEnable (d, GT_TRUE));
+    CRP (cpssDxChBrgRoutedSpanEgressFilteringEnable (d, GT_TRUE));
     CRP (cpssDxChBrgSrcIdGlobalSrcIdAssignModeSet
          (d, CPSS_BRG_SRC_ID_ASSIGN_MODE_PORT_DEFAULT_E));
 
@@ -996,6 +997,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   if (is_stack_port (port))
     return ST_BAD_STATE;
 
+
   result = data_decode_stp_state (&cs, state);
   if (result != ST_OK)
     return result;
@@ -1004,10 +1006,14 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
-      if (stg_is_active (stg))
+      if (stg_is_active (stg)) {
+        stg_state[pid - 1][stg] = state;
         CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stg, cs));
-  } else
-    CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
+    }
+  } else {
+      stg_state[pid - 1][stp_id] = state;
+      CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
+  }
 
   return ST_OK;
 }

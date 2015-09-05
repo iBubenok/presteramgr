@@ -23,6 +23,7 @@
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
+stp_state_t stg_state[NPORTS][256];
 
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
@@ -449,6 +450,7 @@ vlan_init (void)
   static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
+  memset (stg_state, STP_STATE_DISABLED, sizeof(stg_state));
 
   return ST_OK;
 }

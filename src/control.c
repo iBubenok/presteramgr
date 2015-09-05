@@ -1844,11 +1844,19 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     break;
 
   case CPU_CODE_ARP_BC_TM:
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
     type = CN_ARP_BROADCAST;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
     type = CN_ARP_REPLY_TO_ME;
     put_vid = 1;
     break;
@@ -1858,6 +1866,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     break;
 
   case CPU_CODE_USER_DEFINED (1):
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
     type = CN_DHCP_TRAP;
     put_vid = 1;
     break;
@@ -1868,6 +1880,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     goto out;
 
   case CPU_CODE_USER_DEFINED (3):
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
     type = CN_ARP;
     put_vid = 1;
     break;
