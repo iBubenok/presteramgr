@@ -1764,6 +1764,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   port_id_t pid;
   int put_vid = 0;
   uint16_t *etype;
+  register int conform2stp_state = 0;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1799,9 +1800,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
         type = CN_LACPDU;
+        conform2stp_state = 1;
         break;
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
+        conform2stp_state = 1;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
@@ -1815,6 +1818,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (ntohs (*etype)) {
       case 0x888E:
         type = CN_EAPOL;
+        conform2stp_state = 1;
         break;
       case 0x88CC:
         type = CN_LLDP_MCAST;
@@ -1830,6 +1834,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
+      conform2stp_state = 1;
       break;
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n",
@@ -1840,57 +1845,51 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
+    conform2stp_state = 1;
     // put_vid = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
-      result = ST_OK;
-      goto out;
-    }
     type = CN_ARP_BROADCAST;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
-      result = ST_OK;
-      goto out;
-    }
     type = CN_ARP_REPLY_TO_ME;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (0):
     type = CN_LBD_PDU;
+    conform2stp_state = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (1):
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
-      result = ST_OK;
-      goto out;
-    }
     type = CN_DHCP_TRAP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (2):
-    control_notify_ip_sg_trap (pid, frame);
     result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    control_notify_ip_sg_trap (pid, frame);
     goto out;
 
   case CPU_CODE_USER_DEFINED (3):
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
-      result = ST_OK;
-      goto out;
-    }
     type = CN_ARP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
-    route_handle_udt (frame->data, frame->len);
     result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    route_handle_udt (frame->data, frame->len);
     goto out;
 
   case CPU_CODE_MAIL:
@@ -1902,6 +1901,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
   }
+
+  if (conform2stp_state)
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
 
   zmsg_t *msg = make_notify_message (type);
   if (put_vid)
