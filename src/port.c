@@ -202,7 +202,15 @@ port_init (void)
         ports[i].type = (ports[i].id > 12) ? PTYPE_FIBER : PTYPE_COPPER;
         break;
       default :
-        ports[i].type = (ports[i].id > 22) ? PTYPE_COMBO : PTYPE_COPPER;
+        if (ports[i].id < 23) {
+          ports[i].type = PTYPE_COPPER;
+        }
+        else if (ports[i].id == 23 || ports[i].id == 24) {
+          ports[i].type = PTYPE_COMBO;
+        }
+        else {
+          ports[i].type = PTYPE_FIBER;
+        }
     }
 #endif /* VARIANT_* */
 
