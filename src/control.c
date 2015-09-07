@@ -244,6 +244,7 @@ control_start (void)
 }
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
+DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
@@ -364,6 +365,7 @@ DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
+  HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
@@ -633,6 +635,29 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_TYPE)
+{
+  port_id_t pid;
+  port_type_t ptype;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = port_get_type (pid, &ptype);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ptype, sizeof (ptype));
   send_reply (reply);
 }
 
