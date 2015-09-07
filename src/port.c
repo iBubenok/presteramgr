@@ -188,9 +188,7 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE)
-    ports[i].type = PTYPE_COPPER;
-#elif defined (VARIANT_ARLAN_3448GE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
 #else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
     switch (env_hw_subtype()) {
