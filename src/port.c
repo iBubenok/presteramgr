@@ -2792,6 +2792,22 @@ port_get_stats (port_id_t pid, void *stats)
   }
 }
 
+enum status
+port_clear_stats (port_id_t pid)
+{
+  if (!port_valid (pid)) {
+    return ST_BAD_VALUE;
+  }
+
+  struct port *port = port_ptr (pid);
+  CPSS_PORT_MAC_COUNTER_SET_STC stats;
+  CRP (cpssDxChPortMacCountersClearOnReadSet (port->ldev, port->lport, GT_TRUE));
+  CRP (cpssDxChPortMacCountersOnPortGet (port->ldev, port->lport, &stats));
+  CRP (cpssDxChPortMacCountersClearOnReadSet (port->ldev, port->lport, GT_FALSE));
+
+  return ST_OK;
+}
+
 static uint64_t
 max_bps (enum port_speed ps)
 {
