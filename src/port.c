@@ -1011,6 +1011,18 @@ port_get_state (port_id_t pid, struct port_link_state *state)
 }
 
 enum status
+port_get_type (port_id_t pid, port_type_t *ptype)
+{
+  struct port *port = port_ptr (pid);
+  if (!port) {
+    return ST_BAD_VALUE;
+  }
+
+  *ptype = port->type;
+  return ST_OK;
+}
+
+enum status
 port_set_stp_state (port_id_t pid, stp_id_t stp_id,
                     int all, enum port_stp_state state)
 {
