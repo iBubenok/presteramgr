@@ -19,6 +19,7 @@ struct port_vlan_conf {
 
 struct port {
   port_id_t id;
+  port_type_t type;
   GT_U8 ldev;
   GT_U8 lport;
   enum port_mode mode;
