@@ -163,8 +163,7 @@ gif_tx (const struct gif_id *id,
       tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
       tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
       tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
-      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
-//      tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
+      tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
 
@@ -195,7 +194,6 @@ gif_tx (const struct gif_id *id,
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
       }
-      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
       tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
@@ -217,7 +215,6 @@ gif_tx (const struct gif_id *id,
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.devNum = hp.hw_dev;
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
       }
-      tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
       tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
