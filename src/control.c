@@ -294,6 +294,8 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_PORT_GET_SERDES_CFG);
+DECLARE_HANDLER (CC_PORT_SET_SERDES_CFG);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -397,7 +399,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
-  HANDLER (CC_PSEC_ENABLE)
+  HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_PORT_GET_SERDES_CFG),
+  HANDLER (CC_PORT_SET_SERDES_CFG)
 };
 
 static int
@@ -2751,6 +2755,49 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
     goto out;
 
   result = psec_enable (pid, enable, act, intv);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  struct port_serdes_cfg c;
+  zmsg_t *reply;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_get_serdes_cfg (pid, &c);
+
+out:
+  reply = make_reply (result);
+  if (result == ST_OK)
+    zmsg_addmem (reply, &c, sizeof (c));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  zframe_t *frame;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != sizeof (struct port_serdes_cfg)) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = port_set_serdes_cfg
+    (pid, (struct port_serdes_cfg *) zframe_data (frame));
 
  out:
   report_status (result);

@@ -42,6 +42,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/generic/cpssHwInit/cpssLedCtrl.h>
+#include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInitLedCtrl.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -3034,44 +3036,64 @@ port_setup_ge (struct port *port)
 
 static enum status
 port_setup_tge (struct port *port) {
-//return ST_OK;
-/*CPSS_PORT_INTERFACE_MODE_ENT
-CPSS_PORT_SPEED_ENT
-CPSS_PORT_MODE_SPEED_STC
-PRV_CPSS_PORT_INFO_ARRAY_STC*/
-
 
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  CRP (cpssDxChPortSerdesResetStateSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortMacResetStateSet
+        (port->ldev, port->lport, GT_TRUE));
+
   CRP (cpssDxChPortInterfaceModeSet
-        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E));
-//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
-//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_100BASE_FX_E));
-//        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
+        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
   CRP (cpssDxChPortSpeedSet
-//        (port->ldev, port->lport, CPSS_PORT_SPEED_100_E));
-//        (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
         (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
-//        (port->ldev, port->lport, CPSS_PORT_SPEED_2500_E));
+
   CRP (cpssDxChPortSerdesPowerStatusSet
         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
-//        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0f, GT_TRUE));
+
+  CRP (cpssDxChPortSpeedAutoNegEnableSet
+        (port->ldev, port->lport, GT_TRUE));
 
 
-//   cpssDxChPortXgLanesSwapEnableSet(devNum,portNum,GT_TRUE);
-//  cpssDxChPortSerdesPowerStatusSet
+  CPSS_LED_CONF_STC lconf = {
+    .ledOrganize        = CPSS_LED_ORDER_MODE_BY_PORT_E,
+    .disableOnLinkDown  = GT_TRUE,
+//    .disableOnLinkDown  = GT_FALSE,
+    .blink0DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink0Duration     = CPSS_LED_BLINK_DURATION_3_E,
+    .blink1DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink1Duration     = CPSS_LED_BLINK_DURATION_3_E,
+    .pulseStretch       = CPSS_LED_PULSE_STRETCH_2_E,
+    .ledStart           = 0,
+    .ledEnd             = 28,
+    .clkInvert          = GT_FALSE
+//    .clkInvert          = GT_TRUE
+  };
+
+  CRP (cpssDxChLedStreamPortGroupConfigSet
+        (port->ldev, 1, 0, &lconf));
+
+DEBUG("INIT PORT: %d\n", port->id);
+
+  CRP (cpssDxChLedStreamDirectModeEnableSet
+        (port->ldev, 0, GT_TRUE));
+
+//  CRP(cpssDxChPortDuplexModeSet(
+//        port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E));
+
+//  CRP(cpssDxChPortDuplexAutoNegEnableSet(
+//        port->ldev, port->lport, GT_TRUE));
 
   CRP (cpssDxChPortInbandAutoNegEnableSet
         (port->ldev, port->lport, GT_TRUE));
 
   CRP (cpssDxChPortInBandAutoNegBypassEnableSet
         (port->ldev, port->lport, GT_TRUE));
-
-//  CRP(cpssDxChPortForceLinkPassEnableSet
-//       (port->ldev, port->lport, GT_TRUE));
 
   return ST_OK;
 }
@@ -3859,4 +3881,57 @@ psec_enable_na_sb (port_id_t pid, int enable)
   psec_unlock (port);
 
   return ST_OK;
+}
+
+enum status
+port_get_serdes_cfg (port_id_t pid, struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChPortSerdesConfigGet (port->ldev, port->lport, &c));
+  if (rc == GT_OK) {
+    cfg->txAmp                 = c.txAmp;
+    cfg->txEmphEn              = c.txEmphEn == GT_TRUE;
+    cfg->txEmphAmp             = c.txEmphAmp;
+    cfg->txAmpAdj              = c.txAmpAdj;
+    cfg->txEmphLevelAdjEnable  = c.txEmphLevelAdjEnable == GT_TRUE;
+    cfg->ffeSignalSwingControl = c.ffeSignalSwingControl;
+    cfg->ffeResistorSelect     = c.ffeResistorSelect;
+    cfg->ffeCapacitorSelect    = c.ffeCapacitorSelect;
+
+    return ST_OK;
+  }
+
+  return ST_HEX;
+}
+
+enum status
+port_set_serdes_cfg (port_id_t pid, const struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  c.txAmp                 = cfg->txAmp;
+  c.txEmphEn              = gt_bool (cfg->txEmphEn);
+  c.txEmphAmp             = cfg->txEmphAmp;
+  c.txAmpAdj              = cfg->txAmpAdj;
+  c.txEmphLevelAdjEnable  = gt_bool (cfg->txEmphLevelAdjEnable);
+  c.ffeSignalSwingControl = cfg->ffeSignalSwingControl;
+  c.ffeResistorSelect     = cfg->ffeResistorSelect;
+  c.ffeCapacitorSelect    = cfg->ffeCapacitorSelect;
+
+  rc = CRP (cpssDxChPortSerdesConfigSet (port->ldev, port->lport, &c));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }
