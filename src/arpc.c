@@ -13,6 +13,9 @@
 #include <zcontext.h>
 #include <debug.h>
 
+#include <sys/types.h>
+#include <fcntl.h>
+
 static void *arpd_sock;
 
 void
@@ -22,6 +25,10 @@ arpc_start (void)
 /*  uint64_t hwm = 1000;
   zmq_setsockopt(arpd_sock, ZMQ_HWM, &hwm, sizeof (hwm)); */
   zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
+
+  int fd = open("/var/tmp/sock.presteramgr",
+             O_WRONLY | O_CREAT | O_TRUNC, S_IROTH | S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR);
+  close(fd);
 }
 
 void
