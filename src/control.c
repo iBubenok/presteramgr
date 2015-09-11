@@ -40,9 +40,6 @@
 
 #include <gtOs/gtOsTask.h>
 
-#include <sys/types.h>
-#include <fcntl.h>
-
 static void *control_loop (void *);
 
 static void *pub_sock;
@@ -127,9 +124,6 @@ control_init (void)
   assert (arpd_sock);
   zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
 
-  int fd = open("/var/tmp/sock.presteramgr",
-             O_WRONLY | O_CREAT | O_TRUNC, S_IROTH | S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR);
-  close(fd);
   return 0;
 }
 
