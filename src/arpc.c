@@ -9,16 +9,38 @@
 #include <arpd.h>
 #include <arpc.h>
 #include <ret.h>
+#include <control-proto.h>
 #include <zcontext.h>
 #include <debug.h>
+
+#include <sys/types.h>
+#include <fcntl.h>
 
 static void *arpd_sock;
 
 void
 arpc_start (void)
 {
-  arpd_sock = zsocket_new (zcontext, ZMQ_PUSH);
-  zsocket_connect (arpd_sock, ARPD_COMMAND_EP);
+  arpd_sock = zsocket_new (zcontext, ZMQ_PUB);
+/*  uint64_t hwm = 1000;
+  zmq_setsockopt(arpd_sock, ZMQ_HWM, &hwm, sizeof (hwm)); */
+  zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
+
+  int fd = open("/var/tmp/sock.presteramgr",
+             O_WRONLY | O_CREAT | O_TRUNC, S_IROTH | S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR);
+  close(fd);
+}
+
+void
+arpc_send_set_mac_addr (const mac_addr_t addr) {
+
+  zmsg_t *msg = zmsg_new ();
+
+  arpd_command_t cmd = ARPD_CC_SET_MAC_ADDR;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, addr, sizeof (mac_addr_t));
+
+  zmsg_send (&msg, arpd_sock);
 }
 
 static void

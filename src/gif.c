@@ -95,7 +95,7 @@ gif_get_hw_port (struct hw_port *hp, uint8_t type, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
-enum status 
+enum status
 gif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
 {
   int local;
@@ -154,6 +154,7 @@ gif_tx (const struct gif_id *id,
   switch (opts->send_to)
   {
     case GIFD_PORT: {
+
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -163,11 +164,23 @@ gif_tx (const struct gif_id *id,
       tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
       tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
       tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+//      tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
+
+      struct port *port = port_ptr (id->num);
+
+      if ((port->mode == PM_TRUNK) &&
+          (port->native_vid != opts->vid) &&
+          (opts->vid)) {
+
+        tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
+      }
+
     } break;
 
     case GIFD_VLAN: {
+
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -183,11 +196,13 @@ gif_tx (const struct gif_id *id,
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
       }
       tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+      tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
     } break;
 
     case GIFD_VIDX: {
+
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
       tp.commonParams.vpt = 7;
@@ -203,6 +218,7 @@ gif_tx (const struct gif_id *id,
         tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludedInterface.devPort.portNum = hp.hw_port;
       }
       tp.dsaInfo.fromCpu.cascadeControl = gt_bool (opts->ignore_stp);
+      tp.dsaInfo.fromCpu.egrFilterEn = gt_bool ( !opts->ignore_stp);
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
     } break;

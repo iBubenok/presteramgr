@@ -101,6 +101,7 @@
 #include <tipc.h>
 #include <trunk.h>
 #include <presteramgr.h>
+#include <mll.h>
 
 int just_reset = 0;
 
@@ -793,6 +794,7 @@ init_cpss (void)
   port_start ();
   dgasp_init ();
   pdsa_init ();
+  mll_init ();
   ip_start ();
 
   for_each_dev (i) {

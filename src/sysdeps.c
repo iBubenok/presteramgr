@@ -88,6 +88,8 @@ sysd_setup_cpu_codes (void)
          (d, CPSS_NET_INTERVENTION_ARP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 3, &cce_rlim));
 
 /* allowing trapping IGMP packets bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
@@ -120,8 +122,15 @@ sysd_setup_cpu_codes (void)
     cce_rlim.cpuCodeRateLimiterIndex = 4;
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 4, 4000, 100));
+/*         (d, 4, 4000, 50)); */
      CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
+
+    cce_rlim.cpuCodeRateLimiterIndex = 5;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 5, 4000, 1));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 2, &cce_rlim));
 
     cce.tc = 7;
     CRP (cpssDxChNetIfCpuCodeTableSet
