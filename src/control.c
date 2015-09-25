@@ -244,6 +244,7 @@ control_start (void)
 }
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
+DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
@@ -257,6 +258,7 @@ DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
+DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
@@ -366,6 +368,7 @@ DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
+  HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
@@ -379,6 +382,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
+  HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
   HANDLER (CC_PORT_SET_PROTECTED),
@@ -639,6 +643,29 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_TYPE)
+{
+  port_id_t pid;
+  port_type_t ptype;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = port_get_type (pid, &ptype);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ptype, sizeof (ptype));
   send_reply (reply);
 }
 
@@ -1355,6 +1382,27 @@ DEFINE_HANDLER (CC_PORT_GET_STATS)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &stats, sizeof (stats));
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_CLEAR_STATS)
+{
+  enum status result;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_clear_stats (pid);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
   send_reply (reply);
   return;
 

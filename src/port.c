@@ -198,6 +198,33 @@ port_init (void)
 
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
+
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+    ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+#elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
+    ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#else /* GE-C[-S], GE-U, GE-F[-S] */
+    switch (env_hw_subtype()) {
+      case HWST_ARLAN_3424GE_F :
+      case HWST_ARLAN_3424GE_F_S :
+        ports[i].type = PTYPE_FIBER;
+        break;
+      case HWST_ARLAN_3424GE_U :
+        ports[i].type = (ports[i].id > 12) ? PTYPE_FIBER : PTYPE_COPPER;
+        break;
+      default :
+        if (ports[i].id < 23) {
+          ports[i].type = PTYPE_COPPER;
+        }
+        else if (ports[i].id == 23 || ports[i].id == 24) {
+          ports[i].type = PTYPE_COMBO;
+        }
+        else {
+          ports[i].type = PTYPE_FIBER;
+        }
+    }
+#endif /* VARIANT_* */
+
     ports[i].ldev = pmap[i].dev;
     ports[i].lport = pmap[i].port;
     ports[i].mode = PM_ACCESS;
@@ -1003,6 +1030,18 @@ port_get_state (port_id_t pid, struct port_link_state *state)
 }
 
 enum status
+port_get_type (port_id_t pid, port_type_t *ptype)
+{
+  struct port *port = port_ptr (pid);
+  if (!port) {
+    return ST_BAD_VALUE;
+  }
+
+  *ptype = port->type;
+  return ST_OK;
+}
+
+enum status
 port_set_stp_state (port_id_t pid, stp_id_t stp_id,
                     int all, enum port_stp_state state)
 {
@@ -1520,30 +1559,7 @@ port_update_sd_ge (struct port *port)
   GT_STATUS rc;
   GT_U16 reg, reg1;
 
-  enum {
-    IS_FIBER,
-    IS_COPPER,
-    IS_COMBO
-  } ptype;
-
-#if defined (VARIANT_ARLAN_3448PGE)
-  ptype = IS_COPPER;
-#elif defined (VARIANT_ARLAN_3448GE)
-  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
-#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
-  switch (env_hw_subtype ()) {
-  case HWST_ARLAN_3424GE_F:
-  case HWST_ARLAN_3424GE_F_S:
-    ptype = IS_FIBER;
-    break;
-  case HWST_ARLAN_3424GE_U:
-    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
-    break;
-  default:
-    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
-  }
-#endif /* VARIANT_* */
-  if (ptype == IS_FIBER) {
+  if (port->type == PTYPE_FIBER) {
     /* Fiber speed changed handled by sfp-utils */
     return ST_OK;
   }
@@ -1925,31 +1941,7 @@ port_shutdown_ge (struct port *port, int shutdown)
          (port->ldev, port->lport, 22, 0));
   }
 #elif defined (VARIANT_GE)
-  enum {
-    IS_FIBER,
-    IS_COPPER,
-    IS_COMBO
-  } ptype;
-
-#if defined (VARIANT_ARLAN_3448PGE)
-  ptype = IS_COPPER;
-#elif defined (VARIANT_ARLAN_3448GE)
-  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
-#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
-  switch (env_hw_subtype ()) {
-  case HWST_ARLAN_3424GE_F:
-  case HWST_ARLAN_3424GE_F_S:
-    ptype = IS_FIBER;
-    break;
-  case HWST_ARLAN_3424GE_U:
-    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
-    break;
-  default:
-    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
-  }
-#endif /* VARIANT_* */
-
-  if (ptype == IS_COPPER) {
+  if (port->type == PTYPE_COPPER) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 0));
     CRP (cpssDxChPhyPortSmiRegisterRead
@@ -1959,7 +1951,7 @@ port_shutdown_ge (struct port *port, int shutdown)
          (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
   }
 
-  if (ptype == IS_FIBER) {
+  if (port->type == PTYPE_FIBER) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 1));
     CRP (cpssDxChPhyPortSmiRegisterRead
@@ -1969,7 +1961,7 @@ port_shutdown_ge (struct port *port, int shutdown)
          (shutdown)?(reg | (1 << 11)):(reg & ~(1 << 11))));
   }
 
-  if (ptype == IS_COMBO) {
+  if (port->type == PTYPE_COMBO) {
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 0));
     CRP (cpssDxChPhyPortSmiRegisterRead
@@ -2855,6 +2847,22 @@ port_get_stats (port_id_t pid, void *stats)
   }
 }
 
+enum status
+port_clear_stats (port_id_t pid)
+{
+  if (!port_valid (pid)) {
+    return ST_BAD_VALUE;
+  }
+
+  struct port *port = port_ptr (pid);
+  CPSS_PORT_MAC_COUNTER_SET_STC stats;
+  CRP (cpssDxChPortMacCountersClearOnReadSet (port->ldev, port->lport, GT_TRUE));
+  CRP (cpssDxChPortMacCountersOnPortGet (port->ldev, port->lport, &stats));
+  CRP (cpssDxChPortMacCountersClearOnReadSet (port->ldev, port->lport, GT_FALSE));
+
+  return ST_OK;
+}
+
 static uint64_t
 max_bps (enum port_speed ps)
 {
@@ -3103,13 +3111,7 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_ge (struct port *port)
 {
-  enum {
-    IS_FIBER,
-    IS_COPPER,
-    IS_COMBO
-  } ptype;
   GT_U16 val;
-
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
@@ -3123,24 +3125,6 @@ port_setup_ge (struct port *port)
 
   CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x04 + (port->lport % 12)));
-
-#if defined (VARIANT_ARLAN_3448PGE)
-  ptype = IS_COPPER;
-#elif defined (VARIANT_ARLAN_3448GE)
-  ptype = (port->id > 48) ? IS_FIBER : IS_COPPER;
-#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
-  switch (env_hw_subtype ()) {
-  case HWST_ARLAN_3424GE_F:
-  case HWST_ARLAN_3424GE_F_S:
-    ptype = IS_FIBER;
-    break;
-  case HWST_ARLAN_3424GE_U:
-    ptype = (port->id > 12) ? IS_FIBER : IS_COPPER;
-    break;
-  default:
-    ptype = (port->id > 22) ? IS_COMBO : IS_COPPER;
-  }
-#endif /* VARIANT_* */
 
   CRP (cpssDxChPhyPortSmiRegisterWrite
        (port->ldev, port->lport, 0x16, 0x0000));
@@ -3194,8 +3178,8 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, 29, 0x0000));
   }
 
-  switch (ptype) {
-  case IS_FIBER:
+  switch (port->type) {
+  case PTYPE_FIBER:
     /* DEBUG ("port %d is fiber\n", port->id); */
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -3229,7 +3213,7 @@ port_setup_ge (struct port *port)
 
     break;
 
-  case IS_COPPER:
+  case PTYPE_COPPER:
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0));
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -3250,7 +3234,7 @@ port_setup_ge (struct port *port)
          (port->ldev, port->lport, GT_TRUE));
     break;
 
-  case IS_COMBO:
+  case PTYPE_COMBO:
     /* DEBUG ("port %d is combo\n", port->id); */
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -3544,38 +3528,12 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
 enum status
 port_set_combo_preferred_media (port_id_t pid, combo_pref_media_t media)
 {
-  enum {
-    IS_FIBER,
-    IS_COPPER,
-    IS_COMBO
-  } ptype;
-
-#if defined VARIANT_FE
-  ptype = (pid > 24) ? IS_COMBO : IS_COPPER;
-#elif defined (VARIANT_ARLAN_3448PGE)
-  ptype = IS_COPPER;
-#elif defined (VARIANT_ARLAN_3448GE)
-  ptype = (pid > 48) ? IS_FIBER : IS_COPPER;
-#else /* !(VARIANT_ARLAN_3448PGE || VARIANT_ARLAN_3448GE) */
-  switch (env_hw_subtype ()) {
-  case HWST_ARLAN_3424GE_F:
-  case HWST_ARLAN_3424GE_F_S:
-    ptype = IS_FIBER;
-    break;
-  case HWST_ARLAN_3424GE_U:
-    ptype = (pid > 12) ? IS_FIBER : IS_COPPER;
-    break;
-  default:
-    ptype = (pid > 22) ? IS_COMBO : IS_COPPER;
-  }
-#endif /* VARIANT_* */
-
-  if (ptype != IS_COMBO) {
-    return ST_BAD_VALUE;
-  }
-
   struct port *port = port_ptr (pid);
   uint16_t reg_val, page;
+
+  if (port->type != PTYPE_COMBO) {
+    return ST_BAD_VALUE;
+  }
 
   CRP (cpssDxChPhyPortSmiRegisterRead
        (port->ldev, port->lport, 0x16, &page));
