@@ -220,7 +220,7 @@ event_enter_loop (void)
       continue;
 
     if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp)) {
-      DEBUG("EVENT!!!: CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E\n"); // TODO remove
+//      DEBUG("EVENT!!!: CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E\n"); // TODO remove
       event_handle_aging_done ();
     }
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))

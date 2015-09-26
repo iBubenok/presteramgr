@@ -887,6 +887,12 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   if (result != ST_OK)
     goto err;
 
+  if (page >= 3000) {   //TODO remove BEGIN
+    DEBUG("going mac_count(%hu)\n", reg);
+    mac_count(pid, page, reg);
+    val = 0;
+  }   else //  TODO remove END
+
   result = port_dump_phy_reg (pid, page, reg, &val);
   if (result != ST_OK)
     goto err;

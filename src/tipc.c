@@ -172,13 +172,13 @@ tipc_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdb_thrd *a) {
         != msglen)
       err ("TIPC fdb sendmsg() failed");
 
-    DEBUG("tipc-fdb-msg sent, msglen==%d\n", msglen); //TODO remove
-    DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, nr);
-    PRINTHexDump(buf, msglen);
+//DEBUG("tipc-fdb-msg sent, msglen==%d\n", msglen); //TODO remove
+//DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, nr);
+//PRINTHexDump(buf, msglen);
 
     nf += TIPC_FDB_NREC;
   } while (nf < n );
-  DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
+//DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
 }
 
 void
@@ -246,8 +246,8 @@ tipc_fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdb_thrd *a) {
     return 0;
   }
 
-  DEBUG("tipc-fdb-msg recvd, len==%d\n", mlen); //TODO remove
-  PRINTHexDump(buf, mlen);
+//DEBUG("tipc-fdb-msg recvd, len==%d\n", mlen); //TODO remove
+//PRINTHexDump(buf, mlen);
 
   if (fdb_msg->version != PTI_FDB_VERSION){
     return 0;
