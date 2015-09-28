@@ -1933,6 +1933,13 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (4):
+    DEBUG("VRRP packet received!\r\n");
+    type = CN_VRRP;
+    conform2stp_state = 1;
+    put_vid = 1;
+    break;
+
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
     if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))

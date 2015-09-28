@@ -32,8 +32,10 @@
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)      /* 501..(499+n*2) */
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)  /* 502..(500+n*2) */
 
+#define PORT_VRRP_MIRROR_RULE_IX(n) \
+                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n))
 #define PORT_ARP_INSPECTOR_TRAP_IX(n) \
-                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n)) /* TODO pcl rules idx accounting*/
+                    (PORT_VRRP_MIRROR_RULE_IX (MAX_PORTS) + (n)) /* TODO pcl rules idx accounting*/
 
 #define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
 #define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
@@ -298,6 +300,58 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 
   return ST_OK;
 }
+
+/******************************************************************************/
+/* VRRP Mirror                                                                */
+/******************************************************************************/
+static uint8_t VRRP_SRC_MAC[6]      = {0x00, 0x00, 0x5e, 0x00, 0x01, 0x00};
+static uint8_t VRRP_SRC_MAC_MASK[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
+static uint8_t VRRP_DST_MAC[6]      = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x12};
+static uint8_t VRRP_DST_MAC_MASK[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+void
+pcl_setup_vrrp_mirror () {
+  port_id_t pi;
+
+  for (pi = 1; pi <= nports; pi++) {
+    struct port *port = port_ptr (pi);
+
+    if (is_stack_port(port))
+        continue;
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&rule, 0, sizeof (rule));
+    memset (&mask, 0, sizeof (mask));
+    memset (&act, 0, sizeof (act));
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+
+    memcpy(&rule.ruleExtNotIpv6.macSa, VRRP_SRC_MAC, 6);
+    memcpy(&mask.ruleExtNotIpv6.macSa, VRRP_SRC_MAC_MASK, 6);
+
+    memcpy(&rule.ruleExtNotIpv6.macDa, VRRP_DST_MAC, 6);
+    memcpy(&mask.ruleExtNotIpv6.macDa, VRRP_DST_MAC_MASK, 6);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 4;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          PORT_VRRP_MIRROR_RULE_IX (pi),                    /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+  }
+};
 
 /******************************************************************************/
 /* IP SOURCE GUARD                                                            */
@@ -1570,5 +1624,6 @@ pcl_cpss_lib_init (int d)
   if (stack_active())
     pcl_setup_mc_drop (d);
 
+  pcl_setup_vrrp_mirror();
   return ST_OK;
 }
