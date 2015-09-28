@@ -44,6 +44,10 @@
                     (PORT_IP_SOURCEGUARD_RULE_START_IX(MAX_PORTS) + (n))
                     /* 1281..(n+1280) */
 
+#define PORT_IP_OSPF_MIRROR_RULE_IX(n) \
+                    (PORT_IP_SOURCEGUARD_DROP_RULE_IX(MAX_PORTS) + (n) * 2)
+
+
 static struct stack {
   int sp;
   int n_free;
@@ -297,6 +301,88 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
     pcl_enable_vt (ix, 1);
 
   return ST_OK;
+}
+
+/******************************************************************************/
+/* OSPF MULTICAST MIRROR                                                      */
+/******************************************************************************/
+
+static uint8_t ospf_dest_ip1[4]      = {224, 0, 0, 5};
+static uint8_t ospf_dest_ip2[4]      = {224, 0, 0, 6};
+static uint8_t ospf_dest_ip_mask[4] = {255, 255, 255, 255};
+
+void
+pcl_setup_ospf() {
+  port_id_t pi;
+
+  for(pi = 1; pi <= nports; pi++) {
+
+    struct port *port = port_ptr (pi);
+
+    if (is_stack_port(port))
+      return;
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
+
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
+
+    memcpy (&rule.ruleExtNotIpv6.dip, ospf_dest_ip1, 4);
+    memcpy (&mask.ruleExtNotIpv6.dip, ospf_dest_ip_mask, 4);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          PORT_IP_OSPF_MIRROR_RULE_IX (pi),                 /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
+
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
+
+    memcpy (&rule.ruleExtNotIpv6.dip, ospf_dest_ip2, 4);
+    memcpy (&mask.ruleExtNotIpv6.dip, ospf_dest_ip_mask, 4);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          PORT_IP_OSPF_MIRROR_RULE_IX (pi)  + 1,            /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+  }
 }
 
 /******************************************************************************/
@@ -1569,6 +1655,8 @@ pcl_cpss_lib_init (int d)
 
   if (stack_active())
     pcl_setup_mc_drop (d);
+
+  pcl_setup_ospf();
 
   return ST_OK;
 }

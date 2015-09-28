@@ -2,6 +2,7 @@
 #define __VLAN_H__
 
 #include <control-proto.h>
+#include <sysdeps.h>
 
 extern int vlan_dot1q_tag_native;
 extern int vlan_xlate_tunnel;
@@ -28,11 +29,24 @@ struct vlan {
 #define SVC_VID 4095
 
 extern struct vlan vlans[NVLANS];
+extern stp_state_t stg_state[NPORTS][256];
 
 static inline int
 vlan_valid (vid_t vid)
 {
   return vid > 0 && vid < 4095;
+}
+
+static inline int
+vlan_port_is_forwarding_on_vlan (pid_t pid, vid_t vid)
+{
+  switch(stg_state[pid - 1][vlans[vid - 1].stp_id]) {
+    case STP_STATE_FORWARDING:
+    case STP_STATE_DISABLED:
+      return 1;
+    default:
+      return 0;
+  };
 }
 
 #define VLAN_TPID 0x8100

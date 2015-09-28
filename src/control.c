@@ -244,6 +244,7 @@ control_start (void)
 }
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
+DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
@@ -257,6 +258,7 @@ DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
+DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
@@ -360,11 +362,11 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
-
-
+DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
+  HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
@@ -378,6 +380,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
+  HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
   HANDLER (CC_PORT_SET_PROTECTED),
@@ -480,7 +483,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DELETE),
   HANDLER (CC_USER_ACL_RULE),
   HANDLER (CC_ARP_TRAP_ENABLE),
-  HANDLER (CC_INJECT_FRAME)
+  HANDLER (CC_INJECT_FRAME),
+  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
 };
 
 static int
@@ -633,6 +637,29 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_TYPE)
+{
+  port_id_t pid;
+  port_type_t ptype;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = port_get_type (pid, &ptype);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ptype, sizeof (ptype));
   send_reply (reply);
 }
 
@@ -1356,6 +1383,27 @@ DEFINE_HANDLER (CC_PORT_GET_STATS)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_CLEAR_STATS)
+{
+  enum status result;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_clear_stats (pid);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
 {
   enum status result;
@@ -1764,6 +1812,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   port_id_t pid;
   int put_vid = 0;
   uint16_t *etype;
+  register int conform2stp_state = 0;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1799,9 +1848,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
         type = CN_LACPDU;
+        conform2stp_state = 1;
         break;
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
+        conform2stp_state = 1;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
@@ -1815,6 +1866,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (ntohs (*etype)) {
       case 0x888E:
         type = CN_EAPOL;
+        conform2stp_state = 1;
         break;
       case 0x88CC:
         type = CN_LLDP_MCAST;
@@ -1830,6 +1882,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
+      conform2stp_state = 1;
       break;
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n",
@@ -1841,40 +1894,50 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
     put_vid = 1;
+    conform2stp_state = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (0):
     type = CN_LBD_PDU;
+    conform2stp_state = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (2):
-    control_notify_ip_sg_trap (pid, frame);
     result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    control_notify_ip_sg_trap (pid, frame);
     goto out;
 
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
-    route_handle_udt (frame->data, frame->len);
     result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    route_handle_udt (frame->data, frame->len);
     goto out;
 
   case CPU_CODE_MAIL:
@@ -1886,6 +1949,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
   }
+
+  if (conform2stp_state)
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
 
   zmsg_t *msg = make_notify_message (type);
   if (put_vid)
@@ -3259,6 +3328,26 @@ DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
 
   ip_arp_trap_enable (enable);
   result = pcl_enable_arp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
+{
+  enum status result;
+  port_id_t pid;
+  combo_pref_media_t media;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&media);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_combo_preferred_media (pid, media);
 
  out:
   report_status (result);
