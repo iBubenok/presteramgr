@@ -32,10 +32,8 @@
 #define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)      /* 501..(499+n*2) */
 #define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)  /* 502..(500+n*2) */
 
-#define PORT_VRRP_MIRROR_RULE_IX(n) \
-                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n))
 #define PORT_ARP_INSPECTOR_TRAP_IX(n) \
-                    (PORT_VRRP_MIRROR_RULE_IX (MAX_PORTS) + (n)) /* TODO pcl rules idx accounting*/
+                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n)) /* TODO pcl rules idx accounting*/
 
 #define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
 #define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
@@ -309,7 +307,7 @@ static uint8_t VRRP_SRC_MAC_MASK[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
 static uint8_t VRRP_DST_MAC[6]      = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x12};
 static uint8_t VRRP_DST_MAC_MASK[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-void
+void __attribute__ ((unused))
 pcl_setup_vrrp_mirror () {
   port_id_t pi;
 
@@ -1624,6 +1622,5 @@ pcl_cpss_lib_init (int d)
   if (stack_active())
     pcl_setup_mc_drop (d);
 
-  pcl_setup_vrrp_mirror();
   return ST_OK;
 }

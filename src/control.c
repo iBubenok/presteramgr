@@ -1909,6 +1909,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vid = 1;
     break;
 
+  case CPU_CODE_IP_LL_MC_0_TM:
+    type = CN_VRRP;
+    conform2stp_state = 1;
+    put_vid = 1;
+    break;
+
   case CPU_CODE_USER_DEFINED (0):
     type = CN_LBD_PDU;
     conform2stp_state = 1;
@@ -1929,13 +1935,6 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
-    conform2stp_state = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_USER_DEFINED (4):
-    DEBUG("VRRP packet received!\r\n");
-    type = CN_VRRP;
     conform2stp_state = 1;
     put_vid = 1;
     break;
