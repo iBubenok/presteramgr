@@ -363,6 +363,7 @@ DECLARE_HANDLER (CC_USER_ACL_RULE);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
+DECLARE_HANDLER (CC_VRRP_SET_MAC);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -484,7 +485,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_USER_ACL_RULE),
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_INJECT_FRAME),
-  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
+  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
+  HANDLER (CC_VRRP_SET_MAC)
 };
 
 static int
@@ -1905,6 +1907,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
+    conform2stp_state = 1;
+    put_vid = 1;
+    break;
+
+  case CPU_CODE_IP_LL_MC_0_TM:
+    type = CN_VRRP;
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -3359,6 +3367,32 @@ DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
     goto out;
 
   result = port_set_combo_preferred_media (pid, media);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VRRP_SET_MAC)
+{
+  DEBUG("CC_VRRP_SET_MAC\r\n");
+  enum status result;
+  vid_t vid;
+  mac_addr_t addr;
+  bool_t set;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_op_own (vid, addr, set);
 
  out:
   report_status (result);
