@@ -3347,22 +3347,55 @@ port_setup_tge (struct port *port) {
   CPSS_LED_CONF_STC lconf = {
     .ledOrganize        = CPSS_LED_ORDER_MODE_BY_PORT_E,
     .disableOnLinkDown  = GT_TRUE,
-//    .disableOnLinkDown  = GT_FALSE,
     .blink0DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
     .blink0Duration     = CPSS_LED_BLINK_DURATION_3_E,
     .blink1DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
-    .blink1Duration     = CPSS_LED_BLINK_DURATION_3_E,
-    .pulseStretch       = CPSS_LED_PULSE_STRETCH_2_E,
+    .blink1Duration     = CPSS_LED_BLINK_DURATION_4_E,
+    .pulseStretch       = CPSS_LED_PULSE_STRETCH_5_E,
     .ledStart           = 0,
-    .ledEnd             = 28,
-    .clkInvert          = GT_FALSE
-//    .clkInvert          = GT_TRUE
+    .ledEnd             = 15,
+    .clkInvert          = GT_TRUE,
+    .class5select       = CPSS_LED_CLASS_5_SELECT_FIBER_LINK_UP_E,
+    .class13select       = CPSS_LED_CLASS_13_SELECT_COPPER_LINK_UP_E
   };
 
-  CRP (cpssDxChLedStreamPortGroupConfigSet
-        (port->ldev, 1, 0, &lconf));
+  CRP (cpssDxChLedStreamConfigSet
+        (port->ldev, 0, &lconf));
 
-DEBUG("INIT PORT: %d\n", port->id);
+  CPSS_LED_GROUP_CONF_STC ledGroupParams = {
+    .classA = 0x9,
+    .classB = 0xA,
+    .classC = 0xB,
+    .classD = 0xA
+  };
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 0, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 1, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 9, CPSS_DXCH_LED_INDICATION_RX_ACT_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 10, CPSS_DXCH_LED_INDICATION_LINK_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 11, CPSS_DXCH_LED_INDICATION_TX_ACT_E));
+
+  CPSS_LED_CLASS_MANIPULATION_STC ledClassParams;
+  memset(&ledClassParams, 0, sizeof(ledClassParams));
+  ledClassParams.invertEnable = GT_TRUE;
+  ledClassParams.blinkEnable = GT_TRUE;
+  ledClassParams.blinkSelect = CPSS_LED_BLINK_SELECT_0_E;
+  ledClassParams.forceEnable = GT_FALSE;
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 9, &ledClassParams));
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 11, &ledClassParams));
 
   CRP (cpssDxChLedStreamDirectModeEnableSet
         (port->ldev, 0, GT_TRUE));
