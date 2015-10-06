@@ -312,12 +312,14 @@ static uint8_t ospf_dest_ip2[4]      = {224, 0, 0, 6};
 static uint8_t ospf_dest_ip_mask[4] = {255, 255, 255, 255};
 
 void
-pcl_setup_ospf() {
+pcl_setup_ospf(int d) {
   port_id_t pi;
 
   for(pi = 1; pi <= nports; pi++) {
 
     struct port *port = port_ptr (pi);
+    if (port->ldev != d)
+      continue;
 
     if (is_stack_port(port))
       return;
@@ -1656,7 +1658,7 @@ pcl_cpss_lib_init (int d)
   if (stack_active())
     pcl_setup_mc_drop (d);
 
-  pcl_setup_ospf();
+  pcl_setup_ospf(d);
 
   return ST_OK;
 }
