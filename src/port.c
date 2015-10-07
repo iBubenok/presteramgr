@@ -199,7 +199,7 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
