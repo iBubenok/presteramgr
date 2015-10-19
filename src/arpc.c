@@ -18,17 +18,28 @@
 
 static void *arpd_sock;
 
+static int arpc_sock_ready = 0;
+
 void
 arpc_start (void)
 {
-  arpd_sock = zsocket_new (zcontext, ZMQ_PUB);
+  arpc_sock_ready = 0;
+//  arpd_sock = zsocket_new (zcontext, ZMQ_PUB);
 /*  uint64_t hwm = 1000;
   zmq_setsockopt(arpd_sock, ZMQ_HWM, &hwm, sizeof (hwm)); */
-  zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
+//  zsocket_bind (arpd_sock, ARPD_COMMAND_EP);
 
   int fd = open("/var/tmp/sock.presteramgr",
              O_WRONLY | O_CREAT | O_TRUNC, S_IROTH | S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR);
   close(fd);
+}
+
+void
+arpc_connect (void)
+{
+  arpd_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  zsocket_connect (arpd_sock, ARPD_COMMAND_EP);
+  arpc_sock_ready = 1;
 }
 
 void
@@ -46,6 +57,8 @@ arpc_send_set_mac_addr (const mac_addr_t addr) {
 static void
 arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd)
 {
+  if (!arpc_sock_ready)
+    return;
   zmsg_t *msg = zmsg_new ();
 
   zmsg_addmem (msg, &cmd, sizeof (cmd));

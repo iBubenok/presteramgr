@@ -364,6 +364,7 @@ DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
+DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -486,7 +487,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
-  HANDLER (CC_VRRP_SET_MAC)
+  HANDLER (CC_VRRP_SET_MAC),
+  HANDLER (CC_ARPD_SOCK_CONNECT)
 };
 
 static int
@@ -1574,7 +1576,6 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
     goto out;
 
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
-DEBUG("vlan_set_mac_addr (%hu, " MAC_FMT ")", addr->vid, MAC_ARG(addr->addr));
   vlan_set_mac_addr (addr->vid, addr->addr);
   arpc_send_set_mac_addr(addr->addr);
   result = ST_OK;
@@ -3396,4 +3397,11 @@ DEFINE_HANDLER (CC_VRRP_SET_MAC)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
+{
+  arpc_connect();
+
+  report_status (ST_OK);
 }
