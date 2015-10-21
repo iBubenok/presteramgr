@@ -1961,20 +1961,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
 
-  // Mud mad hack  - added dirty duty hack? kif
-
-  unsigned char buf[60];
-
-  if ((type == CN_IPv4_IGMP_PDU) && (frame->len == 56)) {
-    memset (buf, 0, 60);
-    memcpy (buf, frame->data, frame->len);
-    zmsg_addmem (msg, buf, 60);
-  } else
-    zmsg_addmem (msg, frame->data, frame->len);
-
-  // End of Mud mad hack
-
-  //zmsg_addmem (msg, frame->data, frame->len);
+  zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {
     case CN_ARP_BROADCAST:
