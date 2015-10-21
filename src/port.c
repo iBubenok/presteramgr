@@ -199,8 +199,15 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+#elif defined (VARIANT_ARLAN_3050PGE)
+    if (ports[i].id == 49 || ports[i].id == 50) {
+      ports[i].type = PTYPE_FIBER;
+    }
+    else {
+      ports[i].type = PTYPE_COPPER;
+    }
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
 #else /* GE-C[-S], GE-U, GE-F[-S] */
