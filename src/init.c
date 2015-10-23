@@ -678,6 +678,8 @@ do_reset (void)
 {
 #ifdef VARIANT_ARLAN_3226PGE
   return; /* TODO  3226 only */
+#ifdef VARIANT_ARLAN_3050PGE
+  return; /* TODO  3050 only */
 #endif
   CPSS_PP_DEVICE_TYPE dev_type;
   int i;
@@ -699,7 +701,7 @@ do_reset (void)
     CRP (cpssDxChHwPpSoftResetSkipParamSet
          (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
-         (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_TRUE)); /* like 3050? */
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
          (i, CPSS_HW_PP_RESET_SKIP_TYPE_EEPROM_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet

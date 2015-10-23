@@ -160,7 +160,10 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  if (hw_type == 10)
+  if (hw_type == 23) {
+//    clear_bits (fd, 0x20, 6, 2, (1 << 3) | (1 << 7));
+    clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
+  } else if (hw_type == 10)
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3));
   else if (hw_type == 20 || hw_type == 11) {
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3) | (1 << 6));

@@ -256,7 +256,7 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
 
 static int ic_ports_0[] = {26, 27};
 static unsigned xg_phys_0[] = {0x18, 0x19};
