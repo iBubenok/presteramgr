@@ -42,6 +42,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/generic/cpssHwInit/cpssLedCtrl.h>
+#include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInitLedCtrl.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -73,12 +75,21 @@ static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
 static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
+
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
+
+static enum status port_set_speed_tge (struct port *, const struct port_speed_arg *);
+static enum status port_set_duplex_tge (struct port *, enum port_duplex);
+static enum status port_update_sd_tge (struct port *);
+static enum status port_shutdown_tge (struct port *, int);
+static enum status port_set_mdix_auto_tge (struct port *, int);
+static enum status port_setup_tge (struct port *);
+
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
 static enum status port_update_sd_xg (struct port *);
@@ -188,10 +199,12 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_ARLAN_3226PGE)
+    ports[i].type = (ports[i].id > 24) ? PTYPE_FIBER : PTYPE_COPPER;
 #else /* GE-C[-S], GE-U, GE-F[-S] */
     switch (env_hw_subtype()) {
       case HWST_ARLAN_3424GE_F :
@@ -249,6 +262,14 @@ port_init (void)
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
+     } else if (IS_TGE_PORT (i)) {
+      ports[i].max_speed = PORT_SPEED_1000;
+      ports[i].set_speed = port_set_speed_tge;
+      ports[i].set_duplex = port_set_duplex_tge;
+      ports[i].update_sd = port_update_sd_tge;
+      ports[i].shutdown = port_shutdown_tge;
+      ports[i].set_mdix_auto = port_set_mdix_auto_tge;
+      ports[i].setup = port_setup_tge;
     } else if (IS_XG_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_10000;
       ports[i].set_speed = port_set_speed_xg;
@@ -1684,6 +1705,13 @@ port_update_sd_ge (struct port *port)
 }
 
 static enum status
+port_update_sd_tge (struct port *port)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
 port_update_sd_fe (struct port *port)
 {
   GT_STATUS rc;
@@ -1963,6 +1991,30 @@ port_shutdown_ge (struct port *port, int shutdown)
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
+}
+
+static enum status
+port_set_speed_tge (struct port *port, const struct port_speed_arg *psa)
+{
+  if (psa->speed != PORT_SPEED_1000)
+    return ST_BAD_VALUE;
+
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_set_duplex_tge (struct port *port, enum port_duplex duplex)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
+port_shutdown_tge (struct port *port, int shutdown)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
 }
 
 static enum status
@@ -2668,6 +2720,13 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
 }
 
 static enum status
+port_set_mdix_auto_tge (struct port *port, int mdix_auto)
+{
+  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
+  return ST_OK;
+}
+
+static enum status
 port_set_mdix_auto_xg (struct port *port, int mdix_auto)
 {
   DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
@@ -3260,6 +3319,103 @@ port_setup_ge (struct port *port)
   return ST_OK;
 }
 #endif /* VARIANT_* */
+
+static enum status
+port_setup_tge (struct port *port) {
+
+  CRP (cpssDxChPortTxBindPortToDpSet
+       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
+  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
+       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
+  CRP (cpssDxChPortSerdesResetStateSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortMacResetStateSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortInterfaceModeSet
+        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
+  CRP (cpssDxChPortSpeedSet
+        (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
+
+  CRP (cpssDxChPortSerdesPowerStatusSet
+        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
+
+  CRP (cpssDxChPortSpeedAutoNegEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+
+  CPSS_LED_CONF_STC lconf = {
+    .ledOrganize        = CPSS_LED_ORDER_MODE_BY_PORT_E,
+    .disableOnLinkDown  = GT_TRUE,
+    .blink0DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink0Duration     = CPSS_LED_BLINK_DURATION_3_E,
+    .blink1DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink1Duration     = CPSS_LED_BLINK_DURATION_4_E,
+    .pulseStretch       = CPSS_LED_PULSE_STRETCH_5_E,
+    .ledStart           = 0,
+    .ledEnd             = 15,
+    .clkInvert          = GT_TRUE,
+    .class5select       = CPSS_LED_CLASS_5_SELECT_FIBER_LINK_UP_E,
+    .class13select       = CPSS_LED_CLASS_13_SELECT_COPPER_LINK_UP_E
+  };
+
+  CRP (cpssDxChLedStreamConfigSet
+        (port->ldev, 0, &lconf));
+
+  CPSS_LED_GROUP_CONF_STC ledGroupParams = {
+    .classA = 0x9,
+    .classB = 0xA,
+    .classC = 0xB,
+    .classD = 0xA
+  };
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 0, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 1, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 9, CPSS_DXCH_LED_INDICATION_RX_ACT_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 10, CPSS_DXCH_LED_INDICATION_LINK_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 11, CPSS_DXCH_LED_INDICATION_TX_ACT_E));
+
+  CPSS_LED_CLASS_MANIPULATION_STC ledClassParams;
+  memset(&ledClassParams, 0, sizeof(ledClassParams));
+  ledClassParams.invertEnable = GT_TRUE;
+  ledClassParams.blinkEnable = GT_TRUE;
+  ledClassParams.blinkSelect = CPSS_LED_BLINK_SELECT_0_E;
+  ledClassParams.forceEnable = GT_FALSE;
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 9, &ledClassParams));
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 11, &ledClassParams));
+
+  CRP (cpssDxChLedStreamDirectModeEnableSet
+        (port->ldev, 0, GT_TRUE));
+
+//  CRP(cpssDxChPortDuplexModeSet(
+//        port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E));
+
+//  CRP(cpssDxChPortDuplexAutoNegEnableSet(
+//        port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortInbandAutoNegEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  CRP (cpssDxChPortInBandAutoNegBypassEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+  return ST_OK;
+}
 
 static void __attribute__ ((unused))
 dump_xg_reg (const struct port *port, GT_U32 dev, GT_U32 reg)
@@ -4090,4 +4246,57 @@ psec_enable_na_sb (port_id_t pid, int enable)
   psec_unlock (port);
 
   return ST_OK;
+}
+
+enum status
+port_get_serdes_cfg (port_id_t pid, struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChPortSerdesConfigGet (port->ldev, port->lport, &c));
+  if (rc == GT_OK) {
+    cfg->txAmp                 = c.txAmp;
+    cfg->txEmphEn              = c.txEmphEn == GT_TRUE;
+    cfg->txEmphAmp             = c.txEmphAmp;
+    cfg->txAmpAdj              = c.txAmpAdj;
+    cfg->txEmphLevelAdjEnable  = c.txEmphLevelAdjEnable == GT_TRUE;
+    cfg->ffeSignalSwingControl = c.ffeSignalSwingControl;
+    cfg->ffeResistorSelect     = c.ffeResistorSelect;
+    cfg->ffeCapacitorSelect    = c.ffeCapacitorSelect;
+
+    return ST_OK;
+  }
+
+  return ST_HEX;
+}
+
+enum status
+port_set_serdes_cfg (port_id_t pid, const struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  c.txAmp                 = cfg->txAmp;
+  c.txEmphEn              = gt_bool (cfg->txEmphEn);
+  c.txEmphAmp             = cfg->txEmphAmp;
+  c.txAmpAdj              = cfg->txAmpAdj;
+  c.txEmphLevelAdjEnable  = gt_bool (cfg->txEmphLevelAdjEnable);
+  c.ffeSignalSwingControl = cfg->ffeSignalSwingControl;
+  c.ffeResistorSelect     = cfg->ffeResistorSelect;
+  c.ffeCapacitorSelect    = cfg->ffeCapacitorSelect;
+
+  rc = CRP (cpssDxChPortSerdesConfigSet (port->ldev, port->lport, &c));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }
