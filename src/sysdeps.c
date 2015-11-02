@@ -137,9 +137,6 @@ sysd_setup_cpu_codes (void)
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_CPU_E, &cce));
-    cce_rlim.cpuCodeRateLimiterIndex = 6;
-    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
-         (d, 6, 4000, 20));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
   }
