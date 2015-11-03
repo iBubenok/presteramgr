@@ -173,3 +173,17 @@ qos_set_wrr_queue_weights (const uint8_t *weights)
 
   return ST_OK;
 }
+
+enum status
+qos_set_wrtd (int enable)
+{
+  enum status st;
+  int d;
+
+  for_each_dev (d) {
+    st = cpssDxChPortTxRandomTailDropEnableSet(d, enable);
+    CRP (st);
+  }
+
+  return st;
+}

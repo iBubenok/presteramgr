@@ -305,6 +305,7 @@ DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
+DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
@@ -429,6 +430,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
+  HANDLER (CC_QOS_SET_WRTD),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
@@ -2143,6 +2145,21 @@ DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
     result = qos_set_wrr_queue_weights (zframe_data (frame));
   } else
     result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_WRTD)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_wrtd (enable);
 
  out:
   report_status (result);
