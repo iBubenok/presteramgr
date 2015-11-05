@@ -196,11 +196,11 @@ stack_set_dev_map (uint8_t dev, const uint8_t *hops, uint8_t num_pp)
   CRP (cpssDxChBrgSrcIdGroupPortDelete
        (stack_sec_port->ldev, dev, stack_sec_port->lport));
 
-  if (hops[0] > 1) {
+  if (hops[0] > 1 || !hops[0]) {
     CRP (cpssDxChBrgSrcIdGroupPortAdd
          (stack_pri_port->ldev, dev, stack_pri_port->lport));
   }
-  if (hops[1] > 1) {
+  if (hops[1] > 1 || !hops[1]) {
     CRP (cpssDxChBrgSrcIdGroupPortAdd
          (stack_sec_port->ldev, dev, stack_sec_port->lport));
   }
