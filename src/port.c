@@ -2903,51 +2903,6 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
 }
 
 enum status
-port_set_bandwidth_limit (port_id_t pid, bps_t limit)
-{
-  struct port *port = port_ptr (pid);
-  uint64_t max;
-  GT_STATUS rc;
-  GT_U32 rate, zero = 0;
-
-  if (!port)
-    return ST_BAD_VALUE;
-
-  if (is_stack_port (port))
-    return ST_BAD_STATE;
-
-  max = max_bps (port->max_speed);
-  if (max == 0)
-    return ST_HEX;
-
-  if (limit > max)
-    return ST_BAD_VALUE;
-
-  rate = limit / 1000;
-
-  if (limit == 0)
-    rc = CRP (cpssDxChPortTxShaperEnableSet
-              (port->ldev, port->lport, GT_FALSE));
-  else {
-    CRP (cpssDxChPortTxShaperProfileSet
-         (port->ldev, port->lport, 1, &zero));
-    rc = CRP (cpssDxChPortTxShaperProfileSet
-              (port->ldev, port->lport, 1, &rate));
-    ON_GT_ERROR (rc) goto out;
-
-    rc = CRP (cpssDxChPortTxShaperEnableSet
-              (port->ldev, port->lport, GT_TRUE));
-  }
-
- out:
-  switch (rc) {
-  case GT_OK:       return ST_OK;
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
-  }
-}
-
-enum status
 port_set_traffic_shape (port_id_t pid, bool_t enable, bps_t rate, burst_t burst)
 {
   struct port *port = port_ptr (pid);

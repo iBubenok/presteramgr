@@ -260,7 +260,6 @@ DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
-DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
@@ -387,7 +386,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
-  HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
@@ -1429,26 +1427,6 @@ DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
     goto out;
 
   result = port_set_rate_limit (pid, &limit);
-
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
-{
-  enum status result;
-  port_id_t pid;
-  bps_t limit;
-
-  result = POP_ARG (&pid);
-  if (result != ST_OK)
-    goto out;
-
-  result = POP_ARG (&limit);
-  if (result != ST_OK)
-    goto out;
-
-  result = port_set_bandwidth_limit (pid, limit);
 
  out:
   report_status (result);
