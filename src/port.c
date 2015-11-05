@@ -2947,6 +2947,102 @@ port_set_bandwidth_limit (port_id_t pid, bps_t limit)
   }
 }
 
+enum status
+port_set_traffic_shape (port_id_t pid, bool_t enable, bps_t rate, burst_t burst)
+{
+  struct port *port = port_ptr (pid);
+  uint64_t max;
+  GT_STATUS rc;
+  GT_U32 rate_kbps, burst_units, zero = 0;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
+  max = max_bps (port->max_speed);
+  if (max == 0)
+    return ST_HEX;
+
+  if (rate > max)
+    return ST_BAD_VALUE;
+
+  rate_kbps = rate / 1000;
+  burst_units = round ((float)burst/ 4096.0);
+
+  if (!enable)
+    rc = CRP (cpssDxChPortTxShaperEnableSet
+              (port->ldev, port->lport, GT_FALSE));
+  else {
+    CRP (cpssDxChPortTxShaperProfileSet
+         (port->ldev, port->lport, burst_units, &zero));
+    rc = CRP (cpssDxChPortTxShaperProfileSet
+              (port->ldev, port->lport, burst_units, &rate_kbps));
+    ON_GT_ERROR (rc) goto out;
+
+    rc = CRP (cpssDxChPortTxShaperEnableSet
+              (port->ldev, port->lport, GT_TRUE));
+  }
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+port_set_traffic_shape_queue (port_id_t pid, bool_t enable, queueid_t qid,
+                               bps_t rate, burst_t burst)
+{
+  struct port *port = port_ptr (pid);
+  uint64_t max;
+  GT_STATUS rc;
+  GT_U32 rate_kbps, burst_units, zero = 0;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
+  max = max_bps (port->max_speed);
+  if (max == 0)
+    return ST_HEX;
+
+  if (rate > max)
+    return ST_BAD_VALUE;
+
+  if ((qid < 1) || (qid > 8))
+    return ST_BAD_VALUE;
+
+  rate_kbps = rate / 1000;
+  burst_units = round ((float)burst/ 4096.0);
+
+  if (!enable)
+    rc = CRP (cpssDxChPortTxQShaperEnableSet
+              (port->ldev, port->lport, qid - 1, GT_FALSE));
+  else {
+    CRP (cpssDxChPortTxQShaperProfileSet
+         (port->ldev, port->lport, qid - 1, burst_units, &zero));
+    rc = CRP (cpssDxChPortTxQShaperProfileSet
+              (port->ldev, port->lport, qid - 1, burst_units, &rate_kbps));
+    ON_GT_ERROR (rc) goto out;
+
+    rc = CRP (cpssDxChPortTxQShaperEnableSet
+              (port->ldev, port->lport, qid - 1, GT_TRUE));
+  }
+
+ out:
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 #if defined (VARIANT_FE)
 static enum status
 port_setup_ge (struct port *port)

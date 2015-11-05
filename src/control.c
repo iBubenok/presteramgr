@@ -261,6 +261,8 @@ DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
@@ -386,6 +388,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
   HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
@@ -1445,6 +1449,71 @@ DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
     goto out;
 
   result = port_set_bandwidth_limit (pid, limit);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  bps_t rate;
+  burst_t burst;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape (pid, enable, rate, burst);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  queueid_t qid;
+  bps_t rate;
+  burst_t burst;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&qid);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape_queue (pid, enable, qid, rate, burst);
 
  out:
   report_status (result);
