@@ -189,37 +189,20 @@ stack_set_dev_map (uint8_t dev, const uint8_t *hops, uint8_t num_pp)
     new_dev_bmp |= 1 << dev;
   else
     new_dev_bmp &= ~(1 << dev);
-
-  if (num_pp == 2) {
-    if (hops[0] || hops[1])
-      new_dev_bmp |= 1 << dev;
-    else
-     new_dev_bmp &= ~(1 << dev);
-  }
   stack_update_ring (hops[0] && hops[1], new_dev_bmp);
 
   CRP (cpssDxChBrgSrcIdGroupPortDelete
        (stack_pri_port->ldev, dev, stack_pri_port->lport));
   CRP (cpssDxChBrgSrcIdGroupPortDelete
        (stack_sec_port->ldev, dev, stack_sec_port->lport));
-  CRP (cpssDxChBrgSrcIdGroupPortDelete
-       (stack_pri_port->ldev, dev + NEXTDEV_INC, stack_pri_port->lport));
-  CRP (cpssDxChBrgSrcIdGroupPortDelete
-       (stack_sec_port->ldev, dev + NEXTDEV_INC, stack_sec_port->lport));
 
-  if (hops[0] > 1 || !hops[0]) {
+  if (hops[0] > 1) {
     CRP (cpssDxChBrgSrcIdGroupPortAdd
          (stack_pri_port->ldev, dev, stack_pri_port->lport));
-    if (num_pp == 2)
-      CRP (cpssDxChBrgSrcIdGroupPortAdd
-           (stack_pri_port->ldev, dev + NEXTDEV_INC, stack_pri_port->lport));
   }
-  if (hops[1] > 1 || !hops[1]) {
+  if (hops[1] > 1) {
     CRP (cpssDxChBrgSrcIdGroupPortAdd
          (stack_sec_port->ldev, dev, stack_sec_port->lport));
-    if (num_pp == 2)
-      CRP (cpssDxChBrgSrcIdGroupPortAdd
-           (stack_sec_port->ldev, dev + NEXTDEV_INC, stack_sec_port->lport));
   }
 
   for_each_dev (d) {
