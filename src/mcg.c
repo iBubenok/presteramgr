@@ -178,8 +178,6 @@ mcg_dgasp_port_op (port_id_t pid, int add)
   }
 }
 
-extern struct port *stack_pri_port;
-
 void
 mcg_stack_setup (void)
 {
@@ -192,7 +190,6 @@ mcg_stack_setup (void)
     if (is_stack_port (port))
       CPSS_PORTS_BMP_PORT_SET_MAC (&bmp[port->ldev], port->lport);
   }
-  /* CPSS_PORTS_BMP_PORT_SET_MAC (&bmp[stack_pri_port->ldev], stack_pri_port->lport); */
 
   for_each_dev (d) {
     for (i = 0; i < dev_info[d].n_ic_ports; i++)
