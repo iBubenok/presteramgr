@@ -222,6 +222,7 @@ DEBUG("stack_update_dev_map(%d, %d:%d, %d)\n", dev, hops[0], hops[1], num_pp);
 
     CRP (cpssDxChCscdDevMapTableSet
          (d, dev, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+DEBUG("cpssDxChCscdDevMapTableSet(d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)",dev, lp.linkNum);
     if (num_pp == 2)
       CRP (cpssDxChCscdDevMapTableSet
            (d, dev + NEXTDEV_INC, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
@@ -229,31 +230,41 @@ DEBUG("stack_update_dev_map(%d, %d:%d, %d)\n", dev, hops[0], hops[1], num_pp);
 }
 
 static uint8_t
-stack_get_port_to_target_pri(uint8_t dev) {
+//stack_get_port_to_target_pri(uint8_t dev) {
+stack_get_hops_from_target_port(uint8_t target, uint8_t p, uint8_t *our_port) {
+DEBUG("stack_get_hops_from_target_port(%d, %d, %p )\n", target, p, our_port);
 
-  uint8_t p = 0;
-  uint8_t d = stack_units_update[dev].neighbor[p];
-  uint8_t od = dev;
+//  uint8_t p = 0;
+  uint8_t h = 1;
+  uint8_t d = stack_units_update[target].neighbor[p];
+  uint8_t od = target;
   while (stack_id != d) {
     if (stack_units_update[d].neighbor[0] == od) {
       p = 1;
       od = d;
       d = stack_units_update[d].neighbor[p];
+      h++;
       continue;
     }
     if (stack_units_update[d].neighbor[1] == od) {
       p = 0;
       od = d;
       d = stack_units_update[d].neighbor[p];
+      h++;
       continue;
     }
-    assert(0);
+    assert(0); /* cause it's ring topology */
   }
-  if (stack_units_update[d].neighbor[0] == od)
-    return 0;
-  if (stack_units_update[d].neighbor[1] == od)
-    return 1;
-  assert(0);
+  if (our_port != NULL) {
+    if (stack_units_update[d].neighbor[0] == od)
+      *our_port = 0;
+    else if (stack_units_update[d].neighbor[1] == od)
+      *our_port = 1;
+    else
+      assert(0);
+  }
+DEBUG("HOPS== %d\n",h);
+  return h;
 }
 
 static void
@@ -270,31 +281,42 @@ DEBUG("stack_update_srcid_groups(%d, %d, %d)\n", dev, ring, n);
       return;
     }
     if (!ring) {
-        if (stack_units_update[dev].neighbor[0])
+        if (stack_units_update[dev].neighbor[0]) {
           CRP (cpssDxChBrgSrcIdGroupPortAdd
                (stack_pri_port->ldev, dev, stack_pri_port->lport));
-        if (stack_units_update[dev].neighbor[1])
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_pri_port->ldev, %d, stack_pri_port->lport)\n", dev);
+        }
+        if (stack_units_update[dev].neighbor[1]) {
           CRP (cpssDxChBrgSrcIdGroupPortAdd
                (stack_sec_port->ldev, dev, stack_sec_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_sec_port->ldev, %d, stack_sec_port->lport)\n", dev);
+        }
     } else {
       CRP (cpssDxChBrgSrcIdGroupPortAdd
            (stack_pri_port->ldev, dev, stack_pri_port->lport));
-      if (n > 2)
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_pri_port->ldev, %d, stack_pri_port->lport)\n", dev);
+      if (n > 2) {
         CRP (cpssDxChBrgSrcIdGroupPortAdd
              (stack_sec_port->ldev, dev, stack_sec_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_sec_port->ldev, %d, stack_sec_port->lport)\n", dev);
+      }
     }
     return;
   }
 
   if (!ring) {
     if (stack_units_update[dev].hops[0])
-      if (stack_units_update[dev].neighbor[1])
+      if (stack_units_update[stack_id].neighbor[1]) {
         CRP (cpssDxChBrgSrcIdGroupPortAdd
              (stack_sec_port->ldev, dev, stack_sec_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_sec_port->ldev, %d, stack_sec_port->lport)\n", dev);
+      }
     if (stack_units_update[dev].hops[1])
-      if (stack_units_update[dev].neighbor[0])
+      if (stack_units_update[stack_id].neighbor[0]) {
         CRP (cpssDxChBrgSrcIdGroupPortAdd
              (stack_pri_port->ldev, dev, stack_pri_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_pri_port->ldev, %d, stack_pri_port->lport)\n", dev);
+      }
     return;
   }
 
@@ -311,24 +333,31 @@ DEBUG("stack_update_srcid_groups(%d, %d, %d)\n", dev, ring, n);
 
 DEBUG("hops0== %d, hops1== %d, hops_diff== %d\n", hops0, hops1, hops_diff);
   if (hops_diff > 2)
-    if (hops0 < hops1)
+    if (hops0 < hops1) {
       CRP (cpssDxChBrgSrcIdGroupPortAdd
            (stack_sec_port->ldev, dev, stack_sec_port->lport));
-    else
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_sec_port->ldev, %d, stack_sec_port->lport)\n", dev);
+    }
+    else {
       CRP (cpssDxChBrgSrcIdGroupPortAdd
            (stack_pri_port->ldev, dev, stack_pri_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_pri_port->ldev, %d, stack_pri_port->lport)\n", dev);
+    }
   else
     if (hops_diff == 2) {
-      uint8_t sp = stack_get_port_to_target_pri(dev);
-      uint8_t other_sp = (sp == 0)? 1 : 0;
-DEBUG("sp = %d, other_sp = %d\n", sp, other_sp);
-      if (stack_units_update[stack_id].hops[sp] < stack_units_update[stack_id].hops[other_sp]) {
-        if (sp == 0)
+      uint8_t sp;
+      if (stack_get_hops_from_target_port(dev, 0, &sp) < stack_get_hops_from_target_port(dev, 1, NULL)) {
+DEBUG("sp = %d\n", sp);
+        if (sp == 0) {
           CRP (cpssDxChBrgSrcIdGroupPortAdd
                (stack_sec_port->ldev, dev, stack_sec_port->lport));
-        else
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_sec_port->ldev, %d, stack_sec_port->lport)\n", dev);
+        }
+        else {
           CRP (cpssDxChBrgSrcIdGroupPortAdd
                (stack_pri_port->ldev, dev, stack_pri_port->lport));
+DEBUG("cpssDxChBrgSrcIdGroupPortAdd (stack_pri_port->ldev, %d, stack_pri_port->lport)\n", dev);
+        }
       }
     }
 
@@ -344,14 +373,15 @@ DEBUG("stack_update_all(%d, %d,,)\n", n, is_ring);
       stack_update_srcid_groups(i, is_ring, n);
       continue;
     }
-    if ( !memcmp(&old_units[i], &new_units[i], sizeof(*old_units)))
-      continue;
+//    if ( !memcmp(&old_units[i], &new_units[i], sizeof(*old_units)))
+//      continue;
 
     if (old_units[i].hops[0] != new_units[i].hops[0] ||
         old_units[i].hops[1] != new_units[i].hops[1]) {
       stack_update_dev_map(i, new_units[i].hops, new_units[i].num_pp);
-      stack_update_srcid_groups(i, is_ring, n);
     }
+    if (i == stack_units_update[i].id || i == stack_units[i].id)
+      stack_update_srcid_groups(i, is_ring, n);
 
   }
 }
@@ -382,7 +412,7 @@ PRINTHexDump(data, size);
   stack_update_all(conf->conf_info.num_units, conf->conf_info.topo == STT_RING, stack_units, stack_units_update);
   memcpy(stack_units, stack_units_update, sizeof(stack_units));
 DEBUG("STACK \n");
-PRINTHexDump(stack_units_update, sizeof(struct stackd_unit) *4);
+PRINTHexDump(stack_units_update, sizeof(struct stackd_unit) *6);
   return ST_OK;
 }
 
