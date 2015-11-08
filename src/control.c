@@ -52,6 +52,7 @@ static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
 static void *sec_sock;
+static void *stack_cmd_sock;
 
 
 static void *
@@ -123,6 +124,10 @@ control_init (void)
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
   zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
+
+  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (stack_cmd_sock);
+  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
   return 0;
 }
@@ -366,6 +371,9 @@ DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 
+
+DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
+
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
   HANDLER (CC_PORT_GET_TYPE),
@@ -491,6 +499,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARPD_SOCK_CONNECT)
 };
 
+static cmd_handler_t stack_handlers[] = {
+  HANDLER (SC_UPDATE_STACK_CONF)
+};
+
 static int
 evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
@@ -589,6 +601,10 @@ control_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
 
+  zmq_pollitem_t stack_cmd_pi = { stack_cmd_sock, 0, ZMQ_POLLIN };
+  struct handler_data stack_cmd_hd = { stack_cmd_sock, stack_handlers, ARRAY_SIZE (stack_handlers) };
+  zloop_poller (loop, &stack_cmd_pi, control_handler, &stack_cmd_hd);
+
   zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
   struct handler_data cmd_hd = { cmd_sock, handlers, ARRAY_SIZE (handlers) };
   zloop_poller (loop, &cmd_pi, control_handler, &cmd_hd);
@@ -616,6 +632,20 @@ control_loop (void *dummy)
   return NULL;
 }
 
+/*
+ * Stack Async iface command handlers.
+ */
+
+DEFINE_HANDLER (SC_UPDATE_STACK_CONF) {
+
+DEBUG("===SC_UPDATE_STACK_CONF\n");
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  result = stack_update_conf(zframe_data(frame), zframe_size(frame));
+}
 
 /*
  * Command handlers.
