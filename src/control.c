@@ -45,6 +45,7 @@ static void *control_loop (void *);
 static void *pub_sock;
 static void *pub_arp_sock;
 static void *pub_dhcp_sock;
+static void *pub_stack_sock;
 static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
@@ -94,6 +95,13 @@ control_init (void)
   rc = zmq_setsockopt(pub_dhcp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
   assert(rc==0);
   rc = zsocket_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
+
+  pub_stack_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_stack_sock);
+/*  rc = zmq_setsockopt(pub_stack_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0); */
+  rc = zsocket_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
+  assert(rc==0);
 
   inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (inp_pub_sock);
@@ -160,6 +168,12 @@ static inline void
 notify_send_dhcp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_dhcp_sock);
+}
+
+static inline void
+notify_send_stack (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_stack_sock);
 }
 
 static inline void
@@ -235,7 +249,7 @@ cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
   zmsg_t *msg = make_notify_message (CN_MAIL);
   zmsg_addmem (msg, &role, sizeof (role));
   zmsg_addmem (msg, data, len);
-  notify_send (&msg);
+  notify_send_stack (&msg);
 }
 
 int
