@@ -44,6 +44,13 @@ AC_ARG_WITH([arpd],
   [arpd=/usr/include/arpd])
 AC_SUBST([arpd])
 
+AC_ARG_WITH([stackd],
+  [AS_HELP_STRING([--with-stackd=PATH],
+                  [specify the STACKD templates location])],
+  [stackd=`readlink -f $withval`],
+  [stackd=/usr/include/stackd])
+AC_SUBST([stackd])
+
 AC_ARG_WITH([linux-headers],
   [AS_HELP_STRING([--with-linux-headers=PATH],
                   [specify the Linux header files location])],
