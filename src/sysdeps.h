@@ -59,14 +59,13 @@ IS_GE_PORT (int n)
 }
 
 static inline int
-IS_TGE_PORT (int n)
+IS_XG_PORT (int n)
 {
   return 0;
 }
 
 static inline int
-IS_XG_PORT (int n)
-{
+IS_PORT_PHYLESS (int n) {
   return 0;
 }
 
@@ -103,14 +102,13 @@ static inline int IS_GE_PORT (int n)
   return n >= 12 && n < 16;
 }
 
-static inline int
-IS_TGE_PORT (int n)
+static inline int IS_XG_PORT (int n)
 {
   return 0;
 }
 
-static inline int IS_XG_PORT (int n)
-{
+static inline int
+IS_PORT_PHYLESS (int n) {
   return 0;
 }
 
@@ -150,15 +148,14 @@ static inline int IS_GE_PORT (int n)
   return n >= 0 && n < 24;
 }
 
-static inline int
-IS_TGE_PORT (int n)
-{
-  return 0;
-}
-
 static inline int IS_XG_PORT (int n)
 {
   return n >= 24 && n < 28;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return 0;
 }
 
 static inline enum port_stack_role
@@ -203,15 +200,14 @@ static inline int IS_GE_PORT (int n)
   return n >= 0 && n < 48;
 }
 
-static inline int
-IS_TGE_PORT (int n)
-{
-  return 0;
-}
-
 static inline int IS_XG_PORT (int n)
 {
   return n >= 48 && n < 52;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return 0;
 }
 
 static inline enum port_stack_role
@@ -253,18 +249,17 @@ static inline int IS_FE_PORT (int n)
 
 static inline int IS_GE_PORT (int n)
 {
-  return n >= 0 && n < 48;
-}
-
-static inline int
-IS_TGE_PORT (int n)
-{
-  return n >= 48 && n < 50;
+  return n >= 0 && n < 50;
 }
 
 static inline int IS_XG_PORT (int n)
 {
   return n >= 50 && n < 52;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return n >=48 && n < 52;
 }
 
 static inline enum port_stack_role
@@ -300,18 +295,17 @@ static inline int IS_FE_PORT (int n)
 
 static inline int IS_GE_PORT (int n)
 {
-  return n >= 0 && n < 24;
-}
-
-static inline int
-IS_TGE_PORT (int n)
-{
-  return n >= 24 && n < 26;
+  return n >= 0 && n < 26;
 }
 
 static inline int IS_XG_PORT (int n)
 {
   return n >= 26 && n < 28;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return n >=24 && n < 28;
 }
 
 static inline enum port_stack_role

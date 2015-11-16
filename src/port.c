@@ -82,13 +82,7 @@ static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
-
-static enum status port_set_speed_tge (struct port *, const struct port_speed_arg *);
-static enum status port_set_duplex_tge (struct port *, enum port_duplex);
-static enum status port_update_sd_tge (struct port *);
-static enum status port_shutdown_tge (struct port *, int);
-static enum status port_set_mdix_auto_tge (struct port *, int);
-static enum status port_setup_tge (struct port *);
+static enum status port_setup_phyless_ge (struct port *);
 
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
@@ -120,6 +114,17 @@ port_id (GT_U8 hdev, GT_U8 hport)
     return 0;
 
   return dev_ports[hdev][hport];
+}
+
+int
+port_is_phyless (struct port *port) {
+  switch (port->type) {
+    case PTYPE_COPPER_PHYLESS:
+    case PTYPE_FIBER_PHYLESS:
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 static void
@@ -199,12 +204,19 @@ port_init (void)
   for (i = 0; i < NPORTS; i++) {
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+#elif defined (VARIANT_ARLAN_3050PGE)
+    if (ports[i].id == 49 || ports[i].id == 50) {
+      ports[i].type = PTYPE_FIBER;
+    } else {
+      ports[i].type = PTYPE_COPPER;
+    }
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
 #elif defined (VARIANT_ARLAN_3226PGE)
-    ports[i].type = (ports[i].id > 24) ? PTYPE_FIBER : PTYPE_COPPER;
+    ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
+                    ? PTYPE_FIBER : PTYPE_COPPER;
 #else /* GE-C[-S], GE-U, GE-F[-S] */
     switch (env_hw_subtype()) {
       case HWST_ARLAN_3424GE_F :
@@ -226,6 +238,14 @@ port_init (void)
         }
     }
 #endif /* VARIANT_* */
+
+    if (IS_PORT_PHYLESS (i)) {
+      assert(ports[i].type != PTYPE_COMBO);
+      if (ports[i].type == PTYPE_COPPER)
+        ports[i].type = PTYPE_COPPER_PHYLESS;
+      else
+        ports[i].type = PTYPE_FIBER_PHYLESS;
+    }
 
     ports[i].ldev = pmap[i].dev;
     ports[i].lport = pmap[i].port;
@@ -262,14 +282,6 @@ port_init (void)
       ports[i].shutdown = port_shutdown_ge;
       ports[i].set_mdix_auto = port_set_mdix_auto_ge;
       ports[i].setup = port_setup_ge;
-     } else if (IS_TGE_PORT (i)) {
-      ports[i].max_speed = PORT_SPEED_1000;
-      ports[i].set_speed = port_set_speed_tge;
-      ports[i].set_duplex = port_set_duplex_tge;
-      ports[i].update_sd = port_update_sd_tge;
-      ports[i].shutdown = port_shutdown_tge;
-      ports[i].set_mdix_auto = port_set_mdix_auto_tge;
-      ports[i].setup = port_setup_tge;
     } else if (IS_XG_PORT (i)) {
       ports[i].max_speed = PORT_SPEED_10000;
       ports[i].set_speed = port_set_speed_xg;
@@ -1561,7 +1573,8 @@ port_update_sd_ge (struct port *port)
   GT_STATUS rc;
   GT_U16 reg, reg1;
 
-  if (port->type == PTYPE_FIBER) {
+  if (port->type == PTYPE_FIBER
+      || port->type == PTYPE_FIBER_PHYLESS) {
     /* Fiber speed changed handled by sfp-utils */
     return ST_OK;
   }
@@ -1702,13 +1715,6 @@ port_update_sd_ge (struct port *port)
   case GT_HW_ERROR: return ST_HW_ERROR;
   default:          return ST_HEX;
   }
-}
-
-static enum status
-port_update_sd_tge (struct port *port)
-{
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
-  return ST_OK;
 }
 
 static enum status
@@ -1893,6 +1899,12 @@ port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
   if (psa->speed > PORT_SPEED_1000)
     return ST_BAD_VALUE;
 
+  if (port->type == PTYPE_FIBER_PHYLESS
+      && psa->speed != PORT_SPEED_1000
+      && psa->speed != PORT_SPEED_AUTO) {
+    return ST_BAD_VALUE;
+  }
+
   port->c_speed = psa->speed;
   port->c_speed_auto = psa->speed_auto;
 
@@ -1902,6 +1914,12 @@ port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
 static enum status
 port_set_duplex_ge (struct port *port, enum port_duplex duplex)
 {
+  if (port->type == PTYPE_FIBER_PHYLESS
+      && duplex != PORT_DUPLEX_AUTO
+      && duplex != PORT_DUPLEX_FULL) {
+    return ST_BAD_VALUE;
+  }
+
   port->c_duplex = duplex;
   return port_update_sd_ge (port);
 }
@@ -1911,6 +1929,17 @@ port_shutdown_ge (struct port *port, int shutdown)
 {
   GT_STATUS rc = GT_OK;
   GT_U16 reg, start_reg;
+
+  if (port_is_phyless(port)) {
+    rc = CRP (cpssDxChPortForceLinkDownEnableSet(
+               port->ldev, port->lport, gt_bool(shutdown)));
+
+    switch (rc) {
+    case GT_OK:       return ST_OK;
+    case GT_HW_ERROR: return ST_HW_ERROR;
+    default:          return ST_HEX;
+    }
+  }
 
   CRP (cpssDxChPhyPortSmiRegisterRead
        (port->ldev, port->lport, 22, &start_reg));
@@ -1994,30 +2023,6 @@ port_shutdown_ge (struct port *port, int shutdown)
 }
 
 static enum status
-port_set_speed_tge (struct port *port, const struct port_speed_arg *psa)
-{
-  if (psa->speed != PORT_SPEED_1000)
-    return ST_BAD_VALUE;
-
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
-  return ST_OK;
-}
-
-static enum status
-port_set_duplex_tge (struct port *port, enum port_duplex duplex)
-{
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
-  return ST_OK;
-}
-
-static enum status
-port_shutdown_tge (struct port *port, int shutdown)
-{
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
-  return ST_OK;
-}
-
-static enum status
 port_set_speed_xg (struct port *port, const struct port_speed_arg *psa)
 {
   DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
@@ -2041,6 +2046,17 @@ port_update_sd_xg (struct port *port)
 static enum status
 port_shutdown_xg (struct port *port, int shutdown)
 {
+  if (port_is_phyless(port)) {
+    GT_STATUS rc = CRP (cpssDxChPortForceLinkDownEnableSet(
+                        port->ldev, port->lport, gt_bool(shutdown)));
+
+    switch (rc) {
+    case GT_OK:       return ST_OK;
+    case GT_HW_ERROR: return ST_HW_ERROR;
+    default:          return ST_HEX;
+    }
+  }
+
   uint16_t val;
   cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xC319, 1, &val);
@@ -2320,7 +2336,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 bool_t
 port_is_xg_sfp_present (port_id_t pid)
 {
-  struct port *port = port_ptr (pid);
+  struct port *port = port_ptr (pid); /* TODO fiber phyless */
   uint16_t val;
   cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, 0xC200,
                                  1, &val);
@@ -2329,7 +2345,7 @@ port_is_xg_sfp_present (port_id_t pid)
 }
 
 uint8_t*
-port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
+port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr) /* TODO fiber phyless */
 {
   const int sz = 128;
   const int phydev = addr == 0xD000 ? 3 : 1;
@@ -2680,6 +2696,10 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
   GT_STATUS rc;
   GT_U16 val;
 
+  if (port_is_phyless(port)) {
+    return ST_BAD_VALUE;
+  }
+
   phy_lock();
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x10, &val));
@@ -2717,13 +2737,6 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
   case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
   default:               return ST_HEX;
   }
-}
-
-static enum status
-port_set_mdix_auto_tge (struct port *port, int mdix_auto)
-{
-  DEBUG ("%s(): STUB!", __PRETTY_FUNCTION__);
-  return ST_OK;
 }
 
 static enum status
@@ -2789,6 +2802,10 @@ port_set_flow_control (port_id_t pid, flow_control_t fc)
             (port->ldev, port->lport, type));
   if (rc != GT_OK)
     goto out;
+
+  if (port_is_phyless(port)) {
+    goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x04, &val));
@@ -3119,6 +3136,12 @@ port_setup_ge (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  if (port_is_phyless(port)) {
+    port_setup_phyless_ge (port);
+    return ST_OK;
+  }
+
+
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport,
         (port->lport < 12)
@@ -3320,8 +3343,8 @@ port_setup_ge (struct port *port)
 }
 #endif /* VARIANT_* */
 
-static enum status
-port_setup_tge (struct port *port) {
+static enum status __attribute__ ((unused))
+port_setup_phyless_ge (struct port *port) {
 
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
@@ -3442,6 +3465,8 @@ port_setup_xg (struct port *port)
        (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
   CRP (cpssDxChPortSerdesPowerStatusSet
        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
+
+
   CRP (cpssXsmiPortGroupRegisterWrite
        (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
 
