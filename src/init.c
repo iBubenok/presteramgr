@@ -699,7 +699,7 @@ do_reset (void)
     CRP (cpssDxChHwPpSoftResetSkipParamSet
          (i, CPSS_HW_PP_RESET_SKIP_TYPE_REGISTER_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
-         (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_TRUE));
+         (i, CPSS_HW_PP_RESET_SKIP_TYPE_TABLE_E, GT_FALSE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
          (i, CPSS_HW_PP_RESET_SKIP_TYPE_EEPROM_E, GT_TRUE));
     CRP (cpssDxChHwPpSoftResetSkipParamSet
