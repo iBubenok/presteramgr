@@ -1001,10 +1001,18 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
 
   port_lock ();
 
+  if (port_is_phyless(port)
+      && IS_GE_PORT(port->id - 1)
+      && attrs->portLinkUp == GT_TRUE
+      && attrs->portSpeed == CPSS_PORT_SPEED_10_E) {
+    attrs->portSpeed = CPSS_PORT_SPEED_1000_E;
+  }
+
   if (attrs->portLinkUp    != port->state.attrs.portLinkUp ||
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = *attrs;
+
 //#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
     if (attrs->portLinkUp)
