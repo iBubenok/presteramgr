@@ -214,6 +214,9 @@ port_init (void)
     }
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_ARLAN_3226PGE)
+    ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
+                    ? PTYPE_FIBER : PTYPE_COPPER;
 #else /* GE-C[-S], GE-U, GE-F[-S] */
     switch (env_hw_subtype()) {
       case HWST_ARLAN_3424GE_F :

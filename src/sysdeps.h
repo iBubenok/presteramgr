@@ -272,6 +272,52 @@ PORT_STACK_ROLE (int n)
   }
 }
 
+#elif (VARIANT_ARLAN_3226PGE)
+
+#define NDEVS 1
+#define NPORTS 28
+#define CPU_DEV 0
+#define DECLARE_PORT_MAP(name)                  \
+  struct pm name[NPORTS] = {                    \
+    {0, 1},  {0, 0},  {0, 3},  {0, 2},          \
+    {0, 5},  {0, 4},  {0, 7},  {0, 6},          \
+    {0, 9},  {0, 8},  {0, 11}, {0, 10},         \
+    {0, 13}, {0, 12}, {0, 15}, {0, 14},         \
+    {0, 17}, {0, 16}, {0, 19}, {0, 18},         \
+    {0, 21}, {0, 20}, {0, 23}, {0, 22},         \
+    {0, 26}, {0, 27}, {0, 24}, {0, 25},         \
+  }
+
+static inline int IS_FE_PORT (int n)
+{
+  return 0;
+}
+
+static inline int IS_GE_PORT (int n)
+{
+  return n >= 0 && n < 26;
+}
+
+static inline int IS_XG_PORT (int n)
+{
+  return n >= 26 && n < 28;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return n >=24 && n < 28;
+}
+
+static inline enum port_stack_role
+PORT_STACK_ROLE (int n)
+{
+  switch (n) {
+  case 26: return PSR_PRIMARY;
+  case 27: return PSR_SECONDARY;
+  default: return PSR_NONE;
+  }
+}
+
 #else
 #error Undefined or unsupported variant.
 #endif /* VARIANT_* */
