@@ -1004,13 +1004,6 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
 
   port_lock ();
 
-  if (port_is_phyless(port)
-      && IS_GE_PORT(port->id - 1)
-      && attrs->portLinkUp == GT_TRUE
-      && attrs->portSpeed == CPSS_PORT_SPEED_10_E) {
-    attrs->portSpeed = CPSS_PORT_SPEED_1000_E;
-  }
-
   if (attrs->portLinkUp    != port->state.attrs.portLinkUp ||
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
@@ -3149,7 +3142,6 @@ port_setup_ge (struct port *port)
     return ST_OK;
   }
 
-
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport,
         (port->lport < 12)
@@ -3354,26 +3346,25 @@ port_setup_ge (struct port *port)
 static enum status __attribute__ ((unused))
 port_setup_phyless_ge (struct port *port) {
 
-  CRP (cpssDxChPortTxBindPortToDpSet
-       (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
-  CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
-       (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
-
-  CRP (cpssDxChPortSerdesResetStateSet
-        (port->ldev, port->lport, GT_TRUE));
-
-  CRP (cpssDxChPortMacResetStateSet
-        (port->ldev, port->lport, GT_TRUE));
-
   CRP (cpssDxChPortInterfaceModeSet
         (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
+
   CRP (cpssDxChPortSpeedSet
         (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
+
+  CRP(cpssDxChPortDuplexModeSet(
+        port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E));
+
+  CRP(cpssDxChPortDuplexAutoNegEnableSet(
+        port->ldev, port->lport, GT_FALSE));
+
+  CRP (cpssDxChPortSpeedAutoNegEnableSet
+        (port->ldev, port->lport, GT_FALSE));
 
   CRP (cpssDxChPortSerdesPowerStatusSet
         (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
 
-  CRP (cpssDxChPortSpeedAutoNegEnableSet
+  CRP (cpssDxChPortInbandAutoNegEnableSet
         (port->ldev, port->lport, GT_TRUE));
 
 
@@ -3432,18 +3423,6 @@ port_setup_phyless_ge (struct port *port) {
 
   CRP (cpssDxChLedStreamDirectModeEnableSet
         (port->ldev, 0, GT_TRUE));
-
-//  CRP(cpssDxChPortDuplexModeSet(
-//        port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E));
-
-//  CRP(cpssDxChPortDuplexAutoNegEnableSet(
-//        port->ldev, port->lport, GT_TRUE));
-
-  CRP (cpssDxChPortInbandAutoNegEnableSet
-        (port->ldev, port->lport, GT_TRUE));
-
-  CRP (cpssDxChPortInBandAutoNegBypassEnableSet
-        (port->ldev, port->lport, GT_TRUE));
 
   return ST_OK;
 }
