@@ -82,7 +82,7 @@ static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
-static enum status port_setup_phyless_ge (struct port *);
+static enum status __attribute__ ((unused)) port_setup_phyless_ge (struct port *);
 
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
