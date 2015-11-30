@@ -18,90 +18,389 @@
 #include <zmq.h>
 #include <czmq.h>
 
-#define MAX_PORTS (NPORTS + 2)
-#define PORT_IPCL_ID(n) (((n) - 1) * 2)
-#define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
+static int max_port_id[NDEVS];
 
-#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5)
-#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (MAX_PORTS) + (n) * 2)
-#define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (MAX_PORTS))
-#define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
+static int port_ix_on_dev[NPORTS + 1];
 
-#define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
-#define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
+static int port_ipcl_id[NPORTS + 1];
+static int port_epcl_id[NPORTS + 1];
+static int vlan_ipcl_id[4095];
+
+static int port_stack_secondary_ipv4_mc_drop_e_ix;
+static int port_stack_secondary_ipv6_mc_drop_e_ix;
+static int port_stack_secondary_ipv4_mc_drop_i_ix;
+static int port_stack_secondary_ipv6_mc_drop_i_ix;
+
+static int port_lbd_rule_ix[NPORTS + 1];
+
+static int per_port_dhcptrap_rules_count = 2;
+static int port_dhcptrap_rule_ix[NPORTS + 1];
+
+static int stack_entries = 300;
+static int stack_first_entry[NDEVS];
+static int stack_max[NDEVS];
+
+static int port_ipcl_def_ix[NPORTS + 1];
+static int port_epcl_def_ix[NPORTS + 1];
+
+static int port_arp_inspector_trap_ix[NPORTS + 1];
+
+static int per_port_ip_source_guard_rules_count = 10;
+static int port_ip_sourceguard_rule_start_ix[NPORTS + 1];
+static int port_ip_sourceguard_drop_rule_ix[NPORTS + 1];
+
+static int per_port_ip_ospf_rules_count = 2;
+static int port_ip_ospf_mirror_rule_ix[NPORTS + 1];
+
+static int user_acl_start_ix[NDEVS];
+
+#define for_each_port(p) for (p = 1; p <= nports; p++)
+
+static inline int
+find_port_ix_on_dev (int pid) {
+  int dev = (port_ptr(pid))->ldev;
+  DECLARE_PORT_MAP(pm);
+
+  int ix = -1;
+  int i;
+
+  for (i = 0; i < NPORTS; i++) {
+    if ( pm[i].dev == dev ) {
+      ix++;
+      if ( i == (pid - 1) ) {
+        return ix;
+      }
+    }
+  }
+  return -1;
+}
+
+static inline void
+initialize_vars (void) {
+  int dev, pid, vid;
+
+  for_each_dev(dev) {
+    max_port_id[dev] = 0;
+    for_each_port(pid) {
+      if ( (port_ptr(pid))->ldev == dev && (pid > max_port_id[dev]) ) {
+        max_port_id[dev] = pid;
+      }
+    }
+  }
+
+  for_each_port(pid) {
+    port_ix_on_dev[pid] = find_port_ix_on_dev(pid);
+  }
+
+  if ( stack_active() ) {
+    port_stack_secondary_ipv4_mc_drop_e_ix = 1;
+    port_stack_secondary_ipv6_mc_drop_e_ix = 2;
+    port_stack_secondary_ipv4_mc_drop_i_ix = 3;
+    port_stack_secondary_ipv6_mc_drop_i_ix = 4;
+  } else {
+    port_stack_secondary_ipv4_mc_drop_e_ix = 0;
+    port_stack_secondary_ipv4_mc_drop_e_ix = 0;
+    port_stack_secondary_ipv4_mc_drop_e_ix = 0;
+    port_stack_secondary_ipv4_mc_drop_e_ix = 0;
+  }
+
+  for_each_port(pid) {
+    port_ipcl_id[pid] = port_ix_on_dev[pid] * 2;
+    port_epcl_id[pid] = port_ipcl_id[pid] + 1;
+  }
+
+  for (vid = 1; vid <= 4094; vid++) {
+    vlan_ipcl_id[vid] = port_ipcl_id[NPORTS] + 2*vid;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    if ( stack_active() && (port->ldev == stack_sec_port->ldev) ) {
+      port_lbd_rule_ix[pid] =
+        port_stack_secondary_ipv6_mc_drop_i_ix + port_ix_on_dev[pid] + 1;
+    } else {
+      port_lbd_rule_ix[pid] = port_ix_on_dev[pid] + 1;
+    }
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_dhcptrap_rule_ix[pid] =
+      port_lbd_rule_ix[max_port_id[port->ldev]] +
+      port_ix_on_dev[pid] * per_port_dhcptrap_rules_count + 1;
+  }
+
+  for_each_dev(dev) {
+    stack_first_entry[dev] =
+      port_dhcptrap_rule_ix[max_port_id[dev]] + per_port_dhcptrap_rules_count;
+    stack_max[dev] = stack_first_entry[dev] + stack_entries;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_ipcl_def_ix[pid] = stack_max[port->ldev] + port_ix_on_dev[pid] * 2;
+    port_epcl_def_ix[pid] = port_ipcl_def_ix[pid] + 1;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_arp_inspector_trap_ix[pid] =
+      port_epcl_def_ix[max_port_id[port->ldev]] + port_ix_on_dev[pid] + 1;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_arp_inspector_trap_ix[pid] =
+      port_epcl_def_ix[max_port_id[port->ldev]] + port_ix_on_dev[pid] + 1;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_ip_sourceguard_rule_start_ix[pid] =
+      port_arp_inspector_trap_ix[max_port_id[port->ldev]] +
+      port_ix_on_dev[pid] * per_port_ip_source_guard_rules_count + 1;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_ip_sourceguard_drop_rule_ix[pid] =
+      port_ip_sourceguard_rule_start_ix[max_port_id[port->ldev]] +
+      port_ix_on_dev[pid] + per_port_ip_source_guard_rules_count;
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    port_ip_ospf_mirror_rule_ix[pid] =
+      port_ip_sourceguard_drop_rule_ix[max_port_id[port->ldev]] +
+      port_ix_on_dev[pid] * per_port_ip_ospf_rules_count + 1;
+  }
+
+  for_each_dev(dev) {
+    user_acl_start_ix[dev] =
+      port_ip_ospf_mirror_rule_ix[max_port_id[dev]] +
+      per_port_ip_ospf_rules_count;
+  }
+}
+
+#define PORT_IPCL_ID(n) \
+  port_ipcl_id[n]
+#define PORT_EPCL_ID(n) \
+  port_epcl_id[n]
+#define VLAN_IPCL_ID(n) \
+  vlan_ipcl_id[n]
+
+#define PORT_STACK_SECONDARY_IPv4_MC_DROP_E_IX \
+  port_stack_secondary_ipv4_mc_drop_e_ix
+#define PORT_STACK_SECONDARY_IPv6_MC_DROP_E_IX \
+  port_stack_secondary_ipv6_mc_drop_e_ix
+#define PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX \
+  port_stack_secondary_ipv4_mc_drop_i_ix
+#define PORT_STACK_SECONDARY_IPv6_MC_DROP_I_IX \
+  port_stack_secondary_ipv6_mc_drop_i_ix
+
+#define PORT_LBD_RULE_IX(n) \
+  port_lbd_rule_ix[n]
+
+#define PER_PORT_DHCPTRAP_RULES_COUNT \
+  per_port_dhcptrap_rules_count
+#define PORT_DHCPTRAP_RULE_IX(n) \
+  port_dhcptrap_rule_ix[n]
+
+#define STACK_ENTRIES \
+  stack_entries
+#define STACK_FIRST_ENTRY(d) \
+  stack_first_entry[d]
+#define STACK_MAX(d) \
+  stack_max[d]
+
+#define PORT_IPCL_DEF_IX(n) \
+  port_ipcl_def_ix[n]
+#define PORT_EPCL_DEF_IX(n) \
+  port_epcl_def_ix[n]
 
 #define PORT_ARP_INSPECTOR_TRAP_IX(n) \
-                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n))
+  port_arp_inspector_trap_ix[n]
 
-#define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
+#define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT \
+  per_port_ip_source_guard_rules_count
 #define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
-                    (PORT_ARP_INSPECTOR_TRAP_IX (MAX_PORTS) + \
-                    (n) * PER_PORT_IP_SOURCE_GUARD_RULES_COUNT)
-
+  port_ip_sourceguard_rule_start_ix[n]
 #define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
-                    (PORT_IP_SOURCEGUARD_RULE_START_IX(MAX_PORTS) + (n))
+  port_ip_sourceguard_drop_rule_ix[n]
 
+#define PER_PORT_IP_OSPF_RULES_COUNT \
+  per_port_ip_ospf_rules_count
 #define PORT_IP_OSPF_MIRROR_RULE_IX(n) \
-                    (PORT_IP_SOURCEGUARD_DROP_RULE_IX(MAX_PORTS) + (n) * 2)
+  port_ip_ospf_mirror_rule_ix[n]
 
-#define USER_ACL_START_IX(n) \
-                    (PORT_IP_OSPF_MIRROR_RULE_IX(MAX_PORTS) + 1)
+#define USER_ACL_START_IX(d) \
+  user_acl_start_ix[d]
 
-/*****************************************************************************
- *                                                                           *
- *  ATTENTION! READ ME!                                                      *
- *  Add same macros in acl_allocator.erl and ip_source_guard.erl!            *
- *                                                                           *
- *  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  *
- *  ^                                                                     ^  *
- *  ^    OR FIX IT   OR FIX IT   OR FIX IT   OR FIX IT   OR FIX IT        ^  *
- *  ^                                                                     ^  *
- *  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  *
- ****************************************************************************/
+#define PCL_TCAM_MAX_RULE_IX 1500
+
+#define USER_ACL_STACK_ENTRIES(d) \
+  PCL_TCAM_MAX_RULE_IX - USER_ACL_START_IX(d) + 1
+
+static void __attribute__ ((unused))
+print_pcl_indexes (void) {
+  int pi, ix, d;
+
+  DEBUG("Port Indexes on device:\r\n");
+  for (pi = 1; pi <= nports; pi++) {
+    struct port *port = port_ptr(pi);
+    DEBUG("PortId: %d ldev: %d lport: %d IxOnDev: %d\r\n",
+      pi, port->ldev, port->lport, port_ix_on_dev[pi]);
+  }
+
+  DEBUG("\r\nPCL indexes:\r\n");
+
+  for_each_dev(d) {
+    DEBUG("Device: %d\r\n", d);
+
+    if ( stack_active() && (d == stack_sec_port->ldev) ) {
+      DEBUG("STACK_MC_DROP\r\n");
+      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv4_MC_DROP_E_IX);
+      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv6_MC_DROP_E_IX);
+      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX);
+      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv6_MC_DROP_I_IX);
+    }
+
+    DEBUG("LBD TRAP\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_LBD_RULE_IX(pi));
+      }
+    }
+
+    DEBUG("DHCP TRAP\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_DHCPTRAP_RULE_IX(pi));
+        DEBUG("%d\r\n", PORT_DHCPTRAP_RULE_IX(pi) + 1);
+      }
+    }
+
+    DEBUG("VT Stack\r\n");
+    for (ix = 0; ix < STACK_ENTRIES; ix++) {
+      DEBUG("%d\r\n", STACK_FIRST_ENTRY(d) + ix);
+    }
+
+    DEBUG("Port Def IX\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_IPCL_DEF_IX(pi));
+        DEBUG("%d\r\n", PORT_EPCL_DEF_IX(pi));
+      }
+    }
+
+    DEBUG("ARP INSPECTOR\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_ARP_INSPECTOR_TRAP_IX(pi));
+      }
+    }
+
+    DEBUG("IP SOURCE GUARD RULES\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        for (ix = 0; ix < PER_PORT_IP_SOURCE_GUARD_RULES_COUNT; ix++) {
+          DEBUG("%d\r\n", PORT_IP_SOURCEGUARD_RULE_START_IX(pi) + ix);
+        }
+      }
+    }
+
+    DEBUG("IP SOURCE GUARD TRAP\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_IP_SOURCEGUARD_DROP_RULE_IX(pi));
+      }
+    }
+
+    DEBUG("IP OSPF MIRROR\r\n");
+    for (pi = 1; pi <= nports; pi++) {
+      if ( (port_ptr(pi))->ldev == d ) {
+        DEBUG("%d\r\n", PORT_IP_OSPF_MIRROR_RULE_IX(pi));
+        DEBUG("%d\r\n", PORT_IP_OSPF_MIRROR_RULE_IX(pi) + 1);
+      }
+    }
+
+    DEBUG("USER_ACL_START_IX\r\n");
+    DEBUG("%d\r\n", USER_ACL_START_IX(d));
+  }
+
+  DEBUG("End.");
+}
 
 static struct stack {
   int sp;
   int n_free;
-  uint16_t data[STACK_ENTRIES];
-} rules;
+  uint16_t data[1000];
+  //uint16_t *data;
+} rules[NDEVS], acl[NDEVS];
 
-static void __attribute__ ((constructor))
+static void
 pcl_init_rules (void)
 {
   int i;
+  int d;
+  for_each_dev(d) {
+    // rules[d].data = NULL;
+    // rules[d].data = malloc(STACK_ENTRIES * sizeof(uint16_t));
+    // DEBUG("malloc ok\r\n");
+    // assert(rules[d].data);
+    for (i = 0; i < STACK_ENTRIES; i++) {
+      rules[d].data[i] = i + STACK_FIRST_ENTRY(d);
+    }
 
-  for (i = 0; i < STACK_ENTRIES; i++)
-    rules.data[i] = i + STACK_FIRST_ENTRY;
+    rules[d].sp = 0;
+    rules[d].n_free = STACK_ENTRIES;
+  }
+}
 
-  rules.sp = 0;
-  rules.n_free = STACK_ENTRIES;
+static void
+user_acl_init_rules (void)
+{
+  int i;
+  int d;
+  for_each_dev(d) {
+    // acl[d].data = NULL;
+    // DEBUG("USER_ACL_STACK_ENTRIES(%d) == %d\r\n", d, USER_ACL_STACK_ENTRIES(d));
+    // acl[d].data = malloc(USER_ACL_STACK_ENTRIES(d) * sizeof(uint16_t));
+    // DEBUG("malloc ok: %p\r\n", acl[d].data);
+    // assert(acl[d].data);
+    for (i = 0; i < USER_ACL_STACK_ENTRIES(d); i++) {
+      acl[d].data[i] = i + USER_ACL_START_IX(d);
+    }
+
+    acl[d].sp = 0;
+    acl[d].n_free = USER_ACL_STACK_ENTRIES(d);
+  }
 }
 
 static int
-pcl_alloc_rules (uint16_t *nums, int n)
+pcl_alloc_rules (int dev, uint16_t *nums, int n)
 {
   int i;
 
-  if (rules.n_free < n)
+  if (rules[dev].n_free < n)
     return 0;
 
-  rules.n_free -= n;
+  rules[dev].n_free -= n;
   for (i = 0; i < n; i++)
-    nums[i] = rules.data[rules.sp++];
+    nums[i] = rules[dev].data[(rules[dev].sp)++];
 
   return 1;
 }
 
 static void __attribute__ ((unused))
-pcl_free_rules (const uint16_t *nums, int n)
+pcl_free_rules (int dev, const uint16_t *nums, int n)
 {
   int i;
 
   for (i = 0; i < n; i++) {
-    if (nums[i] < STACK_MAX) {
-      rules.n_free++;
-      rules.data[--rules.sp] = nums[i];
+    if (nums[i] < STACK_MAX(dev)) {
+      rules[dev].n_free++;
+      rules[dev].data[--(rules[dev].sp)] = nums[i];
     }
   }
 }
@@ -139,13 +438,14 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
 {
   int key = vt_key (pid, from);
   struct vt_ix *ix;
+  struct port *port = port_ptr(pid);
 
   HASH_FIND_INT (vt_ix, &key, ix);
   if (alloc && !ix) {
     ix = calloc (1, sizeof (struct vt_ix));
     ix->key = key;
     if (from) {
-      if (!pcl_alloc_rules (ix->ix, 2)) {
+      if (!pcl_alloc_rules (port->ldev, ix->ix, 2)) {
         free (ix);
         return NULL;
       }
@@ -177,10 +477,10 @@ invalidate_vt_ix (struct vt_ix *ix)
 }
 
 static void
-free_vt_ix (struct vt_ix *ix)
+free_vt_ix (int dev, struct vt_ix *ix)
 {
   invalidate_vt_ix (ix);
-  pcl_free_rules (ix->ix, 2);
+  pcl_free_rules (dev, ix->ix, 2);
   HASH_DEL (vt_ix, ix);
   free (ix);
 }
@@ -189,11 +489,12 @@ enum status
 pcl_remove_vt (port_id_t pid, vid_t from, int tunnel)
 {
   struct vt_ix *ix = get_vt_ix (pid, from, 0, tunnel, 0);
+  struct port *port = port_ptr (pid);
 
   if (!ix)
     return ST_DOES_NOT_EXIST;
 
-  free_vt_ix (ix);
+  free_vt_ix (port->ldev, ix);
 
   return ST_OK;
 }
@@ -240,6 +541,7 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
   rule.ruleExtNotIpv6.common.vid = from;
   rule.ruleExtNotIpv6.common.sourcePort = port->lport;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, ix->ix[0], PORT_IPCL_ID (pid));
   CRP (cpssDxChPclRuleSet
        (port->ldev,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
@@ -267,6 +569,7 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
     act.vlan.vlanId = from;
     act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
 
+    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, ix->ix[1], PORT_EPCL_ID (pid));
     CRP (cpssDxChPclRuleSet
          (port->ldev,
           CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
@@ -293,10 +596,11 @@ void
 pcl_port_clear_vt (port_id_t pid)
 {
   struct vt_ix *ix, *tmp;
+  struct port *port = port_ptr (pid);
 
   HASH_ITER (hh, vt_ix, ix, tmp) {
     if (pid == ALL_PORTS || vt_key_pid (ix->key) == pid)
-      free_vt_ix (ix);
+      free_vt_ix (port->ldev, ix);
   }
 }
 
@@ -359,6 +663,7 @@ pcl_setup_ospf(int d) {
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
 
+    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_OSPF_MIRROR_RULE_IX (pi), PORT_IPCL_ID (pi));
     CRP (cpssDxChPclRuleSet
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -388,6 +693,7 @@ pcl_setup_ospf(int d) {
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
 
+    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_OSPF_MIRROR_RULE_IX (pi) + 1, PORT_IPCL_ID (pi));
     CRP (cpssDxChPclRuleSet
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -407,6 +713,16 @@ static int sg_trap_enabled[65 /* MAXPORTS */];
 static void __attribute__((constructor))
 sg_init () {
   memset (sg_trap_enabled, 0, 65);
+}
+
+uint16_t
+get_port_ip_sourceguard_rule_start_ix (port_id_t pi) {
+  return PORT_IP_SOURCEGUARD_RULE_START_IX (pi);
+}
+
+uint16_t
+get_per_port_ip_sourceguard_rules_count (void) {
+  return PER_PORT_IP_SOURCE_GUARD_RULES_COUNT;
 }
 
 void
@@ -436,6 +752,7 @@ pcl_source_guard_trap_enable (port_id_t pi) {
   act.actionStop = GT_TRUE;
   act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 2;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi), PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -489,6 +806,7 @@ pcl_source_guard_drop_enable (port_id_t pi) {
 
   act.actionStop = GT_TRUE;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi), PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -585,6 +903,7 @@ pcl_source_guard_rule_set (port_id_t pi,
   act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
   act.actionStop = GT_TRUE;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, rule_ix, PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -624,6 +943,63 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
 /******************************************************************************/
 /* USER ACLs                                                                  */
 /******************************************************************************/
+uint32_t
+allocate_user_rule_ix (uint16_t pid_or_vid) {
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    acl[dev].n_free--;
+    return acl[dev].data[(acl[dev].sp)++];
+  } else {
+    uint32_t aggregated_ix = 0;
+    int d;
+    for_each_dev(d) {
+      acl[d].n_free--;
+      aggregated_ix += ((acl[d].data[(acl[d].sp)++]) << d*16);
+    }
+    return aggregated_ix;
+  }
+}
+
+void
+free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    if (rule_ix < PCL_TCAM_MAX_RULE_IX) {
+      acl[dev].n_free++;
+      acl[dev].data[--(acl[dev].sp)] = rule_ix;
+    }
+  } else {
+    int d;
+    for_each_dev(d) {
+      uint16_t ix = (rule_ix & (0xffff << d*16)) >> (d*16);
+      if (ix < PCL_TCAM_MAX_RULE_IX) {
+        acl[d].n_free++;
+        acl[d].data[--(acl[d].sp)] = ix;
+      }
+    }
+  }
+}
+
+uint8_t
+check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    return acl[dev].n_free >= count;
+  } else {
+    int d;
+    uint8_t result = 1;
+    for_each_dev(d) {
+      result = (result && (acl[d].n_free >= count));
+    }
+    return result;
+  }
+}
 
 #define PRINT_SEPARATOR(c, size) { \
   char __SEPARATOR__[size];        \
@@ -631,18 +1007,22 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
   DEBUG("%s\r\n", __SEPARATOR__);  \
 }
 
-#define get_port_ptr(port, pid) {                                         \
-  port = port_ptr(pid);                                                   \
-  if (!port) {                                                            \
-    DEBUG("%s: port: %d - invalid port_ptr (NULL), function returns\r\n", \
-          __FUNCTION__, pid);                                             \
-    goto out;                                                             \
-  }                                                                       \
-  if (is_stack_port(port)) {                                              \
-    DEBUG("%s: port: %d - is stack port, function returns\r\n",           \
-          __FUNCTION__, pid);                                             \
-    goto out;                                                             \
-  }                                                                       \
+#define get_port_ptr(port, pid) {                                           \
+  if ( pid < 10000 ) {                                                      \
+    port = port_ptr(pid);                                                   \
+    if (!port) {                                                            \
+      DEBUG("%s: port: %d - invalid port_ptr (NULL), function returns\r\n", \
+            __FUNCTION__, pid);                                             \
+      goto out;                                                             \
+    }                                                                       \
+    if (is_stack_port(port)) {                                              \
+      DEBUG("%s: port: %d - is stack port, function returns\r\n",           \
+            __FUNCTION__, pid);                                             \
+      goto out;                                                             \
+    }                                                                       \
+  } else {                                                                  \
+    port = NULL;                                                              \
+  }                                                                         \
 }
 
 #define inactivate_rule(dev, type, rule_ix) {                      \
@@ -806,6 +1186,8 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
 }
 
 #define activate_rule(dev, type, rule_ix, rule_opt_bmp, mask, rule, act) {     \
+  DEBUG("%s: activate_rule (%d, %s, %d, ...)\r\n",                             \
+    __FUNCTION__, dev, #type, rule_ix);                                        \
   int status =                                                                 \
    CRP(cpssDxChPclRuleSet(dev, type, rule_ix, rule_opt_bmp, mask, rule, act)); \
   if (status != GT_OK) {                                                       \
@@ -816,7 +1198,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
   }                                                                            \
 }
 
-#define set_ip_rule(port, rule, mask, format, type, pcl_id, act, ip_rule) {  \
+#define set_ip_rule(dev, rule, mask, format, type, pcl_id, act, ip_rule) {   \
   set_pcl_id (rule, mask, format, pcl_id);                                   \
   set_packet_type_ip (rule, mask, format);                                   \
   set_ip_protocol (rule, mask, format, ip_rule->proto);                      \
@@ -841,7 +1223,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
     set_tcp_flags (rule, mask, format, ip_rule->tcp_flags,                   \
                    ip_rule->tcp_flags_mask);                                 \
   }                                                                          \
-  activate_rule (port->ldev, type, ip_rule->rule_ix, 0, &mask, &rule, &act); \
+  activate_rule (dev, type, ip_rule->rule_ix, 0, &mask, &rule, &act);        \
 }
 
 #define set_src_mac(rule, mask, format, src_mac, src_mac_mask) {       \
@@ -893,7 +1275,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
         cos_mask, mask.format.common.up);                        \
 }
 
-#define set_mac_rule(port, rule, mask, format, type, pcl_id, act, mac_rule) {  \
+#define set_mac_rule(dev, rule, mask, format, type, pcl_id, act, mac_rule) {   \
   set_pcl_id (rule, mask, format, pcl_id);                                     \
   set_packet_type_mac (rule, mask, format);                                    \
   set_src_mac (rule, mask, format, mac_rule->src_mac, mac_rule->src_mac_mask); \
@@ -901,7 +1283,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
   set_eth_type (rule,mask,format,mac_rule->eth_type,mac_rule->eth_type_mask);  \
   set_vid (rule, mask, format, mac_rule->vid, mac_rule->vid_mask);             \
   set_cos (rule, mask, format, mac_rule->cos, mac_rule->cos_mask);             \
-  activate_rule (port->ldev, type, mac_rule->rule_ix, 0, &mask, &rule, &act);  \
+  activate_rule (dev, type, mac_rule->rule_ix, 0, &mask, &rule, &act);         \
 }
 
 #define set_src_ipv6(rule, mask, format, src_ip, src_ip_mask) {                \
@@ -926,7 +1308,7 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
         ipv6_addr_to_printf_arg(mask.format.dip));                       \
 }
 
-#define set_ipv6_rule(port, rule, mask, format, type, pcl_id, act, ipv6_rule) {\
+#define set_ipv6_rule(dev, rule, mask, format, type, pcl_id, act, ipv6_rule) { \
   set_pcl_id (rule, mask, format, pcl_id);                                     \
   set_packet_type_ipv6 (rule, mask, format);                                   \
   set_src_ipv6 (rule, mask, format, ipv6_rule->src, ipv6_rule->src_mask);      \
@@ -947,18 +1329,23 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
     set_tcp_flags (rule, mask, format, ipv6_rule->tcp_flags,                   \
                    ipv6_rule->tcp_flags_mask);                                 \
   }                                                                            \
-  activate_rule (port->ldev, type, ipv6_rule->rule_ix, 0, &mask, &rule, &act); \
+  activate_rule (dev, type, ipv6_rule->rule_ix, 0, &mask, &rule, &act);        \
 }
 
 void
-pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
+pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
                  enum PCL_DESTINATION destination, int enable) {
   PRINT_SEPARATOR('=', 100);
-  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
-        bool_to_str(enable), pcl_dest_to_str(destination));
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
 
   struct port *port;
-  get_port_ptr (port, pid);
+  get_port_ptr (port, pid_or_vid);
 
   if (!ip_rule) {
     DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
@@ -969,7 +1356,19 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
   }
 
   if (!enable) {
-    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
+    /* Magic */
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (ip_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -983,15 +1382,31 @@ pcl_ip_rule_set (port_id_t pid, struct ip_pcl_rule *ip_rule,
 
   switch (destination) {
     case PCL_DESTINATION_INGRESS:
-      set_ip_rule (port, rule, mask, ruleExtNotIpv6,
-                   CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                   PORT_IPCL_ID(pid), act, ip_rule);
+      if ( pid_or_vid < 10000 ) {
+        set_ip_rule (port->ldev, rule, mask, ruleExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                     PORT_IPCL_ID(pid_or_vid), act, ip_rule);
+      } else {
+        int d;
+        uint32_t rule_ix = ip_rule->rule_ix;
+        for_each_dev(d) {
+          ip_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_ip_rule (d, rule, mask, ruleExtNotIpv6,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ip_rule);
+        }
+      }
       break;
 
     case PCL_DESTINATION_EGRESS:
-      set_ip_rule (port, rule, mask, ruleEgrExtNotIpv6,
-                   CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-                   PORT_EPCL_ID(pid), act, ip_rule);
+      if ( pid_or_vid < 10000 ) {
+        set_ip_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+                     PORT_EPCL_ID(pid_or_vid), act, ip_rule);
+      } else {
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
       break;
 
     default:
@@ -1005,14 +1420,19 @@ out:
 }
 
 void
-pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
+pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
                   enum PCL_DESTINATION destination, int enable) {
   PRINT_SEPARATOR('=', 100);
-  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
-        bool_to_str(enable), pcl_dest_to_str(destination));
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
 
   struct port *port;
-  get_port_ptr (port, pid);
+  get_port_ptr (port, pid_or_vid);
 
   if (!mac_rule) {
     DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
@@ -1023,7 +1443,19 @@ pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
   }
 
   if (!enable) {
-    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
+    /* Magic */
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (mac_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -1037,15 +1469,31 @@ pcl_mac_rule_set (port_id_t pid, struct mac_pcl_rule *mac_rule,
 
   switch (destination) {
     case PCL_DESTINATION_INGRESS:
-      set_mac_rule (port, rule, mask, ruleExtNotIpv6,
-                    CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                    PORT_IPCL_ID(pid), act, mac_rule);
+      if ( pid_or_vid < 10000 ) {
+        set_mac_rule (port->ldev, rule, mask, ruleExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                     PORT_IPCL_ID(pid_or_vid), act, mac_rule);
+      } else {
+        int d;
+        uint32_t rule_ix = mac_rule->rule_ix;
+        for_each_dev(d) {
+          mac_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_mac_rule (d, rule, mask, ruleExtNotIpv6,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, mac_rule);
+        }
+      }
       break;
 
     case PCL_DESTINATION_EGRESS:
-      set_mac_rule (port, rule, mask, ruleEgrExtNotIpv6,
-                    CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-                    PORT_EPCL_ID(pid), act, mac_rule);
+      if ( pid_or_vid < 10000 ) {
+        set_mac_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+                     PORT_EPCL_ID(pid_or_vid), act, mac_rule);
+      } else {
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
       break;
 
     default:
@@ -1059,14 +1507,19 @@ out:
 }
 
 void
-pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
+pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
                    enum PCL_DESTINATION destination, int enable) {
   PRINT_SEPARATOR('=', 100);
-  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
-        bool_to_str(enable), pcl_dest_to_str(destination));
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
 
   struct port *port;
-  get_port_ptr (port, pid);
+  get_port_ptr (port, pid_or_vid);
 
   if (!ipv6_rule) {
     DEBUG("%s: ipv6_rule: invalid pointer (NULL), function returns\r\n",
@@ -1077,7 +1530,19 @@ pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
   }
 
   if (!enable) {
-    inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
+    /* Magic */
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (ipv6_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -1091,15 +1556,31 @@ pcl_ipv6_rule_set (port_id_t pid, struct ipv6_pcl_rule *ipv6_rule,
 
   switch (destination) {
     case PCL_DESTINATION_INGRESS:
-      set_ipv6_rule (port, rule, mask, ruleExtIpv6L4,
+      if ( pid_or_vid < 10000 ) {
+        set_ipv6_rule (port->ldev, rule, mask, ruleExtNotIpv6,
                      CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
-                     PORT_IPCL_ID(pid), act, ipv6_rule);
+                     PORT_IPCL_ID(pid_or_vid), act, ipv6_rule);
+      } else {
+        int d;
+        uint32_t rule_ix = ipv6_rule->rule_ix;
+        for_each_dev(d) {
+          ipv6_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_ipv6_rule (d, rule, mask, ruleExtNotIpv6,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ipv6_rule);
+        }
+      }
       break;
 
     case PCL_DESTINATION_EGRESS:
-      set_ipv6_rule (port, rule, mask, ruleEgrExtIpv6L4,
+      if ( pid_or_vid < 10000 ) {
+        set_ipv6_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
                      CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E,
-                     PORT_EPCL_ID(pid), act, ipv6_rule);
+                     PORT_EPCL_ID(pid_or_vid), act, ipv6_rule);
+      } else {
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
       break;
 
     default:
@@ -1113,14 +1594,19 @@ out:
 }
 
 void
-pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
+pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule,
                       enum PCL_DESTINATION destination, int enable) {
   PRINT_SEPARATOR('=', 100);
-  DEBUG("%s: port: %d, enable: %s, destination: %s\r\n", __FUNCTION__, pid,
-        bool_to_str(enable), pcl_dest_to_str(destination));
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
 
   struct port *port;
-  get_port_ptr (port, pid);
+  get_port_ptr (port, pid_or_vid);
 
   if (!default_rule) {
     DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
@@ -1131,9 +1617,19 @@ pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
   }
 
   if (!enable) {
-    inactivate_rule (
-      port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix
-    );
+    /* Magic */
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (default_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
@@ -1147,27 +1643,44 @@ pcl_default_rule_set (port_id_t pid, struct default_pcl_rule *default_rule,
 
   switch (destination) {
     case PCL_DESTINATION_INGRESS:
-      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid));
-      activate_rule (
-        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        default_rule->rule_ix, 0, &mask, &rule, &act
-      );
+      if ( pid_or_vid < 10000 ) {
+        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid_or_vid));
+        activate_rule (
+          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          default_rule->rule_ix, 0, &mask, &rule, &act
+        );
+      } else {
+
+        int d;
+        uint32_t rule_ix = default_rule->rule_ix;
+        set_pcl_id (rule, mask, ruleExtNotIpv6, VLAN_IPCL_ID(pid_or_vid - 10000));
+        for_each_dev(d) {
+          rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          activate_rule (
+            d, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            rule_ix, 0, &mask, &rule, &act
+          );
+        }
+      }
       break;
 
     case PCL_DESTINATION_EGRESS:
-      set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid));
-      activate_rule (
-        port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        default_rule->rule_ix, 0, &mask, &rule, &act
-      );
+      if ( pid_or_vid < 10000 ) {
+        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid_or_vid));
+        activate_rule (
+          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          default_rule->rule_ix, 0, &mask, &rule, &act
+        );
+      } else {
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
       break;
 
     default:
       DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
             __FUNCTION__, destination);
   };
-
-
 
   DEBUG("out\r\n");
 out:
@@ -1247,10 +1760,11 @@ pcl_setup_mc_drop (int d)
   rule.ruleEgrExtNotIpv6.common.isL2Valid = 1;
   rule.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", stack_sec_port->id, 1, PORT_EPCL_ID (stack_sec_port->id));
   CRP (cpssDxChPclRuleSet
        (d,
         CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-        1,
+        PORT_STACK_SECONDARY_IPv4_MC_DROP_E_IX,
         0,
         &mask,
         &rule,
@@ -1266,10 +1780,11 @@ pcl_setup_mc_drop (int d)
   rule.ruleEgrExtIpv6L2.common.isL2Valid = 1;
   rule.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", stack_sec_port->id, 2, PORT_EPCL_ID (stack_sec_port->id));
   CRP (cpssDxChPclRuleSet
        (d,
         CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L2_E,
-        2,
+        PORT_STACK_SECONDARY_IPv6_MC_DROP_E_IX,
         0,
         &mask,
         &rule,
@@ -1285,10 +1800,11 @@ pcl_setup_mc_drop (int d)
   rule.ruleExtNotIpv6.common.isL2Valid = 1;
   rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", stack_sec_port->id, 3, PORT_IPCL_ID (stack_sec_port->id));
   CRP (cpssDxChPclRuleSet
        (d,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        3,
+        PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX,
         0,
         &mask,
         &rule,
@@ -1304,10 +1820,11 @@ pcl_setup_mc_drop (int d)
   rule.ruleExtIpv6L2.common.isL2Valid = 1;
   rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
 
+  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", stack_sec_port->id, 4, PORT_IPCL_ID (stack_sec_port->id));
   CRP (cpssDxChPclRuleSet
        (d,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E,
-        4,
+        PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX,
         0,
         &mask,
         &rule,
@@ -1449,6 +1966,7 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
 
+    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, PORT_LBD_RULE_IX (pid), PORT_IPCL_ID (pid));
     CRP (cpssDxChPclRuleSet
          (port->ldev,
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
@@ -1508,6 +2026,7 @@ pcl_enable_dhcp_trap (int enable)
       act.actionStop = GT_TRUE;
       act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
 
+      DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_DHCPTRAP_RULE_IX (pi), PORT_IPCL_ID (pi));
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
@@ -1547,6 +2066,7 @@ pcl_enable_dhcp_trap (int enable)
       act.actionStop = GT_TRUE;
       act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
 
+      DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_DHCPTRAP_RULE_IX (pi) + 1, PORT_IPCL_ID (pi));
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
@@ -1591,6 +2111,12 @@ pcl_port_setup (port_id_t pid)
         CPSS_PCL_LOOKUP_0_E,
         0,
         CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_PORT_E));
+  CRP (cpssDxChPclPortLookupCfgTabAccessModeSet
+       (port->ldev, port->lport,
+        CPSS_PCL_DIRECTION_INGRESS_E,
+        CPSS_PCL_LOOKUP_1_E,
+        0,
+        CPSS_DXCH_PCL_PORT_LOOKUP_CFG_TAB_ACC_MODE_BY_VLAN_E));
 
   /* Enable egress PCL. */
   CRP (cpssDxCh2EgressPclPacketTypesSet
@@ -1648,6 +2174,35 @@ pcl_enable_port (port_id_t pid, int enable)
   return ST_OK;
 }
 
+static void
+pcl_vid_enable (uint16_t vid) {
+  CPSS_INTERFACE_INFO_STC iface = {
+    .type    = CPSS_INTERFACE_VID_E,
+    .vlanId  = vid
+  };
+
+  CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
+    .enableLookup  = GT_TRUE,
+    .pclId         = VLAN_IPCL_ID(vid),
+    .dualLookup    = GT_FALSE,
+    .pclIdL01      = 0,
+    .groupKeyTypes = {
+      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
+    }
+  };
+
+  int d;
+  for_each_dev(d) {
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_INGRESS_E,
+          CPSS_PCL_LOOKUP_1_E,
+          &lc));
+  }
+}
+
 enum status
 pcl_cpss_lib_init (int d)
 {
@@ -1667,10 +2222,26 @@ pcl_cpss_lib_init (int d)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
+  /* Initialize indexes and etc. */
+  initialize_vars();
+
+  int vid;
+  for (vid = 1; vid <= 4094; vid++) {
+    pcl_vid_enable(vid);
+  }
+
+  /* Initialize stack of VT rules */
+  pcl_init_rules();
+
+  /* Initialize stack of User ACL rules */
+  user_acl_init_rules();
+
   if (stack_active())
     pcl_setup_mc_drop (d);
 
   pcl_setup_ospf(d);
+
+  print_pcl_indexes();
 
   return ST_OK;
 }

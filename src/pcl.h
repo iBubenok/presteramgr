@@ -14,6 +14,8 @@ extern void pcl_port_enable_vt (port_id_t, int);
 extern void pcl_port_clear_vt (port_id_t);
 extern enum status pcl_enable_mc_drop (port_id_t, int);
 
+extern uint16_t get_port_ip_sourceguard_rule_start_ix (port_id_t);
+extern uint16_t get_per_port_ip_sourceguard_rules_count (void);
 extern void pcl_source_guard_trap_enable (port_id_t);
 extern void pcl_source_guard_trap_disable (port_id_t);
 extern void pcl_source_guard_drop_enable (port_id_t);
@@ -45,7 +47,7 @@ typedef struct {
 } ipv6_addr_t;
 
 struct ip_pcl_rule {
-  uint16_t  rule_ix;           /* 2  */
+  uint32_t  rule_ix;           /* 2  */
   uint8_t   action;            /* 3  */
   uint8_t   proto;             /* 4  */
   ip_addr_t src_ip;            /* 8  */
@@ -69,7 +71,7 @@ struct ip_pcl_rule {
 } __attribute__ ((packed));
 
 struct mac_pcl_rule {
-  uint16_t   rule_ix;          /* 2  */
+  uint32_t   rule_ix;          /* 2  */
   uint8_t    action;           /* 3  */
   mac_addr_t src_mac;          /* 9  */
   mac_addr_t src_mac_mask;     /* 15 */
@@ -84,7 +86,7 @@ struct mac_pcl_rule {
 } __attribute__ ((packed));
 
 struct ipv6_pcl_rule {
-  uint16_t    rule_ix;         /* 2  */
+  uint32_t    rule_ix;         /* 2  */
   uint8_t     action;          /* 3  */
   uint8_t     proto;           /* 4  */
   ipv6_addr_t src;             /* 20 */
@@ -106,17 +108,23 @@ struct ipv6_pcl_rule {
 } __attribute__ ((packed));
 
 struct default_pcl_rule {
-  uint16_t    rule_ix;         /* 2  */
+  uint32_t    rule_ix;         /* 2  */
   uint8_t     action;          /* 3  */
 } __attribute__ ((packed));
 
-extern void pcl_ip_rule_set (port_id_t, struct ip_pcl_rule*,
+extern uint32_t allocate_user_rule_ix (uint16_t);
+
+extern void free_user_rule_ix (uint16_t, uint32_t);
+
+extern uint8_t check_user_rule_ix_count (uint16_t, uint16_t);
+
+extern void pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
                              enum PCL_DESTINATION, int);
-extern void pcl_mac_rule_set (port_id_t, struct mac_pcl_rule*,
+extern void pcl_mac_rule_set (uint16_t, struct mac_pcl_rule*,
                               enum PCL_DESTINATION, int);
-extern void pcl_ipv6_rule_set (port_id_t, struct ipv6_pcl_rule*,
+extern void pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
                                enum PCL_DESTINATION, int);
-extern void pcl_default_rule_set (port_id_t, struct default_pcl_rule*,
+extern void pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
                                   enum PCL_DESTINATION, int);
 
 #ifndef bool_to_str

@@ -676,9 +676,6 @@ after_init (int d)
 static void
 do_reset (void)
 {
-#ifdef VARIANT_ARLAN_3226PGE
-  return; /* TODO  3226 only */
-#endif
 #ifdef VARIANT_ARLAN_3050PGE
   return; /* TODO  3050 only */
 #endif
