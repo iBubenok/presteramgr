@@ -11,7 +11,9 @@
 #define VARIANT_FE
 #elif defined (VARIANT_ARLAN_3424GE)            \
   || defined (VARIANT_ARLAN_3448PGE)            \
-  || defined (VARIANT_ARLAN_3448GE)
+  || defined (VARIANT_ARLAN_3448GE)             \
+  || defined (VARIANT_ARLAN_3226PGE)            \
+  || defined (VARIANT_ARLAN_3050PGE)
 #define VARIANT_GE
 #else
 #error Undefined or unsupported variant.

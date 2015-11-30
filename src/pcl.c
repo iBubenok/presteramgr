@@ -18,35 +18,47 @@
 #include <zmq.h>
 #include <czmq.h>
 
-#define MAX_PORTS 52
+#define MAX_PORTS (NPORTS + 2)
 #define PORT_IPCL_ID(n) (((n) - 1) * 2)
 #define PORT_EPCL_ID(n) (((n) - 1) * 2 + 1)
 
-#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5) /* 5 reserved for stack mc filters */ /* 5..(n+4) */
-#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (MAX_PORTS) + (n) * 2) /* 71..(69+n*2) */
-
+#define PORT_LBD_RULE_IX(n) ((n) - 1 + 5)
+#define PORT_DHCPTRAP_RULE_IX(n) (PORT_LBD_RULE_IX (MAX_PORTS) + (n) * 2)
 #define STACK_ENTRIES 300
-#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (MAX_PORTS)) /* 199 */
-#define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)  /* 499 */
+#define STACK_FIRST_ENTRY (PORT_DHCPTRAP_RULE_IX (MAX_PORTS))
+#define STACK_MAX (STACK_ENTRIES + STACK_FIRST_ENTRY)
 
-#define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)      /* 501..(499+n*2) */
-#define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)  /* 502..(500+n*2) */
+#define PORT_IPCL_DEF_IX(n) (STACK_MAX + (n) * 2)
+#define PORT_EPCL_DEF_IX(n) (STACK_MAX + (n) * 2 + 1)
 
 #define PORT_ARP_INSPECTOR_TRAP_IX(n) \
-                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n)) /* TODO pcl rules idx accounting*/
+                    (PORT_EPCL_DEF_IX (MAX_PORTS) + (n))
 
 #define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT 10
 #define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
                     (PORT_ARP_INSPECTOR_TRAP_IX (MAX_PORTS) + \
                     (n) * PER_PORT_IP_SOURCE_GUARD_RULES_COUNT)
-                    /* 640..(630+n*10) */
+
 #define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
                     (PORT_IP_SOURCEGUARD_RULE_START_IX(MAX_PORTS) + (n))
-                    /* 1281..(n+1280) */
 
 #define PORT_IP_OSPF_MIRROR_RULE_IX(n) \
                     (PORT_IP_SOURCEGUARD_DROP_RULE_IX(MAX_PORTS) + (n) * 2)
 
+#define USER_ACL_START_IX(n) \
+                    (PORT_IP_OSPF_MIRROR_RULE_IX(MAX_PORTS) + 1)
+
+/*****************************************************************************
+ *                                                                           *
+ *  ATTENTION! READ ME!                                                      *
+ *  Add same macros in acl_allocator.erl and ip_source_guard.erl!            *
+ *                                                                           *
+ *  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  *
+ *  ^                                                                     ^  *
+ *  ^    OR FIX IT   OR FIX IT   OR FIX IT   OR FIX IT   OR FIX IT        ^  *
+ *  ^                                                                     ^  *
+ *  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  *
+ ****************************************************************************/
 
 static struct stack {
   int sp;
@@ -312,12 +324,14 @@ static uint8_t ospf_dest_ip2[4]      = {224, 0, 0, 6};
 static uint8_t ospf_dest_ip_mask[4] = {255, 255, 255, 255};
 
 void
-pcl_setup_ospf() {
+pcl_setup_ospf(int d) {
   port_id_t pi;
 
   for(pi = 1; pi <= nports; pi++) {
 
     struct port *port = port_ptr (pi);
+    if (port->ldev != d)
+      continue;
 
     if (is_stack_port(port))
       return;
@@ -1656,7 +1670,7 @@ pcl_cpss_lib_init (int d)
   if (stack_active())
     pcl_setup_mc_drop (d);
 
-  pcl_setup_ospf();
+  pcl_setup_ospf(d);
 
   return ST_OK;
 }

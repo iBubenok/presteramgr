@@ -26,7 +26,7 @@ ip_start (void)
 
   for_each_dev (d) {
     CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
-       (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+         (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
     CRP (cpssDxChBrgGenIpLinkLocalMirrorToCpuEnable
          (d, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
     CRP (cpssDxChBrgGenIpLinkLocalProtMirrorToCpuEnable

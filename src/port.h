@@ -93,6 +93,7 @@ extern void port_disable_all (void);
 extern enum status port_start (void);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_id (GT_U8, GT_U8);
+extern int port_is_phyless (struct port *);
 extern enum status port_handle_link_change (GT_U8, GT_U8, port_id_t *, CPSS_PORT_ATTRIBUTES_STC *);
 extern enum status port_get_state (port_id_t, struct port_link_state *);
 extern enum status port_get_type (port_id_t, port_type_t *);
@@ -134,6 +135,8 @@ extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
 extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
+extern enum status port_get_serdes_cfg (port_id_t, struct port_serdes_cfg *);
+extern enum status port_set_serdes_cfg (port_id_t, const struct port_serdes_cfg *);
 
 /* Port Security. */
 
@@ -153,6 +156,5 @@ extern void psec_after_flush (void);
 extern enum status psec_enable_na_sb (port_id_t, int);
 
 /* END: Port Security. */
-
 
 #endif /* __PORT_H__ */
