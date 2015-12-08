@@ -391,7 +391,8 @@ DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
-
+DECLARE_HANDLER (CC_PCL_GET_COUNTER);
+DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 
@@ -524,7 +525,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
-  HANDLER (CC_ARPD_SOCK_CONNECT)
+  HANDLER (CC_ARPD_SOCK_CONNECT),
+  HANDLER (CC_PCL_GET_COUNTER),
+  HANDLER (CC_PCL_CLEAR_COUNTER)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -3579,3 +3582,40 @@ DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
 
   report_status (ST_OK);
 }
+
+DEFINE_HANDLER (CC_PCL_GET_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint64_t counter;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  counter = pcl_get_counter(pid_or_vid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &counter, sizeof (counter));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  pcl_clear_counter(pid_or_vid);
+
+ out:
+  report_status (result);
+}
+

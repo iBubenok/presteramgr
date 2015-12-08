@@ -30,6 +30,13 @@ enum PCL_ACTION {
   PCL_ACTION_DENY   = 1
 };
 
+enum PCL_TRAP_ACTION {
+  PCL_TRAP_ACTION_LOG_INPUT    = 0,
+  PCL_TRAP_ACTION_DISABLE_PORT = 1,
+  PCL_TRAP_ACTION_NONE         = 2
+};
+extern const char* pcl_trap_action_to_str (enum PCL_TRAP_ACTION action);
+
 enum PCL_DESTINATION {
   PCL_DESTINATION_INGRESS = 0,
   PCL_DESTINATION_EGRESS  = 1
@@ -68,6 +75,7 @@ struct ip_pcl_rule {
   uint8_t   igmp_type_mask;    /* 36 */
   uint8_t   tcp_flags;         /* 37 */
   uint8_t   tcp_flags_mask;    /* 38 */
+  uint8_t   trap_action;       /* 39 */
 } __attribute__ ((packed));
 
 struct mac_pcl_rule {
@@ -83,6 +91,7 @@ struct mac_pcl_rule {
   vid_t      vid_mask;         /* 35 */
   uint8_t    cos;              /* 36 */
   uint8_t    cos_mask;         /* 37 */
+  uint8_t    trap_action;      /* 38 */
 } __attribute__ ((packed));
 
 struct ipv6_pcl_rule {
@@ -105,6 +114,7 @@ struct ipv6_pcl_rule {
   uint8_t     icmp_code_mask;  /* 82 */
   uint8_t     tcp_flags;       /* 83 */
   uint8_t     tcp_flags_mask;  /* 84 */
+  uint8_t     trap_action;     /* 85 */
 } __attribute__ ((packed));
 
 struct default_pcl_rule {
@@ -126,6 +136,9 @@ extern void pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
                                enum PCL_DESTINATION, int);
 extern void pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
                                   enum PCL_DESTINATION, int);
+
+extern uint64_t pcl_get_counter (uint16_t);
+extern void pcl_clear_counter (uint16_t);
 
 #ifndef bool_to_str
 #define bool_to_str(value) ((value) ? "true" : "false")

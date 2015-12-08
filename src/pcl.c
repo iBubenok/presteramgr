@@ -1037,7 +1037,8 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
 }
 
 static int
-set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
+set_pcl_action (uint16_t pid_or_vid, uint8_t action, uint8_t trap_action,
+                CPSS_DXCH_PCL_ACTION_STC *act) {
   memset (act,  0, sizeof(*act));
   switch (action) {
     case PCL_ACTION_PERMIT:
@@ -1049,11 +1050,32 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
       act->pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
       break;
     default:
-      DEBUG("%s: >action: invalid action (%d), function returns\r\n",
+      DEBUG("%s: action: invalid action (%d), function returns\r\n",
             __FUNCTION__, action);
       return 0;
   };
+
+  switch (trap_action) {
+    case PCL_TRAP_ACTION_LOG_INPUT:
+      DEBUG("%s: %s\r\n", __FUNCTION__, "PCL_TRAP_ACTION_LOG_INPUT");
+      act->matchCounter.enableMatchCount  = GT_TRUE;
+      act->matchCounter.matchCounterIndex =
+        ((pid_or_vid > 10000) ? pid_or_vid - 10000 : pid_or_vid);
+      break;
+    case PCL_TRAP_ACTION_DISABLE_PORT:
+      DEBUG("%s: %s\r\n", __FUNCTION__, "PCL_TRAP_ACTION_DISABLE_PORT");
+      break;
+    case PCL_TRAP_ACTION_NONE:
+      DEBUG("%s: %s\r\n", __FUNCTION__, "PCL_TRAP_ACTION_NONE");
+      break;
+    default:
+      DEBUG("%s: action: invalid action (%d), function returns\r\n",
+            __FUNCTION__, trap_action);
+      return 0;
+  };
+
   act->actionStop = GT_TRUE;
+
   return 1;
 }
 
@@ -1332,6 +1354,19 @@ set_pcl_action (uint8_t action, CPSS_DXCH_PCL_ACTION_STC *act) {
   activate_rule (dev, type, ipv6_rule->rule_ix, 0, &mask, &rule, &act);        \
 }
 
+const char* pcl_trap_action_to_str (enum PCL_TRAP_ACTION action) {
+  switch (action) {
+    case PCL_TRAP_ACTION_LOG_INPUT:
+      return "PCL_TRAP_ACTION_LOG_INPUT";
+    case PCL_TRAP_ACTION_DISABLE_PORT:
+      return "PCL_TRAP_ACTION_DISABLE_PORT";
+    case PCL_TRAP_ACTION_NONE:
+      return "PCL_TRAP_ACTION_NONE";
+    default:
+      return "Unknown";
+  }
+};
+
 void
 pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
                  enum PCL_DESTINATION destination, int enable) {
@@ -1372,7 +1407,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (ip_rule->action, &act)) {
+  if (!set_pcl_action (pid_or_vid, ip_rule->action, ip_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1459,7 +1494,7 @@ pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (mac_rule->action, &act)) {
+  if (!set_pcl_action (pid_or_vid, mac_rule->action, mac_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1546,7 +1581,7 @@ pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (ipv6_rule->action, &act)) {
+  if (!set_pcl_action (pid_or_vid, ipv6_rule->action, ipv6_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1633,7 +1668,7 @@ pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (default_rule->action, &act)) {
+  if (!set_pcl_action (pid_or_vid, default_rule->action, PCL_TRAP_ACTION_NONE, &act)) {
     goto out;
   }
 
@@ -2203,6 +2238,86 @@ pcl_vid_enable (uint16_t vid) {
   }
 }
 
+uint64_t
+pcl_get_counter (uint16_t pid_or_vid) {
+  CPSS_DXCH_CNC_COUNTER_STC counter;
+  memset(&counter, 0, sizeof(counter));
+
+  CRP (cpssDxChCncCounterGet
+       (0,
+        pid_or_vid > 10000 ? 1 : 0,
+        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+        CPSS_DXCH_CNC_COUNTER_FORMAT_MODE_0_E,
+        &counter));
+
+  uint64_t ret_value = 0;
+
+  memcpy(&ret_value, &counter.packetCount, sizeof(ret_value));
+
+  DEBUG("%s: %d byteCount: %u %u packetCount: %u %u\r\n",
+        pid_or_vid > 10000 ? "vlan" : "port",
+        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+        counter.byteCount.l[0], counter.byteCount.l[1],
+        counter.packetCount.l[0], counter.packetCount.l[1]);
+
+  return ret_value;
+}
+
+void
+pcl_clear_counter (uint16_t pid_or_vid) {
+  CPSS_DXCH_CNC_COUNTER_STC counter;
+  memset(&counter, 0, sizeof(counter));
+
+  CRP (cpssDxChCncCounterSet
+       (0,
+        pid_or_vid > 10000 ? 1 : 0,
+        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+        CPSS_DXCH_CNC_COUNTER_FORMAT_MODE_0_E,
+        &counter));
+}
+
+static void
+pcl_init_counters (int d) {
+  CRP (cpssDxChCncBlockClientEnableSet
+       (d,
+        0,
+        CPSS_DXCH_CNC_CLIENT_INGRESS_PCL_LOOKUP_0_E,
+        GT_TRUE
+        ));
+
+  CRP (cpssDxChCncBlockClientEnableSet
+       (d,
+        1,
+        CPSS_DXCH_CNC_CLIENT_INGRESS_PCL_LOOKUP_1_E,
+        GT_TRUE
+        ));
+
+  GT_U64 bmp;
+
+  memset(bmp.l, 0, 8);
+  bmp.l[0] |= 1;
+
+  CRP (cpssDxChCncBlockClientRangesSet
+       (d,
+        0,
+        CPSS_DXCH_CNC_CLIENT_INGRESS_PCL_LOOKUP_0_E,
+        bmp));
+
+  memset(bmp.l, 0, 8);
+  bmp.l[0] |= 1;
+  bmp.l[0] |= 1 << 1;
+
+  CRP (cpssDxChCncBlockClientRangesSet
+       (d,
+        1,
+        CPSS_DXCH_CNC_CLIENT_INGRESS_PCL_LOOKUP_1_E,
+        bmp));
+
+  CRP (cpssDxChCncCounterClearByReadEnableSet
+       (d,
+        GT_FALSE));
+}
+
 enum status
 pcl_cpss_lib_init (int d)
 {
@@ -2229,6 +2344,9 @@ pcl_cpss_lib_init (int d)
   for (vid = 1; vid <= 4094; vid++) {
     pcl_vid_enable(vid);
   }
+
+  /* Initialize CNC */
+  pcl_init_counters(d);
 
   /* Initialize stack of VT rules */
   pcl_init_rules();
