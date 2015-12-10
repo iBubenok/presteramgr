@@ -42,6 +42,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgNestVlan.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/generic/cpssHwInit/cpssLedCtrl.h>
+#include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInitLedCtrl.h>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -73,12 +75,15 @@ static enum status port_shutdown_fe (struct port *, int);
 static enum status port_set_mdix_auto_fe (struct port *, int);
 static enum status __port_setup_fe (GT_U8, GT_U8);
 static enum status port_setup_fe (struct port *);
+
 static enum status port_set_speed_ge (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_ge (struct port *, enum port_duplex);
 static enum status port_update_sd_ge (struct port *);
 static enum status port_shutdown_ge (struct port *, int);
 static enum status port_set_mdix_auto_ge (struct port *, int);
 static enum status port_setup_ge (struct port *);
+static enum status __attribute__ ((unused)) port_setup_phyless_ge (struct port *);
+
 static enum status port_set_speed_xg (struct port *, const struct port_speed_arg *);
 static enum status port_set_duplex_xg (struct port *, enum port_duplex);
 static enum status port_update_sd_xg (struct port *);
@@ -109,6 +114,17 @@ port_id (GT_U8 hdev, GT_U8 hport)
     return 0;
 
   return dev_ports[hdev][hport];
+}
+
+int
+port_is_phyless (struct port *port) {
+  switch (port->type) {
+    case PTYPE_COPPER_PHYLESS:
+    case PTYPE_FIBER_PHYLESS:
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 static void
@@ -190,8 +206,17 @@ port_init (void)
 
 #if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+#elif defined (VARIANT_ARLAN_3050PGE)
+    if (ports[i].id == 49 || ports[i].id == 50) {
+      ports[i].type = PTYPE_FIBER;
+    } else {
+      ports[i].type = PTYPE_COPPER;
+    }
 #elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_ARLAN_3226PGE)
+    ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
+                    ? PTYPE_FIBER : PTYPE_COPPER;
 #else /* GE-C[-S], GE-U, GE-F[-S] */
     switch (env_hw_subtype()) {
       case HWST_ARLAN_3424GE_F :
@@ -213,6 +238,14 @@ port_init (void)
         }
     }
 #endif /* VARIANT_* */
+
+    if (IS_PORT_PHYLESS (i)) {
+      assert(ports[i].type != PTYPE_COMBO);
+      if (ports[i].type == PTYPE_COPPER)
+        ports[i].type = PTYPE_COPPER_PHYLESS;
+      else
+        ports[i].type = PTYPE_FIBER_PHYLESS;
+    }
 
     ports[i].ldev = pmap[i].dev;
     ports[i].lport = pmap[i].port;
@@ -975,6 +1008,7 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = *attrs;
+
 //#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE
     if (attrs->portLinkUp)
@@ -1540,7 +1574,8 @@ port_update_sd_ge (struct port *port)
   GT_STATUS rc;
   GT_U16 reg, reg1;
 
-  if (port->type == PTYPE_FIBER) {
+  if (port->type == PTYPE_FIBER
+      || port->type == PTYPE_FIBER_PHYLESS) {
     /* Fiber speed changed handled by sfp-utils */
     return ST_OK;
   }
@@ -1865,6 +1900,12 @@ port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
   if (psa->speed > PORT_SPEED_1000)
     return ST_BAD_VALUE;
 
+  if (port->type == PTYPE_FIBER_PHYLESS
+      && psa->speed != PORT_SPEED_1000
+      && psa->speed != PORT_SPEED_AUTO) {
+    return ST_BAD_VALUE;
+  }
+
   port->c_speed = psa->speed;
   port->c_speed_auto = psa->speed_auto;
 
@@ -1874,6 +1915,12 @@ port_set_speed_ge (struct port *port, const struct port_speed_arg *psa)
 static enum status
 port_set_duplex_ge (struct port *port, enum port_duplex duplex)
 {
+  if (port->type == PTYPE_FIBER_PHYLESS
+      && duplex != PORT_DUPLEX_AUTO
+      && duplex != PORT_DUPLEX_FULL) {
+    return ST_BAD_VALUE;
+  }
+
   port->c_duplex = duplex;
   return port_update_sd_ge (port);
 }
@@ -1883,6 +1930,17 @@ port_shutdown_ge (struct port *port, int shutdown)
 {
   GT_STATUS rc = GT_OK;
   GT_U16 reg, start_reg;
+
+  if (port_is_phyless(port)) {
+    rc = CRP (cpssDxChPortForceLinkDownEnableSet(
+               port->ldev, port->lport, gt_bool(shutdown)));
+
+    switch (rc) {
+    case GT_OK:       return ST_OK;
+    case GT_HW_ERROR: return ST_HW_ERROR;
+    default:          return ST_HEX;
+    }
+  }
 
   CRP (cpssDxChPhyPortSmiRegisterRead
        (port->ldev, port->lport, 22, &start_reg));
@@ -1989,6 +2047,17 @@ port_update_sd_xg (struct port *port)
 static enum status
 port_shutdown_xg (struct port *port, int shutdown)
 {
+  if (port_is_phyless(port)) {
+    GT_STATUS rc = CRP (cpssDxChPortForceLinkDownEnableSet(
+                        port->ldev, port->lport, gt_bool(shutdown)));
+
+    switch (rc) {
+    case GT_OK:       return ST_OK;
+    case GT_HW_ERROR: return ST_HW_ERROR;
+    default:          return ST_HEX;
+    }
+  }
+
   uint16_t val;
   cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xC319, 1, &val);
@@ -2268,7 +2337,7 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 bool_t
 port_is_xg_sfp_present (port_id_t pid)
 {
-  struct port *port = port_ptr (pid);
+  struct port *port = port_ptr (pid); /* TODO fiber phyless */
   uint16_t val;
   cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24, 0xC200,
                                  1, &val);
@@ -2277,7 +2346,7 @@ port_is_xg_sfp_present (port_id_t pid)
 }
 
 uint8_t*
-port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr)
+port_read_xg_sfp_idprom (port_id_t pid, uint16_t addr) /* TODO fiber phyless */
 {
   const int sz = 128;
   const int phydev = addr == 0xD000 ? 3 : 1;
@@ -2628,6 +2697,10 @@ port_set_mdix_auto_ge (struct port *port, int mdix_auto)
   GT_STATUS rc;
   GT_U16 val;
 
+  if (port_is_phyless(port)) {
+    return ST_BAD_VALUE;
+  }
+
   phy_lock();
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x10, &val));
@@ -2730,6 +2803,10 @@ port_set_flow_control (port_id_t pid, flow_control_t fc)
             (port->ldev, port->lport, type));
   if (rc != GT_OK)
     goto out;
+
+  if (port_is_phyless(port)) {
+    goto out;
+  }
 
   rc = CRP (cpssDxChPhyPortSmiRegisterRead
             (port->ldev, port->lport, 0x04, &val));
@@ -3060,6 +3137,11 @@ port_setup_ge (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  if (port_is_phyless(port)) {
+    port_setup_phyless_ge (port);
+    return ST_OK;
+  }
+
   CRP (cpssDxChPhyPortSmiInterfaceSet
        (port->ldev, port->lport,
         (port->lport < 12)
@@ -3261,6 +3343,90 @@ port_setup_ge (struct port *port)
 }
 #endif /* VARIANT_* */
 
+static enum status __attribute__ ((unused))
+port_setup_phyless_ge (struct port *port) {
+
+  CRP (cpssDxChPortInterfaceModeSet
+        (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_1000BASE_X_E));
+
+  CRP (cpssDxChPortSpeedSet
+        (port->ldev, port->lport, CPSS_PORT_SPEED_1000_E));
+
+  CRP(cpssDxChPortDuplexModeSet(
+        port->ldev, port->lport, CPSS_PORT_FULL_DUPLEX_E));
+
+  CRP(cpssDxChPortDuplexAutoNegEnableSet(
+        port->ldev, port->lport, GT_FALSE));
+
+  CRP (cpssDxChPortSpeedAutoNegEnableSet
+        (port->ldev, port->lport, GT_FALSE));
+
+  CRP (cpssDxChPortSerdesPowerStatusSet
+        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x01, GT_TRUE));
+
+  CRP (cpssDxChPortInbandAutoNegEnableSet
+        (port->ldev, port->lport, GT_TRUE));
+
+
+  CPSS_LED_CONF_STC lconf = {
+    .ledOrganize        = CPSS_LED_ORDER_MODE_BY_PORT_E,
+    .disableOnLinkDown  = GT_TRUE,
+    .blink0DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink0Duration     = CPSS_LED_BLINK_DURATION_3_E,
+    .blink1DutyCycle    = CPSS_LED_BLINK_DUTY_CYCLE_1_E,
+    .blink1Duration     = CPSS_LED_BLINK_DURATION_4_E,
+    .pulseStretch       = CPSS_LED_PULSE_STRETCH_5_E,
+    .ledStart           = 0,
+    .ledEnd             = 15,
+    .clkInvert          = GT_TRUE,
+    .class5select       = CPSS_LED_CLASS_5_SELECT_FIBER_LINK_UP_E,
+    .class13select       = CPSS_LED_CLASS_13_SELECT_COPPER_LINK_UP_E
+  };
+
+  CRP (cpssDxChLedStreamConfigSet
+        (port->ldev, 0, &lconf));
+
+  CPSS_LED_GROUP_CONF_STC ledGroupParams = {
+    .classA = 0x9,
+    .classB = 0xA,
+    .classC = 0xB,
+    .classD = 0xA
+  };
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 0, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamGroupConfigSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 1, &ledGroupParams));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 9, CPSS_DXCH_LED_INDICATION_RX_ACT_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 10, CPSS_DXCH_LED_INDICATION_LINK_E));
+
+  CRP(cpssDxChLedStreamClassIndicationSet(
+        port->ldev, 0, 11, CPSS_DXCH_LED_INDICATION_TX_ACT_E));
+
+  CPSS_LED_CLASS_MANIPULATION_STC ledClassParams;
+  memset(&ledClassParams, 0, sizeof(ledClassParams));
+  ledClassParams.invertEnable = GT_TRUE;
+  ledClassParams.blinkEnable = GT_TRUE;
+  ledClassParams.blinkSelect = CPSS_LED_BLINK_SELECT_0_E;
+  ledClassParams.forceEnable = GT_FALSE;
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 9, &ledClassParams));
+
+  CRP(cpssDxChLedStreamClassManipulationSet(
+        port->ldev, 0, CPSS_DXCH_LED_PORT_TYPE_XG_E, 11, &ledClassParams));
+
+  CRP (cpssDxChLedStreamDirectModeEnableSet
+        (port->ldev, 0, GT_TRUE));
+
+  return ST_OK;
+}
+
 static void __attribute__ ((unused))
 dump_xg_reg (const struct port *port, GT_U32 dev, GT_U32 reg)
 {
@@ -3286,6 +3452,8 @@ port_setup_xg (struct port *port)
        (port->ldev, port->lport, CPSS_PORT_SPEED_10000_E));
   CRP (cpssDxChPortSerdesPowerStatusSet
        (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
+
+
   CRP (cpssXsmiPortGroupRegisterWrite
        (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
 
@@ -4090,4 +4258,57 @@ psec_enable_na_sb (port_id_t pid, int enable)
   psec_unlock (port);
 
   return ST_OK;
+}
+
+enum status
+port_get_serdes_cfg (port_id_t pid, struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChPortSerdesConfigGet (port->ldev, port->lport, &c));
+  if (rc == GT_OK) {
+    cfg->txAmp                 = c.txAmp;
+    cfg->txEmphEn              = c.txEmphEn == GT_TRUE;
+    cfg->txEmphAmp             = c.txEmphAmp;
+    cfg->txAmpAdj              = c.txAmpAdj;
+    cfg->txEmphLevelAdjEnable  = c.txEmphLevelAdjEnable == GT_TRUE;
+    cfg->ffeSignalSwingControl = c.ffeSignalSwingControl;
+    cfg->ffeResistorSelect     = c.ffeResistorSelect;
+    cfg->ffeCapacitorSelect    = c.ffeCapacitorSelect;
+
+    return ST_OK;
+  }
+
+  return ST_HEX;
+}
+
+enum status
+port_set_serdes_cfg (port_id_t pid, const struct port_serdes_cfg *cfg)
+{
+  struct port *port = port_ptr (pid);
+  CPSS_DXCH_PORT_SERDES_CONFIG_STC c;
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  c.txAmp                 = cfg->txAmp;
+  c.txEmphEn              = gt_bool (cfg->txEmphEn);
+  c.txEmphAmp             = cfg->txEmphAmp;
+  c.txAmpAdj              = cfg->txAmpAdj;
+  c.txEmphLevelAdjEnable  = gt_bool (cfg->txEmphLevelAdjEnable);
+  c.ffeSignalSwingControl = cfg->ffeSignalSwingControl;
+  c.ffeResistorSelect     = cfg->ffeResistorSelect;
+  c.ffeCapacitorSelect    = cfg->ffeCapacitorSelect;
+
+  rc = CRP (cpssDxChPortSerdesConfigSet (port->ldev, port->lport, &c));
+  switch (rc) {
+  case GT_OK: return ST_OK;
+  default:    return ST_HEX;
+  }
 }

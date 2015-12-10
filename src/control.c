@@ -45,6 +45,7 @@ static void *control_loop (void *);
 static void *pub_sock;
 static void *pub_arp_sock;
 static void *pub_dhcp_sock;
+static void *pub_stack_sock;
 static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
@@ -52,6 +53,7 @@ static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
 static void *sec_sock;
+static void *stack_cmd_sock;
 
 
 static void *
@@ -94,6 +96,13 @@ control_init (void)
   assert(rc==0);
   rc = zsocket_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
 
+  pub_stack_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_stack_sock);
+/*  rc = zmq_setsockopt(pub_stack_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0); */
+  rc = zsocket_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
+  assert(rc==0);
+
   inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (inp_pub_sock);
   rc = zsocket_bind (inp_pub_sock, INP_PUB_SOCK_EP);
@@ -123,6 +132,10 @@ control_init (void)
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
   zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
+
+  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (stack_cmd_sock);
+  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
   return 0;
 }
@@ -155,6 +168,12 @@ static inline void
 notify_send_dhcp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_dhcp_sock);
+}
+
+static inline void
+notify_send_stack (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_stack_sock);
 }
 
 static inline void
@@ -230,7 +249,7 @@ cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
   zmsg_t *msg = make_notify_message (CN_MAIL);
   zmsg_addmem (msg, &role, sizeof (role));
   zmsg_addmem (msg, data, len);
-  notify_send (&msg);
+  notify_send_stack (&msg);
 }
 
 int
@@ -353,6 +372,8 @@ DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_PORT_GET_SERDES_CFG);
+DECLARE_HANDLER (CC_PORT_SET_SERDES_CFG);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
@@ -365,6 +386,9 @@ DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
+
+
+DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -477,6 +501,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
   HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_PORT_GET_SERDES_CFG),
+  HANDLER (CC_PORT_SET_SERDES_CFG),
   HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
   HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
   HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
@@ -489,6 +515,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
   HANDLER (CC_ARPD_SOCK_CONNECT)
+};
+
+static cmd_handler_t stack_handlers[] = {
+  HANDLER (SC_UPDATE_STACK_CONF)
 };
 
 static int
@@ -572,6 +602,7 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     frame = zmsg_next (msg);
     struct arpd_ip_addr_msg *iam =
       (struct arpd_ip_addr_msg *) zframe_data (frame);
+
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
     break;
@@ -588,6 +619,10 @@ static void *
 control_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
+
+  zmq_pollitem_t stack_cmd_pi = { stack_cmd_sock, 0, ZMQ_POLLIN };
+  struct handler_data stack_cmd_hd = { stack_cmd_sock, stack_handlers, ARRAY_SIZE (stack_handlers) };
+  zloop_poller (loop, &stack_cmd_pi, control_handler, &stack_cmd_hd);
 
   zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
   struct handler_data cmd_hd = { cmd_sock, handlers, ARRAY_SIZE (handlers) };
@@ -616,6 +651,20 @@ control_loop (void *dummy)
   return NULL;
 }
 
+/*
+ * Stack Async iface command handlers.
+ */
+
+DEFINE_HANDLER (SC_UPDATE_STACK_CONF) {
+
+DEBUG("===SC_UPDATE_STACK_CONF\n");
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  result = stack_update_conf(zframe_data(frame), zframe_size(frame));
+}
 
 /*
  * Command handlers.
@@ -3144,6 +3193,49 @@ DEFINE_HANDLER (CC_PSEC_ENABLE)
     goto out;
 
   result = psec_enable (pid, enable, act, intv);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  struct port_serdes_cfg c;
+  zmsg_t *reply;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_get_serdes_cfg (pid, &c);
+
+out:
+  reply = make_reply (result);
+  if (result == ST_OK)
+    zmsg_addmem (reply, &c, sizeof (c));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  zframe_t *frame;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != sizeof (struct port_serdes_cfg)) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = port_set_serdes_cfg
+    (pid, (struct port_serdes_cfg *) zframe_data (frame));
 
  out:
   report_status (result);
