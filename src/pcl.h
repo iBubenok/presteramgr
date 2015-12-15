@@ -137,8 +137,8 @@ extern void pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
 extern void pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
                                   enum PCL_DESTINATION, int);
 
-extern uint64_t pcl_get_counter (uint16_t);
-extern void pcl_clear_counter (uint16_t);
+extern uint64_t pcl_get_counter (uint16_t, uint16_t);
+extern void pcl_clear_counter (uint16_t, uint16_t);
 
 #ifndef bool_to_str
 #define bool_to_str(value) ((value) ? "true" : "false")

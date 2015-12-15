@@ -625,7 +625,7 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 
 static uint8_t ospf_dest_ip1[4]      = {224, 0, 0, 5};
 static uint8_t ospf_dest_ip2[4]      = {224, 0, 0, 6};
-static uint8_t ospf_dest_ip_mask[4] = {255, 255, 255, 255};
+static uint8_t ospf_dest_ip_mask[4]  = {255, 255, 255, 255};
 
 void
 pcl_setup_ospf(int d) {
@@ -1037,8 +1037,8 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
 }
 
 static int
-set_pcl_action (uint16_t pid_or_vid, uint8_t action, uint8_t trap_action,
-                CPSS_DXCH_PCL_ACTION_STC *act) {
+set_pcl_action (uint16_t pid_or_vid, uint16_t rule_ix, uint8_t action,
+                uint8_t trap_action, CPSS_DXCH_PCL_ACTION_STC *act) {
   memset (act,  0, sizeof(*act));
   switch (action) {
     case PCL_ACTION_PERMIT:
@@ -1059,8 +1059,9 @@ set_pcl_action (uint16_t pid_or_vid, uint8_t action, uint8_t trap_action,
     case PCL_TRAP_ACTION_LOG_INPUT:
       DEBUG("%s: %s\r\n", __FUNCTION__, "PCL_TRAP_ACTION_LOG_INPUT");
       act->matchCounter.enableMatchCount  = GT_TRUE;
-      act->matchCounter.matchCounterIndex =
-        ((pid_or_vid > 10000) ? pid_or_vid - 10000 : pid_or_vid);
+      act->matchCounter.matchCounterIndex = rule_ix;
+      DEBUG("%s: matchCounterIndex: %d\r\n",
+            __FUNCTION__, act->matchCounter.matchCounterIndex);
       break;
     case PCL_TRAP_ACTION_DISABLE_PORT:
       DEBUG("%s: %s\r\n", __FUNCTION__, "PCL_TRAP_ACTION_DISABLE_PORT");
@@ -1392,6 +1393,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
 
   if (!enable) {
     /* Magic */
+    free_user_rule_ix(pid_or_vid, ip_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
     } else {
@@ -1407,7 +1409,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, ip_rule->action, ip_rule->trap_action, &act)) {
+  if (!set_pcl_action (pid_or_vid, ip_rule->rule_ix, ip_rule->action, ip_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1479,6 +1481,7 @@ pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
 
   if (!enable) {
     /* Magic */
+    free_user_rule_ix(pid_or_vid, mac_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
     } else {
@@ -1494,7 +1497,7 @@ pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, mac_rule->action, mac_rule->trap_action, &act)) {
+  if (!set_pcl_action (pid_or_vid, mac_rule->rule_ix, mac_rule->action, mac_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1566,6 +1569,7 @@ pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
 
   if (!enable) {
     /* Magic */
+    free_user_rule_ix(pid_or_vid, ipv6_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
     } else {
@@ -1581,7 +1585,7 @@ pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, ipv6_rule->action, ipv6_rule->trap_action, &act)) {
+  if (!set_pcl_action (pid_or_vid, ipv6_rule->rule_ix, ipv6_rule->action, ipv6_rule->trap_action, &act)) {
     goto out;
   }
 
@@ -1653,6 +1657,7 @@ pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule
 
   if (!enable) {
     /* Magic */
+    free_user_rule_ix(pid_or_vid, default_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix);
     } else {
@@ -1668,7 +1673,7 @@ pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule
   }
 
   CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, default_rule->action, PCL_TRAP_ACTION_NONE, &act)) {
+  if (!set_pcl_action (pid_or_vid, default_rule->rule_ix, default_rule->action, PCL_TRAP_ACTION_NONE, &act)) {
     goto out;
   }
 
@@ -2239,39 +2244,40 @@ pcl_vid_enable (uint16_t vid) {
 }
 
 uint64_t
-pcl_get_counter (uint16_t pid_or_vid) {
+pcl_get_counter (uint16_t pid_or_vid, uint16_t rule_ix) {
   CPSS_DXCH_CNC_COUNTER_STC counter;
   memset(&counter, 0, sizeof(counter));
 
+  uint8_t  block = pid_or_vid > 10000  ? 1 : 0;
+  uint16_t index = rule_ix;
+
   CRP (cpssDxChCncCounterGet
        (0,
-        pid_or_vid > 10000 ? 1 : 0,
-        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+        block,
+        index,
         CPSS_DXCH_CNC_COUNTER_FORMAT_MODE_0_E,
         &counter));
 
   uint64_t ret_value = 0;
 
   memcpy(&ret_value, &counter.packetCount, sizeof(ret_value));
-
-  DEBUG("%s: %d byteCount: %u %u packetCount: %u %u\r\n",
-        pid_or_vid > 10000 ? "vlan" : "port",
-        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
-        counter.byteCount.l[0], counter.byteCount.l[1],
-        counter.packetCount.l[0], counter.packetCount.l[1]);
+  DEBUG("%s: Packets: %llu\r\n", __FUNCTION__, ret_value);
 
   return ret_value;
 }
 
 void
-pcl_clear_counter (uint16_t pid_or_vid) {
+pcl_clear_counter (uint16_t pid_or_vid, uint16_t rule_ix) {
   CPSS_DXCH_CNC_COUNTER_STC counter;
   memset(&counter, 0, sizeof(counter));
 
+  uint8_t  block = pid_or_vid > 10000  ? 1 : 0;
+  uint16_t index = rule_ix;
+
   CRP (cpssDxChCncCounterSet
        (0,
-        pid_or_vid > 10000 ? 1 : 0,
-        pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+        block,
+        index,
         CPSS_DXCH_CNC_COUNTER_FORMAT_MODE_0_E,
         &counter));
 }
@@ -2305,7 +2311,6 @@ pcl_init_counters (int d) {
 
   memset(bmp.l, 0, 8);
   bmp.l[0] |= 1;
-  bmp.l[0] |= 1 << 1;
 
   CRP (cpssDxChCncBlockClientRangesSet
        (d,
