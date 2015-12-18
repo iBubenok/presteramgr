@@ -1394,6 +1394,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
   if (!enable) {
     /* Magic */
     free_user_rule_ix(pid_or_vid, ip_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, ip_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
     } else {
@@ -1482,6 +1483,7 @@ pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
   if (!enable) {
     /* Magic */
     free_user_rule_ix(pid_or_vid, mac_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, mac_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
     } else {
@@ -1570,6 +1572,7 @@ pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
   if (!enable) {
     /* Magic */
     free_user_rule_ix(pid_or_vid, ipv6_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, ipv6_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
     } else {
@@ -1658,6 +1661,7 @@ pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule
   if (!enable) {
     /* Magic */
     free_user_rule_ix(pid_or_vid, default_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, default_rule->rule_ix);
     if ( pid_or_vid < 10000 ) {
       inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix);
     } else {
