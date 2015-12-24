@@ -12,6 +12,7 @@
 #include <qos.h>
 #include <port.h>
 #include <sysdeps.h>
+#include <utils.h>
 
 int mls_qos_trust = 0;
 const uint8_t qos_default_wrr_weights[8] = {
@@ -172,4 +173,18 @@ qos_set_wrr_queue_weights (const uint8_t *weights)
            (d, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   return ST_OK;
+}
+
+enum status
+qos_set_wrtd (int enable)
+{
+  enum status st;
+  int d;
+
+  for_each_dev (d) {
+    st = cpssDxChPortTxRandomTailDropEnableSet(d, gt_bool(enable));
+    CRP (st);
+  }
+
+  return st;
 }

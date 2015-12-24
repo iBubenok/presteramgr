@@ -279,7 +279,8 @@ DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
-DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
@@ -324,6 +325,7 @@ DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
+DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
@@ -408,7 +410,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
-  HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
@@ -453,6 +456,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
+  HANDLER (CC_QOS_SET_WRTD),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
@@ -1477,21 +1481,66 @@ DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE)
 {
   enum status result;
   port_id_t pid;
-  bps_t limit;
+  bool_t enable;
+  bps_t rate;
+  burst_t burst;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&limit);
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
   if (result != ST_OK)
     goto out;
 
-  result = port_set_bandwidth_limit (pid, limit);
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape (pid, enable, rate, burst);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  queueid_t qid;
+  bps_t rate;
+  burst_t burst;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&qid);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape_queue (pid, enable, qid, rate, burst);
 
  out:
   report_status (result);
@@ -2192,6 +2241,21 @@ DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
     result = qos_set_wrr_queue_weights (zframe_data (frame));
   } else
     result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_WRTD)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_wrtd (enable);
 
  out:
   report_status (result);
