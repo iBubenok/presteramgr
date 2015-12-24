@@ -2006,7 +2006,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (6):
     result = ST_OK;
-    DEBUG("Packet on VLAN #%d trapped!\r\n", frame->vid);
+    DEBUG("Packet on Port #%d trapped!\r\n", pid);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:

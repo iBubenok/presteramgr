@@ -1424,6 +1424,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
         set_ip_rule (port->ldev, rule, mask, ruleExtNotIpv6,
                      CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
                      PORT_IPCL_ID(pid_or_vid), act, ip_rule);
+
       } else {
         int d;
         uint32_t rule_ix = ip_rule->rule_ix;
@@ -1778,6 +1779,111 @@ pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
 
   DEBUG("Diff end.");
   PRINT_SEPARATOR('=', 100);
+}
+
+static struct pcl_port_cmp_idxs_stack {
+  int sp = 7;
+  int n_free = 8;
+  uint16_t data = {0, 1, 2, 3, 4, 5, 6, 7};
+} pcl_port_cmp_idxs;
+
+static int
+pcl_port_cmp_alloc_idxs (uint16_t *nums, int n)
+{
+  int i;
+
+  if (pcl_port_cmp_idxs.n_free < n)
+    return 0;
+
+  pcl_port_cmp_idxs.n_free -= n;
+  for (i = 0; i < n; i++)
+    nums[i] = pcl_port_cmp_idxs.data[(pcl_port_cmp_idxs.sp)++];
+
+  return 1;
+}
+
+static void
+pcl_port_cmp_free_idxs (const uint16_t *nums, int n)
+{
+  int i;
+
+  for (i = 0; i < n; i++) {
+    if (nums[i] < 7) {
+      pcl_port_cmp_idxs.n_free++;
+      pcl_port_cmp_idxs.data[--(pcl_port_cmp_idxs.sp)] = nums[i];
+    }
+  }
+}
+
+uint8_t
+pcl_port_range_set (uint16_t pid_or_vid,
+                    enum PCL_DESTINATION destination,
+                    uint8_t  tcp_or_udp,
+                    uint8_t  src_or_dst,
+                    uint16_t min,
+                    uint16_t max,
+                    uint16_t *nums)
+{
+  if (!pcl_port_cmp_alloc_idxs (nums, 2)) {
+    return FALSE;
+  }
+
+  CPSS_PCL_DIRECTION_ENT dir;
+  CPSS_L4_PROTOCOL_ENT proto;
+  CPSS_L4_PROTOCOL_PORT_TYPE_ENT port_type;
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      dir = CPSS_PCL_DIRECTION_INGRESS_E;
+      break;
+    case PCL_DESTINATION_EGRESS:
+      dir = CPSS_PCL_DIRECTION_EGRESS_E;
+      break;
+    default:
+      return FALSE;
+  };
+
+  switch (tcp_or_udp) {
+    case 0: /* TCP */
+      proto = CPSS_L4_PROTOCOL_TCP_E;
+      break;
+    case 1: /* UDP */
+      proto = CPSS_L4_PROTOCOL_TCP_E;
+      break;
+    default:
+      return FALSE;
+  };
+
+  switch (src_or_dst) {
+    case 0: /* Source port */
+      proto = CPSS_L4_PROTOCOL_PORT_SRC_E;
+      break;
+    case 1: /* Destination port */
+      proto = CPSS_L4_PROTOCOL_PORT_DST_E;
+      break;
+    default:
+      return FALSE;
+  };
+
+  for_each_dev(d) {
+    CRP (cpssDxCh2PclTcpUdpPortComparatorSet
+           (d,
+            dir,
+            proto,
+            nums[0],
+            port_type,
+            CPSS_COMPARE_OPERATOR_GTE,
+            min));
+
+    CRP (cpssDxCh2PclTcpUdpPortComparatorSet
+           (d,
+            dir,
+            proto,
+            nums[1],
+            port_type,
+            CPSS_COMPARE_OPERATOR_LTE,
+            max));
+  }
 }
 
 /******************************************************************************/
@@ -2327,6 +2433,17 @@ pcl_init_counters (int d) {
         GT_FALSE));
 }
 
+static void
+pcl_init_port_comparators (int d) {
+  CRP (cpssDxChPclUserDefinedByteSet
+       (d,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        CPSS_DXCH_PCL_PACKET_TYPE_IPV4_TCP_E,
+        2, // UDB index
+        CPSS_DXCH_PCL_OFFSET_TCP_UDP_COMPARATOR_E,
+        0));
+}
+
 enum status
 pcl_cpss_lib_init (int d)
 {
@@ -2357,6 +2474,9 @@ pcl_cpss_lib_init (int d)
   /* Initialize CNC */
   pcl_init_counters(d);
 
+  /* Initialize TCP/UDP port comporators */
+  pcl_init_port_comparators(d);
+
   /* Initialize stack of VT rules */
   pcl_init_rules();
 
@@ -2368,7 +2488,36 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
 
-  print_pcl_indexes();
+  {
+
+
+
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT rule, mask;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset(&act, 0, sizeof(act));
+    act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    act.actionStop = GT_TRUE;
+    //act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 6;
+
+    memset(&rule, 0, sizeof(rule));
+    rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID(1);
+    rule.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = 3;
+
+    memset(&mask, 0, sizeof(mask));
+    mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = 3;
+
+    CRP (cpssDxChPclRuleSet
+         (d,
+          CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+          1200,
+          0,
+          &mask,
+          &rule,
+          &act));
+  }
 
   return ST_OK;
 }
