@@ -218,13 +218,21 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
     put_vlan_id (sg_msg, frame->vid);
     put_port_id (sg_msg, pid);
-    /* MAC: 6, 7, 8, 9 bytes */
+
+    /* Src MAC: 6, 7, 8, 9, 10, 11 bytes */
     uint8_t src_mac[6];
-    memcpy (src_mac, (frame->data)+6, 6);
+    memcpy (src_mac, (frame->data) + 6, 6);
     zmsg_addmem (sg_msg, src_mac, 6);
-    /* IP: 26, 27, 28, 29 bytes */
+
+    /* Src IP: 26, 27, 28, 29 bytes */
     uint8_t src_ip[4];
-    memcpy (src_ip, (frame->data)+26, 4);
+    uint8_t src_ip_offset = 26;
+
+    if ( is_llc_snap_frame(frame->data, frame->len) ) {
+      src_ip_offset += 8;
+    }
+
+    memcpy (src_ip, (frame->data) + src_ip_offset, 4);
     zmsg_addmem (sg_msg, src_ip, 4);
 
     pcl_source_guard_drop_enable(pid);
