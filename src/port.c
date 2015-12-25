@@ -45,6 +45,8 @@
 #include <cpss/generic/cpssHwInit/cpssLedCtrl.h>
 #include <cpss/dxCh/dxChxGen/cpssHwInit/cpssDxChHwInitLedCtrl.h>
 
+#include <cpss/generic/phy/private/prvCpssGenPhySmi.h>
+
 #include <stdlib.h>
 #include <assert.h>
 #include <pthread.h>
@@ -3675,6 +3677,8 @@ port_tdr_test_start (port_id_t pid)
   struct port *port = port_ptr (pid);
   CPSS_VCT_CABLE_STATUS_STC st;
   GT_STATUS rc;
+  GT_U16 page, info, val;
+  int autoneg;
 
   if (!port)
     return ST_BAD_VALUE;
@@ -3687,9 +3691,89 @@ port_tdr_test_start (port_id_t pid)
 
   if (port->c_shutdown)
     return ST_BAD_STATE;
-
-  rc = cpssVctCableStatusGet
-    (port->ldev, port->lport, CPSS_VCT_START_E, &st);
+    
+  CRP (cpssDxChPhyPortSmiRegisterRead
+    (port->ldev, port->lport, 22, &page));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+    (port->ldev, port->lport, 22, 0x0000));
+  cpssOsTimerWkAfter(1);
+  /* get model info */
+  CRP (cpssDxChPhyPortSmiRegisterRead
+    (port->ldev, port->lport, 3, &info));
+  
+  switch(info & PRV_CPSS_PHY_MODEL_MASK)
+  {
+    case PRV_CPSS_DEV_E1340:
+    
+      /* we are on page 0 now */
+      CRP (cpssDxChPhyPortSmiRegisterRead
+        (port->ldev, port->lport, 0, &val));
+      val |= 0x8000; /* soft reset */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 0, val));
+      do
+      {
+        CRP (cpssDxChPhyPortSmiRegisterRead
+          (port->ldev, port->lport, 0, &val));
+      } while (val & 0x8000);
+      
+      /* autoneg */
+      autoneg = ( (val & 0x1000) ? 1 : 0 );
+      if (autoneg) /* if autoneg - disable it */
+      {
+        val &= (~ 0x1000);
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 0, val));
+      }
+    
+      /* going to run TDR test */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 22, 0x0007));
+      cpssOsTimerWkAfter(1);
+        
+      CRP (cpssDxChPhyPortSmiRegisterRead
+        (port->ldev, port->lport, 21, &val));
+      val |=  0x1000  /* run VCT after breaking link */
+            + 0x2000  /* disable cross pair check */
+            + 0x0400; /* measure in meters */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 21, val));
+        
+      /* restore autoneg if it was enable */
+      if (autoneg)
+      {
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 22, 0x0000));
+        cpssOsTimerWkAfter(1);
+        
+        CRP (cpssDxChPhyPortSmiRegisterRead
+          (port->ldev, port->lport, 0, &val));
+        val |= 0x1000;
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 0, val));
+      }
+        
+      /* restore initial page */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 22, page));
+      cpssOsTimerWkAfter(1);
+           
+      rc = GT_OK;
+    
+      break;
+    default:
+    
+      /* restore initial page */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 22, page));
+      cpssOsTimerWkAfter(1);
+  
+      rc = cpssVctCableStatusGet
+        (port->ldev, port->lport, CPSS_VCT_START_E, &st);
+        
+      break;
+  }
+  
   switch (rc) {
   case GT_OK:
     port->tdr_test_in_progress = 1;
@@ -3708,6 +3792,9 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
   struct port *port = port_ptr (pid);
   CPSS_VCT_CABLE_STATUS_STC st;
   GT_STATUS rc;
+  GT_U16 page, info, val, len, sta;
+  int i;
+  int is_e1340 = 0, autoneg = -1;
 
   if (!port)
     return ST_BAD_VALUE;
@@ -3719,13 +3806,136 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
     return ST_BAD_STATE;
   else if (port->c_shutdown)
     return ST_NOT_READY;
-
-  rc = cpssVctCableStatusGet (port->ldev, port->lport,
-                              CPSS_VCT_GET_RES_E, &st);
+    
+  CRP (cpssDxChPhyPortSmiRegisterRead
+    (port->ldev, port->lport, 22, &page));
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+    (port->ldev, port->lport, 22, 0x0000));
+  cpssOsTimerWkAfter(1);
+  /* get model info */
+  CRP (cpssDxChPhyPortSmiRegisterRead
+    (port->ldev, port->lport, 3, &info));
+  
+  switch(info & PRV_CPSS_PHY_MODEL_MASK)
+  {
+    case PRV_CPSS_DEV_E1340:
+    
+      is_e1340 = 1;
+      
+      /* autoneg */
+      CRP (cpssDxChPhyPortSmiRegisterRead
+        (port->ldev, port->lport, 0, &val));
+      autoneg = ( (val & 0x1000) ? 1 : 0 );
+      if (autoneg) /* if autoneg - disable it */
+      {
+        val &= (~ 0x1000);
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 0, val));
+      }
+      
+      /* checking whether the test is performed */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 22, 0x0007));
+      cpssOsTimerWkAfter(1);
+      
+      rc = GT_NOT_READY;
+      CRP (cpssDxChPhyPortSmiRegisterRead
+           (port->ldev, port->lport, 21, &val));
+      if (!(val & 0x0800)) /* test complete */
+      {
+        rc = GT_OK;
+        cs->ok = 1;
+        cs->phy_type = PT_1000;
+        cs->length = CL_UNKNOWN;
+        cs->npairs = 4;
+        CRP (cpssDxChPhyPortSmiRegisterRead
+           (port->ldev, port->lport, 20, &sta));
+        for (i=0; i<4; i++)
+        {
+          CRP (cpssDxChPhyPortSmiRegisterRead
+           (port->ldev, port->lport, 16+i, &len));
+          /* magic value 6 */
+          if (len<6) cs->pair_status[i].length = 0;
+          else cs->pair_status[i].length = len-6;
+          
+          switch( (sta >> (i*4)) & 0x000F )
+          {
+            case 1:
+              cs->pair_status[i].status = VS_NORMAL_CABLE;
+              break;
+            case 2:
+              cs->pair_status[i].status = VS_OPEN_CABLE;
+              break;
+            case 3:
+              cs->pair_status[i].status = VS_SHORT_CABLE;
+              break;
+            default:
+              cs->pair_status[i].status = VS_TEST_FAILED;
+              break;
+          }
+          if (cs->pair_status[i].status != VS_NORMAL_CABLE)
+            cs->ok = 0;
+        }
+        
+        /* going to make soft reset */
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 22, 0x0000));
+        cpssOsTimerWkAfter(1);
+        
+        CRP (cpssDxChPhyPortSmiRegisterRead
+          (port->ldev, port->lport, 0, &val));
+        val |= 0x8000; /* soft reset */
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 0, val));
+        do
+        {
+          CRP (cpssDxChPhyPortSmiRegisterRead
+            (port->ldev, port->lport, 0, &val));
+        } while (val & 0x8000);
+      }
+      
+      /* restore autoneg if it was enable */
+      if (autoneg)
+      {
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 22, 0x0000));
+        cpssOsTimerWkAfter(1);
+        
+        CRP (cpssDxChPhyPortSmiRegisterRead
+          (port->ldev, port->lport, 0, &val));
+        val |= 0x1000;
+        CRP (cpssDxChPhyPortSmiRegisterWrite
+          (port->ldev, port->lport, 0, val));
+      }
+      
+      /* restore initial page */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+           (port->ldev, port->lport, 22, page));
+      cpssOsTimerWkAfter(1);
+    
+      break;
+    default:
+    
+      /* restore initial page */
+      CRP (cpssDxChPhyPortSmiRegisterWrite
+        (port->ldev, port->lport, 22, page));
+      cpssOsTimerWkAfter(1);
+    
+      rc = cpssVctCableStatusGet (port->ldev, port->lport,
+                                CPSS_VCT_GET_RES_E, &st);
+                                
+      break;
+  }
+  
   switch (rc) {
   case GT_OK:
     port->tdr_test_in_progress = 0;
-    data_encode_vct_cable_status (cs, &st, IS_FE_PORT (pid - 1));
+    if (!is_e1340)
+      data_encode_vct_cable_status (cs, &st, IS_FE_PORT (pid - 1));
+    DEBUG("port=%d ok=%d len=%d phy=%d n=%d autoneg=%d", pid, cs->ok, cs->length, cs->phy_type, cs->npairs, autoneg);
+    for (i=0; i<cs->npairs; i++)
+      DEBUG(" [St=%d L=%d]", cs->pair_status[i].status, cs->pair_status[i].length);
+    DEBUG("\n");
     return ST_OK;
   case GT_NOT_READY:
     return ST_NOT_READY;
