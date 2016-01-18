@@ -206,7 +206,7 @@ port_init (void)
 
 #if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
     ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
-#elif defined (VARIANT_ARLAN_3050PGE)
+#elif defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
     if (ports[i].id == 49 || ports[i].id == 50) {
       ports[i].type = PTYPE_FIBER;
     } else {
