@@ -113,8 +113,6 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce_rlim));
-    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
 
 /* allowing trapping DHCP packets bursts within 1 sec
@@ -132,7 +130,14 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 2, &cce_rlim));
 
+    cce_rlim.cpuCodeRateLimiterIndex = 6;
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 6, 200, 1600));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce_rlim));
+
     cce.tc = 7;
+    cce_rlim.cpuCodeRateLimiterIndex = 0;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
