@@ -1781,56 +1781,122 @@ pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
   PRINT_SEPARATOR('=', 100);
 }
 
+#define PCL_CMP_IDX_COUNT 8
+
 static struct pcl_port_cmp_idxs_stack {
-  int sp = 7;
-  int n_free = 8;
-  uint16_t data = {0, 1, 2, 3, 4, 5, 6, 7};
-} pcl_port_cmp_idxs;
+  int sp;
+  int n_free;
+  uint16_t data[PCL_CMP_IDX_COUNT];
+} pcl_tcp_port_cmp_idxs, pcl_udp_port_cmp_idxs;
+
+static void
+pcl_tcp_port_cmp_idxs_init (void)
+{
+  int i;
+  for (i = 0; i < PCL_CMP_IDX_COUNT; i++) {
+    pcl_tcp_port_cmp_idxs.data[i] = i;
+  }
+
+  pcl_tcp_port_cmp_idxs.sp = 0;
+  pcl_tcp_port_cmp_idxs.n_free = PCL_CMP_IDX_COUNT;
+}
 
 static int
-pcl_port_cmp_alloc_idxs (uint16_t *nums, int n)
+pcl_tcp_port_cmp_idxs_alloc (uint16_t *nums, int n)
 {
   int i;
 
-  if (pcl_port_cmp_idxs.n_free < n)
+  if (pcl_tcp_port_cmp_idxs.n_free < n)
     return 0;
 
-  pcl_port_cmp_idxs.n_free -= n;
+  pcl_tcp_port_cmp_idxs.n_free -= n;
   for (i = 0; i < n; i++)
-    nums[i] = pcl_port_cmp_idxs.data[(pcl_port_cmp_idxs.sp)++];
+    nums[i] = pcl_tcp_port_cmp_idxs.data[(pcl_tcp_port_cmp_idxs.sp)++];
 
   return 1;
 }
 
 static void
-pcl_port_cmp_free_idxs (const uint16_t *nums, int n)
+pcl_tcp_port_cmp_idxs_free (const uint16_t *nums, int n)
 {
   int i;
 
   for (i = 0; i < n; i++) {
-    if (nums[i] < 7) {
-      pcl_port_cmp_idxs.n_free++;
-      pcl_port_cmp_idxs.data[--(pcl_port_cmp_idxs.sp)] = nums[i];
+    if (nums[i] < PCL_CMP_IDX_COUNT) {
+      pcl_tcp_port_cmp_idxs.n_free++;
+      pcl_tcp_port_cmp_idxs.data[--(pcl_tcp_port_cmp_idxs.sp)] = nums[i];
+    }
+  }
+}
+
+static void
+pcl_udp_port_cmp_idxs_init (void)
+{
+  int i;
+  for (i = 0; i < PCL_CMP_IDX_COUNT; i++) {
+    pcl_udp_port_cmp_idxs.data[i] = i;
+  }
+
+  pcl_udp_port_cmp_idxs.sp = 0;
+  pcl_udp_port_cmp_idxs.n_free = PCL_CMP_IDX_COUNT;
+}
+
+static int
+pcl_udp_port_cmp_idxs_alloc (uint16_t *nums, int n)
+{
+  int i;
+
+  if (pcl_udp_port_cmp_idxs.n_free < n)
+    return 0;
+
+  pcl_udp_port_cmp_idxs.n_free -= n;
+  for (i = 0; i < n; i++)
+    nums[i] = pcl_udp_port_cmp_idxs.data[(pcl_udp_port_cmp_idxs.sp)++];
+
+  return 1;
+}
+
+static void
+pcl_udp_port_cmp_idxs_free (const uint16_t *nums, int n)
+{
+  int i;
+
+  for (i = 0; i < n; i++) {
+    if (nums[i] < PCL_CMP_IDX_COUNT) {
+      pcl_udp_port_cmp_idxs.n_free++;
+      pcl_udp_port_cmp_idxs.data[--(pcl_udp_port_cmp_idxs.sp)] = nums[i];
     }
   }
 }
 
 uint8_t
-pcl_port_range_set (uint16_t pid_or_vid,
-                    enum PCL_DESTINATION destination,
+pcl_port_range_set (enum PCL_DESTINATION destination,
                     uint8_t  tcp_or_udp,
                     uint8_t  src_or_dst,
                     uint16_t min,
                     uint16_t max,
                     uint16_t *nums)
 {
-  if (!pcl_port_cmp_alloc_idxs (nums, 2)) {
-    return FALSE;
-  }
-
   CPSS_PCL_DIRECTION_ENT dir;
   CPSS_L4_PROTOCOL_ENT proto;
   CPSS_L4_PROTOCOL_PORT_TYPE_ENT port_type;
+
+  switch (tcp_or_udp) {
+    case 0: /* TCP */
+      proto = CPSS_L4_PROTOCOL_TCP_E;
+      if (!pcl_tcp_port_cmp_idxs_alloc (nums, 2)) {
+        return FALSE;
+      }
+      break;
+    case 1: /* UDP */
+      proto = CPSS_L4_PROTOCOL_UDP_E;
+      if (!pcl_udp_port_cmp_idxs_alloc (nums, 2)) {
+        return FALSE;
+      }
+      break;
+    default:
+      return FALSE;
+  };
 
   switch (destination) {
     case PCL_DESTINATION_INGRESS:
@@ -1843,28 +1909,18 @@ pcl_port_range_set (uint16_t pid_or_vid,
       return FALSE;
   };
 
-  switch (tcp_or_udp) {
-    case 0: /* TCP */
-      proto = CPSS_L4_PROTOCOL_TCP_E;
-      break;
-    case 1: /* UDP */
-      proto = CPSS_L4_PROTOCOL_TCP_E;
-      break;
-    default:
-      return FALSE;
-  };
-
   switch (src_or_dst) {
     case 0: /* Source port */
-      proto = CPSS_L4_PROTOCOL_PORT_SRC_E;
+      port_type = CPSS_L4_PROTOCOL_PORT_SRC_E;
       break;
     case 1: /* Destination port */
-      proto = CPSS_L4_PROTOCOL_PORT_DST_E;
+      port_type = CPSS_L4_PROTOCOL_PORT_DST_E;
       break;
     default:
       return FALSE;
   };
 
+  int d;
   for_each_dev(d) {
     CRP (cpssDxCh2PclTcpUdpPortComparatorSet
            (d,
@@ -1884,6 +1940,23 @@ pcl_port_range_set (uint16_t pid_or_vid,
             CPSS_COMPARE_OPERATOR_LTE,
             max));
   }
+
+  return TRUE;
+}
+
+void
+pcl_port_range_unset (uint8_t  tcp_or_udp, uint16_t *nums) /* arity of nums is 2 */
+{
+  switch (tcp_or_udp) {
+    case 0: /* TCP */
+      pcl_tcp_port_cmp_idxs_free(nums, 2);
+      break;
+    case 1: /* UDP */
+      pcl_udp_port_cmp_idxs_free(nums, 2);
+      break;
+    default:
+      break;
+  };
 }
 
 /******************************************************************************/
@@ -2474,7 +2547,7 @@ pcl_cpss_lib_init (int d)
   /* Initialize CNC */
   pcl_init_counters(d);
 
-  /* Initialize TCP/UDP port comporators */
+  /* Initialize TCP/UDP port comparators */
   pcl_init_port_comparators(d);
 
   /* Initialize stack of VT rules */
@@ -2483,41 +2556,14 @@ pcl_cpss_lib_init (int d)
   /* Initialize stack of User ACL rules */
   user_acl_init_rules();
 
+  /* Initialize stack of port comparators */
+  pcl_tcp_port_cmp_idxs_init();
+  pcl_udp_port_cmp_idxs_init();
+
   if (stack_active())
     pcl_setup_mc_drop (d);
 
   pcl_setup_ospf(d);
-
-  {
-
-
-
-
-    CPSS_DXCH_PCL_RULE_FORMAT_UNT rule, mask;
-    CPSS_DXCH_PCL_ACTION_STC act;
-
-    memset(&act, 0, sizeof(act));
-    act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
-    act.actionStop = GT_TRUE;
-    //act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 6;
-
-    memset(&rule, 0, sizeof(rule));
-    rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID(1);
-    rule.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = 3;
-
-    memset(&mask, 0, sizeof(mask));
-    mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
-    mask.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = 3;
-
-    CRP (cpssDxChPclRuleSet
-         (d,
-          CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-          1200,
-          0,
-          &mask,
-          &rule,
-          &act));
-  }
 
   return ST_OK;
 }
