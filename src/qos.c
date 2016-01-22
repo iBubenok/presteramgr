@@ -112,10 +112,16 @@ qos_start (void)
 
   qos_set_cos_prio (cos_map);
 
-  __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E);
   __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_3_E);
   qos_set_prioq_num (8);
   qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+/* CPU port priorities */
+  static uint8_t cpu_weights[8] = { 100, 100, 100, 100, 100, 100, 100, 100};
+  __qos_set_prioq_num (3, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E);
+  for (i = 0; i < 8; i++)
+    CRP (cpssDxChPortTxQWrrProfileSet
+          (CPU_DEV, i, cpu_weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
