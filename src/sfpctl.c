@@ -160,7 +160,7 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  if (hw_type == 23) {
+  if (hw_type == 23 || hw_type == 26) {
 //    clear_bits (fd, 0x20, 6, 2, (1 << 3) | (1 << 7));
     clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
   } else if (hw_type == 10)
@@ -171,7 +171,7 @@ main (int argc, char **argv)
     set_bits (fd, 0x20, 6, (1 << 0) | (1 << 1) | (1 << 4) | (1 << 5));
     clear_bits (fd, 0x20, 7, 3, (1 << 2) | (1 << 3));
     set_bits (fd, 0x20, 7, (1 << 0) | (1 << 1) | (1 << 4) | (1 << 5));
-  } else if (hw_type == 24) {
+  } else if (hw_type == 24 || hw_type == 25) {
     clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
   } else if (hw_type == 12) {
     switch (hw_subtype) {
