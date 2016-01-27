@@ -42,6 +42,11 @@ enum PCL_DESTINATION {
   PCL_DESTINATION_EGRESS  = 1
 };
 
+enum PCL_IP_PORT_TYPE {
+  PCL_IP_PORT_TYPE_SRC = 0,
+  PCL_IP_PORT_TYPE_DST
+};
+
 enum PCL_RULE_TYPE {
   PCL_RULE_TYPE_IP      = 0,
   PCL_RULE_TYPE_MAC     = 1,
@@ -54,28 +59,32 @@ typedef struct {
 } ipv6_addr_t;
 
 struct ip_pcl_rule {
-  uint32_t  rule_ix;           /* 2  */
-  uint8_t   action;            /* 3  */
-  uint8_t   proto;             /* 4  */
-  ip_addr_t src_ip;            /* 8  */
-  ip_addr_t src_ip_mask;       /* 12 */
-  uint16_t  src_ip_port;       /* 14 */
-  uint16_t  src_ip_port_mask;  /* 16 */
-  ip_addr_t dst_ip;            /* 20 */
-  ip_addr_t dst_ip_mask;       /* 24 */
-  uint16_t  dst_ip_port;       /* 26 */
-  uint16_t  dst_ip_port_mask;  /* 28 */
-  uint8_t   dscp;              /* 29 */
-  uint8_t   dscp_mask;         /* 30 */
-  uint8_t   icmp_type;         /* 31 */
-  uint8_t   icmp_type_mask;    /* 32 */
-  uint8_t   icmp_code;         /* 33 */
-  uint8_t   icmp_code_mask;    /* 34 */
-  uint8_t   igmp_type;         /* 35 */
-  uint8_t   igmp_type_mask;    /* 36 */
-  uint8_t   tcp_flags;         /* 37 */
-  uint8_t   tcp_flags_mask;    /* 38 */
-  uint8_t   trap_action;       /* 39 */
+  uint32_t  rule_ix;
+  uint8_t   action;
+  uint8_t   proto;
+  ip_addr_t src_ip;
+  ip_addr_t src_ip_mask;
+  uint8_t   src_ip_port_single;
+  uint16_t  src_ip_port;
+  uint16_t  src_ip_port_max;
+  uint16_t  src_ip_port_mask;
+  ip_addr_t dst_ip;
+  ip_addr_t dst_ip_mask;
+  uint8_t   dst_ip_port_single;
+  uint16_t  dst_ip_port;
+  uint16_t  dst_ip_port_max;
+  uint16_t  dst_ip_port_mask;
+  uint8_t   dscp;
+  uint8_t   dscp_mask;
+  uint8_t   icmp_type;
+  uint8_t   icmp_type_mask;
+  uint8_t   icmp_code;
+  uint8_t   icmp_code_mask;
+  uint8_t   igmp_type;
+  uint8_t   igmp_type_mask;
+  uint8_t   tcp_flags;
+  uint8_t   tcp_flags_mask;
+  uint8_t   trap_action;
 } __attribute__ ((packed));
 
 struct mac_pcl_rule {
@@ -95,26 +104,30 @@ struct mac_pcl_rule {
 } __attribute__ ((packed));
 
 struct ipv6_pcl_rule {
-  uint32_t    rule_ix;         /* 2  */
-  uint8_t     action;          /* 3  */
-  uint8_t     proto;           /* 4  */
-  ipv6_addr_t src;             /* 20 */
-  ipv6_addr_t src_mask;        /* 36 */
-  uint16_t    src_ip_port;     /* 38 */
-  uint16_t    src_ip_port_mask;/* 40 */
-  ipv6_addr_t dst;             /* 56 */
-  ipv6_addr_t dst_mask;        /* 72 */
-  uint16_t    dst_ip_port;     /* 74 */
-  uint16_t    dst_ip_port_mask;/* 76 */
-  uint8_t     dscp;            /* 77 */
-  uint8_t     dscp_mask;       /* 78 */
-  uint8_t     icmp_type;       /* 79 */
-  uint8_t     icmp_type_mask;  /* 80 */
-  uint8_t     icmp_code;       /* 81 */
-  uint8_t     icmp_code_mask;  /* 82 */
-  uint8_t     tcp_flags;       /* 83 */
-  uint8_t     tcp_flags_mask;  /* 84 */
-  uint8_t     trap_action;     /* 85 */
+  uint32_t    rule_ix;
+  uint8_t     action;
+  uint8_t     proto;
+  ipv6_addr_t src;
+  ipv6_addr_t src_mask;
+  uint8_t     src_ip_port_single;
+  uint16_t    src_ip_port;
+  uint16_t    src_ip_port_max;
+  uint16_t    src_ip_port_mask;
+  ipv6_addr_t dst;
+  ipv6_addr_t dst_mask;
+  uint8_t     dst_ip_port_single;
+  uint16_t    dst_ip_port;
+  uint16_t    dst_ip_port_max;
+  uint16_t    dst_ip_port_mask;
+  uint8_t     dscp;
+  uint8_t     dscp_mask;
+  uint8_t     icmp_type;
+  uint8_t     icmp_type_mask;
+  uint8_t     icmp_code;
+  uint8_t     icmp_code_mask;
+  uint8_t     tcp_flags;
+  uint8_t     tcp_flags_mask;
+  uint8_t     trap_action;
 } __attribute__ ((packed));
 
 struct default_pcl_rule {
@@ -122,20 +135,28 @@ struct default_pcl_rule {
   uint8_t     action;          /* 3  */
 } __attribute__ ((packed));
 
+struct pcl_port_cmp_idxs_bind {
+  struct pcl_port_cmp_idxs_bind *next;
+  struct pcl_port_cmp_idxs_bind *prev;
+  uint32_t rule_ix;
+  uint8_t  proto;
+  uint16_t nums[2];
+};
+
 extern uint32_t allocate_user_rule_ix (uint16_t);
 
 extern void free_user_rule_ix (uint16_t, uint32_t);
 
 extern uint8_t check_user_rule_ix_count (uint16_t, uint16_t);
 
-extern void pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
-                             enum PCL_DESTINATION, int);
-extern void pcl_mac_rule_set (uint16_t, struct mac_pcl_rule*,
-                              enum PCL_DESTINATION, int);
-extern void pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
-                               enum PCL_DESTINATION, int);
-extern void pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
-                                  enum PCL_DESTINATION, int);
+extern enum status pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
+                                    enum PCL_DESTINATION, int);
+extern enum status pcl_mac_rule_set (uint16_t, struct mac_pcl_rule*,
+                                     enum PCL_DESTINATION, int);
+extern enum status pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
+                                      enum PCL_DESTINATION, int);
+extern enum status pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
+                                         enum PCL_DESTINATION, int);
 
 extern uint64_t pcl_get_counter (uint16_t, uint16_t);
 extern void pcl_clear_counter (uint16_t, uint16_t);

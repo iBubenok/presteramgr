@@ -17,6 +17,7 @@
 #include <debug.h>
 #include <zmq.h>
 #include <czmq.h>
+#include <utlist.h>
 
 static int max_port_id[NDEVS];
 
@@ -943,6 +944,12 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
 /******************************************************************************/
 /* USER ACLs                                                                  */
 /******************************************************************************/
+#define PRINT_SEPARATOR(c, size) { \
+  char __SEPARATOR__[size];        \
+  memset (__SEPARATOR__, c, size); \
+  DEBUG("%s\r\n", __SEPARATOR__);  \
+}
+
 uint32_t
 allocate_user_rule_ix (uint16_t pid_or_vid) {
   /* Magic */
@@ -962,6 +969,15 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
   }
 }
 
+static int
+cmp_uint16_t (const void *a, const void *b)
+{
+  const uint16_t *da = (const uint16_t *) a;
+  const uint16_t *db = (const uint16_t *) b;
+
+  return (*da > *db) - (*da < *db);
+}
+
 void
 free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
   /* Magic */
@@ -970,7 +986,8 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
     int dev = port->ldev;
     if (rule_ix < PCL_TCAM_MAX_RULE_IX) {
       acl[dev].n_free++;
-      acl[dev].data[--(acl[dev].sp)] = rule_ix;
+      acl[dev].data[--(acl[dev].sp)] = (rule_ix & 0xffff);
+      qsort(acl[dev].data, acl[dev].n_free, sizeof(uint16_t), cmp_uint16_t);
     }
   } else {
     int d;
@@ -979,6 +996,7 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
       if (ix < PCL_TCAM_MAX_RULE_IX) {
         acl[d].n_free++;
         acl[d].data[--(acl[d].sp)] = ix;
+        qsort(acl[d].data, acl[d].n_free, sizeof(uint16_t), cmp_uint16_t);
       }
     }
   }
@@ -1001,16 +1019,11 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
   }
 }
 
-#define PRINT_SEPARATOR(c, size) { \
-  char __SEPARATOR__[size];        \
-  memset (__SEPARATOR__, c, size); \
-  DEBUG("%s\r\n", __SEPARATOR__);  \
-}
-
 #define get_port_ptr(port, pid) {                                           \
   if ( pid < 10000 ) {                                                      \
     port = port_ptr(pid);                                                   \
     if (!port) {                                                            \
+      status = ST_HEX;                                                      \
       DEBUG("%s: port: %d - invalid port_ptr (NULL), function returns\r\n", \
             __FUNCTION__, pid);                                             \
       goto out;                                                             \
@@ -1021,19 +1034,20 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
       goto out;                                                             \
     }                                                                       \
   } else {                                                                  \
-    port = NULL;                                                              \
+    port = NULL;                                                            \
   }                                                                         \
 }
 
-#define inactivate_rule(dev, type, rule_ix) {                      \
-  int status = CRP(cpssDxChPclRuleInvalidate(dev, type, rule_ix)); \
-  if (status != GT_OK) {                                           \
-    DEBUG("%s: %s: failed, function returns\r\n", __FUNCTION__,    \
-          "cpssDxChPclRuleInvalidate");                            \
-  } else {                                                         \
-    DEBUG("%s: ok\r\n", __FUNCTION__);                             \
-  }                                                                \
-  goto out;                                                        \
+#define inactivate_rule(dev, type, rule_ix) {                        \
+  int __status = CRP(cpssDxChPclRuleInvalidate(dev, type, rule_ix)); \
+  if (__status != GT_OK) {                                           \
+    status = __status;                                               \
+    DEBUG("%s: %s: failed, function returns\r\n", __FUNCTION__,      \
+          "cpssDxChPclRuleInvalidate");                              \
+  } else {                                                           \
+    DEBUG("%s: ok\r\n", __FUNCTION__);                               \
+  }                                                                  \
+  goto out;                                                          \
 }
 
 static int
@@ -1211,9 +1225,10 @@ set_pcl_action (uint16_t pid_or_vid, uint16_t rule_ix, uint8_t action,
 #define activate_rule(dev, type, rule_ix, rule_opt_bmp, mask, rule, act) {     \
   DEBUG("%s: activate_rule (%d, %s, %d, ...)\r\n",                             \
     __FUNCTION__, dev, #type, rule_ix);                                        \
-  int status =                                                                 \
+  int __status =                                                               \
    CRP(cpssDxChPclRuleSet(dev, type, rule_ix, rule_opt_bmp, mask, rule, act)); \
   if (status != GT_OK) {                                                       \
+    status = __status;                                                         \
     DEBUG("%s: %s: failed, function returns\r\n", __FUNCTION__,                \
           "cpssDxChPclRuleSet");                                               \
   } else {                                                                     \
@@ -1227,12 +1242,6 @@ set_pcl_action (uint16_t pid_or_vid, uint16_t rule_ix, uint8_t action,
   set_ip_protocol (rule, mask, format, ip_rule->proto);                      \
   set_src_ip (rule, mask, format, ip_rule->src_ip, ip_rule->src_ip_mask);    \
   set_dst_ip (rule, mask, format, ip_rule->dst_ip, ip_rule->dst_ip_mask);    \
-  if (is_tcp_or_udp(ip_rule->proto)) {                                       \
-    set_src_ip_port (rule, mask, format, ip_rule->src_ip_port,               \
-                     ip_rule->src_ip_port_mask);                             \
-    set_dst_ip_port (rule, mask, format, ip_rule->dst_ip_port,               \
-                     ip_rule->dst_ip_port_mask);                             \
-  }                                                                          \
   set_dscp (rule, mask, format, ip_rule->dscp, ip_rule->dscp_mask);          \
   if (ip_rule->proto == 0x01 /* ICMP */) {                                   \
     set_icmp_type (rule, mask, format, ip_rule->icmp_type,                   \
@@ -1336,12 +1345,6 @@ set_pcl_action (uint16_t pid_or_vid, uint16_t rule_ix, uint8_t action,
   set_packet_type_ipv6 (rule, mask, format);                                   \
   set_src_ipv6 (rule, mask, format, ipv6_rule->src, ipv6_rule->src_mask);      \
   set_dst_ipv6 (rule, mask, format, ipv6_rule->dst, ipv6_rule->dst_mask);      \
-  if (is_tcp_or_udp(ipv6_rule->proto)) {                                       \
-    set_src_ip_port (rule, mask, format, ipv6_rule->src_ip_port,               \
-                     ipv6_rule->src_ip_port_mask);                             \
-    set_dst_ip_port (rule, mask, format, ipv6_rule->dst_ip_port,               \
-                     ipv6_rule->dst_ip_port_mask);                             \
-  }                                                                            \
   set_dscp (rule, mask, format, ipv6_rule->dscp, ipv6_rule->dscp_mask);        \
   if (ipv6_rule->proto == 0x01 /* ICMP */) {                                   \
     set_icmp_type (rule, mask, format, ipv6_rule->icmp_type,                   \
@@ -1368,419 +1371,6 @@ const char* pcl_trap_action_to_str (enum PCL_TRAP_ACTION action) {
   }
 };
 
-void
-pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
-                 enum PCL_DESTINATION destination, int enable) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG(
-    "%s: %s: %d, enable: %s, destination: %s\r\n",
-    __FUNCTION__,
-    pid_or_vid > 10000 ? "vlan" : "port",
-    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
-    bool_to_str(enable), pcl_dest_to_str(destination)
-  );
-
-  struct port *port;
-  get_port_ptr (port, pid_or_vid);
-
-  if (!ip_rule) {
-    DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
-          __FUNCTION__);
-    goto out;
-  } else {
-    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ip_rule->rule_ix);
-  }
-
-  if (!enable) {
-    /* Magic */
-    free_user_rule_ix(pid_or_vid, ip_rule->rule_ix);
-    pcl_clear_counter(pid_or_vid, ip_rule->rule_ix);
-    if ( pid_or_vid < 10000 ) {
-      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
-    } else {
-      int d;
-      for_each_dev(d) {
-        inactivate_rule (
-          d,
-          CPSS_PCL_RULE_SIZE_EXT_E,
-          (ip_rule->rule_ix & (0xffff << d*16)) >> (d*16)
-        );
-      }
-    }
-  }
-
-  CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, ip_rule->rule_ix, ip_rule->action, ip_rule->trap_action, &act)) {
-    goto out;
-  }
-
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  memset (&rule, 0, sizeof(rule));
-  memset (&mask, 0, sizeof(mask));
-
-  switch (destination) {
-    case PCL_DESTINATION_INGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_ip_rule (port->ldev, rule, mask, ruleExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                     PORT_IPCL_ID(pid_or_vid), act, ip_rule);
-
-      } else {
-        int d;
-        uint32_t rule_ix = ip_rule->rule_ix;
-        for_each_dev(d) {
-          ip_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
-          set_ip_rule (d, rule, mask, ruleExtNotIpv6,
-                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ip_rule);
-        }
-      }
-      break;
-
-    case PCL_DESTINATION_EGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_ip_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-                     PORT_EPCL_ID(pid_or_vid), act, ip_rule);
-      } else {
-        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
-          __FUNCTION__);
-      }
-      break;
-
-    default:
-      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
-            __FUNCTION__, destination);
-  };
-
-  DEBUG("out\r\n");
-out:
-  PRINT_SEPARATOR('=', 100);
-}
-
-void
-pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
-                  enum PCL_DESTINATION destination, int enable) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG(
-    "%s: %s: %d, enable: %s, destination: %s\r\n",
-    __FUNCTION__,
-    pid_or_vid > 10000 ? "vlan" : "port",
-    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
-    bool_to_str(enable), pcl_dest_to_str(destination)
-  );
-
-  struct port *port;
-  get_port_ptr (port, pid_or_vid);
-
-  if (!mac_rule) {
-    DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
-          __FUNCTION__);
-    goto out;
-  } else {
-    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, mac_rule->rule_ix);
-  }
-
-  if (!enable) {
-    /* Magic */
-    free_user_rule_ix(pid_or_vid, mac_rule->rule_ix);
-    pcl_clear_counter(pid_or_vid, mac_rule->rule_ix);
-    if ( pid_or_vid < 10000 ) {
-      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
-    } else {
-      int d;
-      for_each_dev(d) {
-        inactivate_rule (
-          d,
-          CPSS_PCL_RULE_SIZE_EXT_E,
-          (mac_rule->rule_ix & (0xffff << d*16)) >> (d*16)
-        );
-      }
-    }
-  }
-
-  CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, mac_rule->rule_ix, mac_rule->action, mac_rule->trap_action, &act)) {
-    goto out;
-  }
-
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  memset (&rule, 0, sizeof(rule));
-  memset (&mask, 0, sizeof(mask));
-
-  switch (destination) {
-    case PCL_DESTINATION_INGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_mac_rule (port->ldev, rule, mask, ruleExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                     PORT_IPCL_ID(pid_or_vid), act, mac_rule);
-      } else {
-        int d;
-        uint32_t rule_ix = mac_rule->rule_ix;
-        for_each_dev(d) {
-          mac_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
-          set_mac_rule (d, rule, mask, ruleExtNotIpv6,
-                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, mac_rule);
-        }
-      }
-      break;
-
-    case PCL_DESTINATION_EGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_mac_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-                     PORT_EPCL_ID(pid_or_vid), act, mac_rule);
-      } else {
-        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
-          __FUNCTION__);
-      }
-      break;
-
-    default:
-      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
-            __FUNCTION__, destination);
-  };
-
-  DEBUG("out\r\n");
-out:
-  PRINT_SEPARATOR('=', 100);
-}
-
-void
-pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
-                   enum PCL_DESTINATION destination, int enable) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG(
-    "%s: %s: %d, enable: %s, destination: %s\r\n",
-    __FUNCTION__,
-    pid_or_vid > 10000 ? "vlan" : "port",
-    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
-    bool_to_str(enable), pcl_dest_to_str(destination)
-  );
-
-  struct port *port;
-  get_port_ptr (port, pid_or_vid);
-
-  if (!ipv6_rule) {
-    DEBUG("%s: ipv6_rule: invalid pointer (NULL), function returns\r\n",
-          __FUNCTION__);
-    goto out;
-  } else {
-    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ipv6_rule->rule_ix);
-  }
-
-  if (!enable) {
-    /* Magic */
-    free_user_rule_ix(pid_or_vid, ipv6_rule->rule_ix);
-    pcl_clear_counter(pid_or_vid, ipv6_rule->rule_ix);
-    if ( pid_or_vid < 10000 ) {
-      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
-    } else {
-      int d;
-      for_each_dev(d) {
-        inactivate_rule (
-          d,
-          CPSS_PCL_RULE_SIZE_EXT_E,
-          (ipv6_rule->rule_ix & (0xffff << d*16)) >> (d*16)
-        );
-      }
-    }
-  }
-
-  CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, ipv6_rule->rule_ix, ipv6_rule->action, ipv6_rule->trap_action, &act)) {
-    goto out;
-  }
-
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  memset (&rule, 0, sizeof(rule));
-  memset (&mask, 0, sizeof(mask));
-
-  switch (destination) {
-    case PCL_DESTINATION_INGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_ipv6_rule (port->ldev, rule, mask, ruleExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
-                     PORT_IPCL_ID(pid_or_vid), act, ipv6_rule);
-      } else {
-        int d;
-        uint32_t rule_ix = ipv6_rule->rule_ix;
-        for_each_dev(d) {
-          ipv6_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
-          set_ipv6_rule (d, rule, mask, ruleExtNotIpv6,
-                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ipv6_rule);
-        }
-      }
-      break;
-
-    case PCL_DESTINATION_EGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_ipv6_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
-                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E,
-                     PORT_EPCL_ID(pid_or_vid), act, ipv6_rule);
-      } else {
-        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
-          __FUNCTION__);
-      }
-      break;
-
-    default:
-      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
-            __FUNCTION__, destination);
-  };
-
-  DEBUG("out\r\n");
-out:
-  PRINT_SEPARATOR('=', 100);
-}
-
-void
-pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule,
-                      enum PCL_DESTINATION destination, int enable) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG(
-    "%s: %s: %d, enable: %s, destination: %s\r\n",
-    __FUNCTION__,
-    pid_or_vid > 10000 ? "vlan" : "port",
-    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
-    bool_to_str(enable), pcl_dest_to_str(destination)
-  );
-
-  struct port *port;
-  get_port_ptr (port, pid_or_vid);
-
-  if (!default_rule) {
-    DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
-          __FUNCTION__);
-    goto out;
-  } else {
-    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, default_rule->rule_ix);
-  }
-
-  if (!enable) {
-    /* Magic */
-    free_user_rule_ix(pid_or_vid, default_rule->rule_ix);
-    pcl_clear_counter(pid_or_vid, default_rule->rule_ix);
-    if ( pid_or_vid < 10000 ) {
-      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix);
-    } else {
-      int d;
-      for_each_dev(d) {
-        inactivate_rule (
-          d,
-          CPSS_PCL_RULE_SIZE_EXT_E,
-          (default_rule->rule_ix & (0xffff << d*16)) >> (d*16)
-        );
-      }
-    }
-  }
-
-  CPSS_DXCH_PCL_ACTION_STC act;
-  if (!set_pcl_action (pid_or_vid, default_rule->rule_ix, default_rule->action, PCL_TRAP_ACTION_NONE, &act)) {
-    goto out;
-  }
-
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  memset (&rule, 0, sizeof(rule));
-  memset (&mask, 0, sizeof(mask));
-
-  switch (destination) {
-    case PCL_DESTINATION_INGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid_or_vid));
-        activate_rule (
-          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          default_rule->rule_ix, 0, &mask, &rule, &act
-        );
-      } else {
-
-        int d;
-        uint32_t rule_ix = default_rule->rule_ix;
-        set_pcl_id (rule, mask, ruleExtNotIpv6, VLAN_IPCL_ID(pid_or_vid - 10000));
-        for_each_dev(d) {
-          rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
-          activate_rule (
-            d, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            rule_ix, 0, &mask, &rule, &act
-          );
-        }
-      }
-      break;
-
-    case PCL_DESTINATION_EGRESS:
-      if ( pid_or_vid < 10000 ) {
-        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid_or_vid));
-        activate_rule (
-          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          default_rule->rule_ix, 0, &mask, &rule, &act
-        );
-      } else {
-        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
-          __FUNCTION__);
-      }
-      break;
-
-    default:
-      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
-            __FUNCTION__, destination);
-  };
-
-  DEBUG("out\r\n");
-out:
-  PRINT_SEPARATOR('=', 100);
-}
-
-static void __attribute__ ((unused))
-pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG("Diff start.");
-
-  #ifndef diff
-    #define diff(field)                                                 \
-    {                                                                   \
-      if ( memcmp ( &( a->field ), &( b->field ), sizeof( a->field )) ) \
-        DEBUG("  %s diffs\r\n", #field);                                \
-    }
-
-    diff (rule_ix);
-    diff (action);
-    diff (proto);
-    diff (src_ip);
-    diff (src_ip_mask);
-    diff (src_ip_port);
-    diff (src_ip_port_mask);
-    diff (dst_ip);
-    diff (dst_ip_mask);
-    diff (dst_ip_port);
-    diff (dst_ip_port_mask);
-    diff (dscp);
-    diff (dscp_mask);
-    diff (icmp_type);
-    diff (icmp_type_mask);
-    diff (icmp_code);
-    diff (icmp_code_mask);
-    diff (igmp_type);
-    diff (igmp_type_mask);
-    diff (tcp_flags);
-    diff (tcp_flags_mask);
-
-    #undef diff
-  #else
-
-    DEBUG("  diff() already defined: cannot diff by fields\r\n");
-    if (memcmp(a, b, sizeof(struct ip_pcl_rule)))
-      DEBUG("  Diff result: not equal.\r\n");
-    else
-      DEBUG("  Diff result: equal.\r\n");
-
-  #endif
-
-  DEBUG("Diff end.");
-  PRINT_SEPARATOR('=', 100);
-}
-
 #define PCL_CMP_IDX_COUNT 8
 
 static struct pcl_port_cmp_idxs_stack {
@@ -1788,6 +1378,40 @@ static struct pcl_port_cmp_idxs_stack {
   int n_free;
   uint16_t data[PCL_CMP_IDX_COUNT];
 } pcl_tcp_port_cmp_idxs, pcl_udp_port_cmp_idxs;
+
+static struct pcl_port_cmp_idxs_bind* pcl_port_cmp_idxs_binds = NULL;
+
+static void
+pcl_port_cmp_idxs_binds_add (uint32_t rule_ix, uint8_t proto, uint16_t* nums)
+{
+  struct pcl_port_cmp_idxs_bind *bind = NULL;
+  if ( !(bind = (struct pcl_port_cmp_idxs_bind *) malloc(sizeof(struct pcl_port_cmp_idxs_bind))) ) {
+    DEBUG("%s: malloc error\r\n", __FUNCTION__);
+  }
+  memset(bind, 0, sizeof(struct pcl_port_cmp_idxs_bind));
+  bind->rule_ix = rule_ix;
+  bind->proto = proto;
+  memcpy(bind->nums, nums, sizeof(uint16_t)*2);
+  DL_APPEND(pcl_port_cmp_idxs_binds, bind);
+}
+
+static int
+pcl_port_cmp_idxs_binds_remove (uint32_t rule_ix, uint8_t* proto, uint16_t* nums)
+{
+  struct pcl_port_cmp_idxs_bind* bind = NULL;
+  struct pcl_port_cmp_idxs_bind* tmp = NULL;
+  int result = FALSE;
+
+  DL_FOREACH_SAFE(pcl_port_cmp_idxs_binds, bind, tmp) {
+    if (bind->rule_ix == rule_ix) {
+      memcpy(nums, bind->nums, sizeof(uint16_t)*2);
+      *proto = bind->proto;
+      DL_DELETE(pcl_port_cmp_idxs_binds, bind);
+      result = TRUE;
+    }
+  }
+  return result;
+}
 
 static void
 pcl_tcp_port_cmp_idxs_init (void)
@@ -1825,6 +1449,12 @@ pcl_tcp_port_cmp_idxs_free (const uint16_t *nums, int n)
     if (nums[i] < PCL_CMP_IDX_COUNT) {
       pcl_tcp_port_cmp_idxs.n_free++;
       pcl_tcp_port_cmp_idxs.data[--(pcl_tcp_port_cmp_idxs.sp)] = nums[i];
+      qsort(
+        pcl_tcp_port_cmp_idxs.data,
+        pcl_tcp_port_cmp_idxs.n_free,
+        sizeof(uint16_t),
+        cmp_uint16_t
+      );
     }
   }
 }
@@ -1865,13 +1495,19 @@ pcl_udp_port_cmp_idxs_free (const uint16_t *nums, int n)
     if (nums[i] < PCL_CMP_IDX_COUNT) {
       pcl_udp_port_cmp_idxs.n_free++;
       pcl_udp_port_cmp_idxs.data[--(pcl_udp_port_cmp_idxs.sp)] = nums[i];
+      qsort(
+        pcl_udp_port_cmp_idxs.data,
+        pcl_udp_port_cmp_idxs.n_free,
+        sizeof(uint16_t),
+        cmp_uint16_t
+      );
     }
   }
 }
 
 uint8_t
 pcl_port_range_set (enum PCL_DESTINATION destination,
-                    uint8_t  tcp_or_udp,
+                    uint8_t  ip_proto,
                     uint8_t  src_or_dst,
                     uint16_t min,
                     uint16_t max,
@@ -1881,14 +1517,14 @@ pcl_port_range_set (enum PCL_DESTINATION destination,
   CPSS_L4_PROTOCOL_ENT proto;
   CPSS_L4_PROTOCOL_PORT_TYPE_ENT port_type;
 
-  switch (tcp_or_udp) {
-    case 0: /* TCP */
+  switch (ip_proto) {
+    case 0x6: /* TCP */
       proto = CPSS_L4_PROTOCOL_TCP_E;
       if (!pcl_tcp_port_cmp_idxs_alloc (nums, 2)) {
         return FALSE;
       }
       break;
-    case 1: /* UDP */
+    case 0x11: /* UDP */
       proto = CPSS_L4_PROTOCOL_UDP_E;
       if (!pcl_udp_port_cmp_idxs_alloc (nums, 2)) {
         return FALSE;
@@ -1945,19 +1581,775 @@ pcl_port_range_set (enum PCL_DESTINATION destination,
 }
 
 void
-pcl_port_range_unset (uint8_t  tcp_or_udp, uint16_t *nums) /* arity of nums is 2 */
+pcl_port_range_unset (uint8_t ip_proto, uint16_t *nums) /* arity of nums is 2 */
 {
-  switch (tcp_or_udp) {
-    case 0: /* TCP */
+  switch (ip_proto) {
+    case 0x6: /* TCP */
       pcl_tcp_port_cmp_idxs_free(nums, 2);
       break;
-    case 1: /* UDP */
+    case 0x11: /* UDP */
       pcl_udp_port_cmp_idxs_free(nums, 2);
       break;
     default:
       break;
   };
 }
+
+enum status
+pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
+                 enum PCL_DESTINATION destination, int enable) {
+  int status = ST_OK;
+  PRINT_SEPARATOR('=', 100);
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
+
+  struct port *port;
+  get_port_ptr (port, pid_or_vid);
+
+  if (!ip_rule) {
+    DEBUG("%s: ip_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    status = ST_HEX;
+    goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ip_rule->rule_ix);
+  }
+
+  if (!enable) {
+    /* Magic */
+    free_user_rule_ix(pid_or_vid, ip_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, ip_rule->rule_ix);
+    uint16_t nums[2];
+    uint8_t proto = 0;
+    if (pcl_port_cmp_idxs_binds_remove(ip_rule->rule_ix, &proto, nums)) {
+      pcl_port_range_unset(proto, nums);
+      DEBUG(
+        "%s: Unset port-range comparator: nums: %d, %d\r\n",
+        __FUNCTION__,
+        nums[0],
+        nums[1]
+      );
+    };
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ip_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (ip_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (pid_or_vid, ip_rule->rule_ix, ip_rule->action, ip_rule->trap_action, &act)) {
+    status = ST_HEX;
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      if (is_tcp_or_udp(ip_rule->proto)) {
+        if (ip_rule->src_ip_port_single) {
+          set_src_ip_port (rule, mask, ruleExtNotIpv6, ip_rule->src_ip_port,
+                           ip_rule->src_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ip_rule->proto, PCL_IP_PORT_TYPE_SRC, ip_rule->src_ip_port, ip_rule->src_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleExtNotIpv6.udb[2] = bitmap;
+            mask.ruleExtNotIpv6.udb[2] = bitmap;
+            pcl_port_cmp_idxs_binds_add(ip_rule->rule_ix, ip_rule->proto, nums);
+            DEBUG(
+              "%s: Set ingress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->src_ip_port,
+              ip_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s Cannot set ingress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->src_ip_port,
+              ip_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+
+        if (ip_rule->dst_ip_port_single) {
+          set_dst_ip_port (rule, mask, ruleExtNotIpv6, ip_rule->dst_ip_port,
+                           ip_rule->dst_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ip_rule->proto, PCL_IP_PORT_TYPE_DST, ip_rule->dst_ip_port, ip_rule->dst_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleExtNotIpv6.udb[2] = bitmap;
+            mask.ruleExtNotIpv6.udb[2] = bitmap;
+            pcl_port_cmp_idxs_binds_add(ip_rule->rule_ix, ip_rule->proto, nums);
+            DEBUG(
+              "%s: Set ingress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->dst_ip_port,
+              ip_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set ingress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->dst_ip_port,
+              ip_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+      }
+
+      if ( pid_or_vid < 10000 ) {
+        set_ip_rule (port->ldev, rule, mask, ruleExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                     PORT_IPCL_ID(pid_or_vid), act, ip_rule);
+
+      } else {
+        int d;
+        uint32_t rule_ix = ip_rule->rule_ix;
+        for_each_dev(d) {
+          ip_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_ip_rule (d, rule, mask, ruleExtNotIpv6,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ip_rule);
+        }
+      }
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      if (is_tcp_or_udp(ip_rule->proto)) {
+        if (ip_rule->src_ip_port_single) {
+          set_src_ip_port (rule, mask, ruleEgrExtNotIpv6, ip_rule->src_ip_port,
+                           ip_rule->src_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ip_rule->proto, PCL_IP_PORT_TYPE_SRC, ip_rule->src_ip_port, ip_rule->src_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = bitmap;
+            mask.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = bitmap;
+            pcl_port_cmp_idxs_binds_add(ip_rule->rule_ix, ip_rule->proto, nums);
+            DEBUG(
+              "%s: Set egress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->src_ip_port,
+              ip_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set egress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->src_ip_port,
+              ip_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+
+        if (ip_rule->dst_ip_port_single) {
+          set_dst_ip_port (rule, mask, ruleEgrExtNotIpv6, ip_rule->dst_ip_port,
+                           ip_rule->dst_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ip_rule->proto, PCL_IP_PORT_TYPE_DST, ip_rule->dst_ip_port, ip_rule->dst_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = bitmap;
+            mask.ruleEgrExtNotIpv6.commonExt.egrTcpUdpPortComparator = bitmap;
+            pcl_port_cmp_idxs_binds_add(ip_rule->rule_ix, ip_rule->proto, nums);
+            DEBUG(
+              "%s: Set egress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->dst_ip_port,
+              ip_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set egress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ip_rule->dst_ip_port,
+              ip_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+      }
+
+      if ( pid_or_vid < 10000 ) {
+        set_ip_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+                     PORT_EPCL_ID(pid_or_vid), act, ip_rule);
+      } else {
+        status = ST_BAD_REQUEST;
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
+      break;
+
+    default:
+      status = ST_HEX;
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+  return status;
+}
+
+enum status
+pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
+                  enum PCL_DESTINATION destination, int enable) {
+  int status = ST_OK;
+  PRINT_SEPARATOR('=', 100);
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
+
+  struct port *port;
+  get_port_ptr (port, pid_or_vid);
+
+  if (!mac_rule) {
+    DEBUG("%s: mac_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    status = ST_HEX;
+    goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, mac_rule->rule_ix);
+  }
+
+  if (!enable) {
+    /* Magic */
+    free_user_rule_ix(pid_or_vid, mac_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, mac_rule->rule_ix);
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, mac_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (mac_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (pid_or_vid, mac_rule->rule_ix, mac_rule->action, mac_rule->trap_action, &act)) {
+    status = ST_HEX;
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      if ( pid_or_vid < 10000 ) {
+        set_mac_rule (port->ldev, rule, mask, ruleExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                     PORT_IPCL_ID(pid_or_vid), act, mac_rule);
+      } else {
+        int d;
+        uint32_t rule_ix = mac_rule->rule_ix;
+        for_each_dev(d) {
+          mac_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_mac_rule (d, rule, mask, ruleExtNotIpv6,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, mac_rule);
+        }
+      }
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      if ( pid_or_vid < 10000 ) {
+        set_mac_rule (port->ldev, rule, mask, ruleEgrExtNotIpv6,
+                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
+                     PORT_EPCL_ID(pid_or_vid), act, mac_rule);
+      } else {
+        status = ST_BAD_REQUEST;
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
+      break;
+
+    default:
+      status = ST_HEX;
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+  return status;
+}
+
+enum status
+pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
+                   enum PCL_DESTINATION destination, int enable) {
+  int status = ST_OK;
+  PRINT_SEPARATOR('=', 100);
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
+
+  struct port *port;
+  get_port_ptr (port, pid_or_vid);
+
+  if (!ipv6_rule) {
+    DEBUG("%s: ipv6_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    status = ST_HEX;
+    goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, ipv6_rule->rule_ix);
+  }
+
+  if (!enable) {
+    /* Magic */
+    free_user_rule_ix(pid_or_vid, ipv6_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, ipv6_rule->rule_ix);
+    uint16_t nums[2];
+    uint8_t proto = 0;
+    if (pcl_port_cmp_idxs_binds_remove(ipv6_rule->rule_ix, &proto, nums)) {
+      pcl_port_range_unset(proto, nums);
+      DEBUG(
+        "%s: Unset port-range comparator: nums: %d, %d\r\n",
+        __FUNCTION__,
+        nums[0],
+        nums[1]
+      );
+    };
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, ipv6_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (ipv6_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (pid_or_vid, ipv6_rule->rule_ix, ipv6_rule->action, ipv6_rule->trap_action, &act)) {
+    status = ST_HEX;
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      if (is_tcp_or_udp(ipv6_rule->proto)) {
+        if (ipv6_rule->src_ip_port_single) {
+          set_src_ip_port (rule, mask, ruleExtIpv6L4, ipv6_rule->src_ip_port,
+                           ipv6_rule->src_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ipv6_rule->proto, PCL_IP_PORT_TYPE_SRC, ipv6_rule->src_ip_port, ipv6_rule->src_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleExtIpv6L4.udb[2] = bitmap;
+            mask.ruleExtIpv6L4.udb[2] = bitmap;
+            pcl_port_cmp_idxs_binds_add(ipv6_rule->rule_ix, ipv6_rule->proto, nums);
+            DEBUG(
+              "%s: Set ingress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->src_ip_port,
+              ipv6_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s Cannot set ingress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->src_ip_port,
+              ipv6_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+
+        if (ipv6_rule->dst_ip_port_single) {
+          set_dst_ip_port (rule, mask, ruleExtIpv6L4, ipv6_rule->dst_ip_port,
+                           ipv6_rule->dst_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ipv6_rule->proto, PCL_IP_PORT_TYPE_DST, ipv6_rule->dst_ip_port, ipv6_rule->dst_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleExtIpv6L4.udb[2] = bitmap;
+            mask.ruleExtIpv6L4.udb[2] = bitmap;
+            pcl_port_cmp_idxs_binds_add(ipv6_rule->rule_ix, ipv6_rule->proto, nums);
+            DEBUG(
+              "%s: Set ingress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->dst_ip_port,
+              ipv6_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set ingress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->dst_ip_port,
+              ipv6_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+      }
+
+      if ( pid_or_vid < 10000 ) {
+        set_ipv6_rule (port->ldev, rule, mask, ruleExtIpv6L4,
+                     CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
+                     PORT_IPCL_ID(pid_or_vid), act, ipv6_rule);
+      } else {
+        int d;
+        uint32_t rule_ix = ipv6_rule->rule_ix;
+        for_each_dev(d) {
+          ipv6_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          set_ipv6_rule (d, rule, mask, ruleExtIpv6L4,
+                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
+                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ipv6_rule);
+        }
+      }
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      if (is_tcp_or_udp(ipv6_rule->proto)) {
+        if (ipv6_rule->src_ip_port_single) {
+          set_src_ip_port (rule, mask, ruleEgrExtIpv6L4, ipv6_rule->src_ip_port,
+                           ipv6_rule->src_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ipv6_rule->proto, PCL_IP_PORT_TYPE_SRC, ipv6_rule->src_ip_port, ipv6_rule->src_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleEgrExtIpv6L4.commonExt.egrTcpUdpPortComparator = bitmap;
+            mask.ruleEgrExtIpv6L4.commonExt.egrTcpUdpPortComparator = bitmap;
+            pcl_port_cmp_idxs_binds_add(ipv6_rule->rule_ix, ipv6_rule->proto, nums);
+            DEBUG(
+              "%s: Set egress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->src_ip_port,
+              ipv6_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set egress source port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->src_ip_port,
+              ipv6_rule->src_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+
+        if (ipv6_rule->dst_ip_port_single) {
+          set_dst_ip_port (rule, mask, ruleEgrExtIpv6L4, ipv6_rule->dst_ip_port,
+                           ipv6_rule->dst_ip_port_mask);
+        } else {
+          uint16_t nums[2];
+          nums[0] = 0;
+          nums[1] = 0;
+          if (pcl_port_range_set(destination, ipv6_rule->proto, PCL_IP_PORT_TYPE_DST, ipv6_rule->dst_ip_port, ipv6_rule->dst_ip_port_max, nums)) {
+            uint8_t bitmap = 0;
+            bitmap |= (uint8_t)((1 << nums[0]) & 0xff);
+            bitmap |= (uint8_t)((1 << nums[1]) & 0xff);
+            rule.ruleEgrExtIpv6L4.commonExt.egrTcpUdpPortComparator = bitmap;
+            mask.ruleEgrExtIpv6L4.commonExt.egrTcpUdpPortComparator = bitmap;
+            pcl_port_cmp_idxs_binds_add(ipv6_rule->rule_ix, ipv6_rule->proto, nums);
+            DEBUG(
+              "%s: Set egress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->dst_ip_port,
+              ipv6_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+          } else {
+            DEBUG(
+              "%s: Cannot set egress destination port-range comparator: %d - %d, nums: %d, %d\r\n",
+              __FUNCTION__,
+              ipv6_rule->dst_ip_port,
+              ipv6_rule->dst_ip_port_max,
+              nums[0],
+              nums[1]
+            );
+            status = ST_BUSY;
+            goto out;
+          }
+        }
+      }
+
+      if ( pid_or_vid < 10000 ) {
+        set_ipv6_rule (port->ldev, rule, mask, ruleEgrExtIpv6L4,
+                     CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E,
+                     PORT_EPCL_ID(pid_or_vid), act, ipv6_rule);
+      } else {
+        status = ST_BAD_REQUEST;
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
+      break;
+
+    default:
+      status = ST_HEX;
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+  return status;
+}
+
+enum status
+pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule,
+                      enum PCL_DESTINATION destination, int enable) {
+  int status = ST_OK;
+  PRINT_SEPARATOR('=', 100);
+  DEBUG(
+    "%s: %s: %d, enable: %s, destination: %s\r\n",
+    __FUNCTION__,
+    pid_or_vid > 10000 ? "vlan" : "port",
+    pid_or_vid > 10000 ? pid_or_vid - 10000 : pid_or_vid,
+    bool_to_str(enable), pcl_dest_to_str(destination)
+  );
+
+  struct port *port;
+  get_port_ptr (port, pid_or_vid);
+
+  if (!default_rule) {
+    DEBUG("%s: default_rule: invalid pointer (NULL), function returns\r\n",
+          __FUNCTION__);
+    status = ST_HEX;
+    goto out;
+  } else {
+    DEBUG("%s: rule_ix: %d\r\n", __FUNCTION__, default_rule->rule_ix);
+  }
+
+  if (!enable) {
+    /* Magic */
+    free_user_rule_ix(pid_or_vid, default_rule->rule_ix);
+    pcl_clear_counter(pid_or_vid, default_rule->rule_ix);
+    if ( pid_or_vid < 10000 ) {
+      inactivate_rule (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, default_rule->rule_ix);
+    } else {
+      int d;
+      for_each_dev(d) {
+        inactivate_rule (
+          d,
+          CPSS_PCL_RULE_SIZE_EXT_E,
+          (default_rule->rule_ix & (0xffff << d*16)) >> (d*16)
+        );
+      }
+    }
+  }
+
+  CPSS_DXCH_PCL_ACTION_STC act;
+  if (!set_pcl_action (pid_or_vid, default_rule->rule_ix, default_rule->action, PCL_TRAP_ACTION_NONE, &act)) {
+    status = ST_HEX;
+    goto out;
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  memset (&rule, 0, sizeof(rule));
+  memset (&mask, 0, sizeof(mask));
+
+  switch (destination) {
+    case PCL_DESTINATION_INGRESS:
+      if ( pid_or_vid < 10000 ) {
+        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_IPCL_ID(pid_or_vid));
+        activate_rule (
+          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          default_rule->rule_ix, 0, &mask, &rule, &act
+        );
+      } else {
+        int d;
+        uint32_t rule_ix = default_rule->rule_ix;
+        set_pcl_id (rule, mask, ruleExtNotIpv6, VLAN_IPCL_ID(pid_or_vid - 10000));
+        for_each_dev(d) {
+          rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
+          activate_rule (
+            d, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            rule_ix, 0, &mask, &rule, &act
+          );
+        }
+      }
+      break;
+
+    case PCL_DESTINATION_EGRESS:
+      if ( pid_or_vid < 10000 ) {
+        set_pcl_id (rule, mask, ruleExtNotIpv6, PORT_EPCL_ID(pid_or_vid));
+        activate_rule (
+          port->ldev, CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          default_rule->rule_ix, 0, &mask, &rule, &act
+        );
+      } else {
+        status = ST_BAD_REQUEST;
+        DEBUG("%s: EGRESS destination on VLAN ACL, function returns\r\n",
+          __FUNCTION__);
+      }
+      break;
+
+    default:
+      status = ST_HEX;
+      DEBUG("%s: destination: %d - unknown destination, function returns\r\n",
+            __FUNCTION__, destination);
+  };
+
+  DEBUG("out\r\n");
+out:
+  PRINT_SEPARATOR('=', 100);
+  return status;
+}
+
+static void __attribute__ ((unused))
+pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
+  PRINT_SEPARATOR('=', 100);
+  DEBUG("Diff start.");
+
+  #ifndef diff
+    #define diff(field)                                                 \
+    {                                                                   \
+      if ( memcmp ( &( a->field ), &( b->field ), sizeof( a->field )) ) \
+        DEBUG("  %s diffs\r\n", #field);                                \
+    }
+
+    diff (rule_ix);
+    diff (action);
+    diff (proto);
+    diff (src_ip);
+    diff (src_ip_mask);
+    diff (src_ip_port);
+    diff (src_ip_port_mask);
+    diff (dst_ip);
+    diff (dst_ip_mask);
+    diff (dst_ip_port);
+    diff (dst_ip_port_mask);
+    diff (dscp);
+    diff (dscp_mask);
+    diff (icmp_type);
+    diff (icmp_type_mask);
+    diff (icmp_code);
+    diff (icmp_code_mask);
+    diff (igmp_type);
+    diff (igmp_type_mask);
+    diff (tcp_flags);
+    diff (tcp_flags_mask);
+
+    #undef diff
+  #else
+
+    DEBUG("  diff() already defined: cannot diff by fields\r\n");
+    if (memcmp(a, b, sizeof(struct ip_pcl_rule)))
+      DEBUG("  Diff result: not equal.\r\n");
+    else
+      DEBUG("  Diff result: equal.\r\n");
+
+  #endif
+
+  DEBUG("Diff end.");
+  PRINT_SEPARATOR('=', 100);
+}
+
+
 
 /******************************************************************************/
 /* MULTICAST DROP                                                             */
@@ -2512,6 +2904,13 @@ pcl_init_port_comparators (int d) {
        (d,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
         CPSS_DXCH_PCL_PACKET_TYPE_IPV4_TCP_E,
+        2, // UDB index
+        CPSS_DXCH_PCL_OFFSET_TCP_UDP_COMPARATOR_E,
+        0));
+  CRP (cpssDxChPclUserDefinedByteSet
+       (d,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        CPSS_DXCH_PCL_PACKET_TYPE_IPV4_UDP_E,
         2, // UDB index
         CPSS_DXCH_PCL_OFFSET_TCP_UDP_COMPARATOR_E,
         0));
