@@ -2063,7 +2063,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (6):
     result = ST_OK;
-    DEBUG("Packet on VLAN #%d trapped!\r\n", frame->vid);
+    DEBUG("Packet on Port #%d trapped!\r\n", pid);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
@@ -3515,7 +3515,7 @@ DEFINE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT)
 }
 
 DEFINE_HANDLER (CC_USER_ACL_RULE) {
-  enum status result;
+  enum status result = ST_OK;
   uint16_t pid_or_vid;
   uint8_t destination;
   uint8_t rule_type;
@@ -3540,7 +3540,7 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       if ((result = POP_ARG (&ip_rule)) != ST_OK) {
         goto out;
       }
-      pcl_ip_rule_set(pid_or_vid, &ip_rule, destination, enable);
+      result = pcl_ip_rule_set(pid_or_vid, &ip_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_MAC: {
@@ -3548,7 +3548,7 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       if ((result = POP_ARG (&mac_rule)) != ST_OK) {
         goto out;
       }
-      pcl_mac_rule_set(pid_or_vid, &mac_rule, destination, enable);
+      result = pcl_mac_rule_set(pid_or_vid, &mac_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_IPV6: {
@@ -3556,7 +3556,7 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
         goto out;
       }
-      pcl_ipv6_rule_set(pid_or_vid, &ipv6_rule, destination, enable);
+      result = pcl_ipv6_rule_set(pid_or_vid, &ipv6_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_DEFAULT: {
@@ -3564,7 +3564,7 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
       if ((result = POP_ARG (&default_rule)) != ST_OK) {
         goto out;
       }
-      pcl_default_rule_set(pid_or_vid, &default_rule, destination, enable);
+      result = pcl_default_rule_set(pid_or_vid, &default_rule, destination, enable);
       break;
     }
     default:
