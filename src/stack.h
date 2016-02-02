@@ -5,6 +5,9 @@
 
 extern int stack_id;
 
+static __attribute__ ((unused)) mac_addr_t mac_pri = {0, 0x1b, 0x28, 0xff, 0xff, 0xff};
+static __attribute__ ((unused)) mac_addr_t mac_sec = {0, 0x1b, 0x28, 0xff, 0xff, 0xfe};
+
 extern void stack_start (void);
 
 static inline int

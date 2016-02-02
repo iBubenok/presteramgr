@@ -11,6 +11,7 @@
 #include <dev.h>
 #include <log.h>
 #include <vlan.h>
+#include <stackd.h>
 #include <utils.h>
 #include <sysdeps.h>
 #include <uthash.h>
@@ -1224,145 +1225,53 @@ pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
 }
 
 /******************************************************************************/
-/* MULTICAST DROP                                                             */
+/* Stack Mail TRAP                                                            */
 /******************************************************************************/
 
 static void
-pcl_setup_mc_drop (int d)
-{
+pcl_setup_stackmail_trap (port_id_t pid) {
+
+  assert(PORT_STACK_ROLE(pid - 1) != PSR_NONE);
+
+  struct port *port = port_ptr (pid);
+
   CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
   CPSS_DXCH_PCL_ACTION_STC act;
 
-  memset (&act, 0, sizeof (act));
-  act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
-  act.actionStop = GT_TRUE;
-
   memset (&mask, 0, sizeof (mask));
-  mask.ruleEgrExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleEgrExtNotIpv6.common.isL2Valid = 0xFF;
-  mask.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
-
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtNotIpv6.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
-  rule.ruleEgrExtNotIpv6.common.isL2Valid = 1;
-  rule.ruleEgrExtNotIpv6.macDa.arEther[0] = 0x01;
-
-  CRP (cpssDxChPclRuleSet
-       (d,
-        CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-        1,
-        0,
-        &mask,
-        &rule,
-        &act));
-
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleEgrExtIpv6L2.common.pclId = 0xFFFF;
-  mask.ruleEgrExtIpv6L2.common.isL2Valid = 0xFF;
-  mask.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
-
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleEgrExtIpv6L2.common.pclId = PORT_EPCL_ID (stack_sec_port->id);
-  rule.ruleEgrExtIpv6L2.common.isL2Valid = 1;
-  rule.ruleEgrExtIpv6L2.macDa.arEther[0] = 0x01;
-
-  CRP (cpssDxChPclRuleSet
-       (d,
-        CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L2_E,
-        2,
-        0,
-        &mask,
-        &rule,
-        &act));
-
-  memset (&mask, 0, sizeof (mask));
+  memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
+  mask.ruleExtNotIpv6.macDa.arEther[5] = 0xFE;
   mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+
   mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-  mask.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
+  mask.ruleExtNotIpv6.common.isIp = 0xff;
+  mask.ruleExtNotIpv6.l2Encap = 0xff;
+  mask.ruleExtNotIpv6.etherType = 0xffff;
 
   memset (&rule, 0, sizeof (rule));
-  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
   rule.ruleExtNotIpv6.common.isL2Valid = 1;
-  rule.ruleExtNotIpv6.macDa.arEther[0] = 0x01;
+  rule.ruleExtNotIpv6.common.isIp = 0;
+  rule.ruleExtNotIpv6.l2Encap = 1;
+  rule.ruleExtNotIpv6.etherType = ETH_TYPE_STACK;
+
+  memcpy(rule.ruleExtNotIpv6.macDa.arEther, mac_sec, 6);
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+  act.actionStop = GT_TRUE;
+  act.mirror.cpuCode = (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)?
+                          CPSS_NET_FIRST_USER_DEFINED_E + 6:
+                          CPSS_NET_FIRST_USER_DEFINED_E + 7;
 
   CRP (cpssDxChPclRuleSet
-       (d,
+       (port->ldev,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        3,
+        (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)? 1 : 2,
         0,
         &mask,
         &rule,
         &act));
-
-  memset (&mask, 0, sizeof (mask));
-  mask.ruleExtIpv6L2.common.pclId = 0xFFFF;
-  mask.ruleExtIpv6L2.common.isL2Valid = 0xFF;
-  mask.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
-
-  memset (&rule, 0, sizeof (rule));
-  rule.ruleExtIpv6L2.common.pclId = PORT_IPCL_ID (stack_sec_port->id);
-  rule.ruleExtIpv6L2.common.isL2Valid = 1;
-  rule.ruleExtIpv6L2.macDa.arEther[0] = 0x01;
-
-  CRP (cpssDxChPclRuleSet
-       (d,
-        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E,
-        4,
-        0,
-        &mask,
-        &rule,
-        &act));
-}
-
-enum status
-pcl_enable_mc_drop (port_id_t pid, int enable)
-{
-  struct port *port = port_ptr (pid);
-  assert(port == stack_sec_port);
-  CPSS_INTERFACE_INFO_STC iface = {
-    .type    = CPSS_INTERFACE_PORT_E,
-    .devPort = {
-      .devNum  = phys_dev (port->ldev),
-      .portNum = port->lport
-    }
-  };
-  CPSS_DXCH_PCL_LOOKUP_CFG_STC elc = {
-    .enableLookup  = gt_bool (enable),
-    .pclId         = PORT_EPCL_ID (port->id),
-    .dualLookup    = GT_FALSE,
-    .pclIdL01      = 0,
-    .groupKeyTypes = {
-      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
-      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L2_E
-    }
-  };
-  CPSS_DXCH_PCL_LOOKUP_CFG_STC ilc = {
-    .enableLookup  = gt_bool (enable),
-    .pclId         = PORT_IPCL_ID (port->id),
-    .dualLookup    = GT_FALSE,
-    .pclIdL01      = 0,
-    .groupKeyTypes = {
-      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L2_E
-    }
-  };
-
-  DEBUG ("%s mc drop\r\n", enable ? "enabling" : "disabling");
-
-  CRP (cpssDxChPclCfgTblSet
-       (port->ldev, &iface,
-        CPSS_PCL_DIRECTION_EGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &elc));
-  CRP (cpssDxChPclCfgTblSet
-       (port->ldev, &iface,
-        CPSS_PCL_DIRECTION_INGRESS_E,
-        CPSS_PCL_LOOKUP_0_E,
-        &ilc));
-
-  return ST_OK;
 }
 
 /******************************************************************************/
@@ -1667,8 +1576,10 @@ pcl_cpss_lib_init (int d)
   am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
   CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
 
-  if (stack_active())
-    pcl_setup_mc_drop (d);
+  if (stack_active() && d == stack_pri_port->ldev)
+    pcl_setup_stackmail_trap (stack_pri_port->id);
+  if (stack_active() && d == stack_sec_port->ldev)
+    pcl_setup_stackmail_trap (stack_sec_port->id);
 
   pcl_setup_ospf(d);
 

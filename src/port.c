@@ -730,6 +730,10 @@ port_setup_stack (struct port *port)
 
   CRP (cpssDxChCosTrustDsaTagQosModeSet
        (port->ldev, port->lport, GT_TRUE));
+
+  pcl_port_setup (port->id);
+  pcl_enable_port (port->id, 1);
+
 }
 
 static void
@@ -819,8 +823,6 @@ port_start (void)
     CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
          (port->ldev, port->lport, stack_id));
 
-    pcl_port_setup (port->id);
-
     if (is_stack_port (port)) {
       port_setup_stack (port);
       continue;
@@ -898,6 +900,11 @@ port_start (void)
   CRP (cpssDxChPortMruSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 12000));
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+
+  /* needed for accepting CPU forged FORWARD DSA-tagged packet */
+  CRP (cpssDxChCscdPortBridgeBypassEnableSet(CPU_DEV, 63, GT_FALSE));
+  for_each_dev(d)
+    CRP (cpssDxChBrgVlanRangeSet (d, 4095));
 
   for_each_dev (d) {
     int p;

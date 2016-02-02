@@ -10,6 +10,7 @@
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 
 #include <pthread.h>
 #include <string.h>
@@ -338,6 +339,8 @@ sysd_setup_ic (void)
       CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
            (d, dp[d][p], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+      CRP (cpssDxChBrgSrcIdPortUcastEgressFilterSet
+                   (d, dp[d][p], GT_FALSE));
       DEBUG ("*** setup device %d cascade trunk port %d\r\n", d, dp[d][p]);
     }
 

@@ -1874,7 +1874,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
   pid = port_id (frame->dev, frame->port);
-  if (!pid) {
+  if (!pid && frame->port != 63) {
     result = ST_OK;
     goto out;
   }
@@ -1998,6 +1998,14 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     route_handle_udt (frame->data, frame->len);
     goto out;
 
+  case CPU_CODE_USER_DEFINED (6):
+    stack_handle_mail (stack_pri_port->id, frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+  case CPU_CODE_USER_DEFINED (7):
+    stack_handle_mail (stack_sec_port->id, frame->data, frame->len);
+    result = ST_OK;
+    goto out;
   case CPU_CODE_MAIL:
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
