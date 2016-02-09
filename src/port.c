@@ -214,8 +214,10 @@ port_init (void)
     } else {
       ports[i].type = PTYPE_COPPER;
     }
-#elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
+#elif defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_SM_12F)
+    ports[i].type = (ports[i].id < 15) ? PTYPE_COPPER : PTYPE_COMBO;
 #elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
