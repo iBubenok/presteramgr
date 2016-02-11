@@ -728,6 +728,10 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  CRP (cpssDxChCscdRemapQosModeSet
+       (port->ldev, port->lport, CPSS_DXCH_CSCD_QOS_REMAP_ALL_E));
+  CRP (cpssDxChCscdQosPortTcRemapEnableSet
+       (port->ldev, port->lport, GT_TRUE));
   CRP (cpssDxChCosTrustDsaTagQosModeSet
        (port->ldev, port->lport, GT_TRUE));
 
@@ -902,7 +906,9 @@ port_start (void)
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
 
   /* needed for accepting CPU forged FORWARD DSA-tagged packet */
-  CRP (cpssDxChCscdPortBridgeBypassEnableSet(CPU_DEV, 63, GT_FALSE));
+  CRP (cpssDxChCscdPortBridgeBypassEnableSet(CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+  CRP (cpssDxChCosTrustDsaTagQosModeSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
   for_each_dev(d)
     CRP (cpssDxChBrgVlanRangeSet (d, 4095));
 

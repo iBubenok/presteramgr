@@ -21,6 +21,7 @@
 #include <utils.h>
 #include <pcl.h>
 #include <sysdeps.h>
+#include <qos.h>
 #include <debug.h>
 
 int stack_id = 0;
@@ -76,8 +77,10 @@ stack_start (void)
   CRP (cpssDxChBrgSrcIdGroupPortAdd
        (stack_sec_port->ldev, 0, stack_sec_port->lport));
 
-  for_each_dev (d)
+  for_each_dev (d) {
     CRP (cpssDxChBrgSrcIdGlobalUcastEgressFilterSet (d, GT_TRUE));
+    CRP (cpssDxChCscdCtrlQosSet (d, 7, CPSS_DP_GREEN_E, CPSS_DP_GREEN_E));
+  }
 
   vlan_stack_setup ();
   mcg_stack_setup ();
@@ -118,6 +121,7 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   tp.dsaInfo.forward.srcDev = 0;
   tp.dsaInfo.forward.source.portNum = 63;
   tp.dsaInfo.forward.srcId = 0;
+  tp.dsaInfo.forward.qosProfileIndex = QSP_BASE_TC + 7;
 
   CRP (cpssDxChNetIfDsaTagBuild (port->ldev, &tp, tag));
 
