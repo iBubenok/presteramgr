@@ -1261,8 +1261,8 @@ pcl_setup_stackmail_trap (port_id_t pid) {
   act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
   act.actionStop = GT_TRUE;
   act.mirror.cpuCode = (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)?
-                          CPSS_NET_FIRST_USER_DEFINED_E + 6:
-                          CPSS_NET_FIRST_USER_DEFINED_E + 7;
+                          CPSS_NET_FIRST_USER_DEFINED_E + 7:
+                          CPSS_NET_FIRST_USER_DEFINED_E + 8;
 
   CRP (cpssDxChPclRuleSet
        (port->ldev,
