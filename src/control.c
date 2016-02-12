@@ -1998,11 +1998,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     route_handle_udt (frame->data, frame->len);
     goto out;
 
-  case CPU_CODE_USER_DEFINED (6):
+  case CPU_CODE_USER_DEFINED (7):
     stack_handle_mail (stack_pri_port->id, frame->data, frame->len);
     result = ST_OK;
     goto out;
-  case CPU_CODE_USER_DEFINED (7):
+  case CPU_CODE_USER_DEFINED (8):
     stack_handle_mail (stack_sec_port->id, frame->data, frame->len);
     result = ST_OK;
     goto out;
