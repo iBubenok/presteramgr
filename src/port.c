@@ -2132,8 +2132,16 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   uint16_t mode_100mbps = 0x0003;
   uint16_t mode_1000mbps = 0x0002;
 
-#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
   if (pid > 24) {
+    mode_1000mbps = 0x0007;
+  }
+
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_SM_12F)
+  if (pid >= 15) {
     mode_1000mbps = 0x0007;
   }
 
