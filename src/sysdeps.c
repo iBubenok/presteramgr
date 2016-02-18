@@ -23,6 +23,7 @@
 #include <debug.h>
 
 size_t sysdeps_default_stack_size;
+CPSS_PORTS_BMP_STC ic0_ports_bmp = {{0,0}};
 
 static void __attribute__ ((constructor))
 get_system_params (void)
@@ -321,6 +322,8 @@ sysd_setup_ic (void)
 
     for (p = 0; p < 2; p++) {
       CPSS_PORTS_BMP_PORT_SET_MAC (&tp, dp[d][p]);
+      if (d == 0)
+        CPSS_PORTS_BMP_PORT_SET_MAC (&ic0_ports_bmp, dp[d][p]);
 
       CRP (cpssDxChCscdPortTypeSet
            (d, dp[d][p], CPSS_CSCD_PORT_DSA_MODE_EXTEND_E));

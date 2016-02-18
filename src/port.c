@@ -2436,7 +2436,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xE854, 3, 0x0040);
-
+/*
     uint16_t asd;
     do {
       usleep (30);
@@ -2446,7 +2446,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       DEBUG ("asd is %d\n", asd);
 
     } while (asd == 0x0 || asd == 0x10);
-
+*/
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xD71A, 3, 0x0001);
@@ -2505,7 +2505,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xE854, 3, 0x0050);
-
+/*
     uint16_t asd;
     do {
       usleep (30);
@@ -2515,7 +2515,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       DEBUG ("asd is %d\n", asd);
 
     } while (asd == 0x0 || asd == 0x10);
-
+*/
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xD71A, 3, 0x0001);

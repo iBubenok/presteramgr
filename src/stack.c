@@ -61,7 +61,14 @@ stack_start (void)
 
       if (i != stack_id) {
         pbm = i ? &nul_ports_bmp : &nst_ports_bmp[d];
-        CRP (cpssDxChBrgSrcIdGroupEntrySet (d, i, GT_TRUE, pbm));
+        CPSS_PORTS_BMP_STC tpbm; /* this code is executed once -> fuck the optimization */
+        tpbm.ports[0] = pbm->ports[0];
+        tpbm.ports[1] = pbm->ports[1];
+        if (d == stack_pri_port->ldev) {
+          tpbm.ports[0] |= ic0_ports_bmp.ports[0];
+          tpbm.ports[1] |= ic0_ports_bmp.ports[1];
+        }
+        CRP (cpssDxChBrgSrcIdGroupEntrySet (d, i, GT_TRUE, &tpbm));
       }
 
       if (!(dbmp & (1 << i)))
@@ -202,11 +209,11 @@ DEBUG("stack_update_dev_map(%d, %d:%d, %d)\n", dev, hops[0], hops[1], num_pp);
 
     CRP (cpssDxChCscdDevMapTableSet
          (d, dev, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
-DEBUG("cpssDxChCscdDevMapTableSet(d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)",dev, lp.linkNum);
+DEBUG("cpssDxChCscdDevMapTableSet(%d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)",d,dev, lp.linkNum);
     if (num_pp == 2) {
       CRP (cpssDxChCscdDevMapTableSet
            (d, dev + NEXTDEV_INC, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
-DEBUG("cpssDxChCscdDevMapTableSet (d, %d + NEXTDEV_INC, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)", dev, lp.linkNum);
+DEBUG("cpssDxChCscdDevMapTableSet (%d, %d + NEXTDEV_INC, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)", d, dev, lp.linkNum);
     }
   }
 }
