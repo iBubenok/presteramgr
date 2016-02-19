@@ -218,13 +218,21 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
     put_vlan_id (sg_msg, frame->vid);
     put_port_id (sg_msg, pid);
-    /* MAC: 6, 7, 8, 9 bytes */
+
+    /* Src MAC: 6, 7, 8, 9, 10, 11 bytes */
     uint8_t src_mac[6];
-    memcpy (src_mac, (frame->data)+6, 6);
+    memcpy (src_mac, (frame->data) + 6, 6);
     zmsg_addmem (sg_msg, src_mac, 6);
-    /* IP: 26, 27, 28, 29 bytes */
+
+    /* Src IP: 26, 27, 28, 29 bytes */
     uint8_t src_ip[4];
-    memcpy (src_ip, (frame->data)+26, 4);
+    uint8_t src_ip_offset = 26;
+
+    if ( is_llc_snap_frame(frame->data, frame->len) ) {
+      src_ip_offset += 8;
+    }
+
+    memcpy (src_ip, (frame->data) + src_ip_offset, 4);
     zmsg_addmem (sg_msg, src_ip, 4);
 
     pcl_source_guard_drop_enable(pid);
@@ -279,7 +287,8 @@ DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
-DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
@@ -324,6 +333,7 @@ DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
+DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
@@ -374,19 +384,25 @@ DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
 DECLARE_HANDLER (CC_PSEC_ENABLE);
 DECLARE_HANDLER (CC_PORT_GET_SERDES_CFG);
 DECLARE_HANDLER (CC_PORT_SET_SERDES_CFG);
+DECLARE_HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX);
+DECLARE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+DECLARE_HANDLER (CC_ALLOCATE_USER_RULE_IX);
+DECLARE_HANDLER (CC_FREE_USER_RULE_IX);
+DECLARE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
-
+DECLARE_HANDLER (CC_PCL_GET_COUNTER);
+DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 
@@ -408,7 +424,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
-  HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
@@ -453,6 +470,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
+  HANDLER (CC_QOS_SET_WRTD),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
@@ -503,18 +521,25 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PSEC_ENABLE),
   HANDLER (CC_PORT_GET_SERDES_CFG),
   HANDLER (CC_PORT_SET_SERDES_CFG),
+  HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX),
+  HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT),
   HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
   HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
   HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
+  HANDLER (CC_ALLOCATE_USER_RULE_IX),
+  HANDLER (CC_FREE_USER_RULE_IX),
+  HANDLER (CC_CHECK_USER_RULE_IX_COUNT),
   HANDLER (CC_USER_ACL_RULE),
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
-  HANDLER (CC_ARPD_SOCK_CONNECT)
+  HANDLER (CC_ARPD_SOCK_CONNECT),
+  HANDLER (CC_PCL_GET_COUNTER),
+  HANDLER (CC_PCL_CLEAR_COUNTER)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -1477,21 +1502,66 @@ DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE)
 {
   enum status result;
   port_id_t pid;
-  bps_t limit;
+  bool_t enable;
+  bps_t rate;
+  burst_t burst;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&limit);
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
   if (result != ST_OK)
     goto out;
 
-  result = port_set_bandwidth_limit (pid, limit);
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape (pid, enable, rate, burst);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  queueid_t qid;
+  bps_t rate;
+  burst_t burst;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&qid);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape_queue (pid, enable, qid, rate, burst);
 
  out:
   report_status (result);
@@ -1951,8 +2021,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
+    put_vid = 1;
     conform2stp_state = 1;
-    // put_vid = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
@@ -1997,6 +2067,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (6):
+    result = ST_OK;
+    DEBUG("Packet on Port #%d trapped!\r\n", pid);
+    goto out;
+
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
     if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
@@ -2025,18 +2100,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
 
-  // Mud mad hack  - added dirty duty hack? kif
-
-  unsigned char buf[60];
-
-  if ((type == CN_IPv4_IGMP_PDU) && (frame->len == 56)) {
-    memset (buf, 0, 60);
-    memcpy (buf, frame->data, frame->len);
-    zmsg_addmem (msg, buf, 60);
-  } else
-    zmsg_addmem (msg, frame->data, frame->len);
-
-  // End of Mud mad hack
+  zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {
     case CN_ARP_BROADCAST:
@@ -2198,6 +2262,21 @@ DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
     result = qos_set_wrr_queue_weights (zframe_data (frame));
   } else
     result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_WRTD)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_wrtd (enable);
 
  out:
   report_status (result);
@@ -3247,15 +3326,41 @@ DEFINE_HANDLER (CC_PORT_SET_SERDES_CFG)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  uint16_t start_ix = get_port_ip_sourceguard_rule_start_ix(pid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &start_ix, sizeof (start_ix));
+  send_reply (reply);
+  return;
+
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT)
+{
+  uint16_t count = get_per_port_ip_sourceguard_rules_count();
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &count, sizeof (count));
+  send_reply (reply);
+}
+
 DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
 {
   enum status result;
   port_id_t pid;
 
-
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_ENABLE_TRAP port#%d\r\n", pid);
 
   pcl_source_guard_trap_enable (pid);
   result = ST_OK;
@@ -3268,10 +3373,8 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
   enum status result;
   port_id_t pid;
 
-
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_DISABLE_TRAP port#%d\r\n", pid);
 
   pcl_source_guard_trap_disable (pid);
   result = ST_OK;
@@ -3284,10 +3387,8 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
   enum status result;
   port_id_t pid;
 
-
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_ENABLE_DROP port#%d\r\n", pid);
 
   pcl_source_guard_drop_enable (pid);
   result = ST_OK;
@@ -3300,10 +3401,8 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
   enum status result;
   port_id_t pid;
 
-
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_DISABLE_DROP port#%d\r\n", pid);
 
   pcl_source_guard_drop_disable (pid);
   result = ST_OK;
@@ -3321,7 +3420,6 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
   uint16_t rule_ix;
   uint8_t verify_mac;
 
-
   if ((result = POP_ARG (&pid)) != ST_OK)
     goto out;
   if ((result = POP_ARG (&mac)) != ST_OK)
@@ -3334,7 +3432,6 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
     goto out;
   if ((result = POP_ARG (&verify_mac)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_ADD rule\r\n");
 
   pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
   result = ST_OK;
@@ -3361,74 +3458,123 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_USER_ACL_RULE) {
-  DEBUG("CC_USER_ACL_RULE\r\n");
+DEFINE_HANDLER (CC_ALLOCATE_USER_RULE_IX)
+{
   enum status result;
-  port_id_t pid;
+  uint16_t pid_or_vid;
+  uint32_t rule_ix;
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+
+  rule_ix = allocate_user_rule_ix (pid_or_vid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &rule_ix, sizeof (rule_ix));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_FREE_USER_RULE_IX)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint32_t rule_ix;
+
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+
+  free_user_rule_ix (pid_or_vid, rule_ix);
+
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t count;
+  uint8_t check;
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&count)) != ST_OK)
+    goto out;
+
+  check = check_user_rule_ix_count(pid_or_vid, count);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &check, sizeof (check));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_RULE) {
+  enum status result = ST_OK;
+  uint16_t pid_or_vid;
   uint8_t destination;
   uint8_t rule_type;
   bool_t enable;
 
-  if ((result = POP_ARG (&pid)) != ST_OK) {
-    DEBUG("ST_BAD_FORMAT: pid: %d\r\n", pid);
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK) {
     goto out;
   }
   if ((result = POP_ARG (&destination)) != ST_OK) {
-    DEBUG("ST_BAD_FORMAT: destination: %d\r\n", destination);
     goto out;
   }
   if ((result = POP_ARG (&rule_type)) != ST_OK) {
-    DEBUG("ST_BAD_FORMAT: rule_type: %d\r\n", rule_type);
     goto out;
   }
   if ((result = POP_ARG (&enable)) != ST_OK) {
-    DEBUG("ST_BAD_FORMAT: enable: %d\r\n", enable);
     goto out;
   }
 
   switch (rule_type) {
     case PCL_RULE_TYPE_IP: {
       struct ip_pcl_rule ip_rule;
-      DEBUG("rule struct size: %d\r\n", sizeof(ip_rule));
       if ((result = POP_ARG (&ip_rule)) != ST_OK) {
-        DEBUG("ST_BAD_FORMAT: rule\r\n");
         goto out;
       }
-      pcl_ip_rule_set(pid, &ip_rule, destination, enable);
+      result = pcl_ip_rule_set(pid_or_vid, &ip_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_MAC: {
       struct mac_pcl_rule mac_rule;
-      DEBUG("rule struct size: %d\r\n", sizeof(mac_rule));
       if ((result = POP_ARG (&mac_rule)) != ST_OK) {
-        DEBUG("ST_BAD_FORMAT: rule\r\n");
         goto out;
       }
-      pcl_mac_rule_set(pid, &mac_rule, destination, enable);
+      result = pcl_mac_rule_set(pid_or_vid, &mac_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_IPV6: {
       struct ipv6_pcl_rule ipv6_rule;
-      DEBUG("rule struct size: %d\r\n", sizeof(ipv6_rule));
       if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
-        DEBUG("ST_BAD_FORMAT: rule\r\n");
         goto out;
       }
-      pcl_ipv6_rule_set(pid, &ipv6_rule, destination, enable);
+      result = pcl_ipv6_rule_set(pid_or_vid, &ipv6_rule, destination, enable);
       break;
     }
     case PCL_RULE_TYPE_DEFAULT: {
       struct default_pcl_rule default_rule;
-      DEBUG("rule struct size: %d\r\n", sizeof(default_rule));
       if ((result = POP_ARG (&default_rule)) != ST_OK) {
-        DEBUG("ST_BAD_FORMAT: rule\r\n");
         goto out;
       }
-      pcl_default_rule_set(pid, &default_rule, destination, enable);
+      result = pcl_default_rule_set(pid_or_vid, &default_rule, destination, enable);
       break;
     }
     default:
-      DEBUG("CC_USER_ACL_RULE: unknown rule type: %d\r\n", rule_type);
+      result = ST_HEX;
   };
 
  out:
@@ -3503,3 +3649,50 @@ DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
 
   report_status (ST_OK);
 }
+
+DEFINE_HANDLER (CC_PCL_GET_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t rule_ix;
+  uint64_t counter;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&rule_ix);
+  if (result != ST_OK)
+    goto out;
+
+  counter = pcl_get_counter(pid_or_vid, rule_ix);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &counter, sizeof(counter));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t rule_ix;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&rule_ix);
+  if (result != ST_OK)
+    goto out;
+
+  pcl_clear_counter(pid_or_vid, rule_ix);
+
+ out:
+  report_status (result);
+}
+

@@ -64,7 +64,10 @@ mcg_delete (mcg_t mcg)
 
   for_each_dev (d)
     CRP (cpssDxChBrgMcGroupDelete (d, mcg));
-
+    
+  HASH_DEL (groups, group);
+  free (group);
+  
   return ST_OK;
 }
 

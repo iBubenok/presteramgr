@@ -14,6 +14,8 @@ extern void pcl_port_enable_vt (port_id_t, int);
 extern void pcl_port_clear_vt (port_id_t);
 extern enum status pcl_enable_mc_drop (port_id_t, int);
 
+extern uint16_t get_port_ip_sourceguard_rule_start_ix (port_id_t);
+extern uint16_t get_per_port_ip_sourceguard_rules_count (void);
 extern void pcl_source_guard_trap_enable (port_id_t);
 extern void pcl_source_guard_trap_disable (port_id_t);
 extern void pcl_source_guard_drop_enable (port_id_t);
@@ -28,9 +30,21 @@ enum PCL_ACTION {
   PCL_ACTION_DENY   = 1
 };
 
+enum PCL_TRAP_ACTION {
+  PCL_TRAP_ACTION_LOG_INPUT    = 0,
+  PCL_TRAP_ACTION_DISABLE_PORT = 1,
+  PCL_TRAP_ACTION_NONE         = 2
+};
+extern const char* pcl_trap_action_to_str (enum PCL_TRAP_ACTION action);
+
 enum PCL_DESTINATION {
   PCL_DESTINATION_INGRESS = 0,
   PCL_DESTINATION_EGRESS  = 1
+};
+
+enum PCL_IP_PORT_TYPE {
+  PCL_IP_PORT_TYPE_SRC = 0,
+  PCL_IP_PORT_TYPE_DST
 };
 
 enum PCL_RULE_TYPE {
@@ -45,31 +59,36 @@ typedef struct {
 } ipv6_addr_t;
 
 struct ip_pcl_rule {
-  uint16_t  rule_ix;           /* 2  */
-  uint8_t   action;            /* 3  */
-  uint8_t   proto;             /* 4  */
-  ip_addr_t src_ip;            /* 8  */
-  ip_addr_t src_ip_mask;       /* 12 */
-  uint16_t  src_ip_port;       /* 14 */
-  uint16_t  src_ip_port_mask;  /* 16 */
-  ip_addr_t dst_ip;            /* 20 */
-  ip_addr_t dst_ip_mask;       /* 24 */
-  uint16_t  dst_ip_port;       /* 26 */
-  uint16_t  dst_ip_port_mask;  /* 28 */
-  uint8_t   dscp;              /* 29 */
-  uint8_t   dscp_mask;         /* 30 */
-  uint8_t   icmp_type;         /* 31 */
-  uint8_t   icmp_type_mask;    /* 32 */
-  uint8_t   icmp_code;         /* 33 */
-  uint8_t   icmp_code_mask;    /* 34 */
-  uint8_t   igmp_type;         /* 35 */
-  uint8_t   igmp_type_mask;    /* 36 */
-  uint8_t   tcp_flags;         /* 37 */
-  uint8_t   tcp_flags_mask;    /* 38 */
+  uint32_t  rule_ix;
+  uint8_t   action;
+  uint8_t   proto;
+  ip_addr_t src_ip;
+  ip_addr_t src_ip_mask;
+  uint8_t   src_ip_port_single;
+  uint16_t  src_ip_port;
+  uint16_t  src_ip_port_max;
+  uint16_t  src_ip_port_mask;
+  ip_addr_t dst_ip;
+  ip_addr_t dst_ip_mask;
+  uint8_t   dst_ip_port_single;
+  uint16_t  dst_ip_port;
+  uint16_t  dst_ip_port_max;
+  uint16_t  dst_ip_port_mask;
+  uint8_t   dscp;
+  uint8_t   dscp_mask;
+  uint8_t   icmp_type;
+  uint8_t   icmp_type_mask;
+  uint8_t   icmp_code;
+  uint8_t   icmp_code_mask;
+  uint8_t   igmp_type;
+  uint8_t   igmp_type_mask;
+  uint8_t   tcp_flags;
+  uint8_t   tcp_flags_mask;
+  uint8_t   trap_action;
 } __attribute__ ((packed));
 
 struct mac_pcl_rule {
-  uint16_t   rule_ix;          /* 2  */
+  uint32_t   rule_ix;          /* 2  */
   uint8_t    action;           /* 3  */
   mac_addr_t src_mac;          /* 9  */
   mac_addr_t src_mac_mask;     /* 15 */
@@ -81,43 +100,66 @@ struct mac_pcl_rule {
   vid_t      vid_mask;         /* 35 */
   uint8_t    cos;              /* 36 */
   uint8_t    cos_mask;         /* 37 */
+  uint8_t    trap_action;      /* 38 */
 } __attribute__ ((packed));
 
 struct ipv6_pcl_rule {
-  uint16_t    rule_ix;         /* 2  */
-  uint8_t     action;          /* 3  */
-  uint8_t     proto;           /* 4  */
-  ipv6_addr_t src;             /* 20 */
-  ipv6_addr_t src_mask;        /* 36 */
-  uint16_t    src_ip_port;     /* 38 */
-  uint16_t    src_ip_port_mask;/* 40 */
-  ipv6_addr_t dst;             /* 56 */
-  ipv6_addr_t dst_mask;        /* 72 */
-  uint16_t    dst_ip_port;     /* 74 */
-  uint16_t    dst_ip_port_mask;/* 76 */
-  uint8_t     dscp;            /* 77 */
-  uint8_t     dscp_mask;       /* 78 */
-  uint8_t     icmp_type;       /* 79 */
-  uint8_t     icmp_type_mask;  /* 80 */
-  uint8_t     icmp_code;       /* 81 */
-  uint8_t     icmp_code_mask;  /* 82 */
-  uint8_t     tcp_flags;       /* 83 */
-  uint8_t     tcp_flags_mask;  /* 84 */
+  uint32_t    rule_ix;
+  uint8_t     action;
+  uint8_t     proto;
+  ipv6_addr_t src;
+  ipv6_addr_t src_mask;
+  uint8_t     src_ip_port_single;
+  uint16_t    src_ip_port;
+  uint16_t    src_ip_port_max;
+  uint16_t    src_ip_port_mask;
+  ipv6_addr_t dst;
+  ipv6_addr_t dst_mask;
+  uint8_t     dst_ip_port_single;
+  uint16_t    dst_ip_port;
+  uint16_t    dst_ip_port_max;
+  uint16_t    dst_ip_port_mask;
+  uint8_t     dscp;
+  uint8_t     dscp_mask;
+  uint8_t     icmp_type;
+  uint8_t     icmp_type_mask;
+  uint8_t     icmp_code;
+  uint8_t     icmp_code_mask;
+  uint8_t     tcp_flags;
+  uint8_t     tcp_flags_mask;
+  uint8_t     trap_action;
 } __attribute__ ((packed));
 
 struct default_pcl_rule {
-  uint16_t    rule_ix;         /* 2  */
+  uint32_t    rule_ix;         /* 2  */
   uint8_t     action;          /* 3  */
 } __attribute__ ((packed));
 
-extern void pcl_ip_rule_set (port_id_t, struct ip_pcl_rule*,
-                             enum PCL_DESTINATION, int);
-extern void pcl_mac_rule_set (port_id_t, struct mac_pcl_rule*,
-                              enum PCL_DESTINATION, int);
-extern void pcl_ipv6_rule_set (port_id_t, struct ipv6_pcl_rule*,
-                               enum PCL_DESTINATION, int);
-extern void pcl_default_rule_set (port_id_t, struct default_pcl_rule*,
-                                  enum PCL_DESTINATION, int);
+struct pcl_port_cmp_idxs_bind {
+  struct pcl_port_cmp_idxs_bind *next;
+  struct pcl_port_cmp_idxs_bind *prev;
+  uint32_t rule_ix;
+  uint8_t  proto;
+  uint16_t nums[2];
+};
+
+extern uint32_t allocate_user_rule_ix (uint16_t);
+
+extern void free_user_rule_ix (uint16_t, uint32_t);
+
+extern uint8_t check_user_rule_ix_count (uint16_t, uint16_t);
+
+extern enum status pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
+                                    enum PCL_DESTINATION, int);
+extern enum status pcl_mac_rule_set (uint16_t, struct mac_pcl_rule*,
+                                     enum PCL_DESTINATION, int);
+extern enum status pcl_ipv6_rule_set (uint16_t, struct ipv6_pcl_rule*,
+                                      enum PCL_DESTINATION, int);
+extern enum status pcl_default_rule_set (uint16_t, struct default_pcl_rule*,
+                                         enum PCL_DESTINATION, int);
+
+extern uint64_t pcl_get_counter (uint16_t, uint16_t);
+extern void pcl_clear_counter (uint16_t, uint16_t);
 
 #ifndef bool_to_str
 #define bool_to_str(value) ((value) ? "true" : "false")

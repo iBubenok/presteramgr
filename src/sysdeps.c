@@ -69,13 +69,18 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeRateLimiterWindowResolutionGet
          (d, &wr));
     DEBUG ("cpssDxChNetIfCpuCodeRateLimiterWindowResolutionGet(d, %d)\n", wr);
-    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
-         (d, 1, 0xFFFFFFFF));
+
+/* Achtung! Upon changing rate limits or designated traffic classes refer and update 
+http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%BE%D1%80%D0%B8%D1%82%D0%B5%D1%82%D1%8B  */
 
 /* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP+Cisco) within 1 sec
    but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 1, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 1, 4000, 600));
+    cce_rlim.cpuCodeRateLimiterIndex = 1;
+    cce_rlim.tc = 6;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
@@ -83,9 +88,12 @@ sysd_setup_cpu_codes (void)
 
 /* allowing ARP Requests & Replies bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
-    cce_rlim.cpuCodeRateLimiterIndex = 2;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 2, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 2, 4000, 120));
+    cce_rlim.cpuCodeRateLimiterIndex = 2;
+    cce_rlim.tc = 5;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_INTERVENTION_ARP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
@@ -95,6 +103,7 @@ sysd_setup_cpu_codes (void)
 
 /* allowing trapping IGMP packets bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
+    cce_rlim.tc = 3;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_INTERVENTION_IGMP_E, &cce_rlim));
 
@@ -103,38 +112,64 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E, &cce_rlim));
 
-/* allowing trapping to kernel to be routed packets bursts within 0.1 sec
+/* allowing trapping to kernel to be routed packets bursts within 0.05 sec
    but with sustained rate 16000 pkts/sec. target: no more 25% CPU load  */
     cce_rlim.cpuCodeRateLimiterIndex = 3;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 3, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 3, 200, 1600));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ROUTE_ENTRY_TRAP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d,  CPSS_NET_IPV4_UC_ROUTE1_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce_rlim));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
 
 /* allowing trapping DHCP packets bursts within 1 sec
    but with sustained rate 100 pkts/sec. target: no more 25% CPU load  */
     cce_rlim.cpuCodeRateLimiterIndex = 4;
+    cce_rlim.tc = 1;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 4, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 4, 4000, 100));
-/*         (d, 4, 4000, 50)); */
      CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
 
     cce_rlim.cpuCodeRateLimiterIndex = 5;
+    cce_rlim.tc = 6;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 5, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 5, 4000, 1));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 2, &cce_rlim));
 
+    cce_rlim.cpuCodeRateLimiterIndex = 6;
+    cce_rlim.tc = 0;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 6, 0xFFFFFFFF));
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 6, 200, 1600));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV4_BROADCAST_PACKET_E, &cce_rlim));
+
+    cce_rlim.cpuCodeRateLimiterIndex = 7;
+    cce_rlim.tc = 3;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 7, 0xFFFFFFFF));
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 7, 4000, 60));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 5, &cce_rlim));
+
     cce.tc = 7;
+    cce_rlim.cpuCodeRateLimiterIndex = 0;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_MAIL_FROM_NEIGHBOR_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
@@ -217,7 +252,7 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3424GE) || (VARIANT_ARLAN_3226PGE)
+#elif defined (VARIANT_ARLAN_3424GE) || defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
 
 static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};
 
@@ -258,7 +293,7 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE)
+#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
 
 static int ic_ports_0[] = {26, 27};
 static unsigned xg_phys_0[] = {0x18, 0x19};

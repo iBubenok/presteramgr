@@ -220,7 +220,7 @@ PORT_STACK_ROLE (int n)
   }
 }
 
-#elif (VARIANT_ARLAN_3050PGE)
+#elif defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
 
 #define NDEVS 2
 #define NPORTS 52
@@ -272,7 +272,7 @@ PORT_STACK_ROLE (int n)
   }
 }
 
-#elif (VARIANT_ARLAN_3226PGE)
+#elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
 
 #define NDEVS 1
 #define NPORTS 28
