@@ -1943,6 +1943,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     }
     break;
 
+  case CPU_CODE_CISCO_MC_TM:
+    tipc_notify_bpdu (pid, frame->len, frame->data);
+    result = ST_OK;
+    goto out;
+    break;
+
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
     conform2stp_state = 1;

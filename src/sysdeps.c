@@ -72,12 +72,14 @@ sysd_setup_cpu_codes (void)
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 1, 0xFFFFFFFF));
 
-/* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP) within 1 sec
+/* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP+Cisco) within 1 sec
    but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 1, 4000, 600));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_CISCO_MULTICAST_MAC_RANGE_E, &cce_rlim));
 
 /* allowing ARP Requests & Replies bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
