@@ -214,8 +214,10 @@ port_init (void)
     } else {
       ports[i].type = PTYPE_COPPER;
     }
-#elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
+#elif defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_SM_12F)
+    ports[i].type = (ports[i].id < 15) ? PTYPE_COPPER : PTYPE_COMBO;
 #elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
@@ -2130,8 +2132,16 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   uint16_t mode_100mbps = 0x0003;
   uint16_t mode_1000mbps = 0x0002;
 
-#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
   if (pid > 24) {
+    mode_1000mbps = 0x0007;
+  }
+
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_SM_12F)
+  if (pid >= 15) {
     mode_1000mbps = 0x0007;
   }
 
@@ -3693,7 +3703,7 @@ port_tdr_test_start (port_id_t pid)
 
   if (port->c_shutdown)
     return ST_BAD_STATE;
-    
+
   CRP (cpssDxChPhyPortSmiRegisterRead
     (port->ldev, port->lport, 22, &page));
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -3702,11 +3712,11 @@ port_tdr_test_start (port_id_t pid)
   /* get model info */
   CRP (cpssDxChPhyPortSmiRegisterRead
     (port->ldev, port->lport, 3, &info));
-  
+
   switch(info & PRV_CPSS_PHY_MODEL_MASK)
   {
     case PRV_CPSS_DEV_E1340:
-    
+
       /* we are on page 0 now */
       CRP (cpssDxChPhyPortSmiRegisterRead
         (port->ldev, port->lport, 0, &val));
@@ -3718,7 +3728,7 @@ port_tdr_test_start (port_id_t pid)
         CRP (cpssDxChPhyPortSmiRegisterRead
           (port->ldev, port->lport, 0, &val));
       } while (val & 0x8000);
-      
+
       /* autoneg */
       autoneg = ( (val & 0x1000) ? 1 : 0 );
       if (autoneg) /* if autoneg - disable it */
@@ -3727,12 +3737,12 @@ port_tdr_test_start (port_id_t pid)
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 0, val));
       }
-    
+
       /* going to run TDR test */
       CRP (cpssDxChPhyPortSmiRegisterWrite
         (port->ldev, port->lport, 22, 0x0007));
       cpssOsTimerWkAfter(1);
-        
+
       CRP (cpssDxChPhyPortSmiRegisterRead
         (port->ldev, port->lport, 21, &val));
       val |=  0x1000  /* run VCT after breaking link */
@@ -3740,42 +3750,42 @@ port_tdr_test_start (port_id_t pid)
             + 0x0400; /* measure in meters */
       CRP (cpssDxChPhyPortSmiRegisterWrite
         (port->ldev, port->lport, 21, val));
-        
+
       /* restore autoneg if it was enable */
       if (autoneg)
       {
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 22, 0x0000));
         cpssOsTimerWkAfter(1);
-        
+
         CRP (cpssDxChPhyPortSmiRegisterRead
           (port->ldev, port->lport, 0, &val));
         val |= 0x1000;
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 0, val));
       }
-        
+
       /* restore initial page */
       CRP (cpssDxChPhyPortSmiRegisterWrite
         (port->ldev, port->lport, 22, page));
       cpssOsTimerWkAfter(1);
-           
+
       rc = GT_OK;
-    
+
       break;
     default:
-    
+
       /* restore initial page */
       CRP (cpssDxChPhyPortSmiRegisterWrite
         (port->ldev, port->lport, 22, page));
       cpssOsTimerWkAfter(1);
-  
+
       rc = cpssVctCableStatusGet
         (port->ldev, port->lport, CPSS_VCT_START_E, &st);
-        
+
       break;
   }
-  
+
   switch (rc) {
   case GT_OK:
     port->tdr_test_in_progress = 1;
@@ -3808,7 +3818,7 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
     return ST_BAD_STATE;
   else if (port->c_shutdown)
     return ST_NOT_READY;
-    
+
   CRP (cpssDxChPhyPortSmiRegisterRead
     (port->ldev, port->lport, 22, &page));
   CRP (cpssDxChPhyPortSmiRegisterWrite
@@ -3817,13 +3827,13 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
   /* get model info */
   CRP (cpssDxChPhyPortSmiRegisterRead
     (port->ldev, port->lport, 3, &info));
-  
+
   switch(info & PRV_CPSS_PHY_MODEL_MASK)
   {
     case PRV_CPSS_DEV_E1340:
-    
+
       is_e1340 = 1;
-      
+
       /* autoneg */
       CRP (cpssDxChPhyPortSmiRegisterRead
         (port->ldev, port->lport, 0, &val));
@@ -3834,12 +3844,12 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 0, val));
       }
-      
+
       /* checking whether the test is performed */
       CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 22, 0x0007));
       cpssOsTimerWkAfter(1);
-      
+
       rc = GT_NOT_READY;
       CRP (cpssDxChPhyPortSmiRegisterRead
            (port->ldev, port->lport, 21, &val));
@@ -3859,7 +3869,7 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
           /* magic value 6 */
           if (len<6) cs->pair_status[i].length = 0;
           else cs->pair_status[i].length = len-6;
-          
+
           switch( (sta >> (i*4)) & 0x000F )
           {
             case 1:
@@ -3878,12 +3888,12 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
           if (cs->pair_status[i].status != VS_NORMAL_CABLE)
             cs->ok = 0;
         }
-        
+
         /* going to make soft reset */
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 22, 0x0000));
         cpssOsTimerWkAfter(1);
-        
+
         CRP (cpssDxChPhyPortSmiRegisterRead
           (port->ldev, port->lport, 0, &val));
         val |= 0x8000; /* soft reset */
@@ -3895,40 +3905,40 @@ port_tdr_test_get_result (port_id_t pid, struct vct_cable_status *cs)
             (port->ldev, port->lport, 0, &val));
         } while (val & 0x8000);
       }
-      
+
       /* restore autoneg if it was enable */
       if (autoneg)
       {
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 22, 0x0000));
         cpssOsTimerWkAfter(1);
-        
+
         CRP (cpssDxChPhyPortSmiRegisterRead
           (port->ldev, port->lport, 0, &val));
         val |= 0x1000;
         CRP (cpssDxChPhyPortSmiRegisterWrite
           (port->ldev, port->lport, 0, val));
       }
-      
+
       /* restore initial page */
       CRP (cpssDxChPhyPortSmiRegisterWrite
            (port->ldev, port->lport, 22, page));
       cpssOsTimerWkAfter(1);
-    
+
       break;
     default:
-    
+
       /* restore initial page */
       CRP (cpssDxChPhyPortSmiRegisterWrite
         (port->ldev, port->lport, 22, page));
       cpssOsTimerWkAfter(1);
-    
+
       rc = cpssVctCableStatusGet (port->ldev, port->lport,
                                 CPSS_VCT_GET_RES_E, &st);
-                                
+
       break;
   }
-  
+
   switch (rc) {
   case GT_OK:
     port->tdr_test_in_progress = 0;
