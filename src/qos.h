@@ -3,6 +3,10 @@
 
 #include <control-proto.h>
 
+#define QSP_BASE_TC     0
+#define QSP_NUM_TC      8
+
+
 extern int mls_qos_trust;
 extern const uint8_t qos_default_wrr_weights[8];
 
