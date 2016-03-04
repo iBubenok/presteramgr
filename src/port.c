@@ -732,8 +732,16 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  CRP (cpssDxChCscdRemapQosModeSet
+       (port->ldev, port->lport, CPSS_DXCH_CSCD_QOS_REMAP_ALL_E));
+  CRP (cpssDxChCscdQosPortTcRemapEnableSet
+       (port->ldev, port->lport, GT_TRUE));
   CRP (cpssDxChCosTrustDsaTagQosModeSet
        (port->ldev, port->lport, GT_TRUE));
+
+  pcl_port_setup (port->id);
+  pcl_enable_port (port->id, 1);
+
 }
 
 static void
@@ -823,8 +831,6 @@ port_start (void)
     CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
          (port->ldev, port->lport, stack_id));
 
-    pcl_port_setup (port->id);
-
     if (is_stack_port (port)) {
       port_setup_stack (port);
       continue;
@@ -902,6 +908,13 @@ port_start (void)
   CRP (cpssDxChPortMruSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 12000));
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+
+  /* needed for accepting CPU forged FORWARD DSA-tagged packet */
+  CRP (cpssDxChCscdPortBridgeBypassEnableSet(CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+  CRP (cpssDxChCosTrustDsaTagQosModeSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+  for_each_dev(d)
+    CRP (cpssDxChBrgVlanRangeSet (d, 4095));
 
   for_each_dev (d) {
     int p;
@@ -2435,7 +2448,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xE854, 3, 0x0040);
-
+/*
     uint16_t asd;
     do {
       usleep (30);
@@ -2445,7 +2458,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       DEBUG ("asd is %d\n", asd);
 
     } while (asd == 0x0 || asd == 0x10);
-
+*/
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xD71A, 3, 0x0001);
@@ -2504,7 +2517,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xE854, 3, 0x0050);
-
+/*
     uint16_t asd;
     do {
       usleep (30);
@@ -2514,7 +2527,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       DEBUG ("asd is %d\n", asd);
 
     } while (asd == 0x0 || asd == 0x10);
-
+*/
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
                                    0xD71A, 3, 0x0001);

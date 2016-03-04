@@ -21,6 +21,7 @@
 #include <utils.h>
 #include <pcl.h>
 #include <sysdeps.h>
+#include <qos.h>
 #include <debug.h>
 
 int stack_id = 0;
@@ -60,7 +61,14 @@ stack_start (void)
 
       if (i != stack_id) {
         pbm = i ? &nul_ports_bmp : &nst_ports_bmp[d];
-        CRP (cpssDxChBrgSrcIdGroupEntrySet (d, i, GT_TRUE, pbm));
+        CPSS_PORTS_BMP_STC tpbm; /* this code is executed once -> fuck the optimization */
+        tpbm.ports[0] = pbm->ports[0];
+        tpbm.ports[1] = pbm->ports[1];
+        if (d == stack_pri_port->ldev) {
+          tpbm.ports[0] |= ic0_ports_bmp.ports[0];
+          tpbm.ports[1] |= ic0_ports_bmp.ports[1];
+        }
+        CRP (cpssDxChBrgSrcIdGroupEntrySet (d, i, GT_TRUE, &tpbm));
       }
 
       if (!(dbmp & (1 << i)))
@@ -76,8 +84,10 @@ stack_start (void)
   CRP (cpssDxChBrgSrcIdGroupPortAdd
        (stack_sec_port->ldev, 0, stack_sec_port->lport));
 
-  for_each_dev (d)
+  for_each_dev (d) {
     CRP (cpssDxChBrgSrcIdGlobalUcastEgressFilterSet (d, GT_TRUE));
+    CRP (cpssDxChCscdCtrlQosSet (d, 7, CPSS_DP_GREEN_E, CPSS_DP_GREEN_E));
+  }
 
   vlan_stack_setup ();
   mcg_stack_setup ();
@@ -97,9 +107,11 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
 
   switch (role) {
   case PSR_PRIMARY:
+    memcpy(data, mac_pri, 6);
     port = stack_pri_port;
     break;
   case PSR_SECONDARY:
+    memcpy(data, mac_sec, 6);
     port = stack_sec_port;
     break;
   default:
@@ -112,16 +124,12 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   memset (&tp, 0, sizeof (tp));
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
   tp.commonParams.vid = 4095;
-  tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
-  tp.dsaInfo.fromCpu.tc = 7;
-  tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = phys_dev (port->ldev);
-  tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = port->lport;
-  tp.dsaInfo.fromCpu.cascadeControl = GT_FALSE;
-  tp.dsaInfo.fromCpu.extDestInfo.devPort.mailBoxToNeighborCPU = GT_TRUE;
-  tp.dsaInfo.fromCpu.srcDev = stack_id;
-//  tp.dsaInfo.fromCpu.srcId = stack_id;
-  tp.dsaInfo.fromCpu.srcId = 0;
+  tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FORWARD_E;
+  tp.dsaInfo.forward.srcDev = 0;
+  tp.dsaInfo.forward.source.portNum = 63;
+  tp.dsaInfo.forward.srcId = 0;
+  tp.dsaInfo.forward.qosProfileIndex = QSP_BASE_TC + 7;
+
   CRP (cpssDxChNetIfDsaTagBuild (port->ldev, &tp, tag));
 
   mgmt_send_gen_frame (tag, data, len);
@@ -136,7 +144,6 @@ stack_handle_mail (port_id_t pid, uint8_t *data, size_t len)
 
   if (!port || !is_stack_port (port))
     return;
-
   cn_mail (port->stack_role, data, len);
 }
 
@@ -156,25 +163,6 @@ stack_port_get_state (enum port_stack_role role)
   }
 }
 
-static void __attribute__ ((unused))
-stack_enable_mc_filter (int en)
-{
-  static int enable = 0;
-
-  en = !!en;
-  if (en == enable)
-    return;
-
-  enable = en;
-  CRP (cpssDxChBrgPortEgrFltUnkEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
-  CRP (cpssDxChBrgPortEgrFltUregMcastEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
-  CRP (cpssDxChBrgPortEgrFltUregBcEnable
-       (stack_sec_port->ldev, stack_sec_port->lport, gt_bool (enable)));
-  pcl_enable_mc_drop (stack_sec_port->id, enable);
-}
-
 static void
 stack_update_ring (int new_ring, uint32_t new_dev_bmp)
 {
@@ -184,7 +172,6 @@ stack_update_ring (int new_ring, uint32_t new_dev_bmp)
 
   ring = new_ring;
   dev_bmp = new_dev_bmp;
-//  stack_enable_mc_filter (ring && !(dev_bmp & dev_mask));
 }
 
 static void
@@ -222,10 +209,12 @@ DEBUG("stack_update_dev_map(%d, %d:%d, %d)\n", dev, hops[0], hops[1], num_pp);
 
     CRP (cpssDxChCscdDevMapTableSet
          (d, dev, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
-DEBUG("cpssDxChCscdDevMapTableSet(d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)",dev, lp.linkNum);
-    if (num_pp == 2)
+DEBUG("cpssDxChCscdDevMapTableSet(%d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)",d,dev, lp.linkNum);
+    if (num_pp == 2) {
       CRP (cpssDxChCscdDevMapTableSet
            (d, dev + NEXTDEV_INC, 0, &lp, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E));
+DEBUG("cpssDxChCscdDevMapTableSet (%d, %d + NEXTDEV_INC, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)", d, dev, lp.linkNum);
+    }
   }
 }
 

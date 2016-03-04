@@ -6,6 +6,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
 
 #include <mac.h>
+#include <stack.h>
 #include <zcontext.h>
 #include <port.h>
 #include <vlan.h>
@@ -703,5 +704,17 @@ mac_start (void)
   assert (ctl_sock);
   zsocket_connect (ctl_sock, FDB_CONTROL_EP);
 
+  if (stack_active()) {
+    struct mac_op_arg mo;
+    memset(&mo, 0, sizeof(mo));
+    mo.vid = 4095;
+    mo.port = stack_pri_port->id;
+    mo.type = MET_STATIC;
+    memcpy(mo.mac, mac_pri, 6);
+    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+    mo.port = stack_sec_port->id;
+    memcpy(mo.mac, mac_sec, 6);
+    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+  }
   return ST_OK;
 }
