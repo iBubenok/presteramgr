@@ -16,6 +16,12 @@
 
 struct trunk trunks[TRUNK_MAX];
 
+void set_balance_mode_ip ();
+void set_balance_mode_ip_port ();
+void set_balance_mode_mac ();
+void set_balance_mode_mac_ip ();
+void set_balance_mode_mac_ip_port ();
+
 static void
 trunk_lib_init (void)
 {
@@ -35,10 +41,9 @@ trunk_init (void)
 
   for_each_dev (dev) {
     CRP (cpssDxChTrunkHashGlobalModeSet (dev, CPSS_DXCH_TRUNK_LBH_PACKETS_INFO_E));
-    CRP (cpssDxChTrunkHashIpModeSet (dev, GT_TRUE));
-    CRP (cpssDxChTrunkHashL4ModeSet (dev, GT_TRUE));
-    CRP (cpssDxChTrunkHashIpAddMacModeSet (dev, GT_TRUE));
   }
+
+  set_balance_mode_ip_port();
 
   memset (trunks, 0, sizeof (trunks));
 }
@@ -88,4 +93,83 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
     CRP (cpssDxChTrunkMembersSet (dev, trunk, ne, e, nd, d));
 
   return ST_OK;
+}
+
+enum status
+trunk_set_balance_mode(traffic_balance_mode_t mode)
+{
+  switch (mode) {
+    case TBM_IP:          set_balance_mode_ip (mode); break;
+    case TBM_IP_PORT:     set_balance_mode_ip_port (mode); break;
+    case TBM_MAC:         set_balance_mode_mac (mode); break;
+    case TBM_MAC_IP:      set_balance_mode_mac_ip (mode); break;
+    case TBM_MAC_IP_PORT: set_balance_mode_mac_ip_port (mode); break;
+    default:              return ST_BAD_VALUE;
+  }
+
+  return ST_OK;
+}
+
+/*** internal functions ***/
+
+void
+set_balance_mode_ip ()
+{
+  int dev;
+
+  for_each_dev (dev) {
+    cpssDxChTrunkHashIpModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashIpAddMacModeSet (dev, GT_FALSE);
+    cpssDxChTrunkHashL4ModeSet (dev, CPSS_DXCH_TRUNK_L4_LBH_DISABLED_E);
+  }
+}
+
+void
+set_balance_mode_ip_port ()
+{
+  int dev;
+
+  for_each_dev (dev) {
+    cpssDxChTrunkHashIpModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashIpAddMacModeSet (dev, GT_FALSE);
+    cpssDxChTrunkHashL4ModeSet (dev, CPSS_DXCH_TRUNK_L4_LBH_LONG_E);
+    cpssDxChTrunkHashIpv6ModeSet (dev, CPSS_DXCH_TRUNK_IPV6_HASH_MSB_LSB_SIP_DIP_FLOW_E);
+  }
+}
+
+void
+set_balance_mode_mac ()
+{
+  int dev;
+
+  for_each_dev (dev) {
+    cpssDxChTrunkHashIpModeSet (dev, GT_FALSE);
+    cpssDxChTrunkHashIpAddMacModeSet (dev, GT_TRUE);
+  }
+}
+
+void
+set_balance_mode_mac_ip ()
+{
+  int dev;
+
+  for_each_dev (dev) {
+    cpssDxChTrunkHashIpModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashIpAddMacModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashL4ModeSet (dev, CPSS_DXCH_TRUNK_L4_LBH_DISABLED_E);
+    cpssDxChTrunkHashIpv6ModeSet (dev, CPSS_DXCH_TRUNK_IPV6_HASH_LSB_SIP_DIP_E);
+  }
+}
+
+void
+set_balance_mode_mac_ip_port ()
+{
+  int dev;
+
+  for_each_dev (dev) {
+    cpssDxChTrunkHashIpModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashIpAddMacModeSet (dev, GT_TRUE);
+    cpssDxChTrunkHashL4ModeSet (dev, CPSS_DXCH_TRUNK_L4_LBH_LONG_E);
+    cpssDxChTrunkHashIpv6ModeSet (dev, CPSS_DXCH_TRUNK_IPV6_HASH_MSB_LSB_SIP_DIP_FLOW_E);
+  }
 }
