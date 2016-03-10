@@ -2413,7 +2413,6 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
   /* PHY must be configured first */
   if (mode == PSM_1000) {
-<<<<<<< HEA
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0000, 1, 0x8000);
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0000);
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC302, 1, 0x0004);
