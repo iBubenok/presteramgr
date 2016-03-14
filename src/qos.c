@@ -86,7 +86,7 @@ qos_start (void)
   queue_id_t cos_map[8] = { 2, 0, 1, 3, 4, 5, 6, 7 };
   int i, d;
 
-  for (i = 0; i < 8; i++) {
+  for (i = QSP_BASE_TC; i < QSP_BASE_TC + QSP_NUM_TC; i++) {
     CPSS_DXCH_COS_PROFILE_STC prof = {
       .dropPrecedence = CPSS_DP_GREEN_E,
       .userPriority = 0,

@@ -30,6 +30,8 @@ struct pm {
   uint8_t port;
 };
 
+extern CPSS_PORTS_BMP_STC ic0_ports_bmp;
+
 #if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
 
 #define NDEVS 1

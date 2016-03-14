@@ -89,7 +89,8 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
         fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E &&
         ((p = port_id (fdb[i].me.dstInterface.devPort.devNum,
                       fdb[i].me.dstInterface.devPort.portNum)) &&
-         (pid == ALL_PORTS || pid == p))) {
+         (pid == ALL_PORTS || pid == p))
+        && fdb[i].me.key.key.macVlan.vlanId != 4095) {
       struct {
         struct mac_entry me;
         port_id_t ports[1];

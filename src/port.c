@@ -214,8 +214,10 @@ port_init (void)
     } else {
       ports[i].type = PTYPE_COPPER;
     }
-#elif defined (VARIANT_FE) /* also implying PFE and SM-12F (see variant.h) */
+#elif defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_SM_12F)
+    ports[i].type = (ports[i].id < 15) ? PTYPE_COPPER : PTYPE_COMBO;
 #elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
@@ -730,8 +732,16 @@ port_setup_stack (struct port *port)
   CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
        (port->ldev, port->lport, CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
+  CRP (cpssDxChCscdRemapQosModeSet
+       (port->ldev, port->lport, CPSS_DXCH_CSCD_QOS_REMAP_ALL_E));
+  CRP (cpssDxChCscdQosPortTcRemapEnableSet
+       (port->ldev, port->lport, GT_TRUE));
   CRP (cpssDxChCosTrustDsaTagQosModeSet
        (port->ldev, port->lport, GT_TRUE));
+
+  pcl_port_setup (port->id);
+  pcl_enable_port (port->id, 1);
+
 }
 
 static void
@@ -821,8 +831,6 @@ port_start (void)
     CRP (cpssDxChBrgSrcIdPortDefaultSrcIdSet
          (port->ldev, port->lport, stack_id));
 
-    pcl_port_setup (port->id);
-
     if (is_stack_port (port)) {
       port_setup_stack (port);
       continue;
@@ -900,6 +908,13 @@ port_start (void)
   CRP (cpssDxChPortMruSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 12000));
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+
+  /* needed for accepting CPU forged FORWARD DSA-tagged packet */
+  CRP (cpssDxChCscdPortBridgeBypassEnableSet(CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_FALSE));
+  CRP (cpssDxChCosTrustDsaTagQosModeSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+  for_each_dev(d)
+    CRP (cpssDxChBrgVlanRangeSet (d, 4095));
 
   for_each_dev (d) {
     int p;
@@ -2144,8 +2159,16 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   uint16_t mode_100mbps = 0x0003;
   uint16_t mode_1000mbps = 0x0002;
 
-#if defined (VARIANT_FE) || defined (VARIANT_ARLAN_3424PFE)
+#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
   if (pid > 24) {
+    mode_1000mbps = 0x0007;
+  }
+
+  else {
+    return GT_BAD_PARAM;
+  }
+#elif defined (VARIANT_SM_12F)
+  if (pid >= 15) {
     mode_1000mbps = 0x0007;
   }
 
@@ -2404,58 +2427,23 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
 
   /* PHY must be configured first */
   if (mode == PSM_1000) {
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0000, 1, 0x8000);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC300, 1, 0x0000);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC302, 1, 0x0004);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC319, 1, 0x0088);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC31A, 1, 0x0098);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0026, 3, 0x0E00);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0027, 3, 0x1012);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0028, 3, 0xA528);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0029, 3, 0x0003);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC300, 1, 0x0002);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xE854, 3, 0x00C0);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xE854, 3, 0x0040);
-
-    uint16_t asd;
-    do {
-      usleep (30);
-      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xD7FD, 3, &asd);
-
-      DEBUG ("asd is %d\n", asd);
-
-    } while (asd == 0x0 || asd == 0x10);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0000, 1, 0x8000);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0000);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC302, 1, 0x0004);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC319, 1, 0x0088);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC31A, 1, 0x0098);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0026, 3, 0x0E00);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0027, 3, 0x1012);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0028, 3, 0xA528);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0029, 3, 0x0003);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0002);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xE854, 3, 0x00C0);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xE854, 3, 0x0040);
 
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xD71A, 3, 0x0001);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xD71A, 3, 0x0001);
 
     /* End of PHY configuration. Now configure Prestera and SERDES */
-
     cpssDxChPortInterfaceModeSet (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_SGMII_E);
     cpssDxChPortSpeedAutoNegEnableSet(port->ldev, port->lport, GT_FALSE);
     cpssDxChPortSpeedSet(port->ldev, port->lport, CPSS_PORT_SPEED_1000_E);
@@ -2467,61 +2455,23 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   }
 
   else if (mode == PSM_10G) {
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0000, 1, 0x8000);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC300, 1, 0x0000);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC05F, 4, 0x0000);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC05F, 4, 0x3C00);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC302, 1, 0x0004);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC319, 1, 0x0038);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC31A, 1, 0x0098);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0026, 3, 0x0E00);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0027, 3, 0x0812);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0028, 3, 0xA528);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0x0029, 3, 0x0003);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xC300, 1, 0x0002);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xE854, 3, 0x00C0);
-
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xE854, 3, 0x0050);
-
-    uint16_t asd;
-    do {
-      usleep (30);
-      cpssXsmiPortGroupRegisterRead (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xD7FD, 3, &asd);
-
-      DEBUG ("asd is %d\n", asd);
-
-    } while (asd == 0x0 || asd == 0x10);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0000, 1, 0x8000);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0000);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC05F, 4, 0x0000);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC05F, 4, 0x3C00);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC302, 1, 0x0004);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC319, 1, 0x0038);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC31A, 1, 0x0098);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0026, 3, 0x0E00);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0027, 3, 0x0812);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0028, 3, 0xA528);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0029, 3, 0x0003);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0002);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xE854, 3, 0x00C0);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xE854, 3, 0x0050);
 
     /* Enable DOM periodic update (see p. 31 of QT2025 firmware release note) */
-    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, 0x18 + port->lport - 24,
-                                   0xD71A, 3, 0x0001);
+    cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xD71A, 3, 0x0001);
 
     CRP (cpssDxChPortInterfaceModeSet
          (port->ldev, port->lport, CPSS_PORT_INTERFACE_MODE_XGMII_E));
@@ -2530,7 +2480,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     CRP (cpssDxChPortSerdesPowerStatusSet
          (port->ldev, port->lport, CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
     CRP (cpssXsmiPortGroupRegisterWrite
-         (port->ldev, 1, 0x18 + port->lport - 24, 0xD70D, 3, 0x0020));
+         (port->ldev, 1, port->lport, 0xD70D, 3, 0x0020));
   }
 
   else return GT_BAD_PARAM;
