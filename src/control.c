@@ -403,6 +403,7 @@ DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 DECLARE_HANDLER (CC_PCL_GET_COUNTER);
 DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
+DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 
@@ -539,7 +540,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VRRP_SET_MAC),
   HANDLER (CC_ARPD_SOCK_CONNECT),
   HANDLER (CC_PCL_GET_COUNTER),
-  HANDLER (CC_PCL_CLEAR_COUNTER)
+  HANDLER (CC_PCL_CLEAR_COUNTER),
+  HANDLER (CC_LOAD_BALANCE_MODE)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -3698,3 +3700,17 @@ DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_LOAD_BALANCE_MODE)
+{
+  enum status result;
+  traffic_balance_mode_t mode;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = trunk_set_balance_mode (mode);
+
+  out:
+    report_status (result);
+}
