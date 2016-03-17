@@ -44,6 +44,13 @@ AC_ARG_WITH([arpd],
   [arpd=/usr/include/arpd])
 AC_SUBST([arpd])
 
+AC_ARG_WITH([stackd],
+  [AS_HELP_STRING([--with-stackd=PATH],
+                  [specify the STACKD templates location])],
+  [stackd=`readlink -f $withval`],
+  [stackd=/usr/include/stackd])
+AC_SUBST([stackd])
+
 AC_ARG_WITH([linux-headers],
   [AS_HELP_STRING([--with-linux-headers=PATH],
                   [specify the Linux header files location])],
@@ -63,6 +70,11 @@ case "$variant" in
      sm-12f)        AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
      arlan-3424pfe) AC_DEFINE([VARIANT_ARLAN_3424PFE], [1], [Arlan-3424PFE variant]) ;;
      arlan-3448pge) AC_DEFINE([VARIANT_ARLAN_3448PGE], [1], [Arlan-3448PGE variant]) ;;
+     arlan-3448ge)  AC_DEFINE([VARIANT_ARLAN_3448GE], [1], [Arlan-3448GE variant]) ;;
+     arlan-3226pge) AC_DEFINE([VARIANT_ARLAN_3226PGE], [1], [Arlan-3226PGE variant]) ;;
+     arlan-3226ge)  AC_DEFINE([VARIANT_ARLAN_3226GE], [1], [Arlan-3226GE variant]) ;;
+     arlan-3050pge) AC_DEFINE([VARIANT_ARLAN_3050PGE], [1], [Arlan-3050PGE variant]) ;;
+     arlan-3050ge)  AC_DEFINE([VARIANT_ARLAN_3050GE], [1], [Arlan-3050GE variant]) ;;
      *)             AC_MSG_ERROR([unsupported variant]) ;;
 esac
 

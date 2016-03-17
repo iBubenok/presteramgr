@@ -86,6 +86,7 @@
 #include <qos.h>
 #include <pdsa.h>
 #include <mac.h>
+#include <sec.h>
 #include <wnct.h>
 #include <ip.h>
 #include <zcontext.h>
@@ -100,6 +101,7 @@
 #include <tipc.h>
 #include <trunk.h>
 #include <presteramgr.h>
+#include <mll.h>
 
 int just_reset = 0;
 
@@ -294,7 +296,7 @@ dxChPortBufMgInit (IN GT_U8 dev)
     }
   };
 
-  CRP (cpssDxChPortBuffersModeSet (dev, CPSS_DXCH_PORT_BUFFERS_MODE_DIVIDED_E));
+  CRP (cpssDxChPortBuffersModeSet (dev, CPSS_DXCH_PORT_BUFFERS_MODE_SHARED_E));
 
   /* CPSS should config profile 0 and 1. */
   /* Set default settings for Flow Control Profiles: */
@@ -346,9 +348,17 @@ port_setup_td (int d)
   CPSS_PORT_TX_Q_TAIL_DROP_PROF_TC_PARAMS tdp;
   int i;
 
+#ifdef VARIANT_FE
+  CRP (cpssDxChPortTxMcastPcktDescrLimitSet (d, 896 / 128));
+#else //VARIANT_GE
   CRP (cpssDxChPortTxMcastPcktDescrLimitSet (d, 1664 / 128));
+#endif
   CRP (cpssDxChPortTxSharingGlobalResourceEnableSet (d, GT_TRUE));
+#ifdef VARIANT_FE
+  CRP (cpssDxChPortTxSharedGlobalResourceLimitsSet (d, 1056, 1056));
+#else //VARIANT_GE
   CRP (cpssDxChPortTxSharedGlobalResourceLimitsSet (d, 1848, 1848));
+#endif
   CRP (cpssDxChPortTxDp1SharedEnableSet (d, GT_FALSE));
   CRP (cpssDxChPortTxSharedPolicySet
        (d, CPSS_DXCH_PORT_TX_SHARED_POLICY_CONSTRAINED_E));
@@ -366,30 +376,48 @@ port_setup_td (int d)
   memset (&tdp, 0, sizeof (tdp));
 
   /* Network ports. */
+#ifdef VARIANT_FE
   CRP (cpssDxChPortTxTailDropProfileSet
-       (d, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_TRUE, 528, 88));
+       (d, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_FALSE, 264, 44));
+  tdp.dp0MaxBuffNum = 12;
+  tdp.dp0MaxDescrNum = 12;
+  tdp.dp1MaxBuffNum = 7;
+  tdp.dp1MaxDescrNum = 7;
+#else //VARIANT_GE
+  CRP (cpssDxChPortTxTailDropProfileSet
+       (d, CPSS_PORT_TX_DROP_PROFILE_2_E, GT_FALSE, 528, 88));
   tdp.dp0MaxBuffNum = 18;
   tdp.dp0MaxDescrNum = 18;
   tdp.dp1MaxBuffNum = 12;
   tdp.dp1MaxDescrNum = 12;
+#endif
   for (i = 0; i < 8; i++)
     CRP (cpssDxChPortTx4TcTailDropProfileSet
          (d, CPSS_PORT_TX_DROP_PROFILE_2_E, i, &tdp));
 
   /* Cascade ports. */
+#ifdef VARIANT_FE
   CRP (cpssDxChPortTxTailDropProfileSet
-       (d, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_TRUE, 1848, 308));
+       (d, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_FALSE, 1056, 176));
+  tdp.dp0MaxBuffNum = 36;
+  tdp.dp0MaxDescrNum = 24;
+  tdp.dp1MaxBuffNum = 36;
+  tdp.dp1MaxDescrNum = 24;
+#else //VARIANT_GE
+  CRP (cpssDxChPortTxTailDropProfileSet
+       (d, CPSS_PORT_TX_DROP_PROFILE_3_E, GT_FALSE, 1848, 308));
   tdp.dp0MaxBuffNum = 40;
   tdp.dp0MaxDescrNum = 28;
   tdp.dp1MaxBuffNum = 40;
   tdp.dp1MaxDescrNum = 28;
+#endif
   for (i = 0; i < 8; i++)
     CRP (cpssDxChPortTx4TcTailDropProfileSet
          (d, CPSS_PORT_TX_DROP_PROFILE_3_E, i, &tdp));
 
   /* CPU port. */
   CRP (cpssDxChPortTxTailDropProfileSet
-       (d, CPSS_PORT_TX_DROP_PROFILE_1_E, GT_TRUE, 264, 44));
+       (d, CPSS_PORT_TX_DROP_PROFILE_1_E, GT_FALSE, 264, 44));
   tdp.dp0MaxBuffNum = 8;
   tdp.dp0MaxDescrNum = 8;
   tdp.dp1MaxBuffNum = 8;
@@ -405,6 +433,7 @@ port_setup_td (int d)
        (d, CPSS_PORT_TX_DROP_PROFILE_1_E, 7, &tdp));
 
   CRP (cpssDxChPortTxTailDropUcEnableSet (d, GT_TRUE));
+  CRP (cpssDxChPortTxBufferTailDropEnableSet (d, GT_TRUE));
   CRP (cpssDxChPortTxRandomTailDropEnableSet (d, GT_TRUE));
 }
 
@@ -647,6 +676,9 @@ after_init (int d)
 static void
 do_reset (void)
 {
+#ifdef VARIANT_ARLAN_3050PGE
+  return; /* TODO  3050 only */
+#endif
   CPSS_PP_DEVICE_TYPE dev_type;
   int i;
 
@@ -764,6 +796,7 @@ init_cpss (void)
   port_start ();
   dgasp_init ();
   pdsa_init ();
+  mll_init ();
   ip_start ();
 
   for_each_dev (i) {
@@ -790,12 +823,17 @@ cpss_start (void)
     return;
   }
 
+  event_start_notify_thread();
+
   init_cpss ();
   if (just_reset) {
     exit (EXIT_SUCCESS);
   }
 
   event_init ();
+
+  INFO ("init security breach subsystem\n");
+  sec_init ();
 
   INFO ("init control interface\n");
   control_init ();
@@ -808,6 +846,9 @@ cpss_start (void)
 
   INFO ("start control interface\n");
   control_start ();
+
+  INFO ("start security breach subsystem\n");
+  sec_start ();
 
   INFO ("start routing subsystem");
   route_start ();

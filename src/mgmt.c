@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <linux/pdsa-mgmt.h>
 #include <pthread.h>
+#include <sys/prctl.h>
 #include <mgmt.h>
 #include <port.h>
 #include <control.h>
@@ -19,7 +20,7 @@
 #include <debug.h>
 #include <log.h>
 
-#define MAX_PAYLOAD 1024
+#define MAX_PAYLOAD 2048
 
 static int sock;
 static void *inp_sock;
@@ -77,8 +78,14 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
   struct pdsa_spec_frame *frame = NLMSG_DATA (nlh);
   port_id_t pid = port_id (frame->dev, frame->port);
 
-  if (!pid) {
+  if (!pid && frame->port != 63) {
     ERR ("invalid port spec %d-%d\n", frame->dev, frame->port);
+    return;
+  }
+
+  if (PDSA_SPEC_FRAME_SIZE (frame->len) > MAX_PAYLOAD) {
+    ERR ("CPU captured oversized for %u bytes buffer frame in %u bytes\n",
+        MAX_PAYLOAD - sizeof(struct pdsa_spec_frame), frame->len);
     return;
   }
 
@@ -135,6 +142,8 @@ mgmt_thread (void *unused)
     ERR ("mgmt_tx(): %s\r\n", strerror (errno));
     return NULL;
   }
+
+  prctl(PR_SET_NAME, "mgmt", 0, 0, 0);
 
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {
@@ -221,6 +230,22 @@ mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
   memcpy (frame->data + 20, data + 12, len - 12);
 
   mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (full_len));
+
+  free (frame);
+}
+
+void
+mgmt_inject_frame (vid_t vid, const void *data, size_t len)
+{
+  struct pdsa_inj_frame *frame;
+
+  frame = malloc (PDSA_INJ_FRAME_SIZE (len));
+  frame->iface_type = PDSA_MGMT_IFTYPE_VLAN;
+  frame->iface.vid = vid;
+  frame->len = len;
+  memcpy (frame->data, data, len);
+
+  mgmt_tx (0, PDSA_MGMT_INJECT_FRAME, frame, PDSA_INJ_FRAME_SIZE (len));
 
   free (frame);
 }

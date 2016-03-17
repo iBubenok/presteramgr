@@ -23,6 +23,7 @@
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
+stp_state_t stg_state[NPORTS][256];
 
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
@@ -323,6 +324,36 @@ vlan_add (vid_t vid)
 }
 
 enum status
+vlan_add_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+    	vid_t v;
+    	for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+    		if ( (result = vlan_add (v)) != ST_OK ) {
+    			return result;
+    		}
+    	}
+      if (size) {
+    	  arr += 2;
+    	  size -= 2;
+      }
+    } else {
+    	if ( (result = vlan_add (*arr)) != ST_OK ) {
+    			return result;
+    	}
+      if (size) {
+    	  arr++;
+    	  size--;
+      }
+    }
+  }
+  return ST_OK;
+}
+
+enum status
 vlan_delete (vid_t vid)
 {
   GT_STATUS rc;
@@ -343,6 +374,37 @@ vlan_delete (vid_t vid)
   default:
     return ST_HEX;
   }
+}
+
+enum status
+vlan_delete_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_delete (v)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_delete (*arr)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+
+  return ST_OK;
 }
 
 int
@@ -388,6 +450,7 @@ vlan_init (void)
   static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
+  memset (stg_state, STP_STATE_DISABLED, sizeof(stg_state));
 
   return ST_OK;
 }
@@ -504,6 +567,37 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
     vlan_clear_mac_addr (vlan);
 
   return pdsa_vlan_if_op (vid, cpu);
+}
+
+enum status
+vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_set_cpu (v, cpu)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_set_cpu (*arr, cpu)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+
+  return ST_OK;
 }
 
 enum status
@@ -631,6 +725,22 @@ vlan_set_xlate_tunnel (int enable)
   return ST_OK;
 }
 
+enum status
+vlan_igmp_snoop (vid_t vid, int enable)
+{
+  GT_STATUS rc;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (0, vid, gt_bool (enable)));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 void
 vlan_stack_setup (void)
 {
@@ -646,12 +756,17 @@ vlan_mc_route (vid_t vid, bool_t enable)
     return ST_BAD_VALUE;
 
   for_each_dev (d) {
-    if (enable)
+    if (enable) {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4092, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
-    else
+    } else {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_FALSE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+    }
   }
 
   return ST_OK;

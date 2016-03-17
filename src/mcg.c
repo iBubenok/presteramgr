@@ -28,6 +28,9 @@ mcg_create (mcg_t mcg)
   int key = mcg;
   int i, d;
 
+  if (!mcg_valid (mcg))
+    return ST_BAD_VALUE;
+
   HASH_FIND_INT (groups, &key, group);
   if (group)
     return ST_ALREADY_EXISTS;
@@ -61,8 +64,21 @@ mcg_delete (mcg_t mcg)
 
   for_each_dev (d)
     CRP (cpssDxChBrgMcGroupDelete (d, mcg));
-
+    
+  HASH_DEL (groups, group);
+  free (group);
+  
   return ST_OK;
+}
+
+int
+mcg_exists (mcg_t mcg)
+{
+  struct mcast_group *group;
+  int key = mcg;
+
+  HASH_FIND_INT (groups, &key, group);
+  return group ? 1 : 0;
 }
 
 enum status
@@ -89,6 +105,8 @@ mcg_add_port (mcg_t mcg, port_id_t pid)
     CPSS_PORTS_BMP_PORT_SET_MAC (&group->ports[port->ldev], port->lport);
     return ST_OK;
   }
+
+  return ST_OK;
 
   switch (rc) {
   case GT_HW_ERROR: return ST_HW_ERROR;

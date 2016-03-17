@@ -6,24 +6,27 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
 
 #include <mac.h>
+#include <stack.h>
 #include <zcontext.h>
 #include <trunk.h>
 #include <port.h>
 #include <vlan.h>
 #include <dev.h>
+#include <mcg.h>
 #include <utils.h>
-//#include <tipc.h>
 #include <debug.h>
 #include <log.h>
 
+#include <sys/prctl.h>
+
+#define FDB_CONTROL_EP "inproc://fdb-control"
 
 enum fdb_ctl_cmd {
   FCC_MAC_OP,
   FCC_OWN_MAC_OP,
   FCC_MC_IP_OP,
   FCC_MAC_OP_FOREIGN_BLCK,
-  FCC_FLUSH_DYNAMIC,
-  FCC_FLUSH_STATIC
+  FCC_FLUSH
 };
 
 static void *gctl_sock;
@@ -36,7 +39,6 @@ static enum status __attribute__ ((unused))
 fdb_ctl (int cmd, const void *arg, int size)
 {
   zmsg_t *msg = zmsg_new ();
-
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, arg, size);
 
@@ -94,6 +96,9 @@ mac_mc_ip_op (const struct mc_ip_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
+  if (!arg->delete && !mcg_exists (arg->mcg))
+    return ST_DOES_NOT_EXIST;
+
   return fdb_ctl (FCC_MC_IP_OP, arg, sizeof (*arg));
 }
 
@@ -122,18 +127,27 @@ mac_op_own (vid_t vid, mac_addr_t mac, int add)
   return fdb_ctl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
 }
 
+struct fdb_flush_arg {
+  const struct mac_age_arg *aa;
+  GT_BOOL ds;
+};
+
 enum status
 mac_op_foreign_blck(unsigned n, const struct pti_fdbr *arg, void *ctl_sock) {
   return fdb_ctl2(FCC_MAC_OP_FOREIGN_BLCK, n, arg, sizeof(struct pti_fdbr) * n, ctl_sock);
 }
 
 enum status
-mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static) {
-  if (del_static)
-    return fdb_ctl (FCC_FLUSH_STATIC, arg, sizeof (*arg));
-  else
-    return fdb_ctl (FCC_FLUSH_DYNAMIC, arg, sizeof (*arg));
+mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
+{
+  struct fdb_flush_arg fa = {
+    .aa = arg,
+    .ds = del_static
+  };
+
+  return fdb_ctl (FCC_FLUSH, &fa, sizeof (fa));
 }
+
 enum status
 mac_set_aging_time (aging_time_t time)
 {
@@ -170,8 +184,8 @@ enum fdb_entry_prio {
 CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
 GT_U32 fdb_naddrs = 0;
 
-enum status
-fdb_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
+static enum status
+fdb_flush (const struct fdb_flush_arg *arg)
 {
   CPSS_FDB_ACTION_MODE_ENT s_act_mode;
   CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
@@ -184,23 +198,23 @@ fdb_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 
 //DEBUG("fdb_flush(.vid==%03hX, .port==%02hX, del_static==%d)\n", arg->vid, arg->port, del_static); //TODO remove
 
-  if (arg->vid == ALL_VLANS) {
+  if (arg->aa->vid == ALL_VLANS) {
     act_vid = 0;
     act_vid_mask = 0;
   } else {
-    if (!vlan_valid (arg->vid))
+    if (!vlan_valid (arg->aa->vid))
       return ST_BAD_VALUE;
-    act_vid = arg->vid;
+    act_vid = arg->aa->vid;
     act_vid_mask = 0x0FFF;
   }
 
-  if (arg->port == ALL_PORTS) {
+  if (arg->aa->port == ALL_PORTS) {
     act_dev = 0;
     act_dev_mask = 0;
     port = 0;
     port_mask = 0;
   } else {
-    struct port *p = port_ptr (arg->port);
+    struct port *p = port_ptr (arg->aa->port);
 
     if (!p)
       return ST_BAD_VALUE;
@@ -225,7 +239,7 @@ fdb_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
     CRP (cpssDxChBrgFdbActionActiveDevSet (d, act_dev, act_dev_mask));
     CRP (cpssDxChBrgFdbActionActiveVlanSet (d, act_vid, act_vid_mask));
     CRP (cpssDxChBrgFdbActionActiveInterfaceSet (d, 0, 0, port, port_mask));
-    CRP (cpssDxChBrgFdbStaticDelEnable (d, del_static));
+    CRP (cpssDxChBrgFdbStaticDelEnable (d, arg->ds));
     CRP (cpssDxChBrgFdbTrigActionStart (d, CPSS_FDB_ACTION_DELETING_E));
 
     done[d] = GT_FALSE;
@@ -239,46 +253,60 @@ fdb_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
           && fdb[i].me.key.key.macVlan.vlanId == act_vid
           && fdb[i].me.dstInterface.devPort.devNum == act_dev
           && fdb[i].me.dstInterface.devPort.portNum == port
-          && (del_static || !fdb[i].me.isStatic)) {
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
+        fdb[i].secure = 0;
         if (fdb[i].me.userDefined != FEP_FOREIGN)
           mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
         DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+
       }
   } else if (act_vid_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
       if (fdb[i].valid
           && fdb[i].me.key.key.macVlan.vlanId == act_vid
-          && (del_static || !fdb[i].me.isStatic)) {
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
+        fdb[i].secure = 0;
         if (fdb[i].me.userDefined != FEP_FOREIGN)
           mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
         DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+
       }
   } else if (port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
       if (fdb[i].valid
           && fdb[i].me.dstInterface.devPort.devNum == act_dev
           && fdb[i].me.dstInterface.devPort.portNum == port
-          && (del_static || !fdb[i].me.isStatic)) {
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
+        fdb[i].secure = 0;
         if (fdb[i].me.userDefined != FEP_FOREIGN)
           mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
         DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+
       }
   } else {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
       if (fdb[i].valid
-          && (del_static || !fdb[i].me.isStatic)) {
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
+        fdb[i].secure = 0;
         if (fdb[i].me.userDefined != FEP_FOREIGN)
           mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
         DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+
       }
   }
 
+  psec_after_flush ();
   if (fridx)
     tipc_fdb_ctl(fridx, fdbr);
+
 
   do {
     all_done = 1;
@@ -379,7 +407,7 @@ mac_count(uint16_t base, uint16_t bits ,uint16_t hash) { //TODO remove func
 
 #define INVALID_IDX 0xFFFFFFFF
 static enum status
-fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own)
+fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
 {
   GT_U32 idx, best_idx = INVALID_IDX;
   int i, d, best_pri = e->userDefined;
@@ -426,8 +454,14 @@ DEBUG ("COLLISION: %04x-" MAC_FMT "-%4u\n", idx, MAC_ARG(e->key.key.macVlan.macA
     return ST_DOES_NOT_EXIST;
   }
 
+  /* Port Security. */
+  if (psec_addr_check (&fdb[best_idx], e) != PAS_OK)
+    return ST_BAD_STATE;
+  /* END: Port Security. */
+
   memcpy (&fdb[best_idx].me, e, sizeof (*e));
   fdb[best_idx].valid = 1;
+  fdb[best_idx].secure = !!secure;
   for_each_dev (d) {
     if (own)
       e->dstInterface.devPort.devNum = phys_dev (d);
@@ -456,10 +490,11 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign)
       if (!is_foreign && fdb[idx].me.userDefined == FEP_FOREIGN)
         continue;
 
+      psec_addr_del (&fdb[idx].me);
+
       for_each_dev (d)
         CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
       fdb[idx].valid = 0;
-DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[idx].me.key.key.macVlan.macAddr.arEther)); //TODO remove
 
       return ST_OK;
     }
@@ -478,7 +513,7 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
   me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   memcpy (me.key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   me.key.key.macVlan.vlanId = arg->vid;
-  me.isStatic = GT_TRUE;
+  me.isStatic = (arg->type != MET_DYNAMIC) || own;
 
   if (own) {
     me.userDefined = FEP_OWN;
@@ -516,7 +551,7 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
 //DEBUG("fdb_mac_add (const struct mac_op_arg *arg, int own==%d)\n", own); //TODO remove
 //PRINTHexDump(&me, sizeof(me));
 
-  return fdb_insert (&me, own);
+  return fdb_insert (&me, own, arg->type == MET_SECURE);
 }
 
 static enum status
@@ -571,7 +606,7 @@ fdb_mac_mc_ip_add (const struct mc_ip_op_arg *arg)
   me.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
   me.saCommand          = CPSS_MAC_TABLE_FRWRD_E;
 
-  return fdb_insert (&me, 0);
+  return fdb_insert (&me, 0, 0);
 }
 
 static enum status
@@ -626,7 +661,7 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
 //DEBUG("fdb_mac_foreign_add(const struct pti_fdbr *fr)\n"); //TODO remove
 //PRINTHexDump(&me, sizeof(me));
 
-  return fdb_insert (&me, 0);
+  return fdb_insert (&me, 0, 0);
 }
 
 static enum status
@@ -678,7 +713,7 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
 //DEBUG("fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)\n");
 //PRINTHexDump(&u->macEntry, sizeof(u->macEntry));
 
-  fdb_insert (&u->macEntry, 0);
+  fdb_insert (&u->macEntry, 0, 0);
 }
 
 static void
@@ -795,15 +830,11 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     status = fdb_mac_foreign_blck(n, arg);
     DEBUG("===FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
     break;
-  case FCC_FLUSH_STATIC:
-    DEBUG("FCC_FLUSH_STATIC\n"); // TODO remove
-    status = fdb_flush(arg, GT_TRUE);
-    DEBUG("===FCC_FLUSH_STATIC\n"); // TODO remove
+  case FCC_FLUSH:
+    status = fdb_flush (arg);
     break;
-  case FCC_FLUSH_DYNAMIC:
-    DEBUG("FCC_FLUSH_DYNAMIC\n"); // TODO remove
-    status = fdb_flush(arg, GT_FALSE);
-    DEBUG("===FCC_FLUSH_DYNAMIC\n"); // TODO remove
+  default:
+    status = ST_BAD_REQUEST;
   }
   zmsg_destroy (&msg);
 
@@ -842,6 +873,8 @@ fdb_thread (void *_)
   zmq_pollitem_t ctl_pi = { tctl_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &ctl_pi, fdb_ctl_handler, tctl_sock);
 
+  prctl(PR_SET_NAME, "fdb", 0, 0, 0);
+
   DEBUG ("FDB startup done\r\n");
   fdb_thread_started = 1;
   zloop_start (loop);
@@ -856,6 +889,10 @@ mac_start (void)
   struct mac_age_arg arg = {
     .vid = ALL_VLANS,
     .port = ALL_PORTS
+  };
+  struct fdb_flush_arg fa = {
+    .aa = &arg,
+    .ds = GT_TRUE
   };
   GT_U32 bmp = 0, n;
   GT_STATUS rc;
@@ -891,6 +928,7 @@ mac_start (void)
       CRP (rc);
   }
 
+
   memset (fdb, 0, sizeof (fdb));
   pthread_create (&tid, NULL, fdb_thread, NULL);
   DEBUG ("waiting for FDB startup\r\n");
@@ -905,12 +943,25 @@ mac_start (void)
   assert (gctl_sock);
   zsocket_connect (gctl_sock, FDB_CONTROL_EP);
 
-  mac_flush (&arg, GT_TRUE);
+  fdb_flush (&fa);
 
   for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAuMsgRateLimitSet (d, 4000, GT_TRUE));
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
     CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (d, GT_TRUE));
   }
 
+  if (stack_active()) {
+    struct mac_op_arg mo;
+    memset(&mo, 0, sizeof(mo));
+    mo.vid = 4095;
+    mo.port = stack_pri_port->id;
+    mo.type = MET_STATIC;
+    memcpy(mo.mac, mac_pri, 6);
+    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+    mo.port = stack_sec_port->id;
+    memcpy(mo.mac, mac_sec, 6);
+    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+  }
   return ST_OK;
 }

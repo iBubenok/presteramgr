@@ -6,9 +6,14 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <time.h>
+#include <assert.h>
 #include <errno.h>
 #include <log.h>
+#include <stdint.h>
+#include <netinet/in.h>
 
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof (*a))
 #define ON_GT_ERROR(rc) if ((rc) != GT_OK)
@@ -30,6 +35,14 @@ static inline int
 gt_bool (int val)
 {
   return val ? GT_TRUE : GT_FALSE;
+}
+
+static inline unsigned long long
+time_monotonic (void) {
+  struct timespec ts;
+  int rc = clock_gettime(CLOCK_MONOTONIC, &ts);
+  assert(!rc);
+  return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 static inline void
@@ -92,5 +105,34 @@ static inline void hexdump (void *addr, int len) {
 }
 
 #define PRINTHexDump(x, y)  if ((y)<=0) DEBUG("(NULL)"); else hexdump((void*)(x),(y))
+
+static inline int
+is_llc_snap_frame__ (void* frame, int len) {
+  uint8_t *ptr = ((uint8_t*) frame);
+
+  int type_or_len_offset = 12;
+  uint16_t type_or_len;
+
+  memcpy(&type_or_len, ptr + type_or_len_offset, sizeof(type_or_len));
+  type_or_len = ntohs(type_or_len);
+
+  if ( type_or_len > 1500 )
+    return GT_FALSE; /* Ethernet DIX */
+
+  int ipx_offset = type_or_len_offset + sizeof(type_or_len);
+  uint16_t ipx_start;
+
+  memcpy(&ipx_start, ptr + ipx_offset, sizeof(ipx_start));
+
+  if ( ipx_start == 0xFFFF )
+    return GT_FALSE; /* Ethernet Novell 802.3 */
+
+  if ( (*(ptr + ipx_offset)) == 0xAA )
+    return GT_TRUE; /* Ethernet SNAP */
+
+  return GT_FALSE; /* Ethernet LLC */
+}
+
+#define is_llc_snap_frame(frame, len) is_llc_snap_frame__(frame, len)
 
 #endif /* __UTILS_H__ */

@@ -12,6 +12,7 @@
 #include <qos.h>
 #include <port.h>
 #include <sysdeps.h>
+#include <utils.h>
 
 int mls_qos_trust = 0;
 const uint8_t qos_default_wrr_weights[8] = {
@@ -85,7 +86,7 @@ qos_start (void)
   queue_id_t cos_map[8] = { 2, 0, 1, 3, 4, 5, 6, 7 };
   int i, d;
 
-  for (i = 0; i < 8; i++) {
+  for (i = QSP_BASE_TC; i < QSP_BASE_TC + QSP_NUM_TC; i++) {
     CPSS_DXCH_COS_PROFILE_STC prof = {
       .dropPrecedence = CPSS_DP_GREEN_E,
       .userPriority = 0,
@@ -112,10 +113,16 @@ qos_start (void)
 
   qos_set_cos_prio (cos_map);
 
-  __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E);
   __qos_set_prioq_num (1, CPSS_PORT_TX_SCHEDULER_PROFILE_3_E);
   qos_set_prioq_num (8);
   qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+/* CPU port priorities */
+  static uint8_t cpu_weights[8] = { 100, 100, 100, 100, 100, 100, 100, 100};
+  __qos_set_prioq_num (3, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E);
+  for (i = 0; i < 8; i++)
+    CRP (cpssDxChPortTxQWrrProfileSet
+          (CPU_DEV, i, cpu_weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   return ST_OK;
 }
@@ -172,4 +179,18 @@ qos_set_wrr_queue_weights (const uint8_t *weights)
            (d, i, weights[i], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
 
   return ST_OK;
+}
+
+enum status
+qos_set_wrtd (int enable)
+{
+  enum status st;
+  int d;
+
+  for_each_dev (d) {
+    st = cpssDxChPortTxRandomTailDropEnableSet(d, gt_bool(enable));
+    CRP (st);
+  }
+
+  return st;
 }

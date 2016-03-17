@@ -26,12 +26,27 @@ ip_start (void)
 
   for_each_dev (d) {
     CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
-       (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+         (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
     CRP (cpssDxChBrgGenIpLinkLocalMirrorToCpuEnable
          (d, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
     CRP (cpssDxChBrgGenIpLinkLocalProtMirrorToCpuEnable
          (d, CPSS_IP_PROTOCOL_IPV4_E, 18, GT_TRUE));
   }
 
+  return ST_OK;
+}
+
+enum status
+ip_arp_trap_enable (int enable) {
+
+  int d;
+
+  for_each_dev (d) {
+    CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
+       (d,
+        (enable) ?
+          CPSS_PACKET_CMD_TRAP_TO_CPU_E :
+          CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+  }
   return ST_OK;
 }

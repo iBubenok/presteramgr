@@ -15,8 +15,10 @@
 #include <linux/pdsa-mgmt.h>
 #include <vlan.h>
 #include <mac.h>
+#include <sec.h>
 #include <qos.h>
 #include <zcontext.h>
+#include <sys/prctl.h>
 #include <debug.h>
 #include <wnct.h>
 #include <mcg.h>
@@ -34,18 +36,24 @@
 #include <trunk.h>
 #include <gif.h>
 #include <pcl.h>
+#include <ip.h>
 
 #include <gtOs/gtOsTask.h>
 
 static void *control_loop (void *);
 
 static void *pub_sock;
+static void *pub_arp_sock;
+static void *pub_dhcp_sock;
+static void *pub_stack_sock;
 static void *cmd_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
 static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
+static void *sec_sock;
+static void *stack_cmd_sock;
 
 
 static void *
@@ -56,6 +64,8 @@ forwarder_thread (void *dummy)
   inp_sub_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (inp_sub_sock);
   zsocket_connect (inp_sub_sock, INP_PUB_SOCK_EP);
+
+  prctl(PR_SET_NAME, "ctl-forwarder", 0, 0, 0);
 
   DEBUG ("start forwarder device");
   zmq_device (ZMQ_FORWARDER, inp_sub_sock, pub_sock);
@@ -72,6 +82,26 @@ control_init (void)
   pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (pub_sock);
   rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
+
+  uint64_t hwm=250;
+  pub_arp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_arp_sock);
+/*  rc = zmq_setsockopt(pub_arp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0); */
+  rc = zsocket_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
+
+  pub_dhcp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_dhcp_sock);
+  rc = zmq_setsockopt(pub_dhcp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0);
+  rc = zsocket_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
+
+  pub_stack_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_stack_sock);
+/*  rc = zmq_setsockopt(pub_stack_sock, ZMQ_HWM, &hwm, sizeof(hwm));
+  assert(rc==0); */
+  rc = zsocket_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
+  assert(rc==0);
 
   inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (inp_pub_sock);
@@ -91,13 +121,21 @@ control_init (void)
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
 
+  sec_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (sec_sock);
+  zsocket_connect (sec_sock, SEC_PUBSUB_EP);
+
   rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (rtbd_sock);
   zsocket_connect (rtbd_sock, RTBD_NOTIFY_EP);
 
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
-  zsocket_connect (arpd_sock, ARPD_NOTIFY_EP);
+  zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
+
+  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (stack_cmd_sock);
+  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
   return 0;
 }
@@ -118,6 +156,24 @@ static inline void
 notify_send (zmsg_t **msg)
 {
   zmsg_send (msg, inp_pub_sock);
+}
+
+static inline void
+notify_send_arp (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_arp_sock);
+}
+
+static inline void
+notify_send_dhcp (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_dhcp_sock);
+}
+
+static inline void
+notify_send_stack (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_stack_sock);
 }
 
 static inline void
@@ -155,6 +211,37 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
   notify_send (&msg);
 }
 
+static void
+control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
+{
+  if (pcl_source_guard_trap_enabled (pid)) {
+    zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
+    put_vlan_id (sg_msg, frame->vid);
+    put_port_id (sg_msg, pid);
+
+    /* Src MAC: 6, 7, 8, 9, 10, 11 bytes */
+    uint8_t src_mac[6];
+    memcpy (src_mac, (frame->data) + 6, 6);
+    zmsg_addmem (sg_msg, src_mac, 6);
+
+    /* Src IP: 26, 27, 28, 29 bytes */
+    uint8_t src_ip[4];
+    uint8_t src_ip_offset = 26;
+
+    if ( is_llc_snap_frame(frame->data, frame->len) ) {
+      src_ip_offset += 8;
+    }
+
+    memcpy (src_ip, (frame->data) + src_ip_offset, 4);
+    zmsg_addmem (sg_msg, src_ip, 4);
+
+    pcl_source_guard_drop_enable(pid);
+    DEBUG("packet trapped! enable drop! port #%d\r\n", pid);
+
+    notify_send (&sg_msg);
+  }
+}
+
 void
 cn_port_vid_set (port_id_t pid, vid_t vid)
 {
@@ -170,7 +257,7 @@ cn_mail (port_stack_role_t role, uint8_t *data, size_t len)
   zmsg_t *msg = make_notify_message (CN_MAIL);
   zmsg_addmem (msg, &role, sizeof (role));
   zmsg_addmem (msg, data, len);
-  notify_send (&msg);
+  notify_send_stack (&msg);
 }
 
 int
@@ -184,6 +271,7 @@ control_start (void)
 }
 
 DECLARE_HANDLER (CC_PORT_GET_STATE);
+DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
@@ -197,10 +285,16 @@ DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
+DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
-DECLARE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
+DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
+DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT);
+DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
@@ -239,6 +333,7 @@ DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
+DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
@@ -280,11 +375,42 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
-DECLARE_HANDLER (CC_STACK_SET_MASTER);
+DECLARE_HANDLER (CC_ROUTE_MC_ADD);
+DECLARE_HANDLER (CC_ROUTE_MC_DEL);
+DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
+DECLARE_HANDLER (CC_PSEC_SET_MODE);
+DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
+DECLARE_HANDLER (CC_PSEC_ENABLE);
+DECLARE_HANDLER (CC_PORT_GET_SERDES_CFG);
+DECLARE_HANDLER (CC_PORT_SET_SERDES_CFG);
+DECLARE_HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX);
+DECLARE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
+DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+DECLARE_HANDLER (CC_ALLOCATE_USER_RULE_IX);
+DECLARE_HANDLER (CC_FREE_USER_RULE_IX);
+DECLARE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT);
+DECLARE_HANDLER (CC_USER_ACL_RULE);
+DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_INJECT_FRAME);
+DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
+DECLARE_HANDLER (CC_VRRP_SET_MAC);
+DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
+DECLARE_HANDLER (CC_PCL_GET_COUNTER);
+DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
+DECLARE_HANDLER (CC_STACK_SET_MASTER);
+
+DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
+
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
+  HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
@@ -298,10 +424,16 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
+  HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
-  HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
+  HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
+  HANDLER (CC_PORT_SET_SFP_MODE),
+  HANDLER (CC_PORT_SET_XG_SFP_MODE),
+  HANDLER (CC_PORT_IS_XG_SFP_PRESENT),
+  HANDLER (CC_PORT_READ_XG_SFP_IDPROM),
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
@@ -340,6 +472,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
+  HANDLER (CC_QOS_SET_WRTD),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
@@ -381,14 +514,54 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_DHCP_TRAP_ENABLE),
-  HANDLER (CC_STACK_SET_MASTER),
-  HANDLER (CC_VLAN_MC_ROUTE)
+  HANDLER (CC_VLAN_MC_ROUTE),
+  HANDLER (CC_ROUTE_MC_ADD),
+  HANDLER (CC_ROUTE_MC_DEL),
+  HANDLER (CC_VLAN_IGMP_SNOOP),
+  HANDLER (CC_VLAN_MC_ROUTE),
+  HANDLER (CC_PSEC_SET_MODE),
+  HANDLER (CC_PSEC_SET_MAX_ADDRS),
+  HANDLER (CC_PSEC_ENABLE),
+  HANDLER (CC_PORT_GET_SERDES_CFG),
+  HANDLER (CC_PORT_SET_SERDES_CFG),
+  HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX),
+  HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
+  HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_ADD),
+  HANDLER (CC_SOURCE_GUARD_DELETE),
+  HANDLER (CC_ALLOCATE_USER_RULE_IX),
+  HANDLER (CC_FREE_USER_RULE_IX),
+  HANDLER (CC_CHECK_USER_RULE_IX_COUNT),
+  HANDLER (CC_USER_ACL_RULE),
+  HANDLER (CC_ARP_TRAP_ENABLE),
+  HANDLER (CC_INJECT_FRAME),
+  HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
+  HANDLER (CC_VRRP_SET_MAC),
+  HANDLER (CC_ARPD_SOCK_CONNECT),
+  HANDLER (CC_PCL_GET_COUNTER),
+  HANDLER (CC_PCL_CLEAR_COUNTER),
+  HANDLER (CC_STACK_SET_MASTER)
+};
+
+static cmd_handler_t stack_handlers[] = {
+  HANDLER (SC_UPDATE_STACK_CONF)
 };
 
 static int
 evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (evt_sock);
+  notify_send (&msg);
+  return 0;
+}
+
+static int
+secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (sec_sock);
   notify_send (&msg);
   return 0;
 }
@@ -458,6 +631,7 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     frame = zmsg_next (msg);
     struct arpd_ip_addr_msg *iam =
       (struct arpd_ip_addr_msg *) zframe_data (frame);
+
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
     break;
@@ -475,6 +649,10 @@ control_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
 
+  zmq_pollitem_t stack_cmd_pi = { stack_cmd_sock, 0, ZMQ_POLLIN };
+  struct handler_data stack_cmd_hd = { stack_cmd_sock, stack_handlers, ARRAY_SIZE (stack_handlers) };
+  zloop_poller (loop, &stack_cmd_pi, control_handler, &stack_cmd_hd);
+
   zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
   struct handler_data cmd_hd = { cmd_sock, handlers, ARRAY_SIZE (handlers) };
   zloop_poller (loop, &cmd_pi, control_handler, &cmd_hd);
@@ -486,17 +664,36 @@ control_loop (void *dummy)
   zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &evt_pi, evt_handler, NULL);
 
+  zmq_pollitem_t sec_pi = { sec_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &sec_pi, secbr_handler, NULL);
+
   zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);
 
   zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
 
+  prctl(PR_SET_NAME, "ctl-loop", 0, 0, 0);
+
   zloop_start (loop);
 
   return NULL;
 }
 
+/*
+ * Stack Async iface command handlers.
+ */
+
+DEFINE_HANDLER (SC_UPDATE_STACK_CONF) {
+
+DEBUG("===SC_UPDATE_STACK_CONF\n");
+  enum status result = ST_BAD_FORMAT;
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  result = stack_update_conf(zframe_data(frame), zframe_size(frame));
+}
 
 /*
  * Command handlers.
@@ -522,6 +719,29 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_TYPE)
+{
+  port_id_t pid;
+  port_type_t ptype;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = port_get_type (pid, &ptype);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ptype, sizeof (ptype));
   send_reply (reply);
 }
 
@@ -677,30 +897,66 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
 DEFINE_HANDLER (CC_VLAN_ADD)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_add (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_add_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_add (size_or_vid);
+  }
 
  out:
+  DEBUG("CC_VLAN_ADD returns %d\r\n", result);
   report_status (result);
 }
 
 DEFINE_HANDLER (CC_VLAN_DELETE)
 {
   enum status result;
-  vid_t vid;
+  uint16_t size_or_vid;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = vlan_delete (vid);
+  if (size_or_vid > 11000) { /* size */
+    uint16_t size;
+    size = size_or_vid - 11000;
+
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
+
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_delete_range (size / 2, arr);
+
+    free (arr);
+  } else { /* vid */
+    result = vlan_delete (size_or_vid);
+  }
 
  out:
+  DEBUG("CC_VLAN_DELETE returns %d\r\n", result);
   report_status (result);
 }
 
@@ -869,6 +1125,113 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_SET_SFP_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t mode;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&mode, sizeof (mode));
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_sfp_mode (pid, mode);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_XG_SFP_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t mode;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&mode, sizeof (mode));
+  if (result != ST_OK)
+    goto err;
+
+  result = port_set_xg_sfp_mode (pid, mode);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT)
+{
+  enum status result;
+  port_id_t pid;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  bool_t ret = port_is_xg_sfp_present (pid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &ret, sizeof (ret));
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t addr;
+
+  /* For some reason POP_ARG() doesn't work, using POP_ARG_SZ() instead.
+   * Check it later */
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&addr, sizeof (addr));
+  if (result != ST_OK)
+    goto err;
+
+  const int bufsz = 128;
+  uint8_t *buf = port_read_xg_sfp_idprom (pid, addr);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, buf, bufsz);
+  send_reply (reply);
+  free (buf);
+  return;
+
+ err:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
 {
   enum status result;
@@ -887,15 +1250,15 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   if (result != ST_OK)
     goto err;
 
-  if (page >= 3000) {   //TODO remove BEGIN
-    DEBUG("going mac_count(%hu)\n", reg);
-    mac_count(pid, page, reg);
-    val = 0;
-  }   else //  TODO remove END
-
+if (page >= 3000) {   //TODO remove BEGIN
+  DEBUG("going mac_count(%hu)\n", reg);
+  mac_count(pid, page, reg);
+  val = 0;
+}   else { //  TODO remove END
   result = port_dump_phy_reg (pid, page, reg, &val);
   if (result != ST_OK)
     goto err;
+  }
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &val, sizeof (val));
@@ -944,6 +1307,7 @@ DEFINE_HANDLER (CC_MAC_LIST)
 {
   enum status result;
   vid_t vid;
+  port_id_t pid;
 
   result = POP_ARG (&vid);
   if (result != ST_OK)
@@ -954,8 +1318,17 @@ DEFINE_HANDLER (CC_MAC_LIST)
     goto err;
   }
 
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(pid == ALL_PORTS || port_ptr (pid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
   zmsg_t *reply = make_reply (ST_OK);
-  data_encode_fdb_addrs (reply, vid);
+  data_encode_fdb_addrs (reply, vid, pid);
   send_reply (reply);
   return;
 
@@ -1096,6 +1469,27 @@ DEFINE_HANDLER (CC_PORT_GET_STATS)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_CLEAR_STATS)
+{
+  enum status result;
+  port_id_t pid;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto err;
+
+  result = port_clear_stats (pid);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
 {
   enum status result;
@@ -1116,21 +1510,66 @@ DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_PORT_SET_BANDWIDTH_LIMIT)
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE)
 {
   enum status result;
   port_id_t pid;
-  bps_t limit;
+  bool_t enable;
+  bps_t rate;
+  burst_t burst;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&limit);
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
   if (result != ST_OK)
     goto out;
 
-  result = port_set_bandwidth_limit (pid, limit);
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape (pid, enable, rate, burst);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  queueid_t qid;
+  bps_t rate;
+  burst_t burst;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&qid);
+    if (result != ST_OK)
+      goto out;
+
+  result = POP_ARG (&rate);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&burst);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_traffic_shape_queue (pid, enable, qid, rate, burst);
 
  out:
   report_status (result);
@@ -1199,20 +1638,40 @@ DEFINE_HANDLER (CC_QOS_SET_COS_PRIO)
 DEFINE_HANDLER (CC_VLAN_SET_CPU)
 {
   enum status result;
-  vid_t vid;
+  vid_t size_or_vid;
   bool_t cpu;
 
-  result = POP_ARG (&vid);
+  result = POP_ARG (&size_or_vid);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&cpu);
-  if (result != ST_OK)
-    goto out;
+  if ( size_or_vid > 11000 ) { /* size */
+    uint16_t size = size_or_vid - 11000;
+    vid_t *arr = 0;
+    arr = malloc (size);
+    assert(arr);
 
-  result = vlan_set_cpu (vid, cpu);
+    result = POP_ARG_SZ (arr, size);
+    if (result != ST_OK)
+      goto out;
+
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu_range (size / 2, arr, cpu);
+
+    free (arr);
+  } else { /* vid */
+    result = POP_ARG (&cpu);
+    if (result != ST_OK)
+      goto out;
+
+    result = vlan_set_cpu (size_or_vid, cpu);
+  }
 
  out:
+  DEBUG("CC_VLAN_SET_CPU returns %d\r\n", result);
   report_status (result);
 }
 
@@ -1245,6 +1704,7 @@ DEFINE_HANDLER (CC_VLAN_SET_MAC_ADDR)
 
   addr = (struct pdsa_vlan_mac_addr *) zframe_data (frame);
   vlan_set_mac_addr (addr->vid, addr->addr);
+  arpc_send_set_mac_addr(addr->addr);
   result = ST_OK;
 
  out:
@@ -1445,6 +1905,35 @@ DEFINE_HANDLER (CC_SEND_FRAME)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_INJECT_FRAME)
+{
+  vid_t vid;
+  size_t len;
+  zframe_t *frame;
+  enum status result = ST_BAD_FORMAT;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  if (ARGS_SIZE != 1) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
+  if ((len = zframe_size (frame)) < 1)
+    goto destroy_frame;
+
+  mgmt_inject_frame (vid, zframe_data (frame), len);
+  result = ST_OK;
+
+ destroy_frame:
+  zframe_destroy (&frame);
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
@@ -1453,6 +1942,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   port_id_t pid;
   int put_vid = 0;
   uint16_t *etype;
+  register int conform2stp_state = 0;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1462,7 +1952,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
   pid = port_id (frame->dev, frame->port);
-  if (!pid) {
+  if (!pid && frame->port != 63) {
     result = ST_OK;
     goto out;
   }
@@ -1488,9 +1978,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
         type = CN_LACPDU;
+        conform2stp_state = 1;
         break;
       case WNCT_802_3_SP_OAM:
         type = CN_OAMPDU;
+        conform2stp_state = 1;
         break;
       default:
         DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
@@ -1504,6 +1996,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       switch (ntohs (*etype)) {
       case 0x888E:
         type = CN_EAPOL;
+        conform2stp_state = 1;
         break;
       case 0x88CC:
         type = CN_LLDP_MCAST;
@@ -1519,6 +2012,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
       break;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
+      conform2stp_state = 1;
       break;
     default:
       DEBUG ("IEEE reserved multicast %02X not supported\n",
@@ -1529,32 +2023,72 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
+    put_vid = 1;
+    conform2stp_state = 1;
     break;
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
+    conform2stp_state = 1;
+    put_vid = 1;
+    break;
+
+  case CPU_CODE_IP_LL_MC_0_TM:
+    type = CN_VRRP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (0):
     type = CN_LBD_PDU;
+    conform2stp_state = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+    conform2stp_state = 1;
     put_vid = 1;
     break;
 
-  case CPU_CODE_IPv4_UC_ROUTE_TM_1:
-    route_handle_udt (frame->data, frame->len);
+  case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    control_notify_ip_sg_trap (pid, frame);
     goto out;
 
+  case CPU_CODE_USER_DEFINED (3):
+    type = CN_ARP;
+    conform2stp_state = 1;
+    put_vid = 1;
+    break;
+
+  case CPU_CODE_USER_DEFINED (6):
+    result = ST_OK;
+    DEBUG("Packet on Port #%d trapped!\r\n", pid);
+    goto out;
+
+  case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+    result = ST_OK;
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+      goto out;
+    route_handle_udt (frame->data, frame->len);
+    goto out;
+
+  case CPU_CODE_USER_DEFINED (7):
+    stack_handle_mail (stack_pri_port->id, frame->data, frame->len);
+    result = ST_OK;
+    goto out;
+  case CPU_CODE_USER_DEFINED (8):
+    stack_handle_mail (stack_sec_port->id, frame->data, frame->len);
+    result = ST_OK;
+    goto out;
   case CPU_CODE_MAIL:
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
@@ -1565,12 +2099,32 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     goto out;
   }
 
+  if (conform2stp_state)
+    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+      result = ST_OK;
+      goto out;
+    }
+
   zmsg_t *msg = make_notify_message (type);
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
+
   zmsg_addmem (msg, frame->data, frame->len);
-  notify_send (&msg);
+
+  switch (type) {
+    case CN_ARP_BROADCAST:
+    case CN_ARP_REPLY_TO_ME:
+    case CN_ARP:
+      notify_send_arp (&msg);
+      break;
+    case CN_DHCP_TRAP:
+      notify_send_dhcp (&msg);
+      break;
+    default:
+      notify_send (&msg);
+      break;
+  }
 
   result = ST_OK;
 
@@ -1718,6 +2272,21 @@ DEFINE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS)
     result = qos_set_wrr_queue_weights (zframe_data (frame));
   } else
     result = qos_set_wrr_queue_weights (qos_default_wrr_weights);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_SET_WRTD)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_set_wrtd (enable);
 
  out:
   report_status (result);
@@ -2546,23 +3115,89 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_STACK_SET_MASTER)
+DEFINE_HANDLER (CC_ROUTE_MC_ADD)
 {
   enum status result;
-  zframe_t *frame;
-  uint8_t master;
+  vid_t vid, src_vid;
+  ip_addr_t d, s;
+  mcg_t via;
 
-  result = POP_ARG (&master);
+  result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
-  frame = FIRST_ARG;
-  if (!frame || zframe_size (frame) != 6) {
-    result = ST_BAD_FORMAT;
+  result = POP_ARG (&d);
+  if (result != ST_OK)
     goto out;
-  }
 
-  result = stack_set_master (master, zframe_data (frame));
+  result = POP_ARG (&s);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&via);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  DEBUG ("Route mc add src vid %d\n", src_vid);
+
+  result = route_mc_add (vid, d, s, via, src_vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ROUTE_MC_DEL)
+{
+  enum status result;
+  vid_t vid, src_vid;
+  ip_addr_t d, s;
+  mcg_t via;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&s);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&via);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&src_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = route_mc_del (vid, d, s, via, src_vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_IGMP_SNOOP)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_igmp_snoop (vid, enable);
 
  out:
   report_status (result);
@@ -2587,3 +3222,509 @@ DEFINE_HANDLER (CC_VLAN_MC_ROUTE)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PSEC_SET_MODE)
+{
+  enum status result;
+  port_id_t pid;
+  psec_mode_t mode;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_mode (pid, mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_SET_MAX_ADDRS)
+{
+  enum status result;
+  port_id_t pid;
+  psec_max_addrs_t max;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&max);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_set_max_addrs (pid, max);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PSEC_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+  psec_action_t act;
+  uint32_t intv;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&act);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&intv);
+  if (result != ST_OK)
+    goto out;
+
+  result = psec_enable (pid, enable, act, intv);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_GET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  struct port_serdes_cfg c;
+  zmsg_t *reply;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_get_serdes_cfg (pid, &c);
+
+out:
+  reply = make_reply (result);
+  if (result == ST_OK)
+    zmsg_addmem (reply, &c, sizeof (c));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_SERDES_CFG)
+{
+  enum status result;
+  port_id_t pid;
+  zframe_t *frame;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != sizeof (struct port_serdes_cfg)) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = port_set_serdes_cfg
+    (pid, (struct port_serdes_cfg *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  uint16_t start_ix = get_port_ip_sourceguard_rule_start_ix(pid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &start_ix, sizeof (start_ix));
+  send_reply (reply);
+  return;
+
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT)
+{
+  uint16_t count = get_per_port_ip_sourceguard_rules_count();
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &count, sizeof (count));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_trap_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_trap_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_drop_enable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
+{
+  enum status result;
+  port_id_t pid;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_drop_disable (pid);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
+{
+  enum status result;
+  port_id_t pid;
+  mac_addr_t mac;
+  vid_t vid;
+  ip_addr_t ip;
+  uint16_t rule_ix;
+  uint8_t verify_mac;
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&mac)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&ip)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&verify_mac)) != ST_OK)
+    goto out;
+
+  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
+{
+  enum status result;
+  port_id_t pid;
+  uint16_t rule_ix;
+
+
+  if ((result = POP_ARG (&pid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+  DEBUG("CC_SOURCE_GUARD_DELETE rule\r\n");
+
+  pcl_source_guard_rule_unset (pid, rule_ix);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ALLOCATE_USER_RULE_IX)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint32_t rule_ix;
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+
+  rule_ix = allocate_user_rule_ix (pid_or_vid);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &rule_ix, sizeof (rule_ix));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_FREE_USER_RULE_IX)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint32_t rule_ix;
+
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+    goto out;
+
+  free_user_rule_ix (pid_or_vid, rule_ix);
+
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t count;
+  uint8_t check;
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&count)) != ST_OK)
+    goto out;
+
+  check = check_user_rule_ix_count(pid_or_vid, count);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &check, sizeof (check));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_RULE) {
+  enum status result = ST_OK;
+  uint16_t pid_or_vid;
+  uint8_t destination;
+  uint8_t rule_type;
+  bool_t enable;
+
+  if ((result = POP_ARG (&pid_or_vid)) != ST_OK) {
+    goto out;
+  }
+  if ((result = POP_ARG (&destination)) != ST_OK) {
+    goto out;
+  }
+  if ((result = POP_ARG (&rule_type)) != ST_OK) {
+    goto out;
+  }
+  if ((result = POP_ARG (&enable)) != ST_OK) {
+    goto out;
+  }
+
+  switch (rule_type) {
+    case PCL_RULE_TYPE_IP: {
+      struct ip_pcl_rule ip_rule;
+      if ((result = POP_ARG (&ip_rule)) != ST_OK) {
+        goto out;
+      }
+      result = pcl_ip_rule_set(pid_or_vid, &ip_rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_MAC: {
+      struct mac_pcl_rule mac_rule;
+      if ((result = POP_ARG (&mac_rule)) != ST_OK) {
+        goto out;
+      }
+      result = pcl_mac_rule_set(pid_or_vid, &mac_rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_IPV6: {
+      struct ipv6_pcl_rule ipv6_rule;
+      if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
+        goto out;
+      }
+      result = pcl_ipv6_rule_set(pid_or_vid, &ipv6_rule, destination, enable);
+      break;
+    }
+    case PCL_RULE_TYPE_DEFAULT: {
+      struct default_pcl_rule default_rule;
+      if ((result = POP_ARG (&default_rule)) != ST_OK) {
+        goto out;
+      }
+      result = pcl_default_rule_set(pid_or_vid, &default_rule, destination, enable);
+      break;
+    }
+    default:
+      result = ST_HEX;
+  };
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  ip_arp_trap_enable (enable);
+  result = pcl_enable_arp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
+{
+  enum status result;
+  port_id_t pid;
+  combo_pref_media_t media;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&media);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_set_combo_preferred_media (pid, media);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VRRP_SET_MAC)
+{
+  DEBUG("CC_VRRP_SET_MAC\r\n");
+  enum status result;
+  vid_t vid;
+  mac_addr_t addr;
+  bool_t set;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&addr);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&set);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_op_own (vid, addr, set);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
+{
+  arpc_connect();
+
+  report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_PCL_GET_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t rule_ix;
+  uint64_t counter;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&rule_ix);
+  if (result != ST_OK)
+    goto out;
+
+  counter = pcl_get_counter(pid_or_vid, rule_ix);
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &counter, sizeof(counter));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
+{
+  enum status result;
+  uint16_t pid_or_vid;
+  uint16_t rule_ix;
+
+  result = POP_ARG (&pid_or_vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&rule_ix);
+  if (result != ST_OK)
+    goto out;
+
+  pcl_clear_counter(pid_or_vid, rule_ix);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_STACK_SET_MASTER)
+{
+  enum status result;
+  zframe_t *frame;
+  uint8_t master;
+
+  result = POP_ARG (&master);
+  if (result != ST_OK)
+    goto out;
+
+  frame = FIRST_ARG;
+  if (!frame || zframe_size (frame) != 6) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = stack_set_master (master, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
