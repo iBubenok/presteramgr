@@ -618,6 +618,7 @@ vlan_set_fdb_map (const stp_id_t *ids)
         int p;
 
         CRP (cpssDxChBrgVlanToStpIdBind (d, i + 1, ids[i]));
+        DEBUG("%s: Bind VLAN %d to STP id %d", __func__, i + 1, ids[i]);
         for (p = 0; p < dev_info[d].n_ic_ports; p++)
           CRP (cpssDxChBrgStpStateSet
                (d, dev_info[d].ic_ports[p], ids[i], CPSS_STP_FRWRD_E));

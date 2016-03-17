@@ -75,7 +75,7 @@ sysd_setup_cpu_codes (void)
 /* Achtung! Upon changing rate limits or designated traffic classes refer and update 
 http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%BE%D1%80%D0%B8%D1%82%D0%B5%D1%82%D1%8B  */
 
-/* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP) within 1 sec
+/* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP+Cisco) within 1 sec
    but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 1, 0xFFFFFFFF));
@@ -85,6 +85,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
     cce_rlim.tc = 6;
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_CISCO_MULTICAST_MAC_RANGE_E, &cce_rlim));
 
 /* allowing ARP Requests & Replies bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
