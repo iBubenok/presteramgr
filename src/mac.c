@@ -17,6 +17,7 @@
 #include <debug.h>
 #include <log.h>
 
+#include <linux/tipc.h>
 #include <sys/prctl.h>
 
 #define FDB_CONTROL_EP "inproc://fdb-control"
@@ -29,11 +30,49 @@ enum fdb_ctl_cmd {
   FCC_FLUSH
 };
 
+#define PTI_FDB_VERSION (1)
+
+struct fdbcomm_thrd {
+  void *fdb_ctl_sock;
+  void *tipc_ctl_sock;
+  zloop_t *loop;
+  int fdb_sock;
+};
+
+struct pti_fdbr {
+  uint8_t operation;
+  uint8_t type; ///< record type of enum iface_type
+  union {
+    struct {
+      uint8_t hwdev;
+      uint8_t hwport;
+    } __attribute__ ((packed)) port;
+    struct {
+      uint8_t trunkId;
+    } __attribute__ ((packed)) trunk;
+  } __attribute__ ((packed)) ;
+  uint16_t vid;
+  uint8_t mac[6];
+} __attribute__ ((packed));
+
+struct pti_fdbr_msg {
+  uint8_t version;
+  uint8_t stack_id;
+  uint16_t nfdb;
+  struct pti_fdbr data[];
+} __attribute__ ((packed));
+
+#define PTI_FDBR_MSG_SIZE(n) \
+    (sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * (n))
+
+static void *fdbcomm_ctl_sock;
 static void *gctl_sock;
 /** FDB sync records array to form sync message from fdb thread */
 static struct pti_fdbr fdbr[FDB_MAX_ADDRS];
 /** FDB sync records array to form sync message from main control thread */
 //static struct pti_fdbr fdbr_ctl[FDB_MAX_ADDRS];
+
+enum status fdbcomm_ctl(unsigned n, const struct pti_fdbr *arg);
 
 static enum status __attribute__ ((unused))
 fdb_ctl (int cmd, const void *arg, int size)
@@ -305,8 +344,7 @@ fdb_flush (const struct fdb_flush_arg *arg)
 
   psec_after_flush ();
   if (fridx)
-    tipc_fdb_ctl(fridx, fdbr);
-
+    fdbcomm_ctl(fridx, fdbr);
 
   do {
     all_done = 1;
@@ -415,13 +453,13 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
   ON_GT_ERROR (CRP (cpssDxChBrgFdbHashCalc (CPU_DEV, &e->key, &idx)))
     return ST_HEX;
 
-DEBUG ("INIT: idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_pri); //TODO remove
+//DEBUG ("INIT: idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_pri); //TODO remove
   for (i = 0; i < 4; i++, idx++) {
     if (me_key_eq (&e->key, &fdb[idx].me.key)) {
       if (!fdb[idx].valid
           || fdb[idx].me.userDefined <= e->userDefined
           || (e->userDefined == FEP_FOREIGN && fdb[idx].me.userDefined == FEP_DYN)) {
-DEBUG ("idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_pri); //TODO remove
+//DEBUG ("idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_pri); //TODO remove
         best_idx = idx;
         break;
       } else {
@@ -431,26 +469,26 @@ DEBUG ("idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_p
     }
 
     if (best_pri == FEP_UNUSED) {
-DEBUG ("idx==%04x,  best_idx==%04x, best_pri == FEP_UNUSED\n", idx, best_idx); //TODO remove
+//DEBUG ("idx==%04x,  best_idx==%04x, best_pri == FEP_UNUSED\n", idx, best_idx); //TODO remove
       continue;
     }
 
     if (!fdb[idx].valid) {
-DEBUG ("idx==%04x, best_idx==%04x, !fdb[idx].valid\n", idx, best_idx); //TODO remove
+//DEBUG ("idx==%04x, best_idx==%04x, !fdb[idx].valid\n", idx, best_idx); //TODO remove
       best_pri = FEP_UNUSED;
       best_idx = idx;
       continue;
     }
 
     if (best_pri > fdb[idx].me.userDefined) {
-DEBUG ("idx==%04x, best_idx==%04x, best_pri==%u > fdb[idx].me.userDefined==%u\n", idx, best_idx, best_pri, fdb[idx].me.userDefined); //TODO remove
+//DEBUG ("idx==%04x, best_idx==%04x, best_pri==%u > fdb[idx].me.userDefined==%u\n", idx, best_idx, best_pri, fdb[idx].me.userDefined); //TODO remove
       best_pri = fdb[idx].me.userDefined;
       best_idx = idx;
     }
   }
 
   if (best_idx == INVALID_IDX) {
-DEBUG ("COLLISION: %04x-" MAC_FMT "-%4u\n", idx, MAC_ARG(e->key.key.macVlan.macAddr.arEther), e->key.key.macVlan.vlanId); // TODO remove
+//DEBUG ("COLLISION: %04x-" MAC_FMT "-%4u\n", idx, MAC_ARG(e->key.key.macVlan.macAddr.arEther), e->key.key.macVlan.vlanId); // TODO remove
     return ST_DOES_NOT_EXIST;
   }
 
@@ -765,7 +803,7 @@ fdb_upd_for_dev (int d)
       }
     }
     if (total)
-      tipc_fdb_ctl(total, fdbr);
+      fdbcomm_ctl(total, fdbr);
     break;
 
   default:
@@ -845,6 +883,166 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   return 0;
 }
 
+static void
+fdbcomm_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdbcomm_thrd *a) {
+  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+#define TIPC_FDB_NREC ( (TIPC_MSG_MAX_LEN - sizeof(struct pti_fdbr_msg)) / sizeof(struct pti_fdbr) - 1 )
+
+  int nf = 0;
+  do { /* splitting up to TIPC message maximum size */
+    fdb_msg->version = PTI_FDB_VERSION;
+    fdb_msg->stack_id = stack_id;
+    uint16_t nr = (n - nf > TIPC_FDB_NREC)? TIPC_FDB_NREC : n - nf;
+    fdb_msg->nfdb = htons(nr);
+    memcpy(fdb_msg->data, pf+nf, sizeof(struct pti_fdbr) * nr);
+
+    unsigned i;
+    for (i = 0; i < nr; i++)
+      fdb_msg->data[i].vid = htons(fdb_msg->data[i].vid);
+
+    size_t msglen = sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * nr;
+
+    if (TEMP_FAILURE_RETRY
+        (sendto (a->fdb_sock, buf, msglen, 0,
+                 (struct sockaddr *) &fdb_dst, sizeof (fdb_dst)))
+        != msglen)
+      err ("TIPC fdb sendmsg() failed");
+
+//DEBUG("tipc-fdb-msg sent, msglen==%d\n", msglen); //TODO remove
+//DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, nr);
+//PRINTHexDump(buf, msglen);
+
+    nf += TIPC_FDB_NREC;
+  } while (nf < n );
+//DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
+}
+
+static int
+fdbcomm_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a) {
+  status_t status = ST_BAD_FORMAT;
+
+  zmsg_t *msg = zmsg_recv (a->tipc_ctl_sock);
+  zframe_t *cmdframe = zmsg_first (msg);
+  if (!cmdframe)
+    goto out;
+  uint8_t cmd = *((uint8_t *) zframe_data (cmdframe));
+
+  zframe_t *nframe = zmsg_next (msg);
+  if (!nframe)
+    goto out;
+  unsigned n = *((unsigned *) zframe_data (nframe));
+
+  zframe_t *aframe = zmsg_next (msg);
+  if (!aframe)
+    goto out;
+  struct pti_fdbr *pf = (struct pti_fdbr*) zframe_data (aframe);
+
+  if (cmd != PTI_CMD_FDB_SEND) {
+    status = ST_BAD_REQUEST;
+    goto out;
+  }
+
+  fdbcomm_notify_fdb (n, pf, a);
+
+out:
+  zmsg_destroy (&msg);
+  return 1;
+}
+
+enum status
+fdbcomm_ctl(unsigned n, const struct pti_fdbr *arg) {
+  zmsg_t *msg = zmsg_new ();
+
+  uint8_t cmd = PTI_CMD_FDB_SEND;
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &n, sizeof (n));
+  zmsg_addmem (msg, arg, n * sizeof(*arg));
+
+  zmsg_send (&msg, fdbcomm_ctl_sock);
+
+  return ST_OK;
+}
+
+static inline zloop_fn *
+zfn (int (fn) (zloop_t *loop, zmq_pollitem_t *item, struct fdbcomm_thrd *arg)) {
+  return (zloop_fn *) fn;
+}
+
+static int
+fdbcomm_tipc_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a) {
+  static char *buf[TIPC_MSG_MAX_LEN];
+  ssize_t mlen;
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  mlen = TEMP_FAILURE_RETRY(recv(a->fdb_sock, buf, sizeof(buf), 0));
+  if (mlen <= 0) {
+    ERR("tipc recv() failed(%s)\r\n", strerror(errno));
+    return 0;
+  }
+
+//DEBUG("tipc-fdb-msg recvd, len==%d\n", mlen); //TODO remove
+//PRINTHexDump(buf, mlen);
+
+  if (fdb_msg->version != PTI_FDB_VERSION){
+    return 0;
+  }
+  if (fdb_msg->stack_id == stack_id)
+    return 0;
+
+  fdb_msg->nfdb = ntohs(fdb_msg->nfdb);
+  unsigned i;
+  for (i = 0; i < fdb_msg->nfdb; i++)
+    fdb_msg->data[i].vid = ntohs(fdb_msg->data[i].vid);
+
+  mac_op_foreign_blck(fdb_msg->nfdb, fdb_msg->data, a->fdb_ctl_sock);
+
+  return 1;
+}
+
+
+static volatile int fdbcomm_thread_started = 0;
+
+static void *
+fdbcomm_thread (void *z)
+{
+  static struct fdbcomm_thrd ft;
+  zctx_t *zcontext = (zctx_t *) z;
+
+  ft.loop = zloop_new();
+  assert(ft.loop);
+
+  ft.fdb_sock = tipc_fdbcomm_connect();
+  int rc;
+
+  DEBUG ("starting up FDB communicator\r\n");
+
+  ft.fdb_ctl_sock = zsocket_new (zcontext, ZMQ_REQ);
+  assert (ft.fdb_ctl_sock);
+  rc=zsocket_connect (ft.fdb_ctl_sock, FDB_CONTROL_EP);
+
+  ft.tipc_ctl_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (ft.tipc_ctl_sock);
+  rc=zmq_setsockopt (ft.tipc_ctl_sock, ZMQ_SUBSCRIBE, NULL, 0);
+
+  rc=zsocket_connect (ft.tipc_ctl_sock, TIPC_POST_EP);
+
+  zmq_pollitem_t pitp = {NULL, ft.fdb_sock, ZMQ_POLLIN};
+  zloop_poller(ft.loop, &pitp, zfn (fdbcomm_tipc_handler), &ft);
+
+  zmq_pollitem_t pit = { ft.tipc_ctl_sock, 0, ZMQ_POLLIN };
+  rc=zloop_poller(ft.loop, &pit, zfn (fdbcomm_ctl_handler), &ft);
+
+  prctl(PR_SET_NAME, "fdb-comm", 0, 0, 0);
+
+  DEBUG ("FDB communicator startup done\r\n");
+  fdbcomm_thread_started = 1;
+  zloop_start(ft.loop);
+
+  return NULL;
+}
+
 static volatile int fdb_thread_started = 0;
 
 static void *
@@ -885,7 +1083,7 @@ fdb_thread (void *_)
 enum status
 mac_start (void)
 {
-  pthread_t tid;
+  pthread_t tid, tidcomm;
   struct mac_age_arg arg = {
     .vid = ALL_VLANS,
     .port = ALL_PORTS
@@ -928,7 +1126,6 @@ mac_start (void)
       CRP (rc);
   }
 
-
   memset (fdb, 0, sizeof (fdb));
   pthread_create (&tid, NULL, fdb_thread, NULL);
   DEBUG ("waiting for FDB startup\r\n");
@@ -942,6 +1139,25 @@ mac_start (void)
   gctl_sock = zsocket_new (zcontext, ZMQ_REQ);
   assert (gctl_sock);
   zsocket_connect (gctl_sock, FDB_CONTROL_EP);
+
+  fdbcomm_ctl_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (fdbcomm_ctl_sock);
+  zsocket_bind (fdbcomm_ctl_sock, TIPC_POST_EP);
+
+  pthread_create (&tidcomm, NULL, fdbcomm_thread, zcontext);
+  DEBUG ("waiting for FDB communicator startup\r\n");
+  n = 0;
+  while (!fdbcomm_thread_started) {
+    n++;
+    usleep (10000);
+  }
+  DEBUG ("FDB communicator startup finished after %d iterations\r\n", n);
+
+  gctl_sock = zsocket_new (zcontext, ZMQ_REQ);
+  assert (gctl_sock);
+  zsocket_connect (gctl_sock, FDB_CONTROL_EP);
+
+
 
   fdb_flush (&fa);
 
