@@ -53,6 +53,7 @@ static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
 static void *sec_sock;
+static void *fdb_sock;
 static void *stack_cmd_sock;
 
 
@@ -136,6 +137,10 @@ control_init (void)
   stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (stack_cmd_sock);
   zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+
+  fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (fdb_sock);
+  zsocket_connect (sec_sock, FDB_PUBSUB_EP);
 
   return 0;
 }
@@ -565,6 +570,14 @@ secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 }
 
 static int
+fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (fdb_sock);
+  notify_send (&msg);
+  return 0;
+}
+
+static int
 rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (rtbd_sock);
@@ -670,6 +683,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
+
+  zmq_pollitem_t fdb_pi = { fdb_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &fdb_pi, fdb_handler, NULL);
 
   prctl(PR_SET_NAME, "ctl-loop", 0, 0, 0);
 
