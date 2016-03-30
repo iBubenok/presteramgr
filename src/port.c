@@ -1105,12 +1105,12 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
     return result;
 
   if (all) {
+    DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
       if (stg_is_active (stg)) {
         stg_state[pid - 1][stg] = state;
-        DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
         CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stg, cs));
     }
   } else {
