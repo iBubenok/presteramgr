@@ -44,6 +44,8 @@ struct port {
   int def_xlate;
   vid_t def_map_to;
   trunk_id_t trunk_id;
+  int fdb_notify_enabled;
+  int fdb_insertion_enabled;
   enum port_stack_role stack_role;
   CPSS_PORT_ATTRIBUTES_STC attrs;
 
