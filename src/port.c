@@ -266,7 +266,7 @@ port_init (void)
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
-    ports[i].fdb_notify_enabled = 1;
+    ports[i].fdb_notify_enabled = 0;
     ports[i].fdb_insertion_enabled = 1;
     ports[i].stack_role = PORT_STACK_ROLE (i);
     if (ports[i].stack_role == PSR_NONE)
@@ -4186,6 +4186,20 @@ port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
   memcpy (op.mac, mac, sizeof (op.mac));
 
   return mac_op (&op);
+}
+
+enum status
+port_fdb_notify (port_id_t pid, bool_t enable)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  port->fdb_notify_enabled = enable;
+
+  return ST_OK;
 }
 
 static void

@@ -138,6 +138,7 @@ extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
 extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
+extern enum status port_fdb_notify (port_id_t, bool_t);
 extern enum status port_get_serdes_cfg (port_id_t, struct port_serdes_cfg *);
 extern enum status port_set_serdes_cfg (port_id_t, const struct port_serdes_cfg *);
 
