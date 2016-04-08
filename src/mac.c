@@ -28,6 +28,21 @@ enum fdb_ctl_cmd {
 };
 
 static void *ctl_sock;
+static void *pub_sock;   /* notifications to control.c -> manager */
+
+static void fdb_notification_send(port_id_t pid, uint8_t *mac)
+{
+  zmsg_t *msg = zmsg_new ();
+  notification_t tmp = CN_NA;
+
+  assert (msg);
+
+  zmsg_addmem (msg, &tmp, sizeof (tmp));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, mac, 6);
+
+  zmsg_send (&msg, pub_sock);
+}
 
 static enum status __attribute__ ((unused))
 fdb_ctl (int cmd, const void *arg, int size)
@@ -482,6 +497,9 @@ fdb_mac_mc_ip_op (const struct mc_ip_op_arg *arg)
 static void
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
+  port_id_t lport;
+  struct port *port;
+
   u->macEntry.appSpecificCpuCode = GT_FALSE;
   u->macEntry.isStatic           = GT_FALSE;
   u->macEntry.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
@@ -490,7 +508,17 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   u->macEntry.userDefined        = FEP_DYN;
   u->macEntry.spUnknown          = GT_FALSE;
 
-  fdb_insert (&u->macEntry, 0, 0);
+  lport = (port_id_t)port_id(u->macEntry.dstInterface.devPort.devNum,
+                             u->macEntry.dstInterface.devPort.portNum);
+  port = port_ptr(lport);
+
+  if (port) {
+    if (port->fdb_notify_enabled)
+      fdb_notification_send(port->id, u->macEntry.key.key.macVlan.macAddr.arEther);
+
+    if (port->fdb_insertion_enabled)
+      fdb_insert (&u->macEntry, 0, 0);
+  }
 }
 
 static void
@@ -627,6 +655,10 @@ fdb_thread (void *_)
 
   zmq_pollitem_t ctl_pi = { ctl_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &ctl_pi, fdb_ctl_handler, ctl_sock);
+
+  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_sock);
+  zsocket_bind (pub_sock, FDB_PUBSUB_EP);
 
   prctl(PR_SET_NAME, "fdb", 0, 0, 0);
 

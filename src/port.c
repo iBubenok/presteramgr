@@ -266,6 +266,8 @@ port_init (void)
     ports[i].c_protected = 0;
     ports[i].c_prot_comm = 0;
     ports[i].tdr_test_in_progress = 0;
+    ports[i].fdb_notify_enabled = 0;
+    ports[i].fdb_insertion_enabled = 1;
     ports[i].stack_role = PORT_STACK_ROLE (i);
     if (ports[i].stack_role == PSR_NONE)
       CPSS_PORTS_BMP_PORT_SET_MAC (&nst_ports_bmp[pmap[i].dev], pmap[i].port);
@@ -4132,14 +4134,14 @@ __port_enable_eapol (struct port *port, bool_t enable)
       .port = port->id
     };
 
-    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_FALSE));
+    port->fdb_insertion_enabled = 0;
     CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_SOFT_DROP_E));
 
     mac_flush (&aa, GT_FALSE);
   } else {
-    CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
+    port->fdb_insertion_enabled = 1;
     CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_FALSE));
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
@@ -4184,6 +4186,20 @@ port_eapol_auth (port_id_t pid, vid_t vid, mac_addr_t mac, bool_t auth)
   memcpy (op.mac, mac, sizeof (op.mac));
 
   return mac_op (&op);
+}
+
+enum status
+port_fdb_notify (port_id_t pid, bool_t enable)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port)
+    return ST_BAD_VALUE;
+
+  port->fdb_notify_enabled = enable;
+
+  return ST_OK;
 }
 
 static void
