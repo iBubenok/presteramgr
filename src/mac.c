@@ -516,6 +516,11 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
     if (port->fdb_notify_enabled)
       fdb_notification_send(port->id, u->macEntry.key.key.macVlan.macAddr.arEther);
 
+    goto out;
+  }
+
+  out:
+  if (port) {
     if (port->fdb_insertion_enabled)
       fdb_insert (&u->macEntry, 0, 0);
   }
