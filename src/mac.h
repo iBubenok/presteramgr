@@ -29,6 +29,6 @@ extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
-//extern enum status mac_op_foreign_blck(unsigned,  const struct pti_fdbr *, void *);
+extern enum status mac_set_master (uint8_t);
 
 #endif /* __MAC_H__ */

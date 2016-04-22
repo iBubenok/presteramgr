@@ -22,6 +22,7 @@
 #include <pcl.h>
 #include <sysdeps.h>
 #include <qos.h>
+#include <mac.h>
 #include <debug.h>
 
 int stack_id = 0, master_id;
@@ -67,11 +68,14 @@ stack_init (void)
 enum status
 stack_set_master (uint8_t master, const uint8_t *mac)
 {
+DEBUG(">>>stack_set_master (%d, const uint8_t *mac)\n", master);
   if (master > 16)
     return ST_BAD_VALUE;
 
   master_id = master;
   memcpy (master_mac, mac, 6);
+
+  mac_set_master(master);
 
   return ST_OK;
 }

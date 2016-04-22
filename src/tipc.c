@@ -20,7 +20,6 @@
 #define BPDU_IOV_DATA 1
 
 static int ntf_sock, fdb_tsock;
-//static void *ctl_sock;
 
 static struct sockaddr_tipc bpdu_dst = {
   .family             = AF_TIPC,

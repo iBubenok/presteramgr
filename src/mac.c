@@ -27,10 +27,39 @@ enum fdb_ctl_cmd {
   FCC_OWN_MAC_OP,
   FCC_MC_IP_OP,
   FCC_MAC_OP_FOREIGN_BLCK,
-  FCC_FLUSH
+  FCC_FLUSH,
+  FCC_SET_MASTER,
+  FCC_FDBMAN_HANDLE_PKT
 };
 
 #define PTI_FDB_VERSION (1)
+
+enum pti_fdb_op {
+  PTI_FDB_OP_ADD = 0,
+  PTI_FDB_OP_DEL = 1
+};
+
+enum pti_iface_type {
+  IFTYPE_PORT = 0,
+  IFTYPE_TRUNK,
+  IFTYPE_VIDX,
+  IFTYPE_VLANID,
+  IFTYPE_DEVICE,
+  IFTYPE_FABRIC_VIDX,
+  IFTYPE_INDEX
+};
+
+enum fdbman_cmd {
+  FMC_MASTER_READY,
+  FMC_UPDATE,
+  FMC_MASTER_UPDATE
+};
+
+enum fdbman_state {
+  FST_MASTER,
+  FST_PRE_MEMBER,
+  FST_MEMBER
+};
 
 struct fdbcomm_thrd {
   void *fdb_ctl_sock;
@@ -58,12 +87,20 @@ struct pti_fdbr {
 struct pti_fdbr_msg {
   uint8_t version;
   uint8_t stack_id;
+  uint8_t command;
   uint16_t nfdb;
   struct pti_fdbr data[];
 } __attribute__ ((packed));
 
 #define PTI_FDBR_MSG_SIZE(n) \
     (sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * (n))
+
+enum fdbman_state fdbman_state;
+uint8_t fdbman_master, fdbman_newmaster;
+
+static enum status fdbman_set_master(const void *arg);
+static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
+static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master);
 
 static void *fdbcomm_ctl_sock;
 static void *gctl_sock;
@@ -91,11 +128,25 @@ fdb_ctl (int cmd, const void *arg, int size)
 }
 
 static enum status __attribute__ ((unused))
-fdb_ctl2 (int cmd, unsigned n, const void *arg, size_t size, void *ctl_sock) {
-  zmsg_t *msg = zmsg_new ();
+fdb_ctl2 (int cmd, const void *arg, size_t size, void *ctl_sock) {
 
+  zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, &n, sizeof (n));
+  zmsg_addmem (msg, arg, size);
+
+  zmsg_send (&msg, ctl_sock);
+
+  msg = zmsg_recv (ctl_sock);
+  status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
+  zmsg_destroy (&msg);
+
+  return status;
+}
+
+static enum status __attribute__ ((unused))
+fdbman_ctl (const void *arg, size_t size, void *ctl_sock) {
+
+  zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, arg, size);
 
   zmsg_send (&msg, ctl_sock);
@@ -172,8 +223,8 @@ struct fdb_flush_arg {
 };
 
 enum status
-mac_op_foreign_blck(unsigned n, const struct pti_fdbr *arg, void *ctl_sock) {
-  return fdb_ctl2(FCC_MAC_OP_FOREIGN_BLCK, n, arg, sizeof(struct pti_fdbr) * n, ctl_sock);
+mac_op_handle_pkt(const void * pkt, uint32_t len, void *ctl_sock) {
+  return fdb_ctl2(FCC_FDBMAN_HANDLE_PKT, pkt, len, ctl_sock);
 }
 
 enum status
@@ -205,6 +256,13 @@ mac_set_aging_time (aging_time_t time)
   default:           return ST_HEX;
   }
 }
+
+enum status
+mac_set_master (uint8_t stid)
+{
+  return fdb_ctl (FCC_SET_MASTER, &stid, sizeof (stid));
+}
+
 
 /*
  * FDB management.
@@ -284,7 +342,7 @@ fdb_flush (const struct fdb_flush_arg *arg)
     done[d] = GT_FALSE;
   }
 
-  unsigned fridx = 0;
+//  unsigned fridx = 0;
 
   if (act_vid_mask && port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
@@ -296,9 +354,9 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-        if (fdb[i].me.userDefined != FEP_FOREIGN)
-          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+//        if (fdb[i].me.userDefined != FEP_FOREIGN)
+//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
+//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
 
       }
   } else if (act_vid_mask) {
@@ -309,9 +367,9 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-        if (fdb[i].me.userDefined != FEP_FOREIGN)
-          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+//        if (fdb[i].me.userDefined != FEP_FOREIGN)
+//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
+//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
 
       }
   } else if (port_mask) {
@@ -323,9 +381,9 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-        if (fdb[i].me.userDefined != FEP_FOREIGN)
-          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+//        if (fdb[i].me.userDefined != FEP_FOREIGN)
+//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
+//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
 
       }
   } else {
@@ -335,16 +393,16 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-        if (fdb[i].me.userDefined != FEP_FOREIGN)
-          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
+//        if (fdb[i].me.userDefined != FEP_FOREIGN)
+//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
+//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
 
       }
   }
 
   psec_after_flush ();
-  if (fridx)
-    fdbcomm_ctl(fridx, fdbr);
+//  if (fridx)
+//    fdbcomm_ctl(fridx, fdbr);
 
   do {
     all_done = 1;
@@ -675,10 +733,12 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
       me.dstInterface.type = CPSS_INTERFACE_PORT_E;
       me.dstInterface.devPort.portNum = fr->port.hwport;
       me.dstInterface.devPort.devNum = fr->port.hwdev;
+      me.userDefined = (fr->port.hwdev == stack_id) ? FEP_DYN : FEP_FOREIGN;
       break;
     case IFTYPE_TRUNK:
       me.dstInterface.type = CPSS_INTERFACE_TRUNK_E;
       me.dstInterface.trunkId = fr->trunk.trunkId;
+      me.userDefined = FEP_FOREIGN; // TODO ???
       break;
     default:
       return ST_BAD_VALUE;
@@ -691,10 +751,8 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
   me.appSpecificCpuCode     = GT_FALSE;
   me.daRoute                = GT_FALSE;
   me.spUnknown              = GT_FALSE;
-  me.userDefined            = FEP_FOREIGN;
   me.daCommand              = CPSS_MAC_TABLE_FRWRD_E;
   me.saCommand              = CPSS_MAC_TABLE_FRWRD_E;
-  /* me.dstInterface.devPort.devNum will be set in fdb_insert() */
 
 //DEBUG("fdb_mac_foreign_add(const struct pti_fdbr *fr)\n"); //TODO remove
 //PRINTHexDump(&me, sizeof(me));
@@ -734,7 +792,7 @@ fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa) {
   return status;
 }
 
-static void
+static enum status
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
 DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
@@ -751,10 +809,10 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
 //DEBUG("fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)\n");
 //PRINTHexDump(&u->macEntry, sizeof(u->macEntry));
 
-  fdb_insert (&u->macEntry, 0, 0);
+  return fdb_insert (&u->macEntry, 0, 0);
 }
 
-static void
+static enum status
 fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
 DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO remove
@@ -763,7 +821,7 @@ DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO rem
   /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
   /*        u->macEntry.key.key.macVlan.vlanId); */
 
-  fdb_remove (&u->macEntry.key, 0);
+  return fdb_remove (&u->macEntry.key, 0);
 }
 
 static void
@@ -772,7 +830,7 @@ fdb_upd_for_dev (int d)
   GT_U32 num, total;
   GT_STATUS rc;
   CPSS_MAC_UPDATE_MSG_EXT_STC *ptr = fdb_addrs;
-  int i;
+  int i, idx = 0;
 
   total = 0;
   do {
@@ -790,20 +848,26 @@ fdb_upd_for_dev (int d)
       switch (fdb_addrs[i].updType) {
       case CPSS_NA_E:
       case CPSS_SA_E:
-        fdb_new_addr (d, &fdb_addrs[i]);
-        mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_ADD, &fdbr[i]);
+        if (fdbman_state == FST_MEMBER)
+            mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_ADD, &fdbr[idx++]);
+        else
+          if (fdb_new_addr (d, &fdb_addrs[i]) == ST_OK)
+            mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_ADD, &fdbr[idx++]);
         break;
       case CPSS_AA_E:
-        fdb_old_addr (d, &fdb_addrs[i]);
-        mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[i]);
+        if (fdbman_state == FST_MEMBER)
+          mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
+        else
+          if (fdb_old_addr (d, &fdb_addrs[i]) == ST_OK)
+            mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
         break;
       default:
         DEBUG("fdb_upd_for_dev(): UNRESOLVED!!!! fdb_addrs[i].updType==%u  \n", fdb_addrs[i].updType);
         break;
       }
     }
-    if (total)
-      fdbcomm_ctl(total, fdbr);
+    if (idx)
+      fdbman_send_msg_uni_update(fdbr, idx, (fdbman_state == FST_MEMBER)? 0 : 1);
     break;
 
   default:
@@ -841,7 +905,8 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   zmsg_t *msg = zmsg_recv (ctl_sock);
   zframe_t *frame = zmsg_first (msg);
   int cmd = *((int *) zframe_data (frame));
-  void *arg = zframe_data (zmsg_next (msg));
+  frame = zmsg_next(msg);
+  void *arg = zframe_data (frame);
   status_t status = ST_BAD_REQUEST;
   unsigned n;
 
@@ -863,13 +928,25 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     break;
   case FCC_MAC_OP_FOREIGN_BLCK:
     DEBUG("FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
-    n = *((unsigned*) arg);
+    n = *((uint32_t*) arg);
     arg = zframe_data (zmsg_next (msg));
     status = fdb_mac_foreign_blck(n, arg);
     DEBUG("===FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
     break;
   case FCC_FLUSH:
     status = fdb_flush (arg);
+    break;
+  case FCC_SET_MASTER:
+    DEBUG("FCC_SET_MASTER\n"); // TODO remove
+    status = fdbman_set_master(arg);
+    DEBUG("===FCC_SET_MASTER\n"); // TODO remove
+    break;
+  case FCC_FDBMAN_HANDLE_PKT:
+    DEBUG("FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
+//    n = *((uint32_t*) arg);
+//    arg = zframe_data (zmsg_next (msg));
+    status = fdbman_handle_pkt(arg, zframe_size(frame));
+    DEBUG("===FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
     break;
   default:
     status = ST_BAD_REQUEST;
@@ -883,8 +960,33 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   return 0;
 }
 
+enum status
+fdbman_send_pkt(const void *arg, uint32_t len) {
+
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, arg, len);
+  zmsg_send (&msg, fdbcomm_ctl_sock);
+
+  return ST_OK;
+}
+
 static void
-fdbcomm_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdbcomm_thrd *a) {
+fdbman_send_master_announce_pkt(void) {
+DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
+  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+    fdb_msg->version = PTI_FDB_VERSION;
+    fdb_msg->stack_id = stack_id;
+    fdb_msg->command = FMC_MASTER_READY;
+    fdb_msg->nfdb = 0;
+
+    fdbman_send_pkt(buf, sizeof(struct pti_fdbr_msg));
+}
+
+static void
+fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
+DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
   static uint8_t *buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -894,6 +996,7 @@ fdbcomm_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdbcomm_thrd *
   do { /* splitting up to TIPC message maximum size */
     fdb_msg->version = PTI_FDB_VERSION;
     fdb_msg->stack_id = stack_id;
+    fdb_msg->command = (master)? FMC_MASTER_UPDATE : FMC_UPDATE ;
     uint16_t nr = (n - nf > TIPC_FDB_NREC)? TIPC_FDB_NREC : n - nf;
     fdb_msg->nfdb = htons(nr);
     memcpy(fdb_msg->data, pf+nf, sizeof(struct pti_fdbr) * nr);
@@ -904,11 +1007,7 @@ fdbcomm_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdbcomm_thrd *
 
     size_t msglen = sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * nr;
 
-    if (TEMP_FAILURE_RETRY
-        (sendto (a->fdb_sock, buf, msglen, 0,
-                 (struct sockaddr *) &fdb_dst, sizeof (fdb_dst)))
-        != msglen)
-      err ("TIPC fdb sendmsg() failed");
+    fdbman_send_pkt(buf, msglen);
 
 //DEBUG("tipc-fdb-msg sent, msglen==%d\n", msglen); //TODO remove
 //DEBUG("tipc-fdb-msg nf==%d, fdb_msg->nfdb==%hu\n", nf, nr);
@@ -919,32 +1018,177 @@ fdbcomm_notify_fdb (unsigned n, const struct pti_fdbr *pf, struct fdbcomm_thrd *
 //DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
 }
 
-static int
-fdbcomm_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a) {
-  status_t status = ST_BAD_FORMAT;
 
-  zmsg_t *msg = zmsg_recv (a->tipc_ctl_sock);
-  zframe_t *cmdframe = zmsg_first (msg);
-  if (!cmdframe)
-    goto out;
-  uint8_t cmd = *((uint8_t *) zframe_data (cmdframe));
+static void
+fdbman_handle_msg_master_update(const struct pti_fdbr_msg *msg, uint32_t len) {
 
-  zframe_t *nframe = zmsg_next (msg);
-  if (!nframe)
-    goto out;
-  unsigned n = *((unsigned *) zframe_data (nframe));
+  fdb_mac_foreign_blck(msg->nfdb, msg->data);
+}
 
-  zframe_t *aframe = zmsg_next (msg);
-  if (!aframe)
-    goto out;
-  struct pti_fdbr *pf = (struct pti_fdbr*) zframe_data (aframe);
+static void
+fdbman_handle_msg_update(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
+  unsigned i, idx = 0;
+  struct pti_fdbr *fa = msg->data;
+  status_t s = ST_DOES_NOT_EXIST;
 
-  if (cmd != PTI_CMD_FDB_SEND) {
-    status = ST_BAD_REQUEST;
-    goto out;
+  for (i = 0; i < msg->nfdb; i++) {
+    switch (fa[i].operation) {
+      case PTI_FDB_OP_ADD:
+        s = fdb_mac_foreign_add(&fa[i]);
+        break;
+      case PTI_FDB_OP_DEL:
+        s = fdb_mac_foreign_del(&fa[i]);
+    }
+    if (s == ST_OK) {
+      memcpy(&fdbr[idx], &fa[i], sizeof(struct pti_fdbr));
+      idx++;
+    }
+  }
+  if (idx) {
+    fdbman_send_msg_uni_update(fdbr, idx, 1);
+  }
+}
+
+static enum status
+fdbman_set_master(const void *arg) {
+  uint8_t newmaster = *((uint8_t*) arg);
+DEBUG(">>>fdbman_set_master(%hhu)\n", newmaster);
+DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+  switch (fdbman_state) {
+    case FST_MASTER:
+      if (fdbman_master != newmaster) {
+        fdbman_newmaster = newmaster;
+        fdbman_state = FST_PRE_MEMBER;
+      }
+      else {
+        fdbman_send_master_announce_pkt();
+      }
+      break;
+    case FST_PRE_MEMBER:
+      fdbman_newmaster = newmaster;
+      if (stack_id == newmaster) {
+        fdbman_send_master_announce_pkt();
+        fdbman_master = newmaster;
+        fdbman_state = FST_MASTER;
+      }
+      break;
+    case FST_MEMBER:
+      fdbman_newmaster = newmaster;
+      if (stack_id == newmaster) {
+        fdbman_send_master_announce_pkt();
+        fdbman_master = newmaster;
+        fdbman_state = FST_MASTER;
+      }
+      break;
+  }
+DEBUG("2FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+  return ST_OK;
+}
+
+static enum status
+fdbman_handle_pkt (const void *pkt, uint32_t len) {
+DEBUG(">>>fdbman_handle_pkt (%p, %d)\n", pkt, len);
+
+  struct pti_fdbr_msg *msg = (struct pti_fdbr_msg*) pkt;
+DEBUG("msg: cmd %d, n %d, stid %d\n", msg->command, ntohs(msg->nfdb), msg->stack_id);
+DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+
+  if (msg->command == FMC_MASTER_UPDATE || msg->command == FMC_UPDATE) {
+    msg->nfdb = ntohs(msg->nfdb);
+    unsigned i;
+    for (i = 0; i < msg->nfdb; i++)
+      msg->data[i].vid = ntohs(msg->data[i].vid);
   }
 
-  fdbcomm_notify_fdb (n, pf, a);
+  switch (fdbman_state) {
+
+    case FST_MASTER:
+      switch (msg->command) {
+        case FMC_MASTER_READY:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY\n");
+          fdbman_newmaster = fdbman_master = msg->stack_id;
+          fdbman_state = FST_MEMBER;
+          break;
+        case FMC_UPDATE:
+          fdbman_handle_msg_update(msg, len);
+          break;
+        case FMC_MASTER_UPDATE:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
+          break;
+      }
+      break;
+
+    case FST_PRE_MEMBER:
+      switch (msg->command) {
+        case FMC_MASTER_READY:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_state = FST_MEMBER;
+          }
+          else {
+//            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO */
+//            fdbman_state = FST_MEMBER;
+            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n", 
+                msg->stack_id, fdbman_newmaster);
+          }
+          break;
+        case FMC_UPDATE:
+          fdbman_handle_msg_update(msg, len);
+          break;
+        case FMC_MASTER_UPDATE:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_handle_msg_master_update(msg, len);
+          }
+          else {
+            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_UPDATE data block\n");
+          }
+          break;
+      }
+      break;
+
+    case FST_MEMBER:
+      switch (msg->command) {
+        case FMC_MASTER_READY:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_state = FST_MEMBER;
+          }
+          else {
+//            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO */
+//            fdbman_state = FST_MEMBER;
+            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+                  msg->stack_id, fdbman_newmaster);
+          }
+          break;
+        case FMC_UPDATE:
+          break;
+        case FMC_MASTER_UPDATE:
+          fdbman_handle_msg_master_update(msg, len);
+          break;
+      }
+      break;
+  }
+DEBUG("2FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+  return ST_OK;
+}
+
+static int
+fdbcomm_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a) {
+
+  zmsg_t *msg = zmsg_recv (a->tipc_ctl_sock);
+  zframe_t *aframe = zmsg_first (msg);
+  if (!aframe)
+    goto out;
+  char *pkt = (char*) zframe_data (aframe);
+  assert(pkt);
+  size_t len = zframe_size (aframe);
+
+  if (TEMP_FAILURE_RETRY
+      (sendto (a->fdb_sock, pkt, len, 0,
+               (struct sockaddr *) &fdb_dst, sizeof (fdb_dst)))
+      != len)
+    err ("TIPC fdb sendmsg() failed");
 
 out:
   zmsg_destroy (&msg);
@@ -952,14 +1196,10 @@ out:
 }
 
 enum status
-fdbcomm_ctl(unsigned n, const struct pti_fdbr *arg) {
+fdb_send_pkt(const void *arg, uint32_t len) {
+
   zmsg_t *msg = zmsg_new ();
-
-  uint8_t cmd = PTI_CMD_FDB_SEND;
-  zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, &n, sizeof (n));
-  zmsg_addmem (msg, arg, n * sizeof(*arg));
-
+  zmsg_addmem (msg, arg, len);
   zmsg_send (&msg, fdbcomm_ctl_sock);
 
   return ST_OK;
@@ -991,12 +1231,7 @@ fdbcomm_tipc_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a)
   if (fdb_msg->stack_id == stack_id)
     return 0;
 
-  fdb_msg->nfdb = ntohs(fdb_msg->nfdb);
-  unsigned i;
-  for (i = 0; i < fdb_msg->nfdb; i++)
-    fdb_msg->data[i].vid = ntohs(fdb_msg->data[i].vid);
-
-  mac_op_foreign_blck(fdb_msg->nfdb, fdb_msg->data, a->fdb_ctl_sock);
+  mac_op_handle_pkt (fdb_msg, mlen, a->fdb_ctl_sock);
 
   return 1;
 }
@@ -1126,6 +1361,8 @@ mac_start (void)
       CRP (rc);
   }
 
+  fdbman_state = FST_MASTER;
+  fdbman_newmaster = fdbman_master = stack_id;
   memset (fdb, 0, sizeof (fdb));
   pthread_create (&tid, NULL, fdb_thread, NULL);
   DEBUG ("waiting for FDB startup\r\n");
