@@ -53,6 +53,7 @@ static void *evt_sock;
 static void *rtbd_sock;
 static void *arpd_sock;
 static void *sec_sock;
+static void *fdb_sock;
 static void *stack_cmd_sock;
 
 
@@ -136,6 +137,10 @@ control_init (void)
   stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (stack_cmd_sock);
   zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+
+  fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
+  assert (fdb_sock);
+  zsocket_connect (sec_sock, FDB_PUBSUB_EP);
 
   return 0;
 }
@@ -374,6 +379,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
+DECLARE_HANDLER (CC_PORT_FDB_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
@@ -404,6 +410,7 @@ DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 DECLARE_HANDLER (CC_PCL_GET_COUNTER);
 DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
+DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 
@@ -513,6 +520,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
+  HANDLER (CC_PORT_FDB_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_ROUTE_MC_ADD),
@@ -543,7 +551,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARPD_SOCK_CONNECT),
   HANDLER (CC_PCL_GET_COUNTER),
   HANDLER (CC_PCL_CLEAR_COUNTER),
-  HANDLER (CC_STACK_SET_MASTER)
+  HANDLER (CC_STACK_SET_MASTER),
+  HANDLER (CC_LOAD_BALANCE_MODE)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -562,6 +571,14 @@ static int
 secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (sec_sock);
+  notify_send (&msg);
+  return 0;
+}
+
+static int
+fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+{
+  zmsg_t *msg = zmsg_recv (fdb_sock);
   notify_send (&msg);
   return 0;
 }
@@ -672,6 +689,9 @@ control_loop (void *dummy)
 
   zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
+
+  zmq_pollitem_t fdb_pi = { fdb_sock, 0, ZMQ_POLLIN };
+  zloop_poller (loop, &fdb_pi, fdb_handler, NULL);
 
   prctl(PR_SET_NAME, "ctl-loop", 0, 0, 0);
 
@@ -2021,6 +2041,12 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     }
     break;
 
+  case CPU_CODE_CISCO_MC_TM:
+    tipc_notify_bpdu (pid, frame->len, frame->data);
+    result = ST_OK;
+    goto out;
+    break;
+
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
     put_vid = 1;
@@ -3100,6 +3126,26 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_FDB_NOTIFY_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_fdb_notify (pid, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
 {
   enum status result;
@@ -3728,3 +3774,17 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_LOAD_BALANCE_MODE)
+{
+  enum status result;
+  traffic_balance_mode_t mode;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = trunk_set_balance_mode (mode);
+
+  out:
+    report_status (result);
+}

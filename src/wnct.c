@@ -48,8 +48,10 @@ wnct_start (void)
 
   memset (protos, 0, sizeof (protos));
 
-  for_each_dev (d)
+  for_each_dev (d) {
     CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (d, GT_TRUE));
+    CRP (cpssDxChBrgGenCiscoL2ProtCmdSet (d, CPSS_PACKET_CMD_TRAP_TO_CPU_E));
+  }
 
   memset (protos, 0, sizeof (protos));
 

@@ -9,6 +9,7 @@
 
 #define FDB_NOTIFY_EP  "inproc://fdb-notify"
 #define FDB_CONTROL_EP "inproc://fdb-control"
+#define FDB_PUBSUB_EP  "inproc://fbd-pubsub"
 
 struct fdb_entry {
   int valid;

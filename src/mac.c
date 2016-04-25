@@ -111,6 +111,22 @@ static struct pti_fdbr fdbr[FDB_MAX_ADDRS];
 
 enum status fdbcomm_ctl(unsigned n, const struct pti_fdbr *arg);
 
+static void *pub_sock;   /* notifications to control.c -> manager */
+
+static void fdb_notification_send(port_id_t pid, uint8_t *mac)
+{
+  zmsg_t *msg = zmsg_new ();
+  notification_t tmp = CN_NA;
+
+  assert (msg);
+
+  zmsg_addmem (msg, &tmp, sizeof (tmp));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, mac, 6);
+
+  zmsg_send (&msg, pub_sock);
+}
+
 static enum status __attribute__ ((unused))
 fdb_ctl (int cmd, const void *arg, int size)
 {
@@ -798,6 +814,9 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
         u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
 
+  port_id_t lport;
+  struct port *port;
+
   u->macEntry.appSpecificCpuCode = GT_FALSE;
   u->macEntry.isStatic           = GT_FALSE;
   u->macEntry.daCommand          = CPSS_MAC_TABLE_FRWRD_E;
@@ -808,6 +827,18 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
 
 //DEBUG("fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)\n");
 //PRINTHexDump(&u->macEntry, sizeof(u->macEntry));
+
+  lport = (port_id_t)port_id(u->macEntry.dstInterface.devPort.devNum,
+                             u->macEntry.dstInterface.devPort.portNum);
+  port = port_ptr(lport);
+
+  if (port) {
+    if (port->fdb_notify_enabled)
+      fdb_notification_send(port->id, u->macEntry.key.key.macVlan.macAddr.arEther);
+
+  }
+  if (!port && !port->fdb_insertion_enabled)
+    return ST_BAD_STATE;
 
   return fdb_insert (&u->macEntry, 0, 0);
 }
@@ -1305,6 +1336,10 @@ fdb_thread (void *_)
 
   zmq_pollitem_t ctl_pi = { tctl_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &ctl_pi, fdb_ctl_handler, tctl_sock);
+
+  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  assert (pub_sock);
+  zsocket_bind (pub_sock, FDB_PUBSUB_EP);
 
   prctl(PR_SET_NAME, "fdb", 0, 0, 0);
 
