@@ -47,6 +47,8 @@ static void fdb_notification_send(mac_op_t type,
   zmsg_addmem (msg, &vlan, sizeof (GT_U16));
 
   zmsg_send (&msg, pub_sock);
+
+  zmsg_destroy (&msg);
 }
 
 static enum status __attribute__ ((unused))
