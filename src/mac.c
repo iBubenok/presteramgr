@@ -22,6 +22,11 @@
 
 #define FDB_CONTROL_EP "inproc://fdb-control"
 
+struct fdb_flush_arg {
+  struct mac_age_arg aa;
+  GT_BOOL ds;
+};
+
 enum fdb_ctl_cmd {
   FCC_MAC_OP,
   FCC_OWN_MAC_OP,
@@ -52,7 +57,9 @@ enum pti_iface_type {
 enum fdbman_cmd {
   FMC_MASTER_READY,
   FMC_UPDATE,
-  FMC_MASTER_UPDATE
+  FMC_MASTER_UPDATE,
+  FMC_FLUSH,
+  FMC_MASTER_FLUSH
 };
 
 enum fdbman_state {
@@ -100,6 +107,7 @@ uint8_t fdbman_master, fdbman_newmaster;
 
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
+static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
 static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master);
 
 static void *fdbcomm_ctl_sock;
@@ -233,11 +241,6 @@ mac_op_own (vid_t vid, mac_addr_t mac, int add)
   return fdb_ctl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
 }
 
-struct fdb_flush_arg {
-  const struct mac_age_arg *aa;
-  GT_BOOL ds;
-};
-
 enum status
 mac_op_handle_pkt(const void * pkt, uint32_t len, void *ctl_sock) {
   return fdb_ctl2(FCC_FDBMAN_HANDLE_PKT, pkt, len, ctl_sock);
@@ -246,10 +249,9 @@ mac_op_handle_pkt(const void * pkt, uint32_t len, void *ctl_sock) {
 enum status
 mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 {
-  struct fdb_flush_arg fa = {
-    .aa = arg,
-    .ds = del_static
-  };
+  struct fdb_flush_arg fa;
+  memcpy(&fa.aa, arg, sizeof(*arg));
+  fa.ds = del_static;
 
   return fdb_ctl (FCC_FLUSH, &fa, sizeof (fa));
 }
@@ -311,23 +313,23 @@ fdb_flush (const struct fdb_flush_arg *arg)
 
 //DEBUG("fdb_flush(.vid==%03hX, .port==%02hX, del_static==%d)\n", arg->vid, arg->port, del_static); //TODO remove
 
-  if (arg->aa->vid == ALL_VLANS) {
+  if (arg->aa.vid == ALL_VLANS) {
     act_vid = 0;
     act_vid_mask = 0;
   } else {
-    if (!vlan_valid (arg->aa->vid))
+    if (!vlan_valid (arg->aa.vid))
       return ST_BAD_VALUE;
-    act_vid = arg->aa->vid;
+    act_vid = arg->aa.vid;
     act_vid_mask = 0x0FFF;
   }
 
-  if (arg->aa->port == ALL_PORTS) {
+  if (arg->aa.port == ALL_PORTS) {
     act_dev = 0;
     act_dev_mask = 0;
     port = 0;
     port_mask = 0;
   } else {
-    struct port *p = port_ptr (arg->aa->port);
+    struct port *p = port_ptr (arg->aa.port);
 
     if (!p)
       return ST_BAD_VALUE;
@@ -965,7 +967,14 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     DEBUG("===FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
     break;
   case FCC_FLUSH:
-    status = fdb_flush (arg);
+    if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
+      fdbman_send_msg_uni_flush(arg, 1);
+      status = fdb_flush (arg);
+    }
+    else {
+      status = ST_OK;
+      fdbman_send_msg_uni_flush(arg, 0);
+    }
     break;
   case FCC_SET_MASTER:
     DEBUG("FCC_SET_MASTER\n"); // TODO remove
@@ -1016,6 +1025,22 @@ DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
 }
 
 static void
+fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master) {
+DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\n", arg->aa.vid, arg->aa.port, arg->ds);
+  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = (master) ? FMC_MASTER_FLUSH : FMC_FLUSH;
+  fdb_msg->nfdb = 0;
+  memcpy(fdb_msg->data, arg, sizeof(struct fdb_flush_arg));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct fdb_flush_arg);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
 DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
   static uint8_t *buf[TIPC_MSG_MAX_LEN];
@@ -1049,7 +1074,6 @@ DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
 //DEBUG("tipc-fdb-msg OUT nf==%d, n==%u, TIPC_FDB_NREC==%u\n", nf, n, TIPC_FDB_NREC); // TODO remove
 }
 
-
 static void
 fdbman_handle_msg_master_update(const struct pti_fdbr_msg *msg, uint32_t len) {
 
@@ -1079,6 +1103,21 @@ DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
   if (idx) {
     fdbman_send_msg_uni_update(fdbr, idx, 1);
   }
+}
+
+static void
+fdbman_handle_msg_flush(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_flush(%p, %d)\n", msg, len);
+  struct fdb_flush_arg *arg = (struct fdb_flush_arg *) msg->data;
+  fdbman_send_msg_uni_flush(arg, 1);
+  fdb_flush (arg);
+}
+
+static void
+fdbman_handle_msg_master_flush(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_master_flush(%p, %d)\n", msg, len);
+  struct fdb_flush_arg *arg = (struct fdb_flush_arg *) msg->data;
+  fdb_flush (arg);
 }
 
 static enum status
@@ -1147,6 +1186,12 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
         case FMC_MASTER_UPDATE:
           DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
           break;
+        case FMC_FLUSH:
+          fdbman_handle_msg_flush(msg, len);
+          break;
+        case FMC_MASTER_FLUSH:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
+          break;
       }
       break;
 
@@ -1172,7 +1217,18 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
             fdbman_handle_msg_master_update(msg, len);
           }
           else {
-            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_UPDATE data block\n");
+            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
+          }
+          break;
+        case FMC_FLUSH:
+          fdbman_handle_msg_flush(msg, len);
+          break;
+        case FMC_MASTER_FLUSH:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_handle_msg_master_flush(msg, len);
+          }
+          else {
+            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_FLUSH data block\n");
           }
           break;
       }
@@ -1196,6 +1252,11 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
         case FMC_MASTER_UPDATE:
           fdbman_handle_msg_master_update(msg, len);
+          break;
+        case FMC_FLUSH:
+          break;
+        case FMC_MASTER_FLUSH:
+          fdbman_handle_msg_master_flush(msg, len);
           break;
       }
       break;
@@ -1354,14 +1415,13 @@ enum status
 mac_start (void)
 {
   pthread_t tid, tidcomm;
-  struct mac_age_arg arg = {
-    .vid = ALL_VLANS,
-    .port = ALL_PORTS
-  };
   struct fdb_flush_arg fa = {
-    .aa = &arg,
+    .aa = {
+      .vid = ALL_VLANS,
+      .port = ALL_PORTS},
     .ds = GT_TRUE
   };
+
   GT_U32 bmp = 0, n;
   GT_STATUS rc;
   int d;
