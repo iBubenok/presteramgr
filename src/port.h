@@ -44,7 +44,8 @@ struct port {
   int def_xlate;
   vid_t def_map_to;
   trunk_id_t trunk_id;
-  int fdb_notify_enabled;
+  int fdb_new_addr_notify_enabled;
+  int fdb_addr_op_notify_enabled;
   int fdb_insertion_enabled;
   enum port_stack_role stack_role;
   CPSS_PORT_ATTRIBUTES_STC attrs;
@@ -138,7 +139,8 @@ extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
 extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
-extern enum status port_fdb_notify (port_id_t, bool_t);
+extern enum status port_fdb_new_addr_notify (port_id_t, bool_t);
+extern enum status port_fdb_addr_op_notify (port_id_t, bool_t);
 extern enum status port_get_serdes_cfg (port_id_t, struct port_serdes_cfg *);
 extern enum status port_set_serdes_cfg (port_id_t, const struct port_serdes_cfg *);
 

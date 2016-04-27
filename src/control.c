@@ -379,7 +379,8 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
-DECLARE_HANDLER (CC_PORT_FDB_NOTIFY_ENABLE);
+DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
+DECLARE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
@@ -518,7 +519,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
-  HANDLER (CC_PORT_FDB_NOTIFY_ENABLE),
+  HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
+  HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
@@ -3118,7 +3120,7 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_PORT_FDB_NOTIFY_ENABLE)
+DEFINE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE)
 {
   enum status result;
   port_id_t pid;
@@ -3132,7 +3134,27 @@ DEFINE_HANDLER (CC_PORT_FDB_NOTIFY_ENABLE)
   if (result != ST_OK)
     goto out;
 
-  result = port_fdb_notify (pid, enable);
+  result = port_fdb_new_addr_notify (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_fdb_addr_op_notify (pid, enable);
 
  out:
   report_status (result);

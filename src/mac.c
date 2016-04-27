@@ -30,13 +30,32 @@ enum fdb_ctl_cmd {
 static void *ctl_sock;
 static void *pub_sock;   /* notifications to control.c -> manager */
 
-static void fdb_notification_send(mac_op_t type,
-                                  port_id_t pid,
-                                  uint8_t *mac,
-                                  GT_U16 vlan)
+static void fdb_new_addr_notification_send(port_id_t pid,
+                                           uint8_t *mac,
+                                           GT_U16 vlan)
 {
   zmsg_t *msg = zmsg_new ();
-  notification_t ntype = CN_NA;
+  notification_t ntype = CN_NEW_ADDR;
+
+  assert (msg);
+
+  zmsg_addmem (msg, &ntype, sizeof (ntype));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, mac, 6);
+  zmsg_addmem (msg, &vlan, sizeof (GT_U16));
+
+  zmsg_send (&msg, pub_sock);
+
+  zmsg_destroy (&msg);
+}
+
+static void fdb_mac_op_notification_send(mac_op_t type,
+                                         port_id_t pid,
+                                         uint8_t *mac,
+                                         GT_U16 vlan)
+{
+  zmsg_t *msg = zmsg_new ();
+  notification_t ntype = CN_MAC_OP;
 
   assert (msg);
 
@@ -431,6 +450,14 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
 
       me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
       me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+
+      if (port->fdb_addr_op_notify_enabled)
+      fdb_mac_op_notification_send(
+        MAC_LEARN,
+        port->id,
+        me.key.key.macVlan.macAddr.arEther,
+        me.key.key.macVlan.vlanId
+      );
     }
   }
 
@@ -445,6 +472,16 @@ fdb_mac_delete (const struct mac_op_arg *arg)
   key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
   memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   key.key.macVlan.vlanId = arg->vid;
+
+  struct port *port = port_ptr (arg->port);
+  if (port)
+    if (port->fdb_addr_op_notify_enabled)
+      fdb_mac_op_notification_send(
+        MAC_AGED,
+        port->id,
+        key.key.macVlan.macAddr.arEther,
+        key.key.macVlan.vlanId
+      );
 
   return fdb_remove (&key);
 }
@@ -520,9 +557,8 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   port = port_ptr(lport);
 
   if (port) {
-    if (port->fdb_notify_enabled)
-      fdb_notification_send(
-        MAC_LEARN,
+    if (port->fdb_new_addr_notify_enabled)
+      fdb_new_addr_notification_send(
         port->id,
         u->macEntry.key.key.macVlan.macAddr.arEther,
         u->macEntry.key.key.macVlan.vlanId
@@ -533,8 +569,16 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 
   out:
   if (port) {
-    if (port->fdb_insertion_enabled)
-      fdb_insert (&u->macEntry, 0, 0);
+    if (port->fdb_insertion_enabled) {
+        if (port->fdb_addr_op_notify_enabled)
+          fdb_mac_op_notification_send(
+            MAC_LEARN,
+            port->id,
+            u->macEntry.key.key.macVlan.macAddr.arEther,
+            u->macEntry.key.key.macVlan.vlanId
+          );
+        fdb_insert (&u->macEntry, 0, 0);
+    }
   }
 }
 
@@ -552,8 +596,8 @@ fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   port = port_ptr(lport);
 
   if (port) {
-    if (port->fdb_notify_enabled)
-      fdb_notification_send(
+    if (port->fdb_addr_op_notify_enabled)
+      fdb_mac_op_notification_send(
         MAC_AGED,
         port->id,
         u->macEntry.key.key.macVlan.macAddr.arEther,
