@@ -894,6 +894,7 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 
   arg.vid = ALL_VLANS;
   arg.port = pid;
+  arg.bmp_devs = LOCAL_DEV;
   result = mac_flush (&arg, GT_FALSE);
 
  out:

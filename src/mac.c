@@ -534,7 +534,8 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
     if (me_key_eq (&e->key, &fdb[idx].me.key)) {
       if (!fdb[idx].valid
           || fdb[idx].me.userDefined <= e->userDefined
-          || (e->userDefined == FEP_FOREIGN && fdb[idx].me.userDefined == FEP_DYN)) {
+//          || (e->userDefined == FEP_FOREIGN && fdb[idx].me.userDefined == FEP_DYN)
+          ) {
 //DEBUG ("idx==%04x,  best_idx==%04x, best_pri==%d FOUND\n", idx, best_idx, best_pri); //TODO remove
         best_idx = idx;
         break;
@@ -598,12 +599,12 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign)
   for (i = 0; i < 4; i++, idx++) {
     if (fdb[idx].valid && me_key_eq (k, &fdb[idx].me.key)) {
       /* DEBUG ("found entry at %u, removing\r\n", idx); */
-
+/*
       if (is_foreign && fdb[idx].me.userDefined > FEP_FOREIGN)
         continue;
       if (!is_foreign && fdb[idx].me.userDefined == FEP_FOREIGN)
         continue;
-
+*/
       psec_addr_del (&fdb[idx].me);
 
       for_each_dev (d)
@@ -751,12 +752,14 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
       me.dstInterface.type = CPSS_INTERFACE_PORT_E;
       me.dstInterface.devPort.portNum = fr->port.hwport;
       me.dstInterface.devPort.devNum = fr->port.hwdev;
-      me.userDefined = (fr->port.hwdev == stack_id) ? FEP_DYN : FEP_FOREIGN;
+//      me.userDefined = (fr->port.hwdev == stack_id) ? FEP_DYN : FEP_FOREIGN;
+      me.userDefined = FEP_DYN;
       break;
     case IFTYPE_TRUNK:
       me.dstInterface.type = CPSS_INTERFACE_TRUNK_E;
       me.dstInterface.trunkId = fr->trunk.trunkId;
-      me.userDefined = FEP_FOREIGN; // TODO ???
+//      me.userDefined = FEP_FOREIGN; // TODO ???
+      me.userDefined = FEP_DYN; // TODO ???
       break;
     default:
       return ST_BAD_VALUE;
@@ -789,7 +792,8 @@ fdb_mac_foreign_del(const struct pti_fdbr *fr) {
   memcpy (key.key.macVlan.macAddr.arEther, fr->mac, sizeof (fr->mac));
   key.key.macVlan.vlanId = fr->vid;
 
-  return fdb_remove (&key, 1);
+//  return fdb_remove (&key, 1);
+  return fdb_remove (&key, 0);
 }
 
 static enum status
@@ -1418,7 +1422,9 @@ mac_start (void)
   struct fdb_flush_arg fa = {
     .aa = {
       .vid = ALL_VLANS,
-      .port = ALL_PORTS},
+      .port = ALL_PORTS,
+      .bmp_devs = LOCAL_DEV
+    },
     .ds = GT_TRUE
   };
 
