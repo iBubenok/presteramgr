@@ -30,18 +30,25 @@ enum fdb_ctl_cmd {
 static void *ctl_sock;
 static void *pub_sock;   /* notifications to control.c -> manager */
 
-static void fdb_notification_send(port_id_t pid, uint8_t *mac)
+static void fdb_notification_send(mac_op_t type,
+                                  port_id_t pid,
+                                  uint8_t *mac,
+                                  GT_U16 vlan)
 {
   zmsg_t *msg = zmsg_new ();
-  notification_t tmp = CN_NA;
+  notification_t ntype = CN_NA;
 
   assert (msg);
 
-  zmsg_addmem (msg, &tmp, sizeof (tmp));
+  zmsg_addmem (msg, &ntype, sizeof (ntype));
+  zmsg_addmem (msg, &type, sizeof (type));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, mac, 6);
+  zmsg_addmem (msg, &vlan, sizeof (GT_U16));
 
   zmsg_send (&msg, pub_sock);
+
+  zmsg_destroy (&msg);
 }
 
 static enum status __attribute__ ((unused))
@@ -514,7 +521,12 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 
   if (port) {
     if (port->fdb_notify_enabled)
-      fdb_notification_send(port->id, u->macEntry.key.key.macVlan.macAddr.arEther);
+      fdb_notification_send(
+        MAC_LEARN,
+        port->id,
+        u->macEntry.key.key.macVlan.macAddr.arEther,
+        u->macEntry.key.key.macVlan.vlanId
+      );
 
     goto out;
   }
@@ -532,8 +544,28 @@ fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
   /* DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n", */
   /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
   /*        u->macEntry.key.key.macVlan.vlanId); */
+  port_id_t lport;
+  struct port *port;
 
-  fdb_remove (&u->macEntry.key);
+  lport = (port_id_t)port_id(u->macEntry.dstInterface.devPort.devNum,
+                             u->macEntry.dstInterface.devPort.portNum);
+  port = port_ptr(lport);
+
+  if (port) {
+    if (port->fdb_notify_enabled)
+      fdb_notification_send(
+        MAC_AGED,
+        port->id,
+        u->macEntry.key.key.macVlan.macAddr.arEther,
+        u->macEntry.key.key.macVlan.vlanId
+      );
+
+    goto out;
+  }
+
+  out:
+  if (port)
+    fdb_remove (&u->macEntry.key);
 }
 
 static void
