@@ -16,11 +16,11 @@
 
 struct trunk trunks[TRUNK_MAX];
 
-void set_balance_mode_ip ();
-void set_balance_mode_ip_port ();
-void set_balance_mode_mac ();
-void set_balance_mode_mac_ip ();
-void set_balance_mode_mac_ip_port ();
+static void set_balance_mode_ip ();
+static void set_balance_mode_ip_port ();
+static void set_balance_mode_mac ();
+static void set_balance_mode_mac_ip ();
+static void set_balance_mode_mac_ip_port ();
 
 static void
 trunk_lib_init (void)
@@ -112,7 +112,7 @@ trunk_set_balance_mode(traffic_balance_mode_t mode)
 
 /*** internal functions ***/
 
-void
+static void
 set_balance_mode_ip ()
 {
   int dev;
@@ -124,7 +124,7 @@ set_balance_mode_ip ()
   }
 }
 
-void
+static void
 set_balance_mode_ip_port ()
 {
   int dev;
@@ -137,7 +137,7 @@ set_balance_mode_ip_port ()
   }
 }
 
-void
+static void
 set_balance_mode_mac ()
 {
   int dev;
@@ -148,7 +148,7 @@ set_balance_mode_mac ()
   }
 }
 
-void
+static void
 set_balance_mode_mac_ip ()
 {
   int dev;
@@ -161,7 +161,7 @@ set_balance_mode_mac_ip ()
   }
 }
 
-void
+static void
 set_balance_mode_mac_ip_port ()
 {
   int dev;
