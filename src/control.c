@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <control.h>
 #include <control-proto.h>
+#include <vif.h>
 #include <port.h>
 #include <data.h>
 #include <sysdeps.h>
@@ -286,6 +287,7 @@ DECLARE_HANDLER (CC_PORT_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
+DECLARE_HANDLER (CC_VIF_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
@@ -373,8 +375,11 @@ DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
 DECLARE_HANDLER (CC_WNCT_ENABLE_PROTO);
 DECLARE_HANDLER (CC_GET_HW_PORTS);
 DECLARE_HANDLER (CC_SET_HW_PORTS);
+DECLARE_HANDLER (CC_GET_VIF_PORTS);
+DECLARE_HANDLER (CC_SET_VIF_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
+DECLARE_HANDLER (CC_VIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
@@ -427,6 +432,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
   HANDLER (CC_PORT_SET_SPEED),
+  HANDLER (CC_VIF_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
@@ -514,8 +520,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_WNCT_ENABLE_PROTO),
   HANDLER (CC_GET_HW_PORTS),
   HANDLER (CC_SET_HW_PORTS),
+  HANDLER (CC_GET_VIF_PORTS),
+  HANDLER (CC_SET_VIF_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_GIF_TX),
+  HANDLER (CC_VIF_TX),
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
@@ -1121,6 +1130,26 @@ DEFINE_HANDLER (CC_PORT_SET_SPEED)
     goto out;
 
   result = port_set_speed (pid, &psa);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_SPEED)
+{
+  enum status result;
+  vif_id_t vif;
+  struct port_speed_arg psa;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&psa);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_speed (vif, &psa);
 
  out:
   report_status (result);
@@ -2960,6 +2989,55 @@ DEFINE_HANDLER (CC_SET_HW_PORTS)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_GET_VIF_PORTS)
+{
+  static struct vif_def pd[NPORTS];
+  static int done = 0;
+  enum status result = ST_OK;
+
+  if (!done) {
+    result = vif_get_hw_ports (pd);
+    done = 1;
+  }
+
+  zmsg_t *reply = make_reply (result);
+  if (result == ST_OK) {
+    uint8_t n = NPORTS;
+    zmsg_addmem (reply, &n, sizeof (n));
+    zmsg_addmem (reply, pd, sizeof (pd));
+  }
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_SET_VIF_PORTS)
+{
+  uint8_t d, n;
+  struct vif_def *pd = NULL;
+  enum status result;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&n);
+  if (result != ST_OK)
+    goto out;
+
+  if (n) {
+    zframe_t *frame = FIRST_ARG;
+    if (!frame) {
+      result = ST_BAD_FORMAT;
+      goto out;
+    }
+    pd = (struct vif_def *) zframe_data (frame);
+  }
+
+  result = vif_set_hw_ports (d, n, pd);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
 {
   enum status result;
@@ -3027,6 +3105,30 @@ DEFINE_HANDLER (CC_GIF_TX)
 
   frame = NEXT_ARG;
   result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_TX)
+{
+  zframe_t *frame;
+  struct vif_id *id;
+  struct vif_tx_opts *opts;
+  enum status result = ST_BAD_FORMAT;
+
+  frame = FIRST_ARG;
+  if (zframe_size (frame) != sizeof (*id))
+    goto out;
+  id = (struct vif_id *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  if (zframe_size (frame) != sizeof (*opts))
+    goto out;
+  opts = (struct vif_tx_opts *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  result = vif_tx (id, opts, zframe_size (frame), zframe_data (frame));
 
  out:
   report_status (result);

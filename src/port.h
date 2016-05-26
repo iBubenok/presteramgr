@@ -3,6 +3,7 @@
 
 #include <cpss/generic/port/cpssPortCtrl.h>
 #include <control-proto.h>
+#include <vif.h>
 #include <stack.h>
 #include <mac.h>
 
@@ -18,6 +19,7 @@ struct port_vlan_conf {
 };
 
 struct port {
+  struct vif vif;
   port_id_t id;
   port_type_t type;
   GT_U8 ldev;
