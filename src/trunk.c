@@ -60,6 +60,7 @@ trunk_init (void)
     trunks[i].vif.c_shutdown = 0;
 
     trunks[i].vif.set_speed = vif_set_speed_trunk;
+    trunks[i].vif.fdb_fill_dest = fdb_fill_dest_trunk;
 
     trunks[i].nports = 0;
     int j;

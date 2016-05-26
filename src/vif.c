@@ -81,6 +81,7 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.c_duplex = PORT_DUPLEX_AUTO;
     dp->port[i].vif.c_shutdown = 0;
     dp->port[i].vif.set_speed = vif_set_speed_port;
+    dp->port[i].vif.fdb_fill_dest = fdb_fill_dest_port;
 DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     dp->port[i].vif.vifid.type,
     dp->port[i].vif.vifid.dev,
@@ -569,6 +570,7 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
 DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
     memcpy (&dp->port[i].vif.remote, &pd[i].hp, sizeof (struct hw_port));
     dp->port[i].vif.set_speed = vif_set_speed_remote;
+    dp->port[i].vif.fdb_fill_dest = fdb_fill_dest_port;
     dp->port[i].vif.valid = 1;
     dp->n_by_type[pd[i].id.type]++;
     dp->n_total++;

@@ -312,6 +312,7 @@ DECLARE_HANDLER (CC_VLAN_SET_CPU);
 DECLARE_HANDLER (CC_VLAN_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
+DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
@@ -457,6 +458,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_SET_MAC_ADDR),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP),
+  HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
@@ -1035,6 +1037,21 @@ DEFINE_HANDLER (CC_MAC_OP)
     goto out;
 
   result = mac_op (&op_arg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_OP_VIF)
+{
+  enum status result;
+  struct mac_op_arg_vif op_arg;
+
+  result = POP_ARG (&op_arg);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_op_vif (&op_arg);
 
  out:
   report_status (result);

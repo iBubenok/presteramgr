@@ -6,6 +6,7 @@
 #include <control-proto.h>
 #include <sysdeps.h>
 #include <tipc.h>
+#include <vif.h>
 
 #define FDB_NOTIFY_EP  "inproc://fdb-notify"
 #define FDB_CONTROL_EP "inproc://fdb-control"
@@ -24,6 +25,7 @@ extern GT_U32 fdb_naddrs;
 extern void mac_count(uint16_t , uint16_t, uint16_t); //TODO remove
 
 extern enum status mac_op (const struct mac_op_arg *);
+extern enum status mac_op_vif (const struct mac_op_arg_vif *);
 extern enum status mac_op_own (vid_t, mac_addr_t, int);
 extern enum status mac_set_aging_time (aging_time_t);
 extern enum status mac_list (void);
@@ -31,5 +33,9 @@ extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
 extern enum status mac_set_master (uint8_t);
+
+extern void fdb_fill_dest_port (struct vif*, CPSS_MAC_ENTRY_EXT_STC *);
+extern void fdb_fill_dest_trunk (struct vif*, CPSS_MAC_ENTRY_EXT_STC *);
+
 
 #endif /* __MAC_H__ */

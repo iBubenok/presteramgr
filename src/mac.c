@@ -8,6 +8,7 @@
 #include <mac.h>
 #include <stack.h>
 #include <zcontext.h>
+#include <vif.h>
 #include <trunk.h>
 #include <port.h>
 #include <vlan.h>
@@ -29,7 +30,9 @@ struct fdb_flush_arg {
 
 enum fdb_ctl_cmd {
   FCC_MAC_OP,
+  FCC_MAC_OP_VIF,
   FCC_OWN_MAC_OP,
+  FCC_OWN_MAC_OP_VIF,
   FCC_MC_IP_OP,
   FCC_MAC_OP_FOREIGN_BLCK,
   FCC_FLUSH,
@@ -226,9 +229,34 @@ mac_op (const struct mac_op_arg *arg)
 }
 
 enum status
+mac_op_vif (const struct mac_op_arg_vif *arg)
+{
+  if (!vlan_valid (arg->vid))
+    return ST_BAD_VALUE;
+
+  return fdb_ctl (FCC_MAC_OP_VIF, arg, sizeof (*arg));
+}
+
+enum status
 mac_op_own (vid_t vid, mac_addr_t mac, int add)
 {
   struct mac_op_arg arg;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  arg.vid = vid;
+  memcpy (arg.mac, mac, sizeof (arg.mac));
+  arg.delete = !add;
+  /* Everything else is irrelevant for own MAC addr. */
+
+  return fdb_ctl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
+}
+
+enum status
+mac_op_own_vif (vid_t vid, mac_addr_t mac, int add)
+{
+  struct mac_op_arg_vif arg;
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
@@ -669,8 +697,91 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
   return fdb_insert (&me, own, arg->type == MET_SECURE);
 }
 
+void
+fdb_fill_dest_port (struct vif* vif, CPSS_MAC_ENTRY_EXT_STC *me) {
+
+  me->dstInterface.type = CPSS_INTERFACE_PORT_E;
+  if (vif->islocal) {
+    me->dstInterface.devPort.devNum = phys_dev(vif->local->ldev);
+    me->dstInterface.devPort.portNum = vif->local->lport;
+  } else {
+    me->dstInterface.devPort.devNum = vif->remote.hw_dev;
+    me->dstInterface.devPort.portNum = vif->remote.hw_port;
+  }
+}
+
+void
+fdb_fill_dest_trunk (struct vif* vif, CPSS_MAC_ENTRY_EXT_STC *me) {
+
+  me->dstInterface.type = CPSS_INTERFACE_TRUNK_E;
+  me->dstInterface.trunkId = ((struct trunk*)vif)->id;
+}
+
+static enum status
+fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
+{
+  CPSS_MAC_ENTRY_EXT_STC me;
+
+  memset (&me, 0, sizeof (me));
+  me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  memcpy (me.key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
+  me.key.key.macVlan.vlanId = arg->vid;
+  me.isStatic = (arg->type != MET_DYNAMIC) || own;
+
+  if (own) {
+    me.userDefined = FEP_OWN;
+    me.dstInterface.type = CPSS_INTERFACE_PORT_E;
+    /* me.dstInterface.devPort.devNum will be set in fdb_insert() */
+    me.dstInterface.devPort.portNum = CPSS_CPU_PORT_NUM_CNS;
+    me.appSpecificCpuCode = GT_TRUE;
+    me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+    me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+    me.daRoute = GT_TRUE;
+  } else {
+    me.userDefined = FEP_STATIC;
+
+    if (arg->drop) {
+      me.dstInterface.type = CPSS_INTERFACE_VID_E;
+      me.dstInterface.vlanId = arg->vid;
+
+      me.daCommand = CPSS_MAC_TABLE_DROP_E;
+      me.saCommand = CPSS_MAC_TABLE_DROP_E;
+    } else {
+      struct vif* vif = vif_getn(arg->vifid);
+
+      if (!vif)
+        return ST_BAD_VALUE;
+
+      vif->fdb_fill_dest(vif, &me);
+/*      me.dstInterface.type = CPSS_INTERFACE_PORT_E;
+      me.dstInterface.devPort.devNum = phys_dev (port->ldev);
+      me.dstInterface.devPort.portNum = port->lport;
+*/
+      me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
+      me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+    }
+  }
+
+//DEBUG("fdb_mac_add (const struct mac_op_arg *arg, int own==%d)\n", own); //TODO remove
+//PRINTHexDump(&me, sizeof(me));
+
+  return fdb_insert (&me, own, arg->type == MET_SECURE);
+}
+
 static enum status
 fdb_mac_delete (const struct mac_op_arg *arg)
+{
+  CPSS_MAC_ENTRY_EXT_KEY_STC key;
+
+  key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+  memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
+  key.key.macVlan.vlanId = arg->vid;
+
+  return fdb_remove (&key, 0);
+}
+
+static enum status
+fdb_mac_delete_vif (const struct mac_op_arg_vif *arg)
 {
   CPSS_MAC_ENTRY_EXT_KEY_STC key;
 
@@ -688,6 +799,17 @@ fdb_mac_op (const struct mac_op_arg *arg, int own)
     return fdb_mac_delete (arg);
   else
     return fdb_mac_add (arg, own);
+}
+
+static enum status
+fdb_mac_op_vif (const struct mac_op_arg_vif *arg, int own)
+{
+  if (arg->delete)
+    return fdb_mac_delete_vif (arg);
+  else {
+
+    return fdb_mac_add_vif (arg, own);
+  }
 }
 
 static enum status
@@ -953,10 +1075,20 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     status = fdb_mac_op (arg, 0);
     DEBUG("===FCC_MAP_OP\n"); // TODO remove
     break;
+   case FCC_MAC_OP_VIF:
+    DEBUG("FCC_MAP_OP_VIF\n"); // TODO remove
+    status = fdb_mac_op_vif (arg, 0);
+    DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
+    break;
   case FCC_OWN_MAC_OP:
     DEBUG("FCC_OWN_MAP_OP\n"); // TODO remove
     status = fdb_mac_op (arg, 1);
     DEBUG("===FCC_OWN_MAP_OP\n"); // TODO remove
+    break;
+   case FCC_OWN_MAC_OP_VIF:
+    DEBUG("FCC_OWN_MAP_OP_VIF\n"); // TODO remove
+    status = fdb_mac_op_vif (arg, 1);
+    DEBUG("===FCC_OWN_MAP_OP_VIF\n"); // TODO remove
     break;
   case FCC_MC_IP_OP:
     DEBUG("FCC_MC_IP_OP\n"); // TODO remove
