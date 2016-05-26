@@ -14,7 +14,7 @@
 #include <utils.h>
 #include <debug.h>
 
-struct trunk trunks[TRUNK_MAX];
+struct trunk trunks[TRUNK_MAX + 1];
 
 void set_balance_mode_ip ();
 void set_balance_mode_ip_port ();
@@ -35,7 +35,7 @@ trunk_lib_init (void)
 void
 trunk_init (void)
 {
-  int dev;
+  int dev, i;
 
   trunk_lib_init ();
 
@@ -46,6 +46,28 @@ trunk_init (void)
   set_balance_mode_ip_port();
 
   memset (trunks, 0, sizeof (trunks));
+
+  for (i = 1; i <= TRUNK_MAX; i++) {
+    trunks[i].vif.vifid.type = VIFT_PC;
+    trunks[i].vif.vifid.dev = 0;
+    trunks[i].vif.vifid.num = i;
+    trunks[i].id = i;
+    trunks[i].designated = NULL;
+
+    trunks[i].vif.c_speed = PORT_SPEED_AUTO;
+    trunks[i].vif.c_speed_auto = 1;
+    trunks[i].vif.c_duplex = PORT_DUPLEX_AUTO;
+    trunks[i].vif.c_shutdown = 0;
+
+    trunks[i].vif.set_speed = vif_set_speed_trunk;
+
+    trunks[i].nports = 0;
+    int j;
+    for (j = 0; j < TRUNK_MAX_MEMBERS; j++) {
+      trunks[i].vif_port[j] = NULL;
+      trunks[i].port_enabled[j] = 0;
+    }
+  }
 }
 
 enum status
@@ -88,6 +110,8 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
       nd++;
     }
   }
+
+  vif_set_trunk_members (trunk, nmem, mem);
 
   for_each_dev (dev)
     CRP (cpssDxChTrunkMembersSet (dev, trunk, ne, e, nd, d));

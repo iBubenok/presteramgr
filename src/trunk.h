@@ -1,6 +1,7 @@
 #ifndef __TRUNK_H__
 #define __TRUNK_H__
 
+#include "vif.h"
 #include <port.h>
 
 #define TRUNK_MAX_MEMBERS 8
@@ -16,8 +17,12 @@ struct trunk_port {
 };
 
 struct trunk {
+  struct vif vif;
+  trunk_id_t id;
   int nports;
-  struct trunk_port port[TRUNK_MAX_MEMBERS];
+  struct vif *designated;
+  struct vif *vif_port[TRUNK_MAX_MEMBERS];
+  uint8_t port_enabled[TRUNK_MAX_MEMBERS];
 };
 
 extern struct trunk trunks[];

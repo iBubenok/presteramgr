@@ -190,8 +190,10 @@ port_init (void)
 
   memset (dev_ports, 0, sizeof (dev_ports));
 
-  ports = calloc (NPORTS, sizeof (struct port));
-  assert (ports);
+//  ports = calloc (NPORTS, sizeof (struct port));
+//  assert (ports);
+
+//  ports = (struct ports*) vif_get();
 
   memset (all_ports_bmp, 0, sizeof (all_ports_bmp));
   memset (nst_ports_bmp, 0, sizeof (nst_ports_bmp));
@@ -204,6 +206,7 @@ port_init (void)
   }
 
   for (i = 0; i < NPORTS; i++) {
+DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].id = i + 1;
 
 #if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)

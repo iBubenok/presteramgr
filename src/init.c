@@ -80,6 +80,7 @@
 
 #include <extsvc.h>
 #include <control.h>
+#include <vif.h>
 #include <port.h>
 #include <gif.h>
 #include <vlan.h>
@@ -443,6 +444,7 @@ port_lib_init (int d)
   GT_STATUS rc;
 
   if (d == 0) {
+    vif_init ();
     port_init ();
     gif_init ();
   }
