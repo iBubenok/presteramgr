@@ -21,7 +21,7 @@ struct vif_dev_ports {
   int local;
   int n_total;
   int n_by_type[VIFT_PORT_TYPES];
-  struct port port[CPSS_CPU_PORT_NUM_CNS];
+  struct port port[CPSS_MAX_PORTS_NUM_CNS];
 };
 
 static struct vif_dev_ports vifs[16];
@@ -40,7 +40,7 @@ vif_init (void)
 DEBUG("====vif_init(), dp= %p\n", dp);
 
   for (i = 0; i < 16; i++) {
-    for (j = 0; j < CPSS_CPU_PORT_NUM_CNS; j++) {
+    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
       vifs[i].port[j].vif.set_speed = vif_set_speed_remote;
     }
   }
@@ -90,7 +90,7 @@ vif_post_port_init (void)
   dp = &vifs[stack_id];
   for (i = 0; i < NPORTS; i++) {
     vifp_by_hw[phys_dev (vifs[stack_id].port[i].ldev)][vifs[stack_id].port[i].lport] =
-      &vifs[stack_id].port[i];
+      (struct vif*)&vifs[stack_id].port[i];
   }
 }
 
@@ -299,6 +299,7 @@ for (k = 0; k < ctrunk->nports; k++)
         break;
     }
     if (j == nmem) {
+      ctrunk->vif_port[i]->trunk = NULL;
       for (j = i; j < ctrunk->nports-1; j++) {
         ctrunk->vif_port[j] = ctrunk->vif_port[j+1];
         ctrunk->port_enabled[j] = ctrunk->port_enabled[j+1];
@@ -320,6 +321,9 @@ for (k = 0; k < ctrunk->nports; k++)
     for (j = 0; j < ctrunk->nports; j++) {
       if (ctrunk->vif_port[j]->id == v->id) {
         ctrunk->port_enabled[j] = mem[i].enabled;
+        ctrunk->vif_port[j]->trunk = NULL;
+        ctrunk->vif_port[j] = v;
+        ctrunk->vif_port[j]->trunk = (struct vif*)ctrunk;
         break;
       }
     }
@@ -327,6 +331,7 @@ for (k = 0; k < ctrunk->nports; k++)
       assert(ctrunk->vif_port[ctrunk->nports] == NULL);
       ctrunk->vif_port[ctrunk->nports] = v;
       ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
+      ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
       ctrunk->nports++;
     }
   }
@@ -340,7 +345,8 @@ for (k = 0; k < ctrunk->nports; k++)
     ctrunk->designated = NULL;
 
 for (k = 0; k < ctrunk->nports; k++)
-  DEBUG("====3vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);
+  DEBUG("====3vif_set_trunk_members ( ) k= %d, vp= %x, e= %d, tr= %x\n",
+      k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k], ctrunk->vif_port[k]->trunk->id);
 if (ctrunk->designated)
 DEBUG("====4vif_set_trunk_members ( ) designated= %x\n", ctrunk->designated->id);
 }
@@ -563,7 +569,7 @@ DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
     dp->port[i].vif.valid = 1;
     dp->n_by_type[pd[i].id.type]++;
     dp->n_total++;
-    vifp_by_hw[pd[i].hp.hw_dev][pd[i].hp.hw_port] = &dp->port[i];
+    vifp_by_hw[pd[i].hp.hw_dev][pd[i].hp.hw_port] = (struct vif*)&dp->port[i];
   }
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);

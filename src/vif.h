@@ -16,7 +16,7 @@ struct vif {
     struct vif_id vifid;
   } __attribute__ ((packed));
   int islocal;
-  struct trunk *trunk;
+  struct vif *trunk;
   union {
     struct port *local;
     struct hw_port remote;
@@ -38,11 +38,11 @@ struct vif {
   enum status (*set_mdix_auto) (struct vif *, int);
 };
 
-typedef struct port *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
+typedef struct vif *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
 
 extern vifp_single_dev_t vifp_by_hw[];
 
-static inline struct port*
+static inline struct vif*
 vif_by_hw(GT_U8 hdev, GT_U8 hport) {
   return vifp_by_hw[hdev][hport];
 }

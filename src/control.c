@@ -1999,7 +1999,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
-  struct port *port;
+  struct vif *vif;
 
 
   if (ARGS_SIZE != 1) {
@@ -2010,17 +2010,21 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
   pid = port_id (frame->dev, frame->port);
-  if (!pid && frame->port != 63) {
+  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
     result = ST_OK;
     goto out;
   }
 
-  port = vif_by_hw(frame->dev, frame->port);
-  if (!port && frame->port != 63) {  /* TODO CPU port case */
-DEBUG("!port %d:%d\n", frame->dev, frame->port);
+  vif = vif_by_hw(frame->dev, frame->port);
+  if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
+DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
   }
+if (vif)
+DEBUG("vif->trunk== %p", vif->trunk);
+  if (vif && vif->trunk)
+    vif = vif->trunk;
 
   result = ST_BAD_VALUE;
 
@@ -2100,6 +2104,9 @@ DEBUG("!port %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
+DEBUG("====1ARP TRAP %d %d:%d, \n", frame->vid, frame->dev, frame->port);
+if (vif)
+DEBUG("====2ARP TRAP vif=%x\n", vif->id);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2123,7 +2130,7 @@ DEBUG("!port %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
-DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, port->vif.id);
+DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, vif->id);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2179,7 +2186,7 @@ DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, p
 
   zmsg_t *msg = make_notify_message (type);
   if (put_vif)
-    put_vif_id (msg, port->vif.id);
+    put_vif_id (msg, vif->id);
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
