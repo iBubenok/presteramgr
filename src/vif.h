@@ -38,7 +38,17 @@ struct vif {
   enum status (*set_mdix_auto) (struct vif *, int);
 };
 
+typedef struct port *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
+
+extern vifp_single_dev_t vifp_by_hw[];
+
+static inline struct port*
+vif_by_hw(GT_U8 hdev, GT_U8 hport) {
+  return vifp_by_hw[hdev][hport];
+}
+
 extern void vif_init (void);
+extern void vif_post_port_init (void);
 extern struct vif* vif_get (vif_type_t, uint8_t, uint8_t);
 extern struct vif* vif_getn (vif_id_t);
 extern enum status vif_get_hw_port (struct hw_port *, vif_type_t, uint8_t, uint8_t);

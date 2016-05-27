@@ -189,6 +189,12 @@ put_port_id (zmsg_t *msg, port_id_t pid)
 }
 
 static inline void
+put_vif_id (zmsg_t *msg, vif_id_t vifid)
+{
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
+}
+
+static inline void
 put_stp_id (zmsg_t *msg, stp_id_t stp_id)
 {
   zmsg_addmem (msg, &stp_id, sizeof (stp_id));
@@ -1990,9 +1996,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   struct pdsa_spec_frame *frame;
   notification_t type;
   port_id_t pid;
-  int put_vid = 0;
+  int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
+  struct port *port;
+
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -2003,6 +2011,13 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   pid = port_id (frame->dev, frame->port);
   if (!pid && frame->port != 63) {
+    result = ST_OK;
+    goto out;
+  }
+
+  port = vif_by_hw(frame->dev, frame->port);
+  if (!port && frame->port != 63) {  /* TODO CPU port case */
+DEBUG("!port %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
   }
@@ -2108,6 +2123,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, port->vif.id);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2162,6 +2178,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     }
 
   zmsg_t *msg = make_notify_message (type);
+  if (put_vif)
+    put_vif_id (msg, port->vif.id);
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
