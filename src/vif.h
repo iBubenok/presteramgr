@@ -59,9 +59,19 @@ extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
 extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *);
 extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, uint16_t, const void *);
 
+/*
 extern enum status vif_set_speed (vif_id_t, const struct port_speed_arg *);
 extern enum status vif_set_speed_remote (struct vif *, const struct port_speed_arg *);
 extern enum status vif_set_speed_port (struct vif *, const struct port_speed_arg *);
 extern enum status vif_set_speed_trunk (struct vif *, const struct port_speed_arg *);
+*/
+
+#define VIF_DEF_PROC(proc, arg...) \
+extern enum status vif_##proc (vif_id_t, ##arg); \
+extern enum status vif_##proc##_remote (struct vif *, ##arg); \
+extern enum status vif_##proc##_port (struct vif *, ##arg); \
+extern enum status vif_##proc##_trunk (struct vif *, ##arg)
+
+VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
 
 #endif /* __VIF_H__ */

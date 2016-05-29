@@ -2021,8 +2021,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
   }
-if (vif)
-DEBUG("vif->trunk== %p", vif->trunk);
+//if (vif)
+//DEBUG("vif->trunk== %p", vif->trunk);
   if (vif && vif->trunk)
     vif = vif->trunk;
 

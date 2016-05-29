@@ -68,6 +68,7 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.c_duplex = PORT_DUPLEX_AUTO;
     dp->port[i].vif.c_shutdown = 0;
     dp->port[i].vif.set_speed = vif_set_speed_port;
+//    dp->port[i].vif.set_duplex = vif_set_speed_port;
 DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     dp->port[i].vif.vifid.type,
     dp->port[i].vif.vifid.dev,
@@ -593,6 +594,7 @@ DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
   return ST_OK;
 }
 
+#if 0
 enum status
 vif_set_speed_remote (struct vif *vif, const struct port_speed_arg *psa) {
   return ST_REMOTE;
@@ -626,9 +628,74 @@ vif_set_speed (vif_id_t nvif, const struct port_speed_arg *psa) {
 DEBUG(">>>>vif_set_speed (%08x, const struct port_speed_arg *psa)\n", nvif);
   struct vif *vif = vif_getn (nvif);
 DEBUG("====vif_set_speed (...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num);
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
 
   vif->c_speed = psa->speed;
   vif->c_speed_auto = psa->speed_auto;
 
   return vif->set_speed (vif, psa);
+}
+#endif
+
+#define VIF_PROC_REMOTE(proc, arg...) \
+enum status \
+vif_##proc##_remote (struct vif *vif, ##arg) { \
+  return ST_REMOTE; \
+}
+
+#define VIF_PROC_PORT_HEAD(proc, arg...) \
+enum status \
+vif_##proc##_port (struct vif *vif, ##arg)
+
+#define VIF_PROC_PORT_BODY(proc, arg...) \
+DEBUG(">>>>vif_##proc##_port (%p, ...), vif->n == %d\n", vif, vif->vifid.num); \
+  struct port *port = (struct port*) vif; \
+DEBUG("====vif_##proc##_port (), port == %p, pid == %d\n", port, port->id); \
+  return port_##proc (port->id, ##arg);
+
+#define VIF_PROC_TRUNK_HEAD(proc, arg...) \
+enum status \
+vif_##proc##_trunk (struct vif *vif, ##arg)
+
+#define VIF_PROC_TRUNK_BODY(proc, arg...) \
+  struct trunk *trunk = (struct trunk*) vif; \
+  struct vif **vifp = (struct vif**) &trunk->vif_port; \
+  enum status status = ST_OK; \
+  while (*vifp) { \
+    enum status st; \
+    st = (*vifp)-> proc (*vifp, ##arg); \
+    if (st != ST_OK) \
+      status = st; \
+    vifp++; \
+  } \
+  return status;
+
+#define VIF_PROC_ROOT_HEAD(proc, arg...) \
+enum status \
+vif_set_speed (vif_id_t nvif, ##arg)
+
+#define VIF_PROC_ROOT_BODY(proc, arg...) \
+DEBUG(">>>>vif_##proc (%08x, ...)\n", nvif); \
+  struct vif *vif = vif_getn (nvif); \
+DEBUG("====vif_##proc (...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num); \
+  if (!vif) \
+    return ST_DOES_NOT_EXIST; \
+  return vif->set_speed (vif, ##arg);
+
+VIF_PROC_REMOTE(set_speed, const struct port_speed_arg *psa)
+
+VIF_PROC_PORT_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_PORT_BODY(set_speed, psa)
+}
+
+VIF_PROC_TRUNK_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_TRUNK_BODY(set_speed, psa)
+}
+
+VIF_PROC_ROOT_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_ROOT_BODY(set_speed, psa)
 }
