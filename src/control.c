@@ -2106,7 +2106,7 @@ DEBUG("vif->trunk== %p", vif->trunk);
     type = CN_ARP_BROADCAST;
 DEBUG("====1ARP TRAP %d %d:%d, \n", frame->vid, frame->dev, frame->port);
 if (vif)
-DEBUG("====2ARP TRAP vif=%x\n", vif->id);
+DEBUG("====2ARP TRAP vif=%x vif.dev=%d, vif.port=%d\n", vif->id, vif->local->ldev, vif->local->lport);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -3016,7 +3016,7 @@ DEFINE_HANDLER (CC_SET_HW_PORTS)
 
 DEFINE_HANDLER (CC_GET_VIF_PORTS)
 {
-  static struct vif_def pd[NPORTS];
+  static struct vif_def pd[NPORTS + 1];
   static int done = 0;
   enum status result = ST_OK;
 
@@ -3027,7 +3027,7 @@ DEFINE_HANDLER (CC_GET_VIF_PORTS)
 
   zmsg_t *reply = make_reply (result);
   if (result == ST_OK) {
-    uint8_t n = NPORTS;
+    uint8_t n = NPORTS + 1;
     zmsg_addmem (reply, &n, sizeof (n));
     zmsg_addmem (reply, pd, sizeof (pd));
   }

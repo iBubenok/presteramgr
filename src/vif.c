@@ -75,6 +75,20 @@ DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     ports, &dp->port[i]);
     dp->n_total++;
   }
+
+  dp->port[i].vif.vifid.type = VIFT_CPU;
+  dp->port[i].vif.vifid.dev = phys_dev (CPU_DEV);
+  dp->port[i].vif.vifid.num = ++dp->n_by_type[dp->port[i].vif.vifid.type];
+  dp->port[i].vif.local = &ports[i];
+  dp->port[i].vif.trunk = NULL;
+  dp->port[i].vif.islocal = 1;
+  dp->port[i].vif.valid = 1;
+  dp->port[i].vif.local->stack_role = PSR_NONE;
+  dp->port[i].vif.local->ldev = CPU_DEV;
+  dp->port[i].vif.local->lport = CPSS_CPU_PORT_NUM_CNS;
+  dp->n_total++;
+
+
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====vif_init(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 }
@@ -92,6 +106,8 @@ vif_post_port_init (void)
     vifp_by_hw[phys_dev (vifs[stack_id].port[i].ldev)][vifs[stack_id].port[i].lport] =
       (struct vif*)&vifs[stack_id].port[i];
   }
+  vifp_by_hw[0][CPSS_CPU_PORT_NUM_CNS] = (struct vif*)&vifs[stack_id].port[i];
+  vifp_by_hw[phys_dev (CPU_DEV)][CPSS_CPU_PORT_NUM_CNS] = (struct vif*)&vifs[stack_id].port[i];
 }
 
 struct vif*
