@@ -49,6 +49,9 @@ vif_by_hw(GT_U8 hdev, GT_U8 hport) {
 
 extern void vif_init (void);
 extern void vif_post_port_init (void);
+extern void vif_remote_proc_init(struct vif*);
+extern void vif_port_proc_init(struct vif*);
+extern void vif_trunk_proc_init(struct vif*);
 extern struct vif* vif_get (vif_type_t, uint8_t, uint8_t);
 extern struct vif* vif_getn (vif_id_t);
 extern enum status vif_get_hw_port (struct hw_port *, vif_type_t, uint8_t, uint8_t);
