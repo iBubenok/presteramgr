@@ -16,7 +16,7 @@ struct vif {
     struct vif_id vifid;
   } __attribute__ ((packed));
   int islocal;
-  struct trunk *trunk;
+  struct vif *trunk;
   union {
     struct port *local;
     struct hw_port remote;
@@ -38,7 +38,23 @@ struct vif {
   enum status (*set_mdix_auto) (struct vif *, int);
 };
 
+typedef struct vif *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
+
+extern vifp_single_dev_t vifp_by_hw[];
+
+static inline struct vif*
+vif_by_hw(GT_U8 hdev, GT_U8 hport) {
+  return vifp_by_hw[hdev][hport];
+}
+
+extern void vif_rlock(void);
+extern void vif_wlock(void);
+extern void vif_unlock(void);
 extern void vif_init (void);
+extern void vif_post_port_init (void);
+extern void vif_remote_proc_init(struct vif*);
+extern void vif_port_proc_init(struct vif*);
+extern void vif_trunk_proc_init(struct vif*);
 extern struct vif* vif_get (vif_type_t, uint8_t, uint8_t);
 extern struct vif* vif_getn (vif_id_t);
 extern enum status vif_get_hw_port (struct hw_port *, vif_type_t, uint8_t, uint8_t);
@@ -49,9 +65,20 @@ extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
 extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *);
 extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, uint16_t, const void *);
 
+/*
 extern enum status vif_set_speed (vif_id_t, const struct port_speed_arg *);
 extern enum status vif_set_speed_remote (struct vif *, const struct port_speed_arg *);
 extern enum status vif_set_speed_port (struct vif *, const struct port_speed_arg *);
 extern enum status vif_set_speed_trunk (struct vif *, const struct port_speed_arg *);
+*/
+
+#define VIF_DEF_PROC(proc, arg...) \
+extern enum status vif_##proc (vif_id_t, ##arg); \
+extern enum status vif_##proc##_remote (struct vif *, ##arg); \
+extern enum status vif_##proc##_port (struct vif *, ##arg); \
+extern enum status vif_##proc##_trunk (struct vif *, ##arg)
+
+VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
+VIF_DEF_PROC(set_duplex, enum port_duplex);
 
 #endif /* __VIF_H__ */

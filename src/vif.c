@@ -12,33 +12,39 @@
 #include <mgmt.h>
 #include <debug.h>
 #include <sysdeps.h>
+#include <pthread.h>
 #include <assert.h>
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
-/*
-struct vif_dev_ports {
-  int islocal;
-  int n_total;
-  int n_by_type[VIFT_PORT_TYPES];
-  struct {
-    struct vif_id id;
-    struct vif *trunk;
-    union {
-      struct port *local;
-      struct hw_port remote;
-    };
-  } port[64];
-};
-*/
+
 struct vif_dev_ports {
   int local;
   int n_total;
   int n_by_type[VIFT_PORT_TYPES];
-  struct port port[CPSS_CPU_PORT_NUM_CNS];
+  struct port port[CPSS_MAX_PORTS_NUM_CNS];
 };
 
 static struct vif_dev_ports vifs[16];
+
+vifp_single_dev_t vifp_by_hw[32];
+
+static pthread_rwlock_t vif_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+void
+vif_rlock (void) {
+  pthread_rwlock_rdlock (&vif_lock);
+}
+
+void
+vif_wlock (void) {
+  pthread_rwlock_wrlock (&vif_lock);
+}
+
+void
+vif_unlock (void) {
+  pthread_rwlock_unlock (&vif_lock);
+}
 
 void
 vif_init (void)
@@ -48,12 +54,11 @@ vif_init (void)
 
   memset (vifs, 0, sizeof (vifs));
 
-//  dp = (stack_id == 0) ? &dev_vif_ports[0] : &dev_vif_ports[stack_id - 1];
   dp = &vifs[stack_id];
 DEBUG("====vif_init(), dp= %p\n", dp);
 
   for (i = 0; i < 16; i++) {
-    for (j = 0; j < CPSS_CPU_PORT_NUM_CNS; j++) {
+    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
       vifs[i].port[j].vif.set_speed = vif_set_speed_remote;
     }
   }
@@ -80,8 +85,11 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.c_speed_auto = 1;
     dp->port[i].vif.c_duplex = PORT_DUPLEX_AUTO;
     dp->port[i].vif.c_shutdown = 0;
-    dp->port[i].vif.set_speed = vif_set_speed_port;
-    dp->port[i].vif.fdb_fill_dest = fdb_fill_dest_port;
+
+    vif_port_proc_init(&dp->port[i].vif);
+
+//    dp->port[i].vif.set_speed = vif_set_speed_port;
+//    dp->port[i].vif.set_duplex = vif_set_speed_port;
 DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     dp->port[i].vif.vifid.type,
     dp->port[i].vif.vifid.dev,
@@ -89,9 +97,60 @@ DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     ports, &dp->port[i]);
     dp->n_total++;
   }
+
+  dp->port[i].vif.vifid.type = VIFT_CPU;
+  dp->port[i].vif.vifid.dev = phys_dev (CPU_DEV);
+  dp->port[i].vif.vifid.num = ++dp->n_by_type[dp->port[i].vif.vifid.type];
+  dp->port[i].vif.local = &ports[i];
+  dp->port[i].vif.trunk = NULL;
+  dp->port[i].vif.islocal = 1;
+  dp->port[i].vif.valid = 1;
+  dp->port[i].vif.local->stack_role = PSR_NONE;
+  dp->port[i].vif.local->ldev = CPU_DEV;
+  dp->port[i].vif.local->lport = CPSS_CPU_PORT_NUM_CNS;
+  dp->n_total++;
+
+
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====vif_init(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
+}
 
+void
+vif_post_port_init (void)
+{
+  struct vif_dev_ports *dp;
+  int i;
+
+  memset (vifp_by_hw, 0, sizeof (vifp_by_hw));
+
+  dp = &vifs[stack_id];
+  for (i = 0; i < NPORTS; i++) {
+    vifp_by_hw[phys_dev (vifs[stack_id].port[i].ldev)][vifs[stack_id].port[i].lport] =
+      (struct vif*)&vifs[stack_id].port[i];
+  }
+  vifp_by_hw[0][CPSS_CPU_PORT_NUM_CNS] = (struct vif*)&vifs[stack_id].port[i];
+  vifp_by_hw[phys_dev (CPU_DEV)][CPSS_CPU_PORT_NUM_CNS] = (struct vif*)&vifs[stack_id].port[i];
+}
+
+void
+vif_remote_proc_init(struct vif* v) {
+  v->set_speed = vif_set_speed_remote;
+  v->set_duplex = vif_set_duplex_remote;
+  v->fdb_fill_dest = fdb_fill_dest_port;
+}
+
+void
+vif_port_proc_init(struct vif* v) {
+  v->set_speed = vif_set_speed_port;
+  v->set_duplex = vif_set_duplex_port;
+  v->fdb_fill_dest = fdb_fill_dest_port;
+}
+
+void
+vif_trunk_proc_init(struct vif* v) {
+  v->set_speed = vif_set_speed_trunk;
+  v->set_duplex = vif_set_duplex_trunk;
+  v->fdb_fill_dest = fdb_fill_dest_trunk;
 }
 
 struct vif*
@@ -110,8 +169,6 @@ vif_get (vif_type_t type, uint8_t dev, uint8_t num) {
   } else {
     if (dev == 0)
       dev = stack_id;
-
-//    dev -= 1;
   }
 
   if (type == VIFT_PC) {
@@ -147,7 +204,6 @@ vif_get_by_pid (uint8_t dev, port_id_t num) {
   } else {
     if (dev == 0)
       dev = stack_id;
-//    dev -= 1;
   }
 
   if (!in_range(num, 1, 64))
@@ -179,10 +235,10 @@ vif_get_hw (struct hw_port *hp, struct vif *vif) {
 
 struct vif*
 vif_getn (vif_id_t id) {
-DEBUG(">>>>vif_getn (%08x) &id == %p\n", id, &id);
+//DEBUG(">>>>vif_getn (%08x) &id == %p\n", id, &id);
   struct vif_id* vif = (struct vif_id*) &id;
-DEBUG("====vif_getn () vif == %p\n", vif);
-DEBUG("====vif_getn () vif->type== %d, vif->dev== %d, vif->num== %d\n", vif->type, vif->dev, vif->num);
+//DEBUG("====vif_getn () vif == %p\n", vif);
+//DEBUG("====vif_getn () vif->type== %d, vif->dev== %d, vif->num== %d\n", vif->type, vif->dev, vif->num);
   return vif_get(vif->type, vif->dev, vif->num);
 }
 
@@ -205,7 +261,6 @@ vif_get_hw_port (struct hw_port *hp, vif_type_t type, uint8_t dev, uint8_t num)
       dev = stack_id;
 
     local = dev == stack_id;
-//    dev -= 1;
   }
 
   if (num > vifs[dev].n_by_type[type])
@@ -265,7 +320,6 @@ vif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
       dev = stack_id;
 
     local = dev == stack_id;
-//    dev -= 1;
   }
 
   if ((num >= 64) || !in_range(vifs[dev].port[num].vif.vifid.type, VIFT_FE, VIFT_PC))
@@ -294,17 +348,19 @@ for (k = 0; k < ctrunk->nports; k++)
 
   int i = 0;
 
+  vif_wlock();
+
   while (i < ctrunk->nports) {
     int j;
     for (j = 0; j < nmem; j++) {
       struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
       if (v == NULL)
         continue;
-//      if (v == ctrunk->vif_port[i])
       if (v->id == ctrunk->vif_port[i]->id)
         break;
     }
     if (j == nmem) {
+      ctrunk->vif_port[i]->trunk = NULL;
       for (j = i; j < ctrunk->nports-1; j++) {
         ctrunk->vif_port[j] = ctrunk->vif_port[j+1];
         ctrunk->port_enabled[j] = ctrunk->port_enabled[j+1];
@@ -324,9 +380,11 @@ for (k = 0; k < ctrunk->nports; k++)
       continue;
     int j;
     for (j = 0; j < ctrunk->nports; j++) {
-//      if (ctrunk->vif_port[j] == v) {
       if (ctrunk->vif_port[j]->id == v->id) {
         ctrunk->port_enabled[j] = mem[i].enabled;
+        ctrunk->vif_port[j]->trunk = NULL;
+        ctrunk->vif_port[j] = v;
+        ctrunk->vif_port[j]->trunk = (struct vif*)ctrunk;
         break;
       }
     }
@@ -334,6 +392,7 @@ for (k = 0; k < ctrunk->nports; k++)
       assert(ctrunk->vif_port[ctrunk->nports] == NULL);
       ctrunk->vif_port[ctrunk->nports] = v;
       ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
+      ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
       ctrunk->nports++;
     }
   }
@@ -346,8 +405,11 @@ for (k = 0; k < ctrunk->nports; k++)
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
 
+  vif_unlock();
+
 for (k = 0; k < ctrunk->nports; k++)
-  DEBUG("====3vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);
+  DEBUG("====3vif_set_trunk_members ( ) k= %d, vp= %x, e= %d, tr= %x\n",
+      k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k], ctrunk->vif_port[k]->trunk->id);
 if (ctrunk->designated)
 DEBUG("====4vif_set_trunk_members ( ) designated= %x\n", ctrunk->designated->id);
 }
@@ -367,11 +429,6 @@ vif_tx (const struct vif_id *id,
 
 DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
 
-//  if (opts->find_iface_by_portid) {
-//    result = vif_get_hw_port_by_index (&hp, id->dev, id->num - 1);
-//  } else {
-//    result = vif_get_hw_port (&hp, id->type, id->dev, id->num);
-//  }
   if (opts->find_iface_by_portid) {
     vifp = vif = vif_get_by_pid (id->dev, id->num);
   } else {
@@ -490,11 +547,9 @@ vif_get_hw_ports (struct vif_def *pd)
   struct vif_dev_ports *dp;
   int i;
 
-//  dp = (stack_id == 0) ? &vifs[0] : &vifs[stack_id - 1];
   dp = &vifs[stack_id];
 
   for (i = 0; i < dp->n_total; i++) {
-//    memcpy (&pd[i].id, &dp->port[i].vif.id, sizeof (struct vif_id));
     *(vif_id_t*)&pd[i].id = dp->port[i].vif.id;
     pd[i].hp.hw_dev = phys_dev (dp->port[i].vif.local->ldev);
     pd[i].hp.hw_port = dp->port[i].vif.local->lport;
@@ -561,26 +616,36 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
       || !in_range (n, 0, 60))
     return ST_BAD_VALUE;
 
-//  dp = &vifs[dev - 1];
+  vif_wlock();
+
   dp = &vifs[dev];
   memset (dp, 0, sizeof (*dp));
+
+  memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
+  memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
+DEBUG("memset (%p, 0, %d)", &vifp_by_hw[dev], sizeof(vifp_single_dev_t));
+
   for (i = 0; i < n; i++) {
-//    memcpy (&dp->port[i].vif.id, &pd[i].id, sizeof (struct vif_id));
+    assert(pd[i].hp.hw_dev == dev || pd[i].hp.hw_dev == dev + NEXTDEV_INC);
     dp->port[i].vif.id = *(vif_id_t*)&pd[i].id;
 DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
     memcpy (&dp->port[i].vif.remote, &pd[i].hp, sizeof (struct hw_port));
-    dp->port[i].vif.set_speed = vif_set_speed_remote;
-    dp->port[i].vif.fdb_fill_dest = fdb_fill_dest_port;
+    vif_remote_proc_init(&dp->port[i].vif);
+//    dp->port[i].vif.set_speed = vif_set_speed_remote;
     dp->port[i].vif.valid = 1;
     dp->n_by_type[pd[i].id.type]++;
     dp->n_total++;
+    vifp_by_hw[pd[i].hp.hw_dev][pd[i].hp.hw_port] = (struct vif*)&dp->port[i];
   }
+
+  vif_unlock();
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 
   return ST_OK;
 }
 
+#if 0
 enum status
 vif_set_speed_remote (struct vif *vif, const struct port_speed_arg *psa) {
   return ST_REMOTE;
@@ -614,9 +679,92 @@ vif_set_speed (vif_id_t nvif, const struct port_speed_arg *psa) {
 DEBUG(">>>>vif_set_speed (%08x, const struct port_speed_arg *psa)\n", nvif);
   struct vif *vif = vif_getn (nvif);
 DEBUG("====vif_set_speed (...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num);
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
 
   vif->c_speed = psa->speed;
   vif->c_speed_auto = psa->speed_auto;
 
   return vif->set_speed (vif, psa);
+}
+#endif
+
+#define VIF_PROC_REMOTE(proc, arg...) \
+enum status \
+vif_##proc##_remote (struct vif *vif, ##arg) { \
+  return ST_REMOTE; \
+}
+
+#define VIF_PROC_PORT_HEAD(proc, arg...) \
+enum status \
+vif_##proc##_port (struct vif *vif, ##arg)
+
+#define VIF_PROC_PORT_BODY(proc, arg...) \
+DEBUG(">>>>vif_" #proc "_port (%p, ...), vif->n == %d\n", vif, vif->vifid.num); \
+  struct port *port = (struct port*) vif; \
+DEBUG("====vif_" #proc "_port (), port == %p, pid == %d\n", port, port->id); \
+  return port_##proc (port->id, ##arg);
+
+#define VIF_PROC_TRUNK_HEAD(proc, arg...) \
+enum status \
+vif_##proc##_trunk (struct vif *vif, ##arg)
+
+#define VIF_PROC_TRUNK_BODY(proc, arg...) \
+  struct trunk *trunk = (struct trunk*) vif; \
+  struct vif **vifp = (struct vif**) &trunk->vif_port; \
+  enum status status = ST_OK; \
+  while (*vifp) { \
+    enum status st; \
+    st = (*vifp)-> proc (*vifp, ##arg); \
+    if (st != ST_OK) \
+      status = st; \
+    vifp++; \
+  } \
+  return status;
+
+#define VIF_PROC_ROOT_HEAD(proc, arg...) \
+enum status \
+vif_##proc (vif_id_t nvif, ##arg)
+
+#define VIF_PROC_ROOT_BODY(proc, arg...) \
+DEBUG(">>>>vif_" #proc "(%08x, ...)\n", nvif); \
+  struct vif *vif = vif_getn (nvif); \
+DEBUG("====vif_" #proc "(...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num); \
+  if (!vif) \
+    return ST_DOES_NOT_EXIST; \
+  return vif->proc (vif, ##arg);
+
+VIF_PROC_REMOTE(set_speed, const struct port_speed_arg *psa)
+
+VIF_PROC_PORT_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_PORT_BODY(set_speed, psa)
+}
+
+VIF_PROC_TRUNK_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_TRUNK_BODY(set_speed, psa)
+}
+
+VIF_PROC_ROOT_HEAD(set_speed, const struct port_speed_arg *psa)
+{
+VIF_PROC_ROOT_BODY(set_speed, psa)
+}
+
+
+VIF_PROC_REMOTE(set_duplex, enum port_duplex duplex)
+
+VIF_PROC_PORT_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_PORT_BODY(set_duplex, duplex)
+}
+
+VIF_PROC_TRUNK_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_TRUNK_BODY(set_duplex, duplex)
+}
+
+VIF_PROC_ROOT_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_ROOT_BODY(set_duplex, duplex)
 }

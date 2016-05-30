@@ -189,6 +189,12 @@ put_port_id (zmsg_t *msg, port_id_t pid)
 }
 
 static inline void
+put_vif_id (zmsg_t *msg, vif_id_t vifid)
+{
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
+}
+
+static inline void
 put_stp_id (zmsg_t *msg, stp_id_t stp_id)
 {
   zmsg_addmem (msg, &stp_id, sizeof (stp_id));
@@ -289,6 +295,7 @@ DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_VIF_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
+DECLARE_HANDLER (CC_VIF_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
@@ -435,6 +442,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_SPEED),
   HANDLER (CC_VIF_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
+  HANDLER (CC_VIF_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
@@ -1187,6 +1195,26 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
     goto out;
 
   result = port_set_duplex (pid, duplex);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_DUPLEX)
+{
+  enum status result;
+  vif_id_t vif;
+  port_duplex_t duplex;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&duplex);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_duplex (vif, duplex);
 
  out:
   report_status (result);
@@ -2007,9 +2035,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   struct pdsa_spec_frame *frame;
   notification_t type;
   port_id_t pid;
-  int put_vid = 0;
+  int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
+  struct vif *vif;
+
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -2019,10 +2049,21 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
   pid = port_id (frame->dev, frame->port);
-  if (!pid && frame->port != 63) {
+  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
     result = ST_OK;
     goto out;
   }
+
+  vif = vif_by_hw(frame->dev, frame->port);
+  if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
+DEBUG("!vif %d:%d\n", frame->dev, frame->port);
+    result = ST_OK;
+    goto out;
+  }
+//if (vif)
+//DEBUG("vif->trunk== %p", vif->trunk);
+  if (vif && vif->trunk)
+    vif = vif->trunk;
 
   result = ST_BAD_VALUE;
 
@@ -2102,6 +2143,9 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
+DEBUG("====1ARP TRAP %d %d:%d, \n", frame->vid, frame->dev, frame->port);
+if (vif)
+DEBUG("====2ARP TRAP vif=%x vif.dev=%d, vif.port=%d\n", vif->id, vif->local->ldev, vif->local->lport);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2125,6 +2169,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, vif->id);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2179,6 +2224,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
     }
 
   zmsg_t *msg = make_notify_message (type);
+  if (put_vif)
+    put_vif_id (msg, vif->id);
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
@@ -3008,7 +3055,7 @@ DEFINE_HANDLER (CC_SET_HW_PORTS)
 
 DEFINE_HANDLER (CC_GET_VIF_PORTS)
 {
-  static struct vif_def pd[NPORTS];
+  static struct vif_def pd[NPORTS + 1];
   static int done = 0;
   enum status result = ST_OK;
 
@@ -3019,7 +3066,7 @@ DEFINE_HANDLER (CC_GET_VIF_PORTS)
 
   zmsg_t *reply = make_reply (result);
   if (result == ST_OK) {
-    uint8_t n = NPORTS;
+    uint8_t n = NPORTS + 1;
     zmsg_addmem (reply, &n, sizeof (n));
     zmsg_addmem (reply, pd, sizeof (pd));
   }

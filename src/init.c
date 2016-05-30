@@ -446,6 +446,7 @@ port_lib_init (int d)
   if (d == 0) {
     vif_init ();
     port_init ();
+    vif_post_port_init ();
     gif_init ();
   }
 
