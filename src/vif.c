@@ -135,16 +135,19 @@ vif_post_port_init (void)
 void
 vif_remote_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_remote;
+  v->set_duplex = vif_set_duplex_remote;
 }
 
 void
 vif_port_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_port;
+  v->set_duplex = vif_set_duplex_port;
 }
 
 void
 vif_trunk_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_trunk;
+  v->set_duplex = vif_set_duplex_trunk;
 }
 
 struct vif*
@@ -718,7 +721,7 @@ vif_##proc##_trunk (struct vif *vif, ##arg)
 
 #define VIF_PROC_ROOT_HEAD(proc, arg...) \
 enum status \
-vif_set_speed (vif_id_t nvif, ##arg)
+vif_##proc (vif_id_t nvif, ##arg)
 
 #define VIF_PROC_ROOT_BODY(proc, arg...) \
 DEBUG(">>>>vif_" #proc "(%08x, ...)\n", nvif); \
@@ -726,7 +729,7 @@ DEBUG(">>>>vif_" #proc "(%08x, ...)\n", nvif); \
 DEBUG("====vif_" #proc "(...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num); \
   if (!vif) \
     return ST_DOES_NOT_EXIST; \
-  return vif->set_speed (vif, ##arg);
+  return vif->proc (vif, ##arg);
 
 VIF_PROC_REMOTE(set_speed, const struct port_speed_arg *psa)
 
@@ -743,4 +746,22 @@ VIF_PROC_TRUNK_BODY(set_speed, psa)
 VIF_PROC_ROOT_HEAD(set_speed, const struct port_speed_arg *psa)
 {
 VIF_PROC_ROOT_BODY(set_speed, psa)
+}
+
+
+VIF_PROC_REMOTE(set_duplex, enum port_duplex duplex)
+
+VIF_PROC_PORT_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_PORT_BODY(set_duplex, duplex)
+}
+
+VIF_PROC_TRUNK_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_TRUNK_BODY(set_duplex, duplex)
+}
+
+VIF_PROC_ROOT_HEAD(set_duplex, enum port_duplex duplex)
+{
+VIF_PROC_ROOT_BODY(set_duplex, duplex)
 }

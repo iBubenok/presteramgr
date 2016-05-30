@@ -295,6 +295,7 @@ DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_VIF_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
+DECLARE_HANDLER (CC_VIF_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
@@ -440,6 +441,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_SPEED),
   HANDLER (CC_VIF_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
+  HANDLER (CC_VIF_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
@@ -1176,6 +1178,26 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
     goto out;
 
   result = port_set_duplex (pid, duplex);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_DUPLEX)
+{
+  enum status result;
+  vif_id_t vif;
+  port_duplex_t duplex;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&duplex);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_duplex (vif, duplex);
 
  out:
   report_status (result);
