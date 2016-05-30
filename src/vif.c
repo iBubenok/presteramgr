@@ -12,6 +12,7 @@
 #include <mgmt.h>
 #include <debug.h>
 #include <sysdeps.h>
+#include <pthread.h>
 #include <assert.h>
 
 #include <cpssdefs.h>
@@ -27,6 +28,23 @@ struct vif_dev_ports {
 static struct vif_dev_ports vifs[16];
 
 vifp_single_dev_t vifp_by_hw[32];
+
+static pthread_rwlock_t vif_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+void
+vif_rlock (void) {
+  pthread_rwlock_rdlock (&vif_lock);
+}
+
+void
+vif_wlock (void) {
+  pthread_rwlock_wrlock (&vif_lock);
+}
+
+void
+vif_unlock (void) {
+  pthread_rwlock_unlock (&vif_lock);
+}
 
 void
 vif_init (void)
@@ -324,6 +342,8 @@ for (k = 0; k < ctrunk->nports; k++)
 
   int i = 0;
 
+  vif_wlock();
+
   while (i < ctrunk->nports) {
     int j;
     for (j = 0; j < nmem; j++) {
@@ -378,6 +398,8 @@ for (k = 0; k < ctrunk->nports; k++)
     }
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
+
+  vif_unlock();
 
 for (k = 0; k < ctrunk->nports; k++)
   DEBUG("====3vif_set_trunk_members ( ) k= %d, vp= %x, e= %d, tr= %x\n",
@@ -588,6 +610,8 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
       || !in_range (n, 0, 60))
     return ST_BAD_VALUE;
 
+  vif_wlock();
+
   dp = &vifs[dev];
   memset (dp, 0, sizeof (*dp));
 
@@ -607,6 +631,8 @@ DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
     dp->n_total++;
     vifp_by_hw[pd[i].hp.hw_dev][pd[i].hp.hw_port] = (struct vif*)&dp->port[i];
   }
+
+  vif_unlock();
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 

@@ -47,6 +47,9 @@ vif_by_hw(GT_U8 hdev, GT_U8 hport) {
   return vifp_by_hw[hdev][hport];
 }
 
+extern void vif_rlock(void);
+extern void vif_wlock(void);
+extern void vif_unlock(void);
 extern void vif_init (void);
 extern void vif_post_port_init (void);
 extern void vif_remote_proc_init(struct vif*);
