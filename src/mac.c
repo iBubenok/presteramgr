@@ -747,12 +747,17 @@ fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
       me.daCommand = CPSS_MAC_TABLE_DROP_E;
       me.saCommand = CPSS_MAC_TABLE_DROP_E;
     } else {
+
+      vif_rlock();
+
       struct vif* vif = vif_getn(arg->vifid);
 
       if (!vif)
         return ST_BAD_VALUE;
 
       vif->fdb_fill_dest(vif, &me);
+
+      vif_unlock();
 /*      me.dstInterface.type = CPSS_INTERFACE_PORT_E;
       me.dstInterface.devPort.devNum = phys_dev (port->ldev);
       me.dstInterface.devPort.portNum = port->lport;
