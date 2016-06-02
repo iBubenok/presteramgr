@@ -1312,48 +1312,56 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
       msg->data[i].vid = ntohs(msg->data[i].vid);
   }
 
-  switch (fdbman_state) {
-
-    case FST_MASTER:
-      switch (msg->command) {
-        case FMC_MASTER_READY:
+  switch (msg->command) {
+    case FMC_MASTER_READY:
+      switch (fdbman_state) {
+        case FST_MASTER:
           DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY\n");
           fdbman_newmaster = fdbman_master = msg->stack_id;
           fdbman_state = FST_MEMBER;
           break;
-        case FMC_UPDATE:
-          fdbman_handle_msg_update(msg, len);
-          break;
-        case FMC_MASTER_UPDATE:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
-          break;
-        case FMC_FLUSH:
-          fdbman_handle_msg_flush(msg, len);
-          break;
-        case FMC_MASTER_FLUSH:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
-          break;
-      }
-      break;
-
-    case FST_PRE_MEMBER:
-      switch (msg->command) {
-        case FMC_MASTER_READY:
+        case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_newmaster = fdbman_master = msg->stack_id;
             fdbman_state = FST_MEMBER;
           }
           else {
-//            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO */
-//            fdbman_state = FST_MEMBER;
+            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO serials */
+            fdbman_state = FST_MEMBER;
             DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n", 
                 msg->stack_id, fdbman_newmaster);
           }
           break;
-        case FMC_UPDATE:
+        case FST_MEMBER:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_state = FST_MEMBER;
+          }
+          else {
+            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO serials*/
+            fdbman_state = FST_MEMBER;
+            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+                  msg->stack_id, fdbman_newmaster);
+          }
+          break;
+      }
+      break;
+    case FMC_UPDATE:
+      switch (fdbman_state) {
+        case FST_MASTER:
+        case FST_PRE_MEMBER:
           fdbman_handle_msg_update(msg, len);
           break;
-        case FMC_MASTER_UPDATE:
+        case FST_MEMBER:
+          break;
+      }
+      break;
+    case FMC_MASTER_UPDATE:
+      switch (fdbman_state) {
+        case FST_MASTER:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
+          break;
+        case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_handle_msg_master_update(msg, len);
           }
@@ -1361,10 +1369,27 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
             DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
           }
           break;
-        case FMC_FLUSH:
+        case FST_MEMBER:
+          fdbman_handle_msg_master_update(msg, len);
+          break;
+      }
+      break;
+    case FMC_FLUSH:
+      switch (fdbman_state) {
+        case FST_MASTER:
+        case FST_PRE_MEMBER:
           fdbman_handle_msg_flush(msg, len);
           break;
-        case FMC_MASTER_FLUSH:
+        case FST_MEMBER:
+          break;
+      }
+      break;
+    case FMC_MASTER_FLUSH:
+      switch (fdbman_state) {
+        case FST_MASTER:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
+          break;
+        case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_handle_msg_master_flush(msg, len);
           }
@@ -1372,36 +1397,13 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
             DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_FLUSH data block\n");
           }
           break;
-      }
-      break;
-
-    case FST_MEMBER:
-      switch (msg->command) {
-        case FMC_MASTER_READY:
-          if (msg->stack_id == fdbman_newmaster) {
-            fdbman_newmaster = fdbman_master = msg->stack_id;
-            fdbman_state = FST_MEMBER;
-          }
-          else {
-//            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO */
-//            fdbman_state = FST_MEMBER;
-            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
-                  msg->stack_id, fdbman_newmaster);
-          }
-          break;
-        case FMC_UPDATE:
-          break;
-        case FMC_MASTER_UPDATE:
-          fdbman_handle_msg_master_update(msg, len);
-          break;
-        case FMC_FLUSH:
-          break;
-        case FMC_MASTER_FLUSH:
+        case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
           break;
       }
       break;
   }
+
 DEBUG("2FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
   return ST_OK;
 }
