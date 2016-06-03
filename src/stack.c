@@ -77,6 +77,13 @@ DEBUG(">>>stack_set_master (%d, const uint8_t *mac)\n", master);
 
   mac_set_master(master);
 
+  int d;
+  for_each_dev (d) {
+    CRP (cpssDxChNetIfCpuCodeDesignatedDeviceTableSet
+         (d, 1, master));
+  }
+  DEBUG("cpssDxChNetIfCpuCodeDesignatedDeviceTableSet (d, 1, %d))\n", master);
+
   return ST_OK;
 }
 

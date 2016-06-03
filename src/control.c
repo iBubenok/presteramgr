@@ -2060,8 +2060,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
   }
-//if (vif)
-//DEBUG("vif->trunk== %p", vif->trunk);
+
   if (vif && vif->trunk)
     vif = vif->trunk;
 
@@ -2143,9 +2142,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
-DEBUG("====1ARP TRAP %d %d:%d, \n", frame->vid, frame->dev, frame->port);
-if (vif)
-DEBUG("====2ARP TRAP vif=%x vif.dev=%d, vif.port=%d\n", vif->id, vif->local->ldev, vif->local->lport);
     conform2stp_state = 1;
     put_vid = 1;
     break;
@@ -2169,7 +2165,6 @@ DEBUG("====2ARP TRAP vif=%x vif.dev=%d, vif.port=%d\n", vif->id, vif->local->lde
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
-DEBUG("====DHCP TRAP %d %d:%d, vif=%x\n", frame->vid, frame->dev, frame->port, vif->id);
     conform2stp_state = 1;
     put_vid = 1;
     break;
