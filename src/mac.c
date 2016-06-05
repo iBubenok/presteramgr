@@ -62,7 +62,9 @@ enum fdbman_cmd {
   FMC_UPDATE,
   FMC_MASTER_UPDATE,
   FMC_FLUSH,
-  FMC_MASTER_FLUSH
+  FMC_MASTER_FLUSH,
+  FMC_MACOP,
+  FMC_MASTER_MACOP
 };
 
 enum fdbman_state {
@@ -111,6 +113,7 @@ uint8_t fdbman_master, fdbman_newmaster;
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
+static void fdbman_send_msg_uni_macop(const struct mac_op_arg_vif *arg, int own, int master);
 static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master);
 
 static void *fdbcomm_ctl_sock;
@@ -1082,7 +1085,15 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     break;
    case FCC_MAC_OP_VIF:
     DEBUG("FCC_MAP_OP_VIF\n"); // TODO remove
-    status = fdb_mac_op_vif (arg, 0);
+    if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
+      fdbman_send_msg_uni_macop(arg, 0, 1);
+      status = fdb_mac_op_vif (arg, 0);
+    }
+    else {
+      status = ST_OK;
+      fdbman_send_msg_uni_flush(arg, 0);
+    }
+     status = fdb_mac_op_vif (arg, 0);
     DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
     break;
   case FCC_OWN_MAC_OP:
@@ -1154,7 +1165,7 @@ fdbman_send_pkt(const void *arg, uint32_t len) {
 static void
 fdbman_send_master_announce_pkt(void) {
 DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
-  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
     fdb_msg->version = PTI_FDB_VERSION;
@@ -1166,9 +1177,28 @@ DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
 }
 
 static void
+fdbman_send_msg_uni_macop(const struct mac_op_arg_vif *arg, int own, int master) {
+DEBUG(">>>fdbman_send_msg_uni_macop(vid==%d, vif=%x, type==%d, drop=%d, delete=%d, bmp_devs=%x, "
+    "mac==%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n",
+    arg->vid, arg->vifid, arg->type, arg->drop, arg->delete, arg->bmp_devs,
+    arg->mac[0],arg->mac[1],arg->mac[2],arg->mac[3],arg->mac[4],arg->mac[5],arg->mac[6],arg->mac[7]);
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = (master) ? FMC_MASTER_MACOP : FMC_MACOP;
+  fdb_msg->nfdb = 0;
+  memcpy(fdb_msg->data, arg, sizeof(struct mac_op_arg_vif));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct mac_op_arg_vif);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master) {
 DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\n", arg->aa.vid, arg->aa.port, arg->ds);
-  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
   fdb_msg->version = PTI_FDB_VERSION;
@@ -1184,7 +1214,7 @@ DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\
 static void
 fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
 DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
-  static uint8_t *buf[TIPC_MSG_MAX_LEN];
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
 #define TIPC_FDB_NREC ( (TIPC_MSG_MAX_LEN - sizeof(struct pti_fdbr_msg)) / sizeof(struct pti_fdbr) - 1 )
@@ -1244,6 +1274,21 @@ DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
   if (idx) {
     fdbman_send_msg_uni_update(fdbr, idx, 1);
   }
+}
+
+static void
+fdbman_handle_msg_macop(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_macop(%p, %d)\n", msg, len);
+  struct mac_op_arg_vif *arg = (struct mac_op_arg_vif *) msg->data;
+  fdbman_send_msg_uni_macop(arg, 0, 1);
+  fdb_mac_op_vif (arg, 0);
+}
+
+static void
+fdbman_handle_msg_master_macop(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_master_macop(%p, %d)\n", msg, len);
+  struct mac_op_arg_vif *arg = (struct mac_op_arg_vif *) msg->data;
+  fdb_mac_op_vif (arg, 0);
 }
 
 static void
@@ -1399,6 +1444,34 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
+          break;
+      }
+      break;
+     case FMC_MACOP:
+      switch (fdbman_state) {
+        case FST_MASTER:
+        case FST_PRE_MEMBER:
+          fdbman_handle_msg_macop(msg, len);
+          break;
+        case FST_MEMBER:
+          break;
+      }
+      break;
+    case FMC_MASTER_MACOP:
+      switch (fdbman_state) {
+        case FST_MASTER:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
+          break;
+        case FST_PRE_MEMBER:
+          if (msg->stack_id == fdbman_newmaster) {
+            fdbman_handle_msg_master_macop(msg, len);
+          }
+          else {
+            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
+          }
+          break;
+        case FST_MEMBER:
+          fdbman_handle_msg_master_macop(msg, len);
           break;
       }
       break;
