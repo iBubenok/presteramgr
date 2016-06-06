@@ -46,6 +46,26 @@ vif_unlock (void) {
   pthread_rwlock_unlock (&vif_lock);
 }
 
+static void
+vif_fill_cpss_if_port (struct vif* vif, CPSS_INTERFACE_INFO_STC *iface) {
+
+  iface->type = CPSS_INTERFACE_PORT_E;
+  if (vif->islocal) {
+    iface->devPort.devNum = phys_dev(vif->local->ldev);
+    iface->devPort.portNum = vif->local->lport;
+  } else {
+    iface->devPort.devNum = vif->remote.hw_dev;
+    iface->devPort.portNum = vif->remote.hw_port;
+  }
+}
+
+static void
+vif_fill_cpss_if_trunk (struct vif* vif, CPSS_INTERFACE_INFO_STC *iface) {
+
+  iface->type = CPSS_INTERFACE_TRUNK_E;
+  iface->trunkId = ((struct trunk*)vif)->id;
+}
+
 void
 vif_init (void)
 {
@@ -137,6 +157,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_remote;
   v->set_duplex = vif_set_duplex_remote;
   v->fdb_fill_dest = fdb_fill_dest_port;
+  v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
 void
@@ -144,6 +165,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_port;
   v->set_duplex = vif_set_duplex_port;
   v->fdb_fill_dest = fdb_fill_dest_port;
+  v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
 void
@@ -151,6 +173,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_trunk;
   v->set_duplex = vif_set_duplex_trunk;
   v->fdb_fill_dest = fdb_fill_dest_trunk;
+  v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
 struct vif*

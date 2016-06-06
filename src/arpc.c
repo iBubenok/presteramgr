@@ -83,7 +83,7 @@ void
 arpc_set_mac_addr (arpd_ip_addr_t ip,
                    arpd_vid_t vid,
                    const uint8_t *mac,
-                   arpd_port_id_t pid)
+                   arpd_vif_id_t vif)
 {
   GT_IPADDR ip_addr;
   GT_ETHERADDR mac_addr;
@@ -92,5 +92,5 @@ arpc_set_mac_addr (arpd_ip_addr_t ip,
   ip_addr.u32Ip = ip;
   route_fill_gw (&gw, &ip_addr, vid);
   memcpy (mac_addr.arEther, mac, 6);
-  ret_set_mac_addr (&gw, &mac_addr, pid);
+  ret_set_mac_addr (&gw, &mac_addr, vif);
 }

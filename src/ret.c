@@ -12,6 +12,7 @@
 #include <ret.h>
 #include <arpc.h>
 #include <port.h>
+#include <vif.h>
 #include <route.h>
 #include <debug.h>
 #include <route-p.h>
@@ -59,7 +60,7 @@ struct re {
   uint16_t idx;
   GT_ETHERADDR addr;
   uint16_t nh_idx;
-  port_id_t pid;
+  vif_id_t vif_id;
   int refc;
   UT_hash_handle hh;
 };
@@ -78,15 +79,17 @@ ret_add (const struct gw *gw, int def)
       re->def = 1;
       if (re->valid) {
         CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-        struct port *port = port_ptr (re->pid);
+//        struct port *port = port_ptr (re->pid);
+        struct vif *vif = vif_getn (re->vif_id);
         int d;
 
         memset (&rt, 0, sizeof (rt));
         rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
         rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+        vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
         DEBUG ("write default route entry\r\n");
@@ -159,15 +162,15 @@ ret_unref (const struct gw *gw, int def)
 }
 
 enum status
-ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
+ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id)
 {
   struct re *re;
   int idx, nh_idx, d;
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
   GT_STATUS rc;
-  struct port *port = port_ptr (pid);
+  struct vif *vif = vif_getn (vif_id);
 
-  if (!port)
+  if (!vif)
     return ST_HEX;
 
   HASH_FIND_GW (ret, gw, re);
@@ -178,9 +181,10 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+    vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
     rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
     rt.entry.regularEntry.nextHopVlanId = gw->vid;
     DEBUG ("write route entry");
@@ -199,7 +203,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   }
 
   memcpy (&re->addr, addr, sizeof (*addr));
-  re->pid = pid;
+  re->vif_id = vif_id;
 
   nh_idx = nht_add (addr);
   if (nh_idx < 0)
@@ -212,9 +216,10 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   memset (&rt, 0, sizeof (rt));
   rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
   DEBUG ("write route entry at %d\r\n", idx);

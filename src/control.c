@@ -669,7 +669,7 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
       (struct arpd_ip_addr_msg *) zframe_data (frame);
 
     arpc_set_mac_addr
-      (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
+      (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
     break;
 
   default:
@@ -2143,12 +2143,14 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
@@ -2179,6 +2181,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 

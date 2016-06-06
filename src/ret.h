@@ -6,7 +6,7 @@
 extern enum status ret_init (void);
 extern int ret_add (const struct gw *, int);
 extern enum status ret_unref (const struct gw *, int);
-extern enum status ret_set_mac_addr (const struct gw *, const GT_ETHERADDR *, port_id_t);
+extern enum status ret_set_mac_addr (const struct gw *, const GT_ETHERADDR *, vif_id_t);
 extern int mcre_get (mcg_t, vid_t);
 extern int mcre_put (const uint8_t *dst, const uint8_t *src, vid_t);
 // extern int mcre_put (mcg_t, vid_t);
