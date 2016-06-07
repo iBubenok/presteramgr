@@ -30,7 +30,6 @@ struct vif {
   enum port_duplex c_duplex;
   int c_shutdown;
 
-  void (*fdb_fill_dest) (struct vif *, CPSS_MAC_ENTRY_EXT_STC *);
   void (*fill_cpss_if) (struct vif *, CPSS_INTERFACE_INFO_STC *);
   enum status (*set_speed) (struct vif *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct vif *, enum port_duplex);

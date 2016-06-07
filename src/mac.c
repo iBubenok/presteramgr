@@ -700,26 +700,6 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
   return fdb_insert (&me, own, arg->type == MET_SECURE);
 }
 
-void
-fdb_fill_dest_port (struct vif* vif, CPSS_MAC_ENTRY_EXT_STC *me) {
-
-  me->dstInterface.type = CPSS_INTERFACE_PORT_E;
-  if (vif->islocal) {
-    me->dstInterface.devPort.devNum = phys_dev(vif->local->ldev);
-    me->dstInterface.devPort.portNum = vif->local->lport;
-  } else {
-    me->dstInterface.devPort.devNum = vif->remote.hw_dev;
-    me->dstInterface.devPort.portNum = vif->remote.hw_port;
-  }
-}
-
-void
-fdb_fill_dest_trunk (struct vif* vif, CPSS_MAC_ENTRY_EXT_STC *me) {
-
-  me->dstInterface.type = CPSS_INTERFACE_TRUNK_E;
-  me->dstInterface.trunkId = ((struct trunk*)vif)->id;
-}
-
 static enum status
 fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
 {
@@ -754,17 +734,12 @@ fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
       vif_rlock();
 
       struct vif* vif = vif_getn(arg->vifid);
-
       if (!vif)
         return ST_BAD_VALUE;
-
-      vif->fdb_fill_dest(vif, &me);
+      vif->fill_cpss_if(vif, &me.dstInterface);
 
       vif_unlock();
-/*      me.dstInterface.type = CPSS_INTERFACE_PORT_E;
-      me.dstInterface.devPort.devNum = phys_dev (port->ldev);
-      me.dstInterface.devPort.portNum = port->lport;
-*/
+
       me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
       me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
     }

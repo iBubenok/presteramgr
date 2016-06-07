@@ -156,7 +156,6 @@ void
 vif_remote_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_remote;
   v->set_duplex = vif_set_duplex_remote;
-  v->fdb_fill_dest = fdb_fill_dest_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -164,7 +163,6 @@ void
 vif_port_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_port;
   v->set_duplex = vif_set_duplex_port;
-  v->fdb_fill_dest = fdb_fill_dest_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -172,7 +170,6 @@ void
 vif_trunk_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_trunk;
   v->set_duplex = vif_set_duplex_trunk;
-  v->fdb_fill_dest = fdb_fill_dest_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
