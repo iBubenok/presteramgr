@@ -2,6 +2,7 @@
 #define __STACK_H__
 
 #include <control-proto.h>
+#include <stackd.h>
 
 extern int stack_id;
 extern int master_id;
@@ -28,6 +29,6 @@ extern uint8_t stack_port_get_state (enum port_stack_role);
 extern enum status stack_update_conf (void *, size_t);
 extern enum status stack_set_dev_map (uint8_t, const uint8_t *, uint8_t);
 extern enum status stack_txen (uint8_t, int);
-extern enum status stack_set_master (uint8_t, const uint8_t *);
+extern enum status stack_set_master (uint8_t, serial_t, const uint8_t *);
 
 #endif /* __STACK_H__ */

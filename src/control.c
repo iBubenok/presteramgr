@@ -3922,8 +3922,13 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
   enum status result;
   zframe_t *frame;
   uint8_t master;
+  serial_t serial;
 
   result = POP_ARG (&master);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&serial);
   if (result != ST_OK)
     goto out;
 
@@ -3933,7 +3938,7 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
     goto out;
   }
 
-  result = stack_set_master (master, zframe_data (frame));
+  result = stack_set_master (master, serial, zframe_data (frame));
 
  out:
   report_status (result);

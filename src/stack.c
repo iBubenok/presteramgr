@@ -9,8 +9,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 
-#include <stack.h>
 #include <stackd.h>
+#include <stack.h>
 #include <vlan.h>
 #include <mcg.h>
 #include <dev.h>
@@ -31,6 +31,7 @@ struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 static int ring = 0;
 static uint32_t dev_bmp  = 0;
 static uint32_t dev_mask = 0;
+static serial_t stack_serial = 0;
 
 static struct stackd_unit stack_units[MAX_STACK_UNITS+1];
 static struct stackd_unit stack_units_update[MAX_STACK_UNITS+1];
@@ -66,16 +67,20 @@ stack_init (void)
 }
 
 enum status
-stack_set_master (uint8_t master, const uint8_t *mac)
+stack_set_master (uint8_t master, uint64_t serial, const uint8_t *mac)
 {
-DEBUG(">>>stack_set_master (%d, const uint8_t *mac)\n", master);
+DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
   if (master > 16)
     return ST_BAD_VALUE;
 
   master_id = master;
+  if (stack_serial > serial)
+    DEBUG ("Stacking error, old stack configuration serial %llu is bigger or equal to new stack conf %llu\n",
+        stack_serial, serial);
+  stack_serial = serial;
   memcpy (master_mac, mac, 6);
 
-  mac_set_master(master);
+  mac_set_master(master, serial);
 
   int d;
   for_each_dev (d) {
