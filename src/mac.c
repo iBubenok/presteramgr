@@ -7,6 +7,7 @@
 
 #include <mac.h>
 #include <stack.h>
+#include <stackd.h>
 #include <zcontext.h>
 #include <vif.h>
 #include <trunk.h>
@@ -101,6 +102,7 @@ struct pti_fdbr_msg {
   uint8_t stack_id;
   uint8_t command;
   uint16_t nfdb;
+  serial_t serial;
   struct pti_fdbr data[];
 } __attribute__ ((packed));
 
@@ -109,6 +111,7 @@ struct pti_fdbr_msg {
 
 enum fdbman_state fdbman_state;
 uint8_t fdbman_master, fdbman_newmaster;
+static serial_t fdbman_serial, fdbman_newserial;
 
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
@@ -307,9 +310,12 @@ mac_set_aging_time (aging_time_t time)
 }
 
 enum status
-mac_set_master (uint8_t stid)
-{
-  return fdb_ctl (FCC_SET_MASTER, &stid, sizeof (stid));
+mac_set_master (uint8_t stid, serial_t serial) {
+  uint8_t buf[sizeof(stid) + sizeof(serial)];
+  buf[0] = stid;
+  *((typeof(serial)*)(&buf[sizeof(stid)])) = serial;
+
+  return fdb_ctl (FCC_SET_MASTER, buf, sizeof (stid) + sizeof(serial));
 }
 
 
@@ -1138,8 +1144,8 @@ fdbman_send_pkt(const void *arg, uint32_t len) {
 }
 
 static void
-fdbman_send_master_announce_pkt(void) {
-DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
+fdbman_send_master_announce_pkt(serial_t serial) {
+DEBUG(">>>fdbman_send_master_announce_pkt(%llu)\n", serial);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1147,6 +1153,7 @@ DEBUG(">>>fdbman_send_master_announce_pkt(void)\n");
     fdb_msg->stack_id = stack_id;
     fdb_msg->command = FMC_MASTER_READY;
     fdb_msg->nfdb = 0;
+    fdb_msg->serial = serial;
 
     fdbman_send_pkt(buf, sizeof(struct pti_fdbr_msg));
 }
@@ -1164,6 +1171,7 @@ DEBUG(">>>fdbman_send_msg_uni_macop(vid==%d, vif=%x, type==%d, drop=%d, delete=%
   fdb_msg->stack_id = stack_id;
   fdb_msg->command = (master) ? FMC_MASTER_MACOP : FMC_MACOP;
   fdb_msg->nfdb = 0;
+  fdb_msg->serial = 0;
   memcpy(fdb_msg->data, arg, sizeof(struct mac_op_arg_vif));
   size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct mac_op_arg_vif);
 
@@ -1180,6 +1188,7 @@ DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\
   fdb_msg->stack_id = stack_id;
   fdb_msg->command = (master) ? FMC_MASTER_FLUSH : FMC_FLUSH;
   fdb_msg->nfdb = 0;
+  fdb_msg->serial = 0;
   memcpy(fdb_msg->data, arg, sizeof(struct fdb_flush_arg));
   size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct fdb_flush_arg);
 
@@ -1201,6 +1210,7 @@ DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
     fdb_msg->command = (master)? FMC_MASTER_UPDATE : FMC_UPDATE ;
     uint16_t nr = (n - nf > TIPC_FDB_NREC)? TIPC_FDB_NREC : n - nf;
     fdb_msg->nfdb = htons(nr);
+    fdb_msg->serial = 0;
     memcpy(fdb_msg->data, pf+nf, sizeof(struct pti_fdbr) * nr);
 
     unsigned i;
@@ -1284,36 +1294,52 @@ DEBUG(">>>fdbman_handle_msg_master_flush(%p, %d)\n", msg, len);
 static enum status
 fdbman_set_master(const void *arg) {
   uint8_t newmaster = *((uint8_t*) arg);
-DEBUG(">>>fdbman_set_master(%hhu)\n", newmaster);
-DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+  serial_t serial = *(serial_t*)(((uint8_t*) arg) + 1);
+DEBUG(">>>fdbman_set_master(%hhu, %llu)\n", newmaster, serial);
+DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+  if (serial < fdbman_serial) {
+    DEBUG("====fdbman_set_master() serial %llu < than the current fdbman_serial %llu", serial, fdbman_serial);
+    return ST_OK;
+  }
+  if (serial <= fdbman_newserial)
+    return ST_OK;
+
   switch (fdbman_state) {
     case FST_MASTER:
-      if (fdbman_master != newmaster) {
+      if (stack_id != newmaster) {
         fdbman_newmaster = newmaster;
+        fdbman_newserial = serial;
         fdbman_state = FST_PRE_MEMBER;
       }
       else {
-        fdbman_send_master_announce_pkt();
+        fdbman_send_master_announce_pkt(serial);
+        fdbman_serial = fdbman_newserial = serial;
+        fdbman_master = fdbman_newmaster = newmaster;
       }
       break;
+
     case FST_PRE_MEMBER:
       fdbman_newmaster = newmaster;
+      fdbman_newserial = serial;
       if (stack_id == newmaster) {
-        fdbman_send_master_announce_pkt();
+        fdbman_send_master_announce_pkt(serial);
         fdbman_master = newmaster;
+        fdbman_serial = serial;
         fdbman_state = FST_MASTER;
       }
       break;
     case FST_MEMBER:
       fdbman_newmaster = newmaster;
+      fdbman_newserial = serial;
       if (stack_id == newmaster) {
-        fdbman_send_master_announce_pkt();
+        fdbman_send_master_announce_pkt(serial);
         fdbman_master = newmaster;
+        fdbman_serial = serial;
         fdbman_state = FST_MASTER;
       }
       break;
   }
-DEBUG("2FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;
 }
 
@@ -1323,7 +1349,7 @@ DEBUG(">>>fdbman_handle_pkt (%p, %d)\n", pkt, len);
 
   struct pti_fdbr_msg *msg = (struct pti_fdbr_msg*) pkt;
 DEBUG("msg: cmd %d, n %d, stid %d\n", msg->command, ntohs(msg->nfdb), msg->stack_id);
-DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
 
   if (msg->command == FMC_MASTER_UPDATE || msg->command == FMC_UPDATE) {
     msg->nfdb = ntohs(msg->nfdb);
@@ -1334,19 +1360,31 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
 
   switch (msg->command) {
     case FMC_MASTER_READY:
+      if (msg->serial < fdbman_serial) {
+        DEBUG("ERROR: fdbman: with serial: %llu recieved outdated FMS_MASTER_READY with serial %llu ",
+            fdbman_serial, msg->serial);
+        break;
+      }
+      if (msg->serial < fdbman_newserial) {
+        fdbman_master = msg->stack_id;
+        fdbman_serial = msg->serial;
+        break;
+      }
       switch (fdbman_state) {
         case FST_MASTER:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY\n");
           fdbman_newmaster = fdbman_master = msg->stack_id;
+          fdbman_newserial = fdbman_serial = msg->serial;
           fdbman_state = FST_MEMBER;
           break;
         case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_state = FST_MEMBER;
           }
           else {
-            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO serials */
+            fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_state = FST_MEMBER;
             DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n", 
                 msg->stack_id, fdbman_newmaster);
@@ -1355,10 +1393,12 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
         case FST_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_state = FST_MEMBER;
           }
           else {
-            fdbman_newmaster = fdbman_master = msg->stack_id; /* TODO serials*/
+            fdbman_newmaster = fdbman_master = msg->stack_id;
+            fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_state = FST_MEMBER;
             DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
                   msg->stack_id, fdbman_newmaster);
@@ -1366,6 +1406,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
       }
       break;
+
     case FMC_UPDATE:
       switch (fdbman_state) {
         case FST_MASTER:
@@ -1376,7 +1417,12 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
       }
       break;
+
     case FMC_MASTER_UPDATE:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        break;
+      }
       switch (fdbman_state) {
         case FST_MASTER:
           DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
@@ -1394,6 +1440,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
       }
       break;
+
     case FMC_FLUSH:
       switch (fdbman_state) {
         case FST_MASTER:
@@ -1404,24 +1451,25 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
       }
       break;
+
     case FMC_MASTER_FLUSH:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        break;
+      }
       switch (fdbman_state) {
         case FST_MASTER:
           DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
           break;
         case FST_PRE_MEMBER:
-          if (msg->stack_id == fdbman_newmaster) {
-            fdbman_handle_msg_master_flush(msg, len);
-          }
-          else {
-            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_FLUSH data block\n");
-          }
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
           break;
       }
       break;
+
      case FMC_MACOP:
       switch (fdbman_state) {
         case FST_MASTER:
@@ -1432,18 +1480,18 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
           break;
       }
       break;
+
     case FMC_MASTER_MACOP:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_MACOP data block\n", msg->stack_id);
+        break;
+      }
       switch (fdbman_state) {
         case FST_MASTER:
           DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
           break;
         case FST_PRE_MEMBER:
-          if (msg->stack_id == fdbman_newmaster) {
-            fdbman_handle_msg_master_macop(msg, len);
-          }
-          else {
-            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
-          }
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_macop(msg, len);
@@ -1452,7 +1500,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_maste
       break;
   }
 
-DEBUG("2FDBMAN state: %d master: %d, newmaster: %d\n", fdbman_state, fdbman_master, fdbman_newmaster);
+DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;
 }
 

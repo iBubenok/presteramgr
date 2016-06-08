@@ -4,6 +4,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 
 #include <control-proto.h>
+#include <stackd.h>
 #include <sysdeps.h>
 #include <tipc.h>
 #include <vif.h>
@@ -32,7 +33,7 @@ extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
-extern enum status mac_set_master (uint8_t);
+extern enum status mac_set_master (uint8_t, serial_t);
 
 extern void fdb_fill_dest_port (struct vif*, CPSS_MAC_ENTRY_EXT_STC *);
 extern void fdb_fill_dest_trunk (struct vif*, CPSS_MAC_ENTRY_EXT_STC *);
