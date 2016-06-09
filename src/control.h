@@ -7,6 +7,7 @@
 #define INP_SOCK_EP "inproc://command"
 #define INP_PUB_SOCK_EP "inproc://notify"
 
+extern void control_pre_mac_init(void);
 extern int control_init (void);
 extern int control_start (void);
 
@@ -15,6 +16,10 @@ enum control_int_command {
   CC_INT_ROUTE_DEL_PREFIX,
   CC_INT_SPEC_FRAME_FORWARD,
   CC_INT_RET_SET_MAC_ADDR,
+  SC_INT_RTBD_CMD,
+  SC_INT_NA_CMD,
+  SC_INT_OPNA_CMD,
+  SC_INT_UDT_CMD,
   CC_INT_MAX
 };
 

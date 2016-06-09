@@ -75,6 +75,14 @@ forwarder_thread (void *dummy)
   return NULL;
 }
 
+void
+control_pre_mac_init(void) {
+
+  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (stack_cmd_sock);
+  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+}
+
 int
 control_init (void)
 {
@@ -134,10 +142,6 @@ control_init (void)
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
   zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
-
-  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
-  assert (stack_cmd_sock);
-  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
   fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (fdb_sock);
@@ -426,6 +430,10 @@ DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
+DECLARE_HANDLER (SC_INT_RTBD_CMD);
+DECLARE_HANDLER (SC_INT_NA_CMD);
+DECLARE_HANDLER (SC_INT_OPNA_CMD);
+DECLARE_HANDLER (SC_INT_UDT_CMD);
 
 
 static cmd_handler_t handlers[] = {
@@ -575,7 +583,11 @@ static cmd_handler_t handlers[] = {
 };
 
 static cmd_handler_t stack_handlers[] = {
-  HANDLER (SC_UPDATE_STACK_CONF)
+  HANDLER (SC_UPDATE_STACK_CONF),
+  HANDLER (SC_INT_RTBD_CMD),
+  HANDLER (SC_INT_NA_CMD),
+  HANDLER (SC_INT_OPNA_CMD),
+  HANDLER (SC_INT_UDT_CMD)
 };
 
 static int
@@ -613,6 +625,9 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   case RCN_IP_ADDR:
     frame = zmsg_next (msg);
     struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
+
+    mac_op_rt(notif, am, sizeof(*am));
+
     ip_addr_t addr;
     memcpy (&addr, &am->addr, 4);
     switch (am->op) {
@@ -630,6 +645,9 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   case RCN_ROUTE:
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
+
+    mac_op_rt(notif, rm, sizeof(*rm));
+
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
     rt.pfx.alen = rm->dst_len;
@@ -667,6 +685,8 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     frame = zmsg_next (msg);
     struct arpd_ip_addr_msg *iam =
       (struct arpd_ip_addr_msg *) zframe_data (frame);
+
+    mac_op_na(iam);
 
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
@@ -726,12 +746,94 @@ control_loop (void *dummy)
 DEFINE_HANDLER (SC_UPDATE_STACK_CONF) {
 
 DEBUG("===SC_UPDATE_STACK_CONF\n");
-  enum status result = ST_BAD_FORMAT;
   zframe_t *frame = FIRST_ARG;
   if (!frame)
     return;
 
-  result = stack_update_conf(zframe_data(frame), zframe_size(frame));
+  stack_update_conf(zframe_data(frame), zframe_size(frame));
+}
+
+DEFINE_HANDLER (SC_INT_RTBD_CMD) {
+
+DEBUG("===SC_INT_RTBD_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct rtbd_ip_addr_msg *am;
+  struct rtbd_route_msg *rm;
+  rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  switch (notif) {
+  case RCN_IP_ADDR:
+    am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
+    ip_addr_t addr;
+    memcpy (&addr, &am->addr, 4);
+    switch (am->op) {
+    case RIAO_ADD:
+      route_add_mgmt_ip (addr);
+      break;
+    case RIAO_DEL:
+      route_del_mgmt_ip (addr);
+      break;
+    default:
+      break;
+    }
+    break;
+
+  case RCN_ROUTE:
+    rm = (struct rtbd_route_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
+    struct route rt;
+    rt.pfx.addr.u32Ip = rm->dst;
+    rt.pfx.alen = rm->dst_len;
+    rt.gw.u32Ip = rm->gw;
+    rt.vid = rm->vid;
+    switch (rm->op) {
+    case RRTO_ADD:
+      route_add (&rt);
+      break;
+    case RRTO_DEL:
+      route_del (&rt);
+      break;
+    default:
+      break;
+    }
+    break;
+
+  default:
+    break;
+  }
+}
+
+DEFINE_HANDLER (SC_INT_NA_CMD) {
+DEBUG("===SC_INT_NA_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct arpd_ip_addr_msg *iam =
+    (struct arpd_ip_addr_msg *) zframe_data (frame);
+  arpc_set_mac_addr
+    (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+}
+
+DEFINE_HANDLER (SC_INT_OPNA_CMD) {
+DEBUG("===SC_INT_OPNA_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  arpd_command_t cmd = *((arpd_command_t *) zframe_data (frame));
+  struct gw *gw  = (struct gw *) ((arpd_command_t *) zframe_data (frame) + 1);
+  arpc_ip_addr_op (gw, cmd);
+}
+
+DEFINE_HANDLER (SC_INT_UDT_CMD) {
+DEBUG("===SC_INT_NA_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  route_handle_udaddr (*(uint32_t*)zframe_data(frame));
 }
 
 /*

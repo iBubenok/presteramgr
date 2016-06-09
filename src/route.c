@@ -19,6 +19,8 @@
 #include <arpc.h>
 #include <sysdeps.h>
 #include <mcg.h>
+#include <mac.h>
+#include <stack.h>
 #include <debug.h>
 #include <utils.h>
 
@@ -275,6 +277,9 @@ route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 enum status
 route_add (const struct route *rt)
 {
+DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   fib_add (ntohl (rt->pfx.addr.u32Ip),
            rt->pfx.alen,
            rt->vid,
@@ -362,6 +367,9 @@ route_del_fib_entry (struct fib_entry *e)
 enum status
 route_del (const struct route *rt)
 {
+DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
     DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
@@ -374,6 +382,8 @@ route_del (const struct route *rt)
 enum status
 route_add_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
   GT_IPADDR ga;
   GT_STATUS rc;
@@ -391,6 +401,7 @@ route_add_mgmt_ip (ip_addr_t addr)
 enum status
 route_del_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
   GT_STATUS rc;
   GT_IPADDR ga;
 
@@ -462,24 +473,12 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
-route_handle_udt (const uint8_t *data, int len)
-{
-  uint32_t daddr, rt;
+route_handle_udaddr (uint32_t daddr) {
+DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
+  uint32_t rt;
   int alen;
   const struct fib_entry *e;
 
-  if (len < MIN_IPv4_PKT_LEN) {
-    DEBUG ("frame length %d too small\r\n", len);
-    return;
-  }
-
-  if ((data[12] != 0x08) ||
-      (data[13] != 0x00)) {
-    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
-    return;
-  }
-
-  daddr = ntohl (*((uint32_t *) (data + 30)));
   e = fib_route (daddr);
   if (!e) {
     DEBUG ("can't route for %d.%d.%d.%d\r\n",
@@ -504,6 +503,31 @@ route_handle_udt (const uint8_t *data, int len)
          (daddr >> 8) & 0xFF, daddr & 0xFF,
          (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
          (rt >> 8) & 0xFF, rt & 0xFF);
+}
+
+void
+route_handle_udt (const uint8_t *data, int len)
+{
+  uint32_t daddr;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x08) ||
+      (data[13] != 0x00)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  daddr = ntohl (*((uint32_t *) (data + 30)));
+
+  if (master_id == stack_id) {
+    mac_op_udt(daddr);
+  }
+
+  route_handle_udaddr (daddr);
 }
 
 enum status

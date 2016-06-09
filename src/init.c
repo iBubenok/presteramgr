@@ -828,6 +828,8 @@ cpss_start (void)
 
   event_start_notify_thread();
 
+  control_pre_mac_init();
+
   init_cpss ();
   if (just_reset) {
     exit (EXIT_SUCCESS);
