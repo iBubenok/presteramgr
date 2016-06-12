@@ -643,3 +643,25 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
   DEBUG ("Prefix was not found/\n");
   return ST_HEX;
 }
+
+void
+route_dump(void) {
+  struct pfxs_by_gw *s, *t;
+  DEBUG("!!!! ROUTE DUMP  !!!!\n");
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        DEBUG("\t"IPv4_FMT "/%2d, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1);
+      }
+    }
+  }
+  DEBUG("!!!! end GW DUMP!!!!\n\n");
+/*struct pfxs_by_gw {
+  struct gw gw;
+  struct pfx_by_pfx *pfxs;
+  UT_hash_handle hh;
+};*/
+
+}

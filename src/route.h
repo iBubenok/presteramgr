@@ -36,5 +36,6 @@ extern enum status route_mc_add (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
 extern enum status route_mc_del (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
+extern void route_dump(void);
 
 #endif /* __ROUTE_H__ */

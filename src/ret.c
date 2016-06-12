@@ -552,3 +552,29 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
   // We should not get here
   return -2;
 }
+
+void
+ret_dump(void) {
+  struct re *s, *t;
+  DEBUG("!!!! RET DUMP %d  !!!!\n", re_cnt);
+  DEBUG("gw IP                 :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
+  HASH_ITER (hh, ret, s, t) {
+    DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+        IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,
+        MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
+  }
+  DEBUG("!!!! end RET DUMP!!!!\n\n");
+/*
+struct re {
+  struct gw gw;
+  int valid;
+  int def;
+  uint16_t idx;
+  GT_ETHERADDR addr;
+  uint16_t nh_idx;
+  vif_id_t vif_id;
+  int refc;
+  UT_hash_handle hh;
+};
+*/
+}

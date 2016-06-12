@@ -39,6 +39,9 @@
 #include <pcl.h>
 #include <ip.h>
 
+#include <nht.h>
+#include <fib.h>
+
 #include <gtOs/gtOsTask.h>
 
 static void *control_loop (void *);
@@ -1448,8 +1451,27 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
     goto err;
 
 if (page >= 3000) {   //TODO remove BEGIN
-  DEBUG("going mac_count(%hu)\n", reg);
-  mac_count(pid, page, reg);
+//  DEBUG("going mac_count(%hu)\n", reg);
+//  mac_count(pid, page, reg);
+  switch (page){
+    case 3000:
+      nht_dump();
+      break;
+    case 3001:
+      fib_dump();
+      break;
+    case 3002:
+      ret_dump();
+      break;
+    case 3003:
+      route_dump();
+      break;
+    case 4000:
+      nht_dump();
+      fib_dump();
+      ret_dump();
+      route_dump();
+  }
   val = 0;
 }   else { //  TODO remove END
   result = port_dump_phy_reg (pid, page, reg, &val);

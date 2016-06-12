@@ -5,6 +5,7 @@
 #include <fib.h>
 #include <uthash.h>
 #include <assert.h>
+#include <log.h>
 
 
 struct fib_entry {
@@ -182,4 +183,31 @@ fib_route (uint32_t addr)
   }
 
   return fib.e[0] ? : 0;
+}
+
+void
+fib_dump(void){
+  struct fib_entry *s, *t;
+  int i;
+  DEBUG("!!!! FIB DUMP!!!!\n");
+  for (i = 0; i<32;i++) {
+    int k = 1;
+    HASH_ITER (hh, fib.e[i], s, t) {
+      if (k)
+        DEBUG("==== %d\n", i);
+      k = 0;
+      DEBUG("%16p,   %08X:%08X - %08X:%02d, %02d,  %16p\n",
+          s, s->addr, s->pfx, s->gw, s->vid, s->len, s->children);
+      if (s->children) {
+        struct fib_entry *s1, *t1;
+        HASH_ITER (hh, s->children, s1, t1) {
+          DEBUG("c       %16p,   %08X:%08X - %08X:%02d, %02d,  %16p\n",
+              s->children, s1->addr, s1->pfx, s1->gw, s1->vid, s1->len, s1->children);
+        }
+      }
+    }
+    if (!k)
+      DEBUG("<<<< %d\n", i);
+  }
+  DEBUG("!!!! endFIB DUMP!!!!\n\n");
 }
