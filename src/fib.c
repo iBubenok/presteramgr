@@ -2,7 +2,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <rtbd.h>
 #include <fib.h>
+#include <route.h>
 #include <uthash.h>
 #include <assert.h>
 #include <log.h>
@@ -183,6 +185,65 @@ fib_route (uint32_t addr)
   }
 
   return fib.e[0] ? : 0;
+}
+
+void
+fib_clear_routing(void) {
+
+  struct fib_entry *s, *t;
+  int i;
+  for (i = 0; i < 32; i++) {
+    HASH_ITER (hh, fib.e[i], s, t) {
+      struct route route;
+      route.pfx.addr.u32Ip = htonl(s->pfx);
+      route.pfx.alen = s->len;
+      route.gw.u32Ip = htonl(s->gw);
+      route.vid = s->vid;
+      route_del(&route);
+    }
+  }
+/*
+struct fib_entry {
+  uint32_t addr;
+  uint32_t pfx;
+  uint32_t gw;
+  vid_t vid;
+  int len;
+  struct fib_entry *children;
+  UT_hash_handle hh;
+};*/
+}
+
+void *
+fib_get_routes(void) {
+  fib_dump();
+  int i;
+  uint32_t n = 0;
+  struct fib_entry *s, *t;
+
+  for (i = 0; i < 32; i++) {
+//    n += HASH_COUNT(fib.e[i]);
+    HASH_ITER (hh, fib.e[i], s, t)
+      n++;
+  }
+
+  void *r = malloc(sizeof(n) + sizeof(struct rtbd_route_msg) * n);
+  if (!r)
+    return NULL;
+
+  *(uint32_t*)r = n;
+  struct rtbd_route_msg *r1 = (struct rtbd_route_msg *)((uint32_t*)r + 1);
+  for (i = 0; i < 32; i++) {
+    HASH_ITER (hh, fib.e[i], s, t) {
+      r1->op = RRTO_ADD;
+      r1->vid = s->vid;
+      r1->dst = htonl(s->pfx);
+      r1->gw = htonl(s->gw);
+      r1->dst_len = s->len;
+      r1++;
+    }
+  }
+  return r;
 }
 
 void

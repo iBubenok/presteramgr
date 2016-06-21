@@ -14,6 +14,7 @@
 
 #define FDB_NOTIFY_EP  "inproc://fdb-notify"
 #define FDB_CONTROL_EP "inproc://fdb-control"
+#define FDB_ACONTROL_EP "inproc://fdb-acontrol"
 #define FDB_PUBSUB_EP  "inproc://fbd-pubsub"
 
 struct fdb_entry {
@@ -40,6 +41,6 @@ extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
-extern enum status mac_set_master (uint8_t, serial_t);
+extern enum status mac_set_master (uint8_t, serial_t, devsbmp_t);
 
 #endif /* __MAC_H__ */

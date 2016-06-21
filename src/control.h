@@ -20,6 +20,8 @@ enum control_int_command {
   SC_INT_NA_CMD,
   SC_INT_OPNA_CMD,
   SC_INT_UDT_CMD,
+  SC_INT_CLEAR_RT_CMD,
+  CC_INT_GET_RT_CMD,
   CC_INT_MAX
 };
 

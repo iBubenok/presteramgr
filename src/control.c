@@ -23,6 +23,7 @@
 #include <debug.h>
 #include <wnct.h>
 #include <mcg.h>
+#include <fib.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -84,6 +85,15 @@ control_pre_mac_init(void) {
   stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (stack_cmd_sock);
   zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+
+  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (cmd_sock);
+  zsocket_bind (cmd_sock, CMD_SOCK_EP);
+
+  inp_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (inp_sock);
+  zsocket_bind (inp_sock, INP_SOCK_EP);
+
 }
 
 int
@@ -121,15 +131,11 @@ control_init (void)
   rc = zsocket_bind (inp_pub_sock, INP_PUB_SOCK_EP);
 
   pthread_create (&tid, NULL, forwarder_thread, NULL);
-
-  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
-  assert (cmd_sock);
-  rc = zsocket_bind (cmd_sock, CMD_SOCK_EP);
-
+/*
   inp_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (inp_sock);
   rc = zsocket_bind (inp_sock, INP_SOCK_EP);
-
+*/
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
@@ -431,12 +437,14 @@ DECLARE_HANDLER (CC_PCL_GET_COUNTER);
 DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
+DECLARE_HANDLER (CC_INT_GET_RT_CMD);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
 DECLARE_HANDLER (SC_INT_NA_CMD);
 DECLARE_HANDLER (SC_INT_OPNA_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
+DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
 
 
 static cmd_handler_t handlers[] = {
@@ -582,7 +590,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PCL_GET_COUNTER),
   HANDLER (CC_PCL_CLEAR_COUNTER),
   HANDLER (CC_STACK_SET_MASTER),
-  HANDLER (CC_LOAD_BALANCE_MODE)
+  HANDLER (CC_LOAD_BALANCE_MODE),
+  HANDLER (CC_INT_GET_RT_CMD)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -590,7 +599,8 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_RTBD_CMD),
   HANDLER (SC_INT_NA_CMD),
   HANDLER (SC_INT_OPNA_CMD),
-  HANDLER (SC_INT_UDT_CMD)
+  HANDLER (SC_INT_UDT_CMD),
+  HANDLER (SC_INT_CLEAR_RT_CMD)
 };
 
 static int
@@ -601,6 +611,7 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+__attribute__ ((unused))
 static int
 secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
@@ -609,6 +620,7 @@ secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+__attribute__ ((unused))
 static int
 fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
@@ -837,6 +849,15 @@ DEBUG("===SC_INT_NA_CMD\n");
     return;
 
   route_handle_udaddr (*(uint32_t*)zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_CLEAR_RT_CMD) {
+DEBUG("===SC_INT_CLEAR_RT_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  fib_clear_routing();
 }
 
 /*
@@ -1471,6 +1492,7 @@ if (page >= 3000) {   //TODO remove BEGIN
       fib_dump();
       ret_dump();
       route_dump();
+      break;
   }
   val = 0;
 }   else { //  TODO remove END
@@ -4047,6 +4069,7 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
   zframe_t *frame;
   uint8_t master;
   serial_t serial;
+  devsbmp_t devsbmp;
 
   result = POP_ARG (&master);
   if (result != ST_OK)
@@ -4056,13 +4079,17 @@ DEFINE_HANDLER (CC_STACK_SET_MASTER)
   if (result != ST_OK)
     goto out;
 
+  result = POP_ARG (&devsbmp);
+  if (result != ST_OK)
+    goto out;
+
   frame = FIRST_ARG;
   if (!frame || zframe_size (frame) != 6) {
     result = ST_BAD_FORMAT;
     goto out;
   }
 
-  result = stack_set_master (master, serial, zframe_data (frame));
+  result = stack_set_master (master, serial, devsbmp, zframe_data (frame));
 
  out:
   report_status (result);
@@ -4081,4 +4108,25 @@ DEFINE_HANDLER (CC_LOAD_BALANCE_MODE)
 
   out:
     report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_GET_RT_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_GET_RT_CMD)\n");
+  void *r = NULL;
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  r = fib_get_routes();
+DEBUG("====DEFINE_HANDLER (CC_INT_GET_RT_CMD) == %p\n", r);
+
+  out:
+
+  reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &r, sizeof (r));
+  send_reply (reply);
 }

@@ -67,7 +67,7 @@ stack_init (void)
 }
 
 enum status
-stack_set_master (uint8_t master, uint64_t serial, const uint8_t *mac)
+stack_set_master (uint8_t master, uint64_t serial, devsbmp_t dbmp, const uint8_t *mac)
 {
 DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
   if (master > 16)
@@ -80,7 +80,7 @@ DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
   stack_serial = serial;
   memcpy (master_mac, mac, 6);
 
-  mac_set_master(master, serial);
+  mac_set_master(master, serial, dbmp);
 
   int d;
   for_each_dev (d) {
