@@ -39,6 +39,7 @@
 
 struct pfx_by_pfx {
   struct route_pfx pfx;
+  uint32_t udaddr;
   UT_hash_handle hh;
 };
 
@@ -193,7 +194,7 @@ route_start (void)
 }
 
 static void
-route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t udaddr)
 {
   GT_IPADDR ip;
   struct gw gw;
@@ -227,6 +228,7 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
   if (!pbp) {
     pbp = calloc (1, sizeof (*pbp));
     pbp->pfx = pfx;
+    pbp->udaddr = udaddr;
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 }
@@ -495,7 +497,7 @@ DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
     alen = 32;
   }
   route_prefix_set_drop (fib_entry_get_pfx (e), alen);
-  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e));
+  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e), daddr);
   route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen);
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
@@ -644,6 +646,36 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
   return ST_HEX;
 }
 
+void *
+route_get_udaddrs(void) {
+  uint32_t n = 0;
+  struct pfxs_by_gw *s, *t;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        n++;
+      }
+    }
+  }
+
+  void *r = malloc(sizeof(n) + sizeof(uint32_t) * n);
+  if (!r)
+    return NULL;
+
+  *(uint32_t*)r = n;
+  uint32_t *r1 = (uint32_t*)r + 1;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        *r1++ = s1->udaddr;
+      }
+    }
+  }
+  return r;
+}
+
 void
 route_dump(void) {
   struct pfxs_by_gw *s, *t;
@@ -653,7 +685,7 @@ route_dump(void) {
     if (s->pfxs) {
       struct pfx_by_pfx *s1,*t1;
       HASH_ITER (hh, s->pfxs, s1, t1) {
-        DEBUG("\t"IPv4_FMT "/%2d, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1);
+        DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
       }
     }
   }

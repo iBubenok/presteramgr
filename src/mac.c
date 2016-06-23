@@ -128,7 +128,7 @@ static devsbmp_t fdbman_devsbmp;
 static void fdbman_send_rtbd(const void *arg, int len, devsbmp_t bmp);
 static void fdbman_send_na(const struct arpd_ip_addr_msg *arg);
 static void fdbman_send_opna(void *arg);
-static void fdbman_send_udt(uint32_t daddr);
+static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
@@ -1288,7 +1288,7 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     fdbman_send_opna(arg);
     break;
   case FCC_FDBMAN_SEND_UDT:
-    fdbman_send_udt(*(uint32_t*)arg);
+    fdbman_send_udt(*(uint32_t*)arg, ALL_DEVS);
     break;
   default:
     status = ST_BAD_REQUEST;
@@ -1380,7 +1380,7 @@ DEBUG(">>>fdbman_send_opna()\n");
 }
 
 static void
-fdbman_send_udt(uint32_t daddr) {
+fdbman_send_udt(uint32_t daddr, devsbmp_t bmp) {
 DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
@@ -1389,7 +1389,7 @@ DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
   fdb_msg->stack_id = stack_id;
   fdb_msg->command = FMC_MASTER_UDT;
   fdb_msg->nfdb = 0;
-  fdb_msg->devsbmp = ALL_DEVS;
+  fdb_msg->devsbmp = bmp;
   memcpy(fdb_msg->data, &daddr, sizeof(daddr));
   size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(daddr);
 
@@ -1603,6 +1603,8 @@ DEBUG("<<<<fdbman_execute_control_cmd == %p\n", r);
 
 static void
 fdbman_handle_msg_rt(struct pti_fdbr_msg *msg, uint32_t len) {
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
   void *arg = msg->data;
   size_t msglen = len - sizeof(struct pti_fdbr_msg);
 DEBUG(">>>fdbman_handle_msg_rt(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
@@ -1611,6 +1613,8 @@ DEBUG(">>>fdbman_handle_msg_rt(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
 
 static void
 fdbman_handle_msg_na(struct pti_fdbr_msg *msg, uint32_t len) {
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
   struct arpd_ip_addr_msg *arg = (struct arpd_ip_addr_msg *) msg->data;
 DEBUG(">>>fdbman_handle_msg_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
 arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
@@ -1638,8 +1642,7 @@ fdbman_handle_msg_clear_routing(struct pti_fdbr_msg *msg, uint32_t len) {
   int dummy;
 DEBUG(">>>fdbman_handle_msg_clear_routing() %x\n", msg->devsbmp);
   if (! (msg->devsbmp & (1 << stack_id)))
-    return
-DEBUG("====fdbman_handle_msg_clear_routing() sending command %x:%x\n ", 1 <<stack_id,  (msg->devsbmp & (1 << stack_id)));
+    return;
   fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
 }
 
@@ -1650,17 +1653,29 @@ DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
     return;
 
   fdbman_send_clear_routing (nbmp);
+
   uint32_t dummy;
   void *p = fdbman_execute_control_cmd(CC_INT_GET_RT_CMD, &dummy, sizeof(dummy));
   if (!p)
     goto out;
   int nr = *(uint32_t*)p;
+  assert(sizeof(rtbd_notif_t) <= sizeof(uint32_t));
   struct rtbd_route_msg *rt = (struct rtbd_route_msg *)((uint32_t*)p + 1);
   int i;
   for (i = 0; i < nr; i++) {
     *((rtbd_notif_t*)&rt[i] - 1) = RCN_ROUTE;
     size_t msglen = sizeof(struct rtbd_route_msg) + sizeof(rtbd_notif_t);
     fdbman_send_rtbd((rtbd_notif_t*)&rt[i] - 1, msglen, nbmp);
+  }
+  free(p);
+
+  p = fdbman_execute_control_cmd(CC_INT_GET_UDADDRS_CMD, &dummy, sizeof(dummy));
+  if (!p)
+    goto out;
+  nr = *(uint32_t*)p;
+  uint32_t *udaddr = (uint32_t*)p + 1;
+  for (i = 0; i < nr; i++) {
+    fdbman_send_udt(udaddr[i], nbmp);
   }
   free(p);
 
@@ -1909,7 +1924,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
     case FMC_MASTER_CLEAR_ROUTING:
       fdbman_handle_msg_clear_routing(msg, len);
       break;
-   }
+    }
 
 DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;

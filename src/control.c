@@ -438,6 +438,7 @@ DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 DECLARE_HANDLER (CC_INT_GET_RT_CMD);
+DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -591,7 +592,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PCL_CLEAR_COUNTER),
   HANDLER (CC_STACK_SET_MASTER),
   HANDLER (CC_LOAD_BALANCE_MODE),
-  HANDLER (CC_INT_GET_RT_CMD)
+  HANDLER (CC_INT_GET_RT_CMD),
+  HANDLER (CC_INT_GET_UDADDRS_CMD)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -843,7 +845,7 @@ DEBUG("===SC_INT_OPNA_CMD\n");
 }
 
 DEFINE_HANDLER (SC_INT_UDT_CMD) {
-DEBUG("===SC_INT_NA_CMD\n");
+DEBUG("===SC_INT_UDT_CMD\n");
   zframe_t *frame = FIRST_ARG;
   if (!frame)
     return;
@@ -2194,17 +2196,26 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
-  pid = port_id (frame->dev, frame->port);
-  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
-    result = ST_OK;
-    goto out;
-  }
-
   vif = vif_by_hw(frame->dev, frame->port);
   if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
 DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
+  }
+
+  pid = port_id (frame->dev, frame->port);
+  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
+DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
+DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
+    if (frame->dev != stack_id && frame->dev != stack_id + NEXTDEV_INC) {
+      pid = port_id((frame->dev < 16)? stack_id : stack_id + NEXTDEV_INC, frame->port);
+DEBUG("!!!pid = %d\n ", pid);
+    }
+    if (!pid) {
+      result = ST_OK;
+DEBUG("!!!pid outing\n ");
+      goto out;
+    }
   }
 
   if (vif && vif->trunk)
@@ -2361,7 +2372,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     goto out;
   }
 
-  if (conform2stp_state)
+  if (0/* conform2stp_state*/) // TODO uncrutch
     if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
       result = ST_OK;
       goto out;
@@ -4123,6 +4134,27 @@ DEBUG(">>>>DEFINE_HANDLER (CC_INT_GET_RT_CMD)\n");
 
   r = fib_get_routes();
 DEBUG("====DEFINE_HANDLER (CC_INT_GET_RT_CMD) == %p\n", r);
+
+  out:
+
+  reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &r, sizeof (r));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD)\n");
+  void *r = NULL;
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  r = route_get_udaddrs();
+DEBUG("====DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) == %p\n", r);
 
   out:
 
