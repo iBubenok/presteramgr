@@ -318,12 +318,12 @@ mac_op_rt (rtbd_notif_t notif, void *msg, int len) {
   static uint8_t buf[sizeof(struct rtbd_route_msg) + sizeof(notif) + 16];
   memcpy (buf, &notif, sizeof (notif));
   memcpy (buf + sizeof(notif), msg, len);
-  return fdb_ctl (FCC_FDBMAN_SEND_RT, buf, sizeof (notif) + len);
+  return fdb_actl (FCC_FDBMAN_SEND_RT, buf, sizeof (notif) + len);
 }
 
 enum status
 mac_op_na (struct arpd_ip_addr_msg *msg) {
-  return fdb_ctl (FCC_FDBMAN_SEND_NA, msg, sizeof (*msg));
+  return fdb_actl (FCC_FDBMAN_SEND_NA, msg, sizeof (*msg));
 }
 
 enum status
@@ -331,12 +331,12 @@ mac_op_opna (const struct gw *gw, arpd_command_t cmd) {
   uint8_t buf[sizeof(cmd) + sizeof(*gw)];
   *(arpd_command_t*)buf = cmd;
   memcpy(buf + sizeof(cmd), gw, sizeof(*gw));
-  return fdb_ctl (FCC_FDBMAN_SEND_OPNA, buf, sizeof(cmd) + sizeof(*gw));
+  return fdb_actl (FCC_FDBMAN_SEND_OPNA, buf, sizeof(cmd) + sizeof(*gw));
 }
 
 enum status
 mac_op_udt (uint32_t daddr) {
-  return fdb_ctl (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
+  return fdb_actl (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
 }
 
 enum status
