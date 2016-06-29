@@ -640,6 +640,11 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (rtbd_sock);
 
+  if (stack_id != master_id) {
+    zmsg_destroy (&msg);
+    return ST_OK;
+  }
+
   zframe_t *frame = zmsg_first (msg);
   rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
   switch (notif) {
