@@ -26,6 +26,7 @@ struct vif_dev_ports {
 };
 
 static struct vif_dev_ports vifs[16];
+static serial_t vif_stp_data_serial[16];
 
 vifp_single_dev_t vifp_by_hw[32];
 
@@ -72,10 +73,14 @@ vif_init (void)
   struct vif_dev_ports *dp;
   int i, j;
 
+  memset (vif_stp_data_serial, 0, sizeof(vif_stp_data_serial));
+  vif_stp_data_serial[stack_id] = 1;
+
   memset (vifs, 0, sizeof (vifs));
 
   dp = &vifs[stack_id];
 DEBUG("====vif_init(), dp= %p\n", dp);
+DEBUG("====vif_init(), sizeof(str port)= %x\n", sizeof(struct port));
 
   for (i = 0; i < 16; i++) {
     for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
@@ -99,6 +104,9 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.trunk = NULL;
     dp->port[i].vif.islocal = 1;
     dp->port[i].vif.valid = 1;
+    int j;
+    for (j = 0; j < 256; j++)
+      dp->port[i].vif.stg_state[j] = STP_STATE_DISABLED;
     dp->port[i].vif.trust_cos = 0;
     dp->port[i].vif.trust_dscp = 0;
     dp->port[i].vif.c_speed = PORT_SPEED_AUTO;
@@ -108,8 +116,6 @@ DEBUG("====vif_init(), ports= %p\n", ports);
 
     vif_port_proc_init(&dp->port[i].vif);
 
-//    dp->port[i].vif.set_speed = vif_set_speed_port;
-//    dp->port[i].vif.set_duplex = vif_set_speed_port;
 DEBUG("====vif_init(), vifid(%d,%d,%d) &vif== %p, &ports[i]== %p \n",
     dp->port[i].vif.vifid.type,
     dp->port[i].vif.vifid.dev,
@@ -631,7 +637,7 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
   int i;
 
   if (!stack_active ()
-      || !in_range (dev, 1, 16)
+      || !in_range (dev, 1, 15)
       || dev == stack_id
       || !in_range (n, 0, 60))
     return ST_BAD_VALUE;
@@ -643,7 +649,6 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
 
   memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
   memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
-DEBUG("memset (%p, 0, %d)", &vifp_by_hw[dev], sizeof(vifp_single_dev_t));
 
   for (i = 0; i < n; i++) {
     assert(pd[i].hp.hw_dev == dev || pd[i].hp.hw_dev == dev + NEXTDEV_INC);
@@ -651,7 +656,6 @@ DEBUG("memset (%p, 0, %d)", &vifp_by_hw[dev], sizeof(vifp_single_dev_t));
 DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
     memcpy (&dp->port[i].vif.remote, &pd[i].hp, sizeof (struct hw_port));
     vif_remote_proc_init(&dp->port[i].vif);
-//    dp->port[i].vif.set_speed = vif_set_speed_remote;
     dp->port[i].vif.valid = 1;
     dp->n_by_type[pd[i].id.type]++;
     dp->n_total++;
@@ -662,6 +666,97 @@ DEBUG("====set_vif_port() in: %x\n", *(vif_id_t*)&pd[i].id);
 for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 
+  return ST_OK;
+}
+
+enum status
+//vif_stg_get (serial_t *ser, struct vif_stg *st) {
+vif_stg_get (void *b) {
+  struct vif_dev_ports *dp;
+  int i;
+
+  uint16_t msk0 = 1;
+  msk0 <<= STP_STATE_BITS_WIDTH;
+  msk0--;
+  uint8_t msk = msk0;
+  dp = &vifs[stack_id];
+  *(uint8_t*)b = dp->n_total;
+  *((uint8_t*)b + 1) = stack_id;
+  *(serial_t*)((uint8_t*)b + 2) = vif_stp_data_serial[stack_id];
+  struct vif_stg *st = (struct vif_stg *)((serial_t*)((uint8_t*)b + 2) + 1);
+
+  for (i = 0; i < dp->n_total; i++) {
+    *(vif_id_t*)&st[i].id = dp->port[i].vif.id;
+    int j;
+    for (j = 0; j < 256; j++)
+      st[i].stgs[j / STP_STATES_PER_BYTE] =
+        (st[i].stgs[j / STP_STATES_PER_BYTE] & ~(msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH))
+          | (dp->port[i].vif.stg_state[j] << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
+  }
+  return ST_OK;
+}
+
+enum status
+vif_stg_set (void *b) {
+
+  int i, n = *(uint8_t*)b;
+  uint8_t dev = *((uint8_t*)b + 1);
+
+  if (!stack_active ()
+      || !in_range (dev, 1, 15)
+      || dev == stack_id
+      || !in_range (n, 0, 60))
+    return ST_BAD_VALUE;
+
+  if (vif_stp_data_serial[dev] > *(serial_t*)((uint8_t*)b + 2))
+    return ST_OK;
+
+  uint16_t msk0 = 1;
+  msk0 <<= STP_STATE_BITS_WIDTH;
+  msk0--;
+  uint8_t msk = msk0;
+  struct vif_stg *st = (struct vif_stg *)((serial_t*)((uint8_t*)b + 2) + 1);
+
+  vif_wlock();
+  vif_stp_data_serial[dev] = *(serial_t*)((uint8_t*)b + 2);
+
+  for (i = 0; i < n; i++) {
+    struct vif *vif = vif_getn(*(vif_id_t*)&st[i].id);
+    if (!vif)
+      continue;
+    int j;
+    for (j = 0; j < 256; j++) {
+      vif->stg_state[j] =
+        st[i].stgs[j / STP_STATES_PER_BYTE] & (msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
+    }
+  }
+
+  vif_unlock();
+
+  return ST_OK;
+}
+
+enum status
+vif_stg_get_single (struct vif *vif, uint8_t *buf, int inc_serial) {
+  if (inc_serial)
+    vif_stp_data_serial[stack_id]++;
+
+  uint16_t msk0 = 1;
+  msk0 <<= STP_STATE_BITS_WIDTH;
+  msk0--;
+  uint8_t msk = msk0;
+
+  *buf = 1;
+  *(buf + 1) = stack_id;
+  *(serial_t*)(buf + 2) = vif_stp_data_serial[stack_id];
+
+  struct vif_stg *st = (struct vif_stg *)((serial_t*)(buf + 2) + 1);
+  *(vif_id_t*)&st[0].id = vif->id;
+  int j;
+  for (j = 0; j < 256; j++)
+    st[0].stgs[j / STP_STATES_PER_BYTE] =
+      (st[0].stgs[j / STP_STATES_PER_BYTE] & ~(msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH))
+        | (vif->stg_state[j] << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
   return ST_OK;
 }
 

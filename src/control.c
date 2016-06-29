@@ -439,6 +439,7 @@ DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 DECLARE_HANDLER (CC_INT_GET_RT_CMD);
 DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
+DECLARE_HANDLER (CC_INT_VIFSTG_GET);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -446,6 +447,7 @@ DECLARE_HANDLER (SC_INT_NA_CMD);
 DECLARE_HANDLER (SC_INT_OPNA_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
+DECLARE_HANDLER (SC_INT_VIFSTG_SET);
 
 
 static cmd_handler_t handlers[] = {
@@ -593,7 +595,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_STACK_SET_MASTER),
   HANDLER (CC_LOAD_BALANCE_MODE),
   HANDLER (CC_INT_GET_RT_CMD),
-  HANDLER (CC_INT_GET_UDADDRS_CMD)
+  HANDLER (CC_INT_GET_UDADDRS_CMD),
+  HANDLER (CC_INT_VIFSTG_GET)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -602,7 +605,8 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_NA_CMD),
   HANDLER (SC_INT_OPNA_CMD),
   HANDLER (SC_INT_UDT_CMD),
-  HANDLER (SC_INT_CLEAR_RT_CMD)
+  HANDLER (SC_INT_CLEAR_RT_CMD),
+  HANDLER (SC_INT_VIFSTG_SET)
 };
 
 static int
@@ -861,6 +865,16 @@ DEBUG("===SC_INT_CLEAR_RT_CMD\n");
 
   fib_clear_routing();
 }
+
+DEFINE_HANDLER (SC_INT_VIFSTG_SET) { /* to be called from one thread only*/
+DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  vif_stg_set(zframe_data(frame));
+}
+
 
 /*
  * Command handlers.
@@ -1460,6 +1474,7 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   enum status result;
   port_id_t pid;
   uint16_t page, reg, val;
+  int i;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
@@ -1477,23 +1492,20 @@ if (page >= 3000) {   //TODO remove BEGIN
 //  DEBUG("going mac_count(%hu)\n", reg);
 //  mac_count(pid, page, reg);
   switch (page){
-    case 3000:
-      nht_dump();
-      break;
-    case 3001:
-      fib_dump();
-      break;
-    case 3002:
-      ret_dump();
-      break;
-    case 3003:
-      route_dump();
-      break;
     case 4000:
       nht_dump();
       fib_dump();
       ret_dump();
       route_dump();
+      break;
+    case 4001:
+      for (i = 1; i < NPORTS; i++) {
+        struct vif *vif = vif_get_by_pid(reg, i);
+        if (!vif)
+          continue;
+        DEBUG("VIF: %x, stg:\n", vif->id);
+        PRINTHexDump(vif->stg_state, 16);
+      }
       break;
   }
   val = 0;
@@ -2205,15 +2217,15 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   pid = port_id (frame->dev, frame->port);
   if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
-DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
-DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
+//DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
+//DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
     if (frame->dev != stack_id && frame->dev != stack_id + NEXTDEV_INC) {
       pid = port_id((frame->dev < 16)? stack_id : stack_id + NEXTDEV_INC, frame->port);
-DEBUG("!!!pid = %d\n ", pid);
+//DEBUG("!!!pid = %d\n ", pid);
     }
     if (!pid) {
       result = ST_OK;
-DEBUG("!!!pid outing\n ");
+//DEBUG("!!!pid outing\n ");
       goto out;
     }
   }
@@ -2372,8 +2384,9 @@ DEBUG("!!!pid outing\n ");
     goto out;
   }
 
-  if (0/* conform2stp_state*/) // TODO uncrutch
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+  if (conform2stp_state)
+    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
+DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->vid, vif->id, pid, frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
@@ -4160,5 +4173,26 @@ DEBUG("====DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) == %p\n", r);
 
   reply = make_reply (ST_OK);
   zmsg_addmem (reply, &r, sizeof (r));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_INT_VIFSTG_GET) { /* to be called from one thread only*/
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
+  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) +
+    sizeof(struct vif_stg) * NPORTS + 20];
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+  void *p = buf;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_stg_get(buf);
+
+ out:
+  reply = make_reply (result);
+  zmsg_addmem (reply, &p, sizeof(void*));
   send_reply (reply);
 }

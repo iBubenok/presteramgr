@@ -6,6 +6,7 @@
 
 #include <control-proto.h>
 #include <sysdeps.h>
+#include <vlan.h>
 
 #define PORT_DEF(name) struct port_def name[NPORTS];
 
@@ -21,6 +22,7 @@ struct vif {
     struct port *local;
     struct hw_port remote;
   };
+  uint8_t stg_state[256];
 
   enum port_mode mode;
   int trust_cos;
@@ -47,6 +49,24 @@ vif_by_hw(GT_U8 hdev, GT_U8 hport) {
   return vifp_by_hw[hdev][hport];
 }
 
+static inline int
+vif_is_forwarding_on_vlan(struct vif *vif, vid_t vid) {
+  switch(vif->stg_state[vlans[vid - 1].stp_id]) {
+    case STP_STATE_FORWARDING:
+    case STP_STATE_DISABLED:
+      return 1;
+    default:
+      return 0;
+  };
+}
+
+#define STP_STATES_PER_BYTE (8 / STP_STATE_BITS_WIDTH)
+
+struct vif_stg {
+  vif_id_t id;
+  uint8_t stgs[32 * STP_STATE_BITS_WIDTH + !!(8 % STP_STATE_BITS_WIDTH)];
+};
+
 extern void vif_rlock(void);
 extern void vif_wlock(void);
 extern void vif_unlock(void);
@@ -57,11 +77,15 @@ extern void vif_port_proc_init(struct vif*);
 extern void vif_trunk_proc_init(struct vif*);
 extern struct vif* vif_get (vif_type_t, uint8_t, uint8_t);
 extern struct vif* vif_getn (vif_id_t);
+extern struct vif* vif_get_by_pid (uint8_t, port_id_t);
 extern enum status vif_get_hw_port (struct hw_port *, vif_type_t, uint8_t, uint8_t);
 extern struct vif* vif_get_by_gif(uint8_t, uint8_t, uint8_t);
 extern enum status vif_get_hw_port_by_index (struct hw_port *, uint8_t, uint8_t);
 extern enum status vif_get_hw_ports (struct vif_def *);
 extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
+extern enum status vif_stg_get (void *);
+extern enum status vif_stg_set (void *);
+extern enum status vif_stg_get_single (struct vif*, uint8_t *, int);
 extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *);
 extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, uint16_t, const void *);
 

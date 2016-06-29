@@ -51,6 +51,9 @@ trunk_init (void)
     trunks[i].vif.vifid.type = VIFT_PC;
     trunks[i].vif.vifid.dev = 0;
     trunks[i].vif.vifid.num = i;
+    int j;
+    for (j = 0; j < 256; j++)
+      trunks[i].vif.stg_state[j] = STP_STATE_DISABLED;
     trunks[i].id = i;
     trunks[i].designated = NULL;
 
@@ -63,7 +66,6 @@ trunk_init (void)
 //    trunks[i].vif.set_speed = vif_set_speed_trunk;
 
     trunks[i].nports = 0;
-    int j;
     for (j = 0; j < TRUNK_MAX_MEMBERS; j++) {
       trunks[i].vif_port[j] = NULL;
       trunks[i].port_enabled[j] = 0;
