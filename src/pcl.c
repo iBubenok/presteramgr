@@ -20,12 +20,13 @@
 #include <czmq.h>
 #include <utlist.h>
 
-static int max_port_id[NDEVS] = {};
-
-static int port_ix_on_dev[NPORTS + 1] = {};
+static int max_pcl_id = 1023;
 
 static int port_ipcl_id[NPORTS + 1] = {};
 static int port_epcl_id[NPORTS + 1] = {};
+
+static int vlan_pcl_id_first;
+
 static int vlan_ipcl_id[4095] = {};
 
 static int __attribute__((unused)) rule_ix_max = 1535;
@@ -82,23 +83,14 @@ static inline void
 initialize_vars (void) {
   int dev, pid;
 
-  for_each_dev(dev) {
-    max_port_id[dev] = 0;
-    for_each_port(pid) {
-      if ( (port_ptr(pid))->ldev == dev && (pid > max_port_id[dev]) ) {
-        max_port_id[dev] = pid;
-      }
-    }
-  }
+  int pcl_id = 0;
 
   for_each_port(pid) {
-    port_ix_on_dev[pid] = find_port_ix_on_dev(pid);
+    port_ipcl_id[pid] = pcl_id++;
+    port_epcl_id[pid] = pcl_id++;
   }
 
-  for_each_port(pid) {
-    port_ipcl_id[pid] = port_ix_on_dev[pid] * 2;
-    port_epcl_id[pid] = port_ipcl_id[pid] + 1;
-  }
+  vlan_pcl_id_first = pcl_id;
 
   int idx[NDEVS];
 
@@ -202,7 +194,7 @@ static struct stack {
   int n_free;
   uint16_t data[1000];
   //uint16_t *data;
-} rules[NDEVS], acl[NDEVS];
+} rules[NDEVS], acl[NDEVS], pcl_ids;
 
 static void
 pcl_init_rules (void)
@@ -230,6 +222,19 @@ user_acl_init_rules (void)
     acl[d].sp = 0;
     acl[d].n_free = user_acl_stack_entries;
   }
+}
+
+static void
+pcl_ids_init (void) {
+  int i;
+  int entries = (max_pcl_id - vlan_pcl_id_first) + 1;
+
+  for (i = 0; i < entries; i++) {
+    pcl_ids.data[i] = i + vlan_pcl_id_first;
+  }
+
+  pcl_ids.sp = 0;
+  pcl_ids.n_free = entries;
 }
 
 static int
@@ -865,20 +870,44 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
   }
 }
 
+static uint8_t
+new_vlan_ipcl_id (vid_t vid) {
+  if (pcl_ids.n_free > 0) {
+    pcl_ids.n_free--;
+    vlan_ipcl_id[vid] = pcl_ids.data[pcl_ids.sp++];
+    pcl_enable_vlan(vid);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+enum status
+free_vlan_pcl_id (vid_t vid) {
+  if (vlan_ipcl_id[vid] && vlan_ipcl_id[vid] != max_pcl_id) {
+    pcl_ids.n_free++;
+    pcl_ids.data[--pcl_ids.sp] = vlan_ipcl_id[vid];
+    qsort(pcl_ids.data, pcl_ids.n_free, sizeof(uint16_t), cmp_uint16_t);
+    vlan_ipcl_id[vid] = 0;
+    return ST_OK;
+  }
+  return ST_BAD_VALUE;
+}
+
 uint8_t
 check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
   /* Magic */
   if ( pid_or_vid < 10000 ) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
-    return acl[dev].n_free >= count;
+    return !!(acl[dev].n_free >= count);
   } else {
     int d;
     uint8_t result = 1;
+    uint16_t vid = pid_or_vid - 10000;
     for_each_dev(d) {
-      result = (result && (acl[d].n_free >= count));
+      result = (result && (acl[d].n_free >= count) && new_vlan_ipcl_id(vid));
     }
-    return result;
+    return !!result;
   }
 }
 
@@ -2503,38 +2532,36 @@ pcl_enable_port (port_id_t pid, int enable)
 }
 
 enum status
-pcl_enable_vlan (uint16_t vid, int enable) {
-  if (enable) {
-    CPSS_INTERFACE_INFO_STC iface = {
-      .type    = CPSS_INTERFACE_VID_E,
-      .vlanId  = vid
-    };
+pcl_enable_vlan (uint16_t vid) {
+  if (!vlan_ipcl_id[vid])
+    return ST_BAD_VALUE;
 
-    CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
-      .enableLookup  = GT_TRUE,
-      .pclId         = vlan_ipcl_id[vid],
-      .dualLookup    = GT_FALSE,
-      .pclIdL01      = 0,
-      .groupKeyTypes = {
-        .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
-      }
-    };
+  CPSS_INTERFACE_INFO_STC iface = {
+    .type    = CPSS_INTERFACE_VID_E,
+    .vlanId  = vid
+  };
 
-    int d;
-    for_each_dev(d) {
-      CRP (cpssDxChPclCfgTblSet
-           (d, &iface,
-            CPSS_PCL_DIRECTION_INGRESS_E,
-            CPSS_PCL_LOOKUP_1_E,
-            &lc));
+  CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
+    .enableLookup  = GT_TRUE,
+    .pclId         = vlan_ipcl_id[vid],
+    .dualLookup    = GT_FALSE,
+    .pclIdL01      = 0,
+    .groupKeyTypes = {
+      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
     }
+  };
 
-    return ST_OK;
-  } else {
-    return ST_OK;
+  int d;
+  for_each_dev(d) {
+    CRP (cpssDxChPclCfgTblSet
+         (d, &iface,
+          CPSS_PCL_DIRECTION_INGRESS_E,
+          CPSS_PCL_LOOKUP_1_E,
+          &lc));
   }
+  return ST_OK;
 }
 
 uint64_t
@@ -2698,6 +2725,9 @@ pcl_cpss_lib_init (int d)
 
   /* Initialize TCP/UDP port comparators */
   pcl_init_port_comparators(d);
+
+  /* Initialize stack of VLAN pcl_ids */
+  pcl_ids_init();
 
   /* Initialize stack of VT rules */
   pcl_init_rules();

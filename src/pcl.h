@@ -6,7 +6,9 @@
 extern enum status pcl_cpss_lib_init (int);
 extern enum status pcl_port_setup (port_id_t);
 extern enum status pcl_enable_port (port_id_t, int);
-extern enum status pcl_enable_vlan (vid_t, int);
+extern enum status pcl_enable_vlan (uint16_t vid);
+
+extern enum status free_vlan_pcl_id (vid_t);
 
 extern enum status pcl_enable_lbd_trap (port_id_t, int);
 extern enum status pcl_enable_dhcp_trap (int);
