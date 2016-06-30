@@ -20,43 +20,42 @@
 #include <czmq.h>
 #include <utlist.h>
 
-static int max_port_id[NDEVS];
+static int max_port_id[NDEVS] = {};
 
-static int port_ix_on_dev[NPORTS + 1];
+static int port_ix_on_dev[NPORTS + 1] = {};
 
-static int port_ipcl_id[NPORTS + 1];
-static int port_epcl_id[NPORTS + 1];
-static int vlan_ipcl_id[4095];
+static int port_ipcl_id[NPORTS + 1] = {};
+static int port_epcl_id[NPORTS + 1] = {};
+static int vlan_ipcl_id[4095] = {};
 
-static int port_stack_secondary_ipv4_mc_drop_e_ix;
-static int port_stack_secondary_ipv6_mc_drop_e_ix;
-static int port_stack_secondary_ipv4_mc_drop_i_ix;
-static int port_stack_secondary_ipv6_mc_drop_i_ix;
+static int __attribute__((unused)) rule_ix_max = 1535;
+static int port_stackmail_trap_primary_index;
+static int port_stackmail_trap_secondary_index;
 
-static int port_lbd_rule_ix[NPORTS + 1];
+static int user_acl_stack_entries = 700;
+static int user_acl_start_ix[NDEVS] = {};
+static int user_acl_max[NDEVS] = {};
 
-static int per_port_dhcptrap_rules_count = 2;
-static int port_dhcptrap_rule_ix[NPORTS + 1];
+static int port_lbd_rule_ix[NPORTS + 1] = {};
 
-static int stack_entries = 300;
-static int stack_first_entry[NDEVS];
-static int stack_max[NDEVS];
+static int port_dhcptrap67_rule_ix[NPORTS + 1] = {};
+static int port_dhcptrap68_rule_ix[NPORTS + 1] = {};
 
-static int port_ipcl_def_ix[NPORTS + 1];
-static int port_epcl_def_ix[NPORTS + 1];
-
-static int port_arp_inspector_trap_ix[NPORTS + 1];
+static int port_arp_inspector_trap_ix[NPORTS + 1] = {};
 
 static int per_port_ip_source_guard_rules_count = 10;
-static int port_ip_sourceguard_rule_start_ix[NPORTS + 1];
-static int port_ip_sourceguard_drop_rule_ix[NPORTS + 1];
+static int port_ip_sourceguard_rule_start_ix[NPORTS + 1] = {};
+static int port_ip_sourceguard_drop_rule_ix[NPORTS + 1] = {};
 
-static int per_port_ip_ospf_rules_count = 2;
-static int port_ip_ospf_mirror_rule_ix[NPORTS + 1];
+static int port_ip_ospf_mirror_rule_ix[NPORTS + 1] = {};
 
-static int port_ip_rip_mirror_rule_ix[NPORTS + 1];
+static int port_ip_rip_mirror_rule_ix[NPORTS + 1] = {};
 
-static int user_acl_start_ix[NDEVS];
+static int vt_stack_entries = 300;
+static int vt_stack_first_entry[NDEVS] = {};
+static int vt_stack_max[NDEVS] = {};
+static int vt_port_ipcl_def_rule_ix[NPORTS + 1] = {};
+static int __attribute__((unused)) vt_port_epcl_def_rule_ix[NPORTS + 1] = {};
 
 #define for_each_port(p) for (p = 1; p <= nports; p++)
 
@@ -81,7 +80,7 @@ find_port_ix_on_dev (int pid) {
 
 static inline void
 initialize_vars (void) {
-  int dev, pid, vid;
+  int dev, pid;
 
   for_each_dev(dev) {
     max_port_id[dev] = 0;
@@ -96,93 +95,54 @@ initialize_vars (void) {
     port_ix_on_dev[pid] = find_port_ix_on_dev(pid);
   }
 
-  if ( stack_active() ) {
-    port_stack_secondary_ipv4_mc_drop_e_ix = 1;
-    port_stack_secondary_ipv6_mc_drop_e_ix = 2;
-    port_stack_secondary_ipv4_mc_drop_i_ix = 3;
-    port_stack_secondary_ipv6_mc_drop_i_ix = 4;
-  } else {
-    port_stack_secondary_ipv4_mc_drop_e_ix = 0;
-    port_stack_secondary_ipv6_mc_drop_e_ix = 0;
-    port_stack_secondary_ipv4_mc_drop_i_ix = 0;
-    port_stack_secondary_ipv6_mc_drop_i_ix = 0;
-  }
-
   for_each_port(pid) {
     port_ipcl_id[pid] = port_ix_on_dev[pid] * 2;
     port_epcl_id[pid] = port_ipcl_id[pid] + 1;
   }
 
-  for (vid = 1; vid <= 4094; vid++) {
-    vlan_ipcl_id[vid] = port_ipcl_id[NPORTS] + 2*vid;
+  int idx[NDEVS];
+
+  for_each_dev(dev) {
+    idx[dev] = 0;
   }
 
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    if ( stack_active() && (port->ldev == stack_sec_port->ldev) ) {
-      port_lbd_rule_ix[pid] =
-        port_stack_secondary_ipv6_mc_drop_i_ix + port_ix_on_dev[pid] + 1;
-    } else {
-      port_lbd_rule_ix[pid] = port_ix_on_dev[pid] + 1;
-    }
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_dhcptrap_rule_ix[pid] =
-      port_lbd_rule_ix[max_port_id[port->ldev]] +
-      port_ix_on_dev[pid] * per_port_dhcptrap_rules_count + 1;
+  if ( stack_active() ) {
+    port_stackmail_trap_primary_index   = idx[stack_pri_port->ldev]++;
+    port_stackmail_trap_secondary_index = idx[stack_sec_port->ldev]++;
+  } else {
+    port_stackmail_trap_primary_index   = 0;
+    port_stackmail_trap_secondary_index = 0;
   }
 
   for_each_dev(dev) {
-    stack_first_entry[dev] =
-      port_dhcptrap_rule_ix[max_port_id[dev]] + per_port_dhcptrap_rules_count;
-    stack_max[dev] = stack_first_entry[dev] + stack_entries;
+    user_acl_start_ix[dev] = idx[dev];
+    idx[dev] += user_acl_stack_entries;
+    user_acl_max[dev] = idx[dev];
   }
 
   for_each_port(pid) {
     struct port *port = port_ptr(pid);
-    port_ipcl_def_ix[pid] = stack_max[port->ldev] + port_ix_on_dev[pid] * 2;
-    port_epcl_def_ix[pid] = port_ipcl_def_ix[pid] + 1;
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_arp_inspector_trap_ix[pid] =
-      port_epcl_def_ix[max_port_id[port->ldev]] + port_ix_on_dev[pid] + 1;
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_ip_sourceguard_rule_start_ix[pid] =
-      port_arp_inspector_trap_ix[max_port_id[port->ldev]] +
-      port_ix_on_dev[pid] * per_port_ip_source_guard_rules_count + 1;
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_ip_sourceguard_drop_rule_ix[pid] =
-      port_ip_sourceguard_rule_start_ix[max_port_id[port->ldev]] +
-      port_ix_on_dev[pid] + per_port_ip_source_guard_rules_count;
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_ip_ospf_mirror_rule_ix[pid] =
-      port_ip_sourceguard_drop_rule_ix[max_port_id[port->ldev]] +
-      port_ix_on_dev[pid] * per_port_ip_ospf_rules_count + 1;
-  }
-
-  for_each_port(pid) {
-    struct port *port = port_ptr(pid);
-    port_ip_rip_mirror_rule_ix[pid] =
-      port_ip_ospf_mirror_rule_ix[max_port_id[port->ldev]] + port_ix_on_dev[pid] + 1;
+    port_lbd_rule_ix[pid]                  = idx[port->ldev]++;
+    port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
+    port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
+    port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
+    port_ip_sourceguard_rule_start_ix[pid] = idx[port->ldev];
+    idx[port->ldev] += per_port_ip_source_guard_rules_count;
+    port_ip_sourceguard_drop_rule_ix[pid]  = idx[port->ldev]++;
+    port_ip_ospf_mirror_rule_ix[pid]       = idx[port->ldev]++;
+    port_ip_rip_mirror_rule_ix[pid]        = idx[port->ldev]++;
   }
 
   for_each_dev(dev) {
-    user_acl_start_ix[dev] =
-      port_ip_rip_mirror_rule_ix[max_port_id[dev]] +
-      per_port_ip_ospf_rules_count;
+    vt_stack_first_entry[dev] = idx[dev];
+    idx[dev] += vt_stack_entries;
+    vt_stack_max[dev] = idx[dev];
+  }
+
+  for_each_port(pid) {
+    struct port *port = port_ptr(pid);
+    vt_port_ipcl_def_rule_ix[pid] = idx[port->ldev]++;
+    vt_port_epcl_def_rule_ix[pid] = idx[port->ldev]++;
   }
 }
 
@@ -190,160 +150,51 @@ initialize_vars (void) {
   port_ipcl_id[n]
 #define PORT_EPCL_ID(n) \
   port_epcl_id[n]
-#define VLAN_IPCL_ID(n) \
-  vlan_ipcl_id[n]
-
-#define PORT_STACK_SECONDARY_IPv4_MC_DROP_E_IX \
-  port_stack_secondary_ipv4_mc_drop_e_ix
-#define PORT_STACK_SECONDARY_IPv6_MC_DROP_E_IX \
-  port_stack_secondary_ipv6_mc_drop_e_ix
-#define PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX \
-  port_stack_secondary_ipv4_mc_drop_i_ix
-#define PORT_STACK_SECONDARY_IPv6_MC_DROP_I_IX \
-  port_stack_secondary_ipv6_mc_drop_i_ix
-
-#define PORT_LBD_RULE_IX(n) \
-  port_lbd_rule_ix[n]
-
-#define PER_PORT_DHCPTRAP_RULES_COUNT \
-  per_port_dhcptrap_rules_count
-#define PORT_DHCPTRAP_RULE_IX(n) \
-  port_dhcptrap_rule_ix[n]
-
-#define STACK_ENTRIES \
-  stack_entries
-#define STACK_FIRST_ENTRY(d) \
-  stack_first_entry[d]
-#define STACK_MAX(d) \
-  stack_max[d]
-
-#define PORT_IPCL_DEF_IX(n) \
-  port_ipcl_def_ix[n]
-#define PORT_EPCL_DEF_IX(n) \
-  port_epcl_def_ix[n]
-
-#define PORT_ARP_INSPECTOR_TRAP_IX(n) \
-  port_arp_inspector_trap_ix[n]
-
-#define PER_PORT_IP_SOURCE_GUARD_RULES_COUNT \
-  per_port_ip_source_guard_rules_count
-#define PORT_IP_SOURCEGUARD_RULE_START_IX(n) \
-  port_ip_sourceguard_rule_start_ix[n]
-#define PORT_IP_SOURCEGUARD_DROP_RULE_IX(n) \
-  port_ip_sourceguard_drop_rule_ix[n]
-
-#define PER_PORT_IP_OSPF_RULES_COUNT \
-  per_port_ip_ospf_rules_count
-#define PORT_IP_OSPF_MIRROR_RULE_IX(n) \
-  port_ip_ospf_mirror_rule_ix[n]
-
-#define PORT_IP_RIP_MIRROR_RULE_IX(n) \
-  port_ip_rip_mirror_rule_ix[n]
-
-#define USER_ACL_START_IX(d) \
-  user_acl_start_ix[d]
-
-#define PCL_TCAM_MAX_RULE_IX 1500
-
-#define USER_ACL_STACK_ENTRIES(d) \
-  PCL_TCAM_MAX_RULE_IX - USER_ACL_START_IX(d) + 1
 
 static void __attribute__ ((unused))
 print_pcl_indexes (void) {
-  int pi, ix, d;
-
-  DEBUG("Port Indexes on device:\r\n");
-  for (pi = 1; pi <= nports; pi++) {
-    struct port *port = port_ptr(pi);
-    DEBUG("PortId: %d ldev: %d lport: %d IxOnDev: %d\r\n",
-      pi, port->ldev, port->lport, port_ix_on_dev[pi]);
-  }
-
-  DEBUG("\r\nPCL indexes:\r\n");
-
+  int d, pid;
   for_each_dev(d) {
-    DEBUG("Device: %d\r\n", d);
-
-    if ( stack_active() && (d == stack_sec_port->ldev) ) {
-      DEBUG("STACK_MC_DROP\r\n");
-      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv4_MC_DROP_E_IX);
-      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv6_MC_DROP_E_IX);
-      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv4_MC_DROP_I_IX);
-      DEBUG("%d\r\n", PORT_STACK_SECONDARY_IPv6_MC_DROP_I_IX);
+    if (stack_active()) {
+      if (stack_pri_port->ldev == d)
+        DEBUG("dev: %d, port_stackmail_trap_primary_index: %d\n",
+          d, port_stackmail_trap_primary_index);
+      if (stack_sec_port->ldev == d)
+        DEBUG("dev: %d, port_stackmail_trap_secondary_index: %d\n",
+          d, port_stackmail_trap_secondary_index);
     }
 
-    DEBUG("LBD TRAP\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_LBD_RULE_IX(pi));
-      }
+    DEBUG("dev: %d, user_acl_start_ix: %d\n",
+      d, user_acl_start_ix[d]);
+
+    DEBUG("dev: %d, user_acl_max: %d\n",
+      d, user_acl_max[d]);
+
+    for_each_port(pid) {
+      struct port *port = port_ptr(pid);
+      if (port->ldev != d) continue;
+
+      DEBUG("dev: %d, port_lbd_rule_ix[%d]: %d\n", port->ldev, pid, port_lbd_rule_ix[pid]);
+      DEBUG("dev: %d, port_dhcptrap67_rule_ix[%d]: %d\n", port->ldev, pid, port_dhcptrap67_rule_ix[pid]);
+      DEBUG("dev: %d, port_dhcptrap68_rule_ix[%d]: %d\n", port->ldev, pid, port_dhcptrap68_rule_ix[pid]);
+      DEBUG("dev: %d, port_arp_inspector_trap_ix[%d]: %d\n", port->ldev, pid, port_arp_inspector_trap_ix[pid]);
+      DEBUG("dev: %d, port_ip_sourceguard_rule_start_ix[%d]: %d\n", port->ldev, pid, port_ip_sourceguard_rule_start_ix[pid]);
+      DEBUG("dev: %d, port_ip_sourceguard_drop_rule_ix[%d]: %d\n", port->ldev, pid, port_ip_sourceguard_drop_rule_ix[pid]);
+      DEBUG("dev: %d, port_ip_ospf_mirror_rule_ix[%d]: %d\n", port->ldev, pid, port_ip_ospf_mirror_rule_ix[pid]);
+      DEBUG("dev: %d, port_ip_rip_mirror_rule_ix[%d]: %d\n", port->ldev, pid, port_ip_rip_mirror_rule_ix[pid]);
     }
 
-    DEBUG("DHCP TRAP\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_DHCPTRAP_RULE_IX(pi));
-        DEBUG("%d\r\n", PORT_DHCPTRAP_RULE_IX(pi) + 1);
-      }
-    }
+    DEBUG("dev: %d, vt_stack_first_entry: %d\n",
+      d, vt_stack_first_entry[d]);
 
-    DEBUG("VT Stack\r\n");
-    for (ix = 0; ix < STACK_ENTRIES; ix++) {
-      DEBUG("%d\r\n", STACK_FIRST_ENTRY(d) + ix);
-    }
+    for_each_port(pid) {
+      struct port *port = port_ptr(pid);
+      if (port->ldev != d) continue;
 
-    DEBUG("Port Def IX\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_IPCL_DEF_IX(pi));
-        DEBUG("%d\r\n", PORT_EPCL_DEF_IX(pi));
-      }
+      DEBUG("dev: %d, vt_port_ipcl_def_rule_ix[%d]: %d\n", port->ldev, pid, vt_port_ipcl_def_rule_ix[pid]);
+      DEBUG("dev: %d, vt_port_epcl_def_rule_ix[%d]: %d\n", port->ldev, pid, vt_port_epcl_def_rule_ix[pid]);
     }
-
-    DEBUG("ARP INSPECTOR\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_ARP_INSPECTOR_TRAP_IX(pi));
-      }
-    }
-
-    DEBUG("IP SOURCE GUARD RULES\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        for (ix = 0; ix < PER_PORT_IP_SOURCE_GUARD_RULES_COUNT; ix++) {
-          DEBUG("%d\r\n", PORT_IP_SOURCEGUARD_RULE_START_IX(pi) + ix);
-        }
-      }
-    }
-
-    DEBUG("IP SOURCE GUARD TRAP\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_IP_SOURCEGUARD_DROP_RULE_IX(pi));
-      }
-    }
-
-    DEBUG("IP OSPF MIRROR\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_IP_OSPF_MIRROR_RULE_IX(pi));
-        DEBUG("%d\r\n", PORT_IP_OSPF_MIRROR_RULE_IX(pi) + 1);
-      }
-    }
-
-    DEBUG("IP RIP MIRROR\r\n");
-    for (pi = 1; pi <= nports; pi++) {
-      if ( (port_ptr(pi))->ldev == d ) {
-        DEBUG("%d\r\n", PORT_IP_RIP_MIRROR_RULE_IX(pi));
-        DEBUG("%d\r\n", PORT_IP_RIP_MIRROR_RULE_IX(pi) + 1);
-      }
-    }
-
-    DEBUG("USER_ACL_START_IX\r\n");
-    DEBUG("%d\r\n", USER_ACL_START_IX(d));
   }
-
-  DEBUG("End.");
 }
 
 static struct stack {
@@ -356,39 +207,28 @@ static struct stack {
 static void
 pcl_init_rules (void)
 {
-  int i;
-  int d;
+  int i, d;
   for_each_dev(d) {
-    // rules[d].data = NULL;
-    // rules[d].data = malloc(STACK_ENTRIES * sizeof(uint16_t));
-    // DEBUG("malloc ok\r\n");
-    // assert(rules[d].data);
-    for (i = 0; i < STACK_ENTRIES; i++) {
-      rules[d].data[i] = i + STACK_FIRST_ENTRY(d);
+    for (i = 0; i < vt_stack_entries; i++) {
+      rules[d].data[i] = i + vt_stack_first_entry[d];
     }
 
     rules[d].sp = 0;
-    rules[d].n_free = STACK_ENTRIES;
+    rules[d].n_free = vt_stack_entries;
   }
 }
 
 static void
 user_acl_init_rules (void)
 {
-  int i;
-  int d;
+  int i, d;
   for_each_dev(d) {
-    // acl[d].data = NULL;
-    // DEBUG("USER_ACL_STACK_ENTRIES(%d) == %d\r\n", d, USER_ACL_STACK_ENTRIES(d));
-    // acl[d].data = malloc(USER_ACL_STACK_ENTRIES(d) * sizeof(uint16_t));
-    // DEBUG("malloc ok: %p\r\n", acl[d].data);
-    // assert(acl[d].data);
-    for (i = 0; i < USER_ACL_STACK_ENTRIES(d); i++) {
-      acl[d].data[i] = i + USER_ACL_START_IX(d);
+    for (i = 0; i < user_acl_start_ix[d]; i++) {
+      acl[d].data[i] = i + user_acl_start_ix[d];
     }
 
     acl[d].sp = 0;
-    acl[d].n_free = USER_ACL_STACK_ENTRIES(d);
+    acl[d].n_free = user_acl_stack_entries;
   }
 }
 
@@ -413,7 +253,7 @@ pcl_free_rules (int dev, const uint16_t *nums, int n)
   int i;
 
   for (i = 0; i < n; i++) {
-    if (nums[i] < STACK_MAX(dev)) {
+    if (nums[i] < vt_stack_max[dev]) {
       rules[dev].n_free++;
       rules[dev].data[--(rules[dev].sp)] = nums[i];
     }
@@ -466,7 +306,7 @@ get_vt_ix (port_id_t pid, vid_t from, vid_t to, int tunnel, int alloc)
       }
     } else {
       /* Default rule for port. */
-      ix->ix[0] = PORT_IPCL_DEF_IX (pid);
+      ix->ix[0] = vt_port_ipcl_def_rule_ix[pid];
     }
     HASH_ADD_INT (vt_ix, key, ix);
   }
@@ -556,7 +396,6 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
   rule.ruleExtNotIpv6.common.vid = from;
   rule.ruleExtNotIpv6.common.sourcePort = port->lport;
 
-  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, ix->ix[0], PORT_IPCL_ID (pid));
   CRP (cpssDxChPclRuleSet
        (port->ldev,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
@@ -584,7 +423,6 @@ pcl_enable_vt (struct vt_ix *ix, int enable)
     act.vlan.vlanId = from;
     act.vlan.precedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
 
-    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, ix->ix[1], PORT_EPCL_ID (pid));
     CRP (cpssDxChPclRuleSet
          (port->ldev,
           CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
@@ -638,16 +476,10 @@ pcl_setup_vt (port_id_t pid, vid_t from, vid_t to, int tunnel, int enable)
 /* OSPF MULTICAST MIRROR                                                      */
 /******************************************************************************/
 
-static uint8_t ospf_dest_ip1[4]      = {224, 0, 0, 5};
-static uint8_t ospf_dest_ip2[4]      = {224, 0, 0, 6};
-static uint8_t ospf_dest_ip_mask[4]  = {255, 255, 255, 255};
-
 void
 pcl_setup_ospf(int d) {
   port_id_t pi;
-
-  for(pi = 1; pi <= nports; pi++) {
-
+  for_each_port(pi) {
     struct port *port = port_ptr (pi);
     if (port->ldev != d)
       continue;
@@ -665,54 +497,22 @@ pcl_setup_ospf(int d) {
     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
     mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
     mask.ruleExtNotIpv6.common.isIp = 0xFF;
+    mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xFF;
 
     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
     rule.ruleExtNotIpv6.common.isL2Valid = 1;
     rule.ruleExtNotIpv6.common.isIp = 1;
-
-    memcpy (&rule.ruleExtNotIpv6.dip, ospf_dest_ip1, 4);
-    memcpy (&mask.ruleExtNotIpv6.dip, ospf_dest_ip_mask, 4);
+    rule.ruleExtNotIpv6.commonExt.ipProtocol  = 0x59; /* OSPF */
 
     act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
 
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
 
-    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_OSPF_MIRROR_RULE_IX (pi), PORT_IPCL_ID (pi));
     CRP (cpssDxChPclRuleSet
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-          PORT_IP_OSPF_MIRROR_RULE_IX (pi),                 /* ruleIndex      */
-          0,                                                /* ruleOptionsBmp */
-          &mask,                                            /* maskPtr        */
-          &rule,                                            /* patternPtr     */
-          &act));                                           /* actionPtr      */
-
-    memset (&mask, 0, sizeof (mask));
-    memset (&rule, 0, sizeof (rule));
-    memset (&act, 0, sizeof (act));
-
-    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-    mask.ruleExtNotIpv6.common.isIp = 0xFF;
-
-    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
-    rule.ruleExtNotIpv6.common.isL2Valid = 1;
-    rule.ruleExtNotIpv6.common.isIp = 1;
-
-    memcpy (&rule.ruleExtNotIpv6.dip, ospf_dest_ip2, 4);
-    memcpy (&mask.ruleExtNotIpv6.dip, ospf_dest_ip_mask, 4);
-
-    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
-
-    act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 5;
-
-    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_OSPF_MIRROR_RULE_IX (pi) + 1, PORT_IPCL_ID (pi));
-    CRP (cpssDxChPclRuleSet
-         (port->ldev,                                       /* devNum         */
-          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-          PORT_IP_OSPF_MIRROR_RULE_IX (pi)  + 1,            /* ruleIndex      */
+          port_ip_ospf_mirror_rule_ix[pi],                  /* ruleIndex      */
           0,                                                /* ruleOptionsBmp */
           &mask,                                            /* maskPtr        */
           &rule,                                            /* patternPtr     */
@@ -730,9 +530,7 @@ static uint8_t rip_dest_ip_mask[4] = {255, 255, 255, 255};
 void
 pcl_setup_rip(int d) {
   port_id_t pi;
-
-  for(pi = 1; pi <= nports; pi++) {
-
+  for_each_port(pi) {
     struct port *port = port_ptr (pi);
     if (port->ldev != d)
       continue;
@@ -763,11 +561,10 @@ pcl_setup_rip(int d) {
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 6;
 
-    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_RIP_MIRROR_RULE_IX (pi), PORT_IPCL_ID (pi));
     CRP (cpssDxChPclRuleSet
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-          PORT_IP_RIP_MIRROR_RULE_IX (pi),                  /* ruleIndex      */
+          port_ip_rip_mirror_rule_ix[pi],                   /* ruleIndex      */
           0,                                                /* ruleOptionsBmp */
           &mask,                                            /* maskPtr        */
           &rule,                                            /* patternPtr     */
@@ -787,12 +584,12 @@ sg_init () {
 
 uint16_t
 get_port_ip_sourceguard_rule_start_ix (port_id_t pi) {
-  return PORT_IP_SOURCEGUARD_RULE_START_IX (pi);
+  return port_ip_sourceguard_rule_start_ix[pi];
 }
 
 uint16_t
 get_per_port_ip_sourceguard_rules_count (void) {
-  return PER_PORT_IP_SOURCE_GUARD_RULES_COUNT;
+  return per_port_ip_source_guard_rules_count;
 }
 
 void
@@ -822,11 +619,10 @@ pcl_source_guard_trap_enable (port_id_t pi) {
   act.actionStop = GT_TRUE;
   act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 2;
 
-  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi), PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi),            /* ruleIndex      */
+        port_ip_sourceguard_drop_rule_ix[pi],             /* ruleIndex      */
         0,                                                /* ruleOptionsBmp */
         &mask,                                            /* maskPtr        */
         &rule,                                            /* patternPtr     */
@@ -845,7 +641,7 @@ pcl_source_guard_trap_disable (port_id_t pi) {
   CRP (cpssDxChPclRuleInvalidate
        (port->ldev,
         CPSS_PCL_RULE_SIZE_EXT_E,
-        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+        port_ip_sourceguard_drop_rule_ix[pi]));
 
   sg_trap_enabled[pi] = 0;
 }
@@ -876,11 +672,10 @@ pcl_source_guard_drop_enable (port_id_t pi) {
 
   act.actionStop = GT_TRUE;
 
-  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi), PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi),            /* ruleIndex      */
+        port_ip_sourceguard_drop_rule_ix[pi],             /* ruleIndex      */
         0,                                                /* ruleOptionsBmp */
         &mask,                                            /* maskPtr        */
         &rule,                                            /* patternPtr     */
@@ -899,7 +694,7 @@ pcl_source_guard_drop_disable (port_id_t pi) {
   CRP (cpssDxChPclRuleInvalidate
        (port->ldev,
         CPSS_PCL_RULE_SIZE_EXT_E,
-        PORT_IP_SOURCEGUARD_DROP_RULE_IX (pi)));
+        port_ip_sourceguard_drop_rule_ix[pi]));
 
   sg_trap_enabled[pi] = 0;
 }
@@ -973,7 +768,6 @@ pcl_source_guard_rule_set (port_id_t pi,
   act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
   act.actionStop = GT_TRUE;
 
-  DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, rule_ix, PORT_IPCL_ID (pi));
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
@@ -1053,7 +847,7 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
   if ( pid_or_vid < 10000 ) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
-    if (rule_ix < PCL_TCAM_MAX_RULE_IX) {
+    if (rule_ix < user_acl_max[dev]) {
       acl[dev].n_free++;
       acl[dev].data[--(acl[dev].sp)] = (rule_ix & 0xffff);
       qsort(acl[dev].data, acl[dev].n_free, sizeof(uint16_t), cmp_uint16_t);
@@ -1062,7 +856,7 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
     int d;
     for_each_dev(d) {
       uint16_t ix = (rule_ix & (0xffff << d*16)) >> (d*16);
-      if (ix < PCL_TCAM_MAX_RULE_IX) {
+      if (ix < user_acl_max[d]) {
         acl[d].n_free++;
         acl[d].data[--(acl[d].sp)] = ix;
         qsort(acl[d].data, acl[d].n_free, sizeof(uint16_t), cmp_uint16_t);
@@ -1816,7 +1610,7 @@ pcl_ip_rule_set (uint16_t pid_or_vid, struct ip_pcl_rule *ip_rule,
           ip_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
           set_ip_rule (d, rule, mask, ruleExtNotIpv6,
                        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ip_rule);
+                       vlan_ipcl_id[pid_or_vid - 10000], act, ip_rule);
         }
       }
       break;
@@ -1985,7 +1779,7 @@ pcl_mac_rule_set (uint16_t pid_or_vid, struct mac_pcl_rule *mac_rule,
           mac_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
           set_mac_rule (d, rule, mask, ruleExtNotIpv6,
                        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, mac_rule);
+                       vlan_ipcl_id[pid_or_vid - 10000], act, mac_rule);
         }
       }
       break;
@@ -2165,7 +1959,7 @@ pcl_ipv6_rule_set (uint16_t pid_or_vid, struct ipv6_pcl_rule *ipv6_rule,
           ipv6_rule->rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
           set_ipv6_rule (d, rule, mask, ruleExtIpv6L4,
                        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
-                       VLAN_IPCL_ID(pid_or_vid - 10000), act, ipv6_rule);
+                       vlan_ipcl_id[pid_or_vid - 10000], act, ipv6_rule);
         }
       }
       break;
@@ -2332,7 +2126,7 @@ pcl_default_rule_set (uint16_t pid_or_vid, struct default_pcl_rule *default_rule
       } else {
         int d;
         uint32_t rule_ix = default_rule->rule_ix;
-        set_pcl_id (rule, mask, ruleExtNotIpv6, VLAN_IPCL_ID(pid_or_vid - 10000));
+        set_pcl_id (rule, mask, ruleExtNotIpv6, vlan_ipcl_id[pid_or_vid - 10000]);
         for_each_dev(d) {
           rule_ix = ((rule_ix & (0xffff << d*16)) >> (d*16));
           activate_rule (
@@ -2368,57 +2162,6 @@ out:
   PRINT_SEPARATOR('=', 100);
   return status;
 }
-
-static void __attribute__ ((unused))
-pcl_ip_rule_diff (struct ip_pcl_rule* a, struct ip_pcl_rule* b) {
-  PRINT_SEPARATOR('=', 100);
-  DEBUG("Diff start.");
-
-  #ifndef diff
-    #define diff(field)                                                 \
-    {                                                                   \
-      if ( memcmp ( &( a->field ), &( b->field ), sizeof( a->field )) ) \
-        DEBUG("  %s diffs\r\n", #field);                                \
-    }
-
-    diff (rule_ix);
-    diff (action);
-    diff (proto);
-    diff (src_ip);
-    diff (src_ip_mask);
-    diff (src_ip_port);
-    diff (src_ip_port_mask);
-    diff (dst_ip);
-    diff (dst_ip_mask);
-    diff (dst_ip_port);
-    diff (dst_ip_port_mask);
-    diff (dscp);
-    diff (dscp_mask);
-    diff (icmp_type);
-    diff (icmp_type_mask);
-    diff (icmp_code);
-    diff (icmp_code_mask);
-    diff (igmp_type);
-    diff (igmp_type_mask);
-    diff (tcp_flags);
-    diff (tcp_flags_mask);
-
-    #undef diff
-  #else
-
-    DEBUG("  diff() already defined: cannot diff by fields\r\n");
-    if (memcmp(a, b, sizeof(struct ip_pcl_rule)))
-      DEBUG("  Diff result: not equal.\r\n");
-    else
-      DEBUG("  Diff result: equal.\r\n");
-
-  #endif
-
-  DEBUG("Diff end.");
-  PRINT_SEPARATOR('=', 100);
-}
-
-
 
 /******************************************************************************/
 /* Stack Mail TRAP                                                            */
@@ -2510,7 +2253,7 @@ pcl_enable_arp_trap (int enable) {
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            PORT_ARP_INSPECTOR_TRAP_IX (pi),
+            port_arp_inspector_trap_ix[pi],
             0,
             &mask,
             &rule,
@@ -2518,7 +2261,7 @@ pcl_enable_arp_trap (int enable) {
 
     } else
         CRP (cpssDxChPclRuleInvalidate
-             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_ARP_INSPECTOR_TRAP_IX (pi)));
+             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_arp_inspector_trap_ix[pi]));
 
   }
   return ST_OK;
@@ -2554,18 +2297,17 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E;
 
-    DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pid, PORT_LBD_RULE_IX (pid), PORT_IPCL_ID (pid));
     CRP (cpssDxChPclRuleSet
          (port->ldev,
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          PORT_LBD_RULE_IX (pid),
+          port_lbd_rule_ix [pid],
           0,
           &mask,
           &rule,
           &act));
   } else
       CRP (cpssDxChPclRuleInvalidate
-           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_LBD_RULE_IX (pid)));
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lbd_rule_ix[pid]));
 
   return ST_OK;
 }
@@ -2614,11 +2356,10 @@ pcl_enable_dhcp_trap (int enable)
       act.actionStop = GT_TRUE;
       act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
 
-      DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_DHCPTRAP_RULE_IX (pi), PORT_IPCL_ID (pi));
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            PORT_DHCPTRAP_RULE_IX (pi),
+            port_dhcptrap67_rule_ix[pi],
             0,
             &mask,
             &rule,
@@ -2654,11 +2395,10 @@ pcl_enable_dhcp_trap (int enable)
       act.actionStop = GT_TRUE;
       act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 1;
 
-      DEBUG("Pid: %d ix: %d PCLid: %d\r\n", pi, PORT_DHCPTRAP_RULE_IX (pi) + 1, PORT_IPCL_ID (pi));
       CRP (cpssDxChPclRuleSet
            (port->ldev,
             CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            PORT_DHCPTRAP_RULE_IX (pi) + 1,
+            port_dhcptrap68_rule_ix[pi],
             0,
             &mask,
             &rule,
@@ -2673,9 +2413,9 @@ pcl_enable_dhcp_trap (int enable)
         continue;
 
       CRP (cpssDxChPclRuleInvalidate
-           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi)));
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_dhcptrap67_rule_ix[pi]));
       CRP (cpssDxChPclRuleInvalidate
-           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, PORT_DHCPTRAP_RULE_IX (pi) + 1));
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_dhcptrap68_rule_ix[pi]));
     }
   }
 
@@ -2762,32 +2502,38 @@ pcl_enable_port (port_id_t pid, int enable)
   return ST_OK;
 }
 
-static void
-pcl_vid_enable (uint16_t vid) {
-  CPSS_INTERFACE_INFO_STC iface = {
-    .type    = CPSS_INTERFACE_VID_E,
-    .vlanId  = vid
-  };
+enum status
+pcl_enable_vlan (uint16_t vid, int enable) {
+  if (enable) {
+    CPSS_INTERFACE_INFO_STC iface = {
+      .type    = CPSS_INTERFACE_VID_E,
+      .vlanId  = vid
+    };
 
-  CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
-    .enableLookup  = GT_TRUE,
-    .pclId         = VLAN_IPCL_ID(vid),
-    .dualLookup    = GT_FALSE,
-    .pclIdL01      = 0,
-    .groupKeyTypes = {
-      .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-      .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-      .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
+    CPSS_DXCH_PCL_LOOKUP_CFG_STC lc = {
+      .enableLookup  = GT_TRUE,
+      .pclId         = vlan_ipcl_id[vid],
+      .dualLookup    = GT_FALSE,
+      .pclIdL01      = 0,
+      .groupKeyTypes = {
+        .nonIpKey = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        .ipv4Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        .ipv6Key  = CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E
+      }
+    };
+
+    int d;
+    for_each_dev(d) {
+      CRP (cpssDxChPclCfgTblSet
+           (d, &iface,
+            CPSS_PCL_DIRECTION_INGRESS_E,
+            CPSS_PCL_LOOKUP_1_E,
+            &lc));
     }
-  };
 
-  int d;
-  for_each_dev(d) {
-    CRP (cpssDxChPclCfgTblSet
-         (d, &iface,
-          CPSS_PCL_DIRECTION_INGRESS_E,
-          CPSS_PCL_LOOKUP_1_E,
-          &lc));
+    return ST_OK;
+  } else {
+    return ST_OK;
   }
 }
 
@@ -2809,7 +2555,6 @@ pcl_get_counter (uint16_t pid_or_vid, uint16_t rule_ix) {
   uint64_t ret_value = 0;
 
   memcpy(&ret_value, &counter.packetCount, sizeof(ret_value));
-  DEBUG("%s: Packets: %llu\r\n", __FUNCTION__, ret_value);
 
   return ret_value;
 }
@@ -2889,6 +2634,43 @@ pcl_init_port_comparators (int d) {
         0));
 }
 
+static void
+test () {
+  int pid;
+
+  for_each_port(pid) {
+    DEBUG("PID: %d, DEV: %d, PORT_IPCL_ID: %d, PORT_EPCL_ID: %d\n",
+      pid, (port_ptr(pid))->ldev, PORT_IPCL_ID(pid), PORT_EPCL_ID(pid));
+  }
+
+  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+  CPSS_DXCH_PCL_ACTION_STC act;
+
+  memset (&mask, 0, sizeof (mask));
+  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+
+  memset (&rule, 0, sizeof (rule));
+  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (2);
+  rule.ruleExtNotIpv6.common.isL2Valid = 1;
+
+
+  memset (&act, 0, sizeof (act));
+  act.pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
+
+  CRP (cpssDxChPclRuleSet
+       ((port_ptr(2))->ldev,
+        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+        0,
+        0,
+        &mask,
+        &rule,
+        &act));
+
+  print_pcl_indexes();
+
+}
+
 enum status
 pcl_cpss_lib_init (int d)
 {
@@ -2910,11 +2692,6 @@ pcl_cpss_lib_init (int d)
 
   /* Initialize indexes and etc. */
   initialize_vars();
-
-  int vid;
-  for (vid = 1; vid <= 4094; vid++) {
-    pcl_vid_enable(vid);
-  }
 
   /* Initialize CNC */
   pcl_init_counters(d);
@@ -2939,6 +2716,8 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
   pcl_setup_rip(d);
+
+  test ();
 
   return ST_OK;
 }
