@@ -60,25 +60,6 @@ static int __attribute__((unused)) vt_port_epcl_def_rule_ix[NPORTS + 1] = {};
 
 #define for_each_port(p) for (p = 1; p <= nports; p++)
 
-static inline int
-find_port_ix_on_dev (int pid) {
-  int dev = (port_ptr(pid))->ldev;
-  DECLARE_PORT_MAP(pm);
-
-  int ix = -1;
-  int i;
-
-  for (i = 0; i < NPORTS; i++) {
-    if ( pm[i].dev == dev ) {
-      ix++;
-      if ( i == (pid - 1) ) {
-        return ix;
-      }
-    }
-  }
-  return -1;
-}
-
 static inline void
 initialize_vars (void) {
   int dev, pid;
@@ -872,24 +853,31 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
 
 static uint8_t
 new_vlan_ipcl_id (vid_t vid) {
+  if (vlan_ipcl_id[vid]) {
+    DEBUG("new_vlan_ipcl_id (%d): already assigned %s\n", vid, vlan_ipcl_id[vid]);
+    return TRUE;
+  }
   if (pcl_ids.n_free > 0) {
     pcl_ids.n_free--;
     vlan_ipcl_id[vid] = pcl_ids.data[pcl_ids.sp++];
+    DEBUG("new_vlan_ipcl_id (%d): allocate %d\n", vid, vlan_ipcl_id[vid]);
     pcl_enable_vlan(vid);
     return TRUE;
   }
+  DEBUG("new_vlan_ipcl_id (%d): fail: n_free == 0\n", vid);
   return FALSE;
 }
 
 enum status
 free_vlan_pcl_id (vid_t vid) {
-  if (vlan_ipcl_id[vid] && vlan_ipcl_id[vid] != max_pcl_id) {
+  if (vlan_ipcl_id[vid] && (vlan_ipcl_id[vid] != max_pcl_id)) {
+    DEBUG("free_vlan_pcl_id (%d): ok\n", vid);
     pcl_ids.n_free++;
     pcl_ids.data[--pcl_ids.sp] = vlan_ipcl_id[vid];
-    qsort(pcl_ids.data, pcl_ids.n_free, sizeof(uint16_t), cmp_uint16_t);
     vlan_ipcl_id[vid] = 0;
     return ST_OK;
   }
+  DEBUG("free_vlan_pcl_id (%d): error\n", vid);
   return ST_BAD_VALUE;
 }
 
