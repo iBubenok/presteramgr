@@ -854,7 +854,7 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
 static uint8_t
 new_vlan_ipcl_id (vid_t vid) {
   if (vlan_ipcl_id[vid]) {
-    DEBUG("new_vlan_ipcl_id (%d): already assigned %s\n", vid, vlan_ipcl_id[vid]);
+    DEBUG("new_vlan_ipcl_id (%d): already assigned %d\n", vid, vlan_ipcl_id[vid]);
     return TRUE;
   }
   if (pcl_ids.n_free > 0) {
