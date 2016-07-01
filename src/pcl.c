@@ -799,13 +799,6 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
   DEBUG("%s\r\n", __SEPARATOR__);  \
 }
 
-static struct stack {
-  int sp;
-  int n_free;
-  uint16_t data[1000];
-  //uint16_t *data;
-} rules[NDEVS], acl[NDEVS], pcl_ids;
-
 static void
 dump_acl_rule_stack () {
   int d, i;
