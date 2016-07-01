@@ -805,9 +805,10 @@ dump_acl_rule_stack () {
   for_each_dev(d) {
     DEBUG("IDX on DEV %d:\n", d);
     for (i = 0; i < acl[d].n_free; i++) {
-      fprintf(stderr, "%4d ", acl[d].data[acl[d].sp + i]);
-      if (!(i % 20)) fprintf(stderr, "\n");
+      fprintf(stderr, "%3d ", acl[d].data[acl[d].sp + i]);
+      if (!(i % 40)) fprintf(stderr, "\n");
     }
+    fprintf(stderr, "\n");
   }
 }
 
