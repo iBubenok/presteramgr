@@ -889,8 +889,8 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
     return !!(acl[dev].n_free >= count);
   } else {
     int d;
-    uint8_t result = new_vlan_ipcl_id(vid);
     uint16_t vid = pid_or_vid - 10000;
+    uint8_t result = new_vlan_ipcl_id(vid);
     for_each_dev(d) {
       result = (result && (acl[d].n_free >= count));
     }
