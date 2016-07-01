@@ -196,7 +196,7 @@ user_acl_init_rules (void)
 {
   int i, d;
   for_each_dev(d) {
-    for (i = 0; i < user_acl_start_ix[d]; i++) {
+    for (i = 0; i < user_acl_stack_entries; i++) {
       acl[d].data[i] = i + user_acl_start_ix[d];
     }
 
