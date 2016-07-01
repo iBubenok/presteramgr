@@ -856,8 +856,7 @@ new_vlan_ipcl_id (vid_t vid) {
   if (vlan_ipcl_id[vid]) {
     DEBUG("new_vlan_ipcl_id (%d): already assigned %d\n", vid, vlan_ipcl_id[vid]);
     return TRUE;
-  }
-  if (pcl_ids.n_free > 0) {
+  } else if (pcl_ids.n_free > 0) {
     pcl_ids.n_free--;
     vlan_ipcl_id[vid] = pcl_ids.data[pcl_ids.sp++];
     DEBUG("new_vlan_ipcl_id (%d): allocate %d\n", vid, vlan_ipcl_id[vid]);
@@ -890,10 +889,10 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
     return !!(acl[dev].n_free >= count);
   } else {
     int d;
-    uint8_t result = 1;
+    uint8_t result = new_vlan_ipcl_id(vid);
     uint16_t vid = pid_or_vid - 10000;
     for_each_dev(d) {
-      result = (result && (acl[d].n_free >= count) && new_vlan_ipcl_id(vid));
+      result = (result && (acl[d].n_free >= count));
     }
     return !!result;
   }
