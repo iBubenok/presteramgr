@@ -799,6 +799,25 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
   DEBUG("%s\r\n", __SEPARATOR__);  \
 }
 
+static struct stack {
+  int sp;
+  int n_free;
+  uint16_t data[1000];
+  //uint16_t *data;
+} rules[NDEVS], acl[NDEVS], pcl_ids;
+
+static void
+dump_acl_rule_stack () {
+  int d, i;
+  for_each_dev(d) {
+    DEBUG("IDX on DEV %d:\n", d);
+    for (i = 0; i < acl[d].n_free; i++) {
+      DEBUG("%4d ", acl[d].data[sp + i]);
+      if (!(i % 20)) DEBUG("\n");
+    }
+  }
+}
+
 uint32_t
 allocate_user_rule_ix (uint16_t pid_or_vid) {
   /* Magic */
@@ -806,6 +825,7 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
     acl[dev].n_free--;
+    dump_acl_rule_stack();
     return acl[dev].data[(acl[dev].sp)++];
   } else {
     uint32_t aggregated_ix = 0;
@@ -814,6 +834,7 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
       acl[d].n_free--;
       aggregated_ix += ((acl[d].data[(acl[d].sp)++]) << d*16);
     }
+    dump_acl_rule_stack();
     return aggregated_ix;
   }
 }
@@ -849,6 +870,7 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
       }
     }
   }
+  dump_acl_rule_stack();
 }
 
 static uint8_t
