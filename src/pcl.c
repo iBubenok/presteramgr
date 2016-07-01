@@ -799,14 +799,14 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
   DEBUG("%s\r\n", __SEPARATOR__);  \
 }
 
-static void
+static void __attribute__ ((unused))
 dump_acl_rule_stack () {
   int d, i;
   for_each_dev(d) {
     DEBUG("IDX on DEV %d:\n", d);
     for (i = 0; i < acl[d].n_free; i++) {
       fprintf(stderr, "%3d ", acl[d].data[acl[d].sp + i]);
-      if (!(i % 40)) fprintf(stderr, "\n");
+      if (!((i + 1) % 40)) fprintf(stderr, "\n");
     }
     fprintf(stderr, "\n");
   }
@@ -819,7 +819,6 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
     acl[dev].n_free--;
-    dump_acl_rule_stack();
     return acl[dev].data[(acl[dev].sp)++];
   } else {
     uint32_t aggregated_ix = 0;
@@ -828,7 +827,6 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
       acl[d].n_free--;
       aggregated_ix += ((acl[d].data[(acl[d].sp)++]) << d*16);
     }
-    dump_acl_rule_stack();
     return aggregated_ix;
   }
 }
@@ -864,35 +862,29 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
       }
     }
   }
-  dump_acl_rule_stack();
 }
 
 static uint8_t
 new_vlan_ipcl_id (vid_t vid) {
   if (vlan_ipcl_id[vid]) {
-    DEBUG("new_vlan_ipcl_id (%d): already assigned %d\n", vid, vlan_ipcl_id[vid]);
     return TRUE;
   } else if (pcl_ids.n_free > 0) {
     pcl_ids.n_free--;
     vlan_ipcl_id[vid] = pcl_ids.data[pcl_ids.sp++];
-    DEBUG("new_vlan_ipcl_id (%d): allocate %d\n", vid, vlan_ipcl_id[vid]);
     pcl_enable_vlan(vid);
     return TRUE;
   }
-  DEBUG("new_vlan_ipcl_id (%d): fail: n_free == 0\n", vid);
   return FALSE;
 }
 
 enum status
 free_vlan_pcl_id (vid_t vid) {
   if (vlan_ipcl_id[vid] && (vlan_ipcl_id[vid] != max_pcl_id)) {
-    DEBUG("free_vlan_pcl_id (%d): ok\n", vid);
     pcl_ids.n_free++;
     pcl_ids.data[--pcl_ids.sp] = vlan_ipcl_id[vid];
     vlan_ipcl_id[vid] = 0;
     return ST_OK;
   }
-  DEBUG("free_vlan_pcl_id (%d): error\n", vid);
   return ST_BAD_VALUE;
 }
 
@@ -904,18 +896,12 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
     int dev = port->ldev;
     return !!(acl[dev].n_free >= count);
   } else {
-    DEBUG("check_user_rule_ix_count (%d, %d)\n", pid_or_vid, count);
     int d;
     uint16_t vid = pid_or_vid - 10000;
-    DEBUG("vid = %d\n", vid);
     uint8_t result = new_vlan_ipcl_id(vid);
-    DEBUG("new_vlan_ipcl_id(%d) returned %d (%s)\n", vid, result, result ? "true" : "false");
     for_each_dev(d) {
-      DEBUG("check on dev %d\n", d);
       result = (result && (acl[d].n_free >= count));
-      DEBUG("result: %d, (%s)\n", result, result ? "true" : "false");
     }
-    DEBUG("finally return: %d (%s)\n", (!!result), (!!result) ? "true" : "false");
     return !!result;
   }
 }
@@ -2670,7 +2656,7 @@ pcl_init_port_comparators (int d) {
         0));
 }
 
-static void
+static void __attribute__ ((unused))
 test () {
   int pid;
 
@@ -2755,8 +2741,6 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
   pcl_setup_rip(d);
-
-  test ();
 
   return ST_OK;
 }
