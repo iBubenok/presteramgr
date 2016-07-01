@@ -888,12 +888,18 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
     int dev = port->ldev;
     return !!(acl[dev].n_free >= count);
   } else {
+    DEBUG("check_user_rule_ix_count (%d, %d)\n", pid_or_vid, count);
     int d;
     uint16_t vid = pid_or_vid - 10000;
+    DEBUG("vid = %d\n", vid);
     uint8_t result = new_vlan_ipcl_id(vid);
+    DEBUG("new_vlan_ipcl_id(%d) returned %d (%s)\n", vid, result, result ? "true" : "false");
     for_each_dev(d) {
+      DEBUG("check on dev %d\n", d);
       result = (result && (acl[d].n_free >= count));
+      DEBUG("result: %d, (%s)\n", result, result ? "true" : "false");
     }
+    DEBUG("finally return: %d (%s)\n", (!!result), (!!result) ? "true" : "false");
     return !!result;
   }
 }
