@@ -241,7 +241,6 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     zmsg_addmem (sg_msg, src_ip, 4);
 
     pcl_source_guard_drop_enable(pid);
-    DEBUG("packet trapped! enable drop! port #%d\r\n", pid);
 
     notify_send (&sg_msg);
   }
@@ -943,7 +942,6 @@ DEFINE_HANDLER (CC_VLAN_ADD)
   }
 
  out:
-  DEBUG("CC_VLAN_ADD returns %d\r\n", result);
   report_status (result);
 }
 
@@ -976,7 +974,6 @@ DEFINE_HANDLER (CC_VLAN_DELETE)
   }
 
  out:
-  DEBUG("CC_VLAN_DELETE returns %d\r\n", result);
   report_status (result);
 }
 
@@ -1687,7 +1684,6 @@ DEFINE_HANDLER (CC_VLAN_SET_CPU)
   }
 
  out:
-  DEBUG("CC_VLAN_SET_CPU returns %d\r\n", result);
   report_status (result);
 }
 
@@ -3522,7 +3518,6 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
     goto out;
   if ((result = POP_ARG (&rule_ix)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_DELETE rule\r\n");
 
   pcl_source_guard_rule_unset (pid, rule_ix);
   result = ST_OK;
@@ -3706,7 +3701,6 @@ DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
 
 DEFINE_HANDLER (CC_VRRP_SET_MAC)
 {
-  DEBUG("CC_VRRP_SET_MAC\r\n");
   enum status result;
   vid_t vid;
   mac_addr_t addr;
