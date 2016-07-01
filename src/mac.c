@@ -1718,10 +1718,12 @@ DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
 
 static enum status
 fdbman_set_master(const void *arg) {
+  int dummy;
   uint8_t newmaster = *((uint8_t*) arg);
   serial_t serial = *(serial_t*)((uint8_t*) arg) + 1;
   devsbmp_t dbmp = *(devsbmp_t*)((uint8_t*) arg + 1 + sizeof(serial_t));
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
+
 DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
 DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   if (serial < fdbman_serial) {
@@ -1765,7 +1767,8 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
       if (stack_id == newmaster) {
         fdbman_send_master_announce_pkt(serial);
         fdbman_sync_stg(ALL_DEVS);
-        fdbman_sync_routing(ALL_DEVS);
+        fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
+        fdbman_send_clear_routing(ALL_DEVS);
         fdbman_master = newmaster;
         fdbman_serial = serial;
         fdbman_state = FST_MASTER;
