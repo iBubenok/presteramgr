@@ -448,6 +448,7 @@ DECLARE_HANDLER (SC_INT_OPNA_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
 DECLARE_HANDLER (SC_INT_VIFSTG_SET);
+DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
 
 
 static cmd_handler_t handlers[] = {
@@ -606,7 +607,8 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_OPNA_CMD),
   HANDLER (SC_INT_UDT_CMD),
   HANDLER (SC_INT_CLEAR_RT_CMD),
-  HANDLER (SC_INT_VIFSTG_SET)
+  HANDLER (SC_INT_VIFSTG_SET),
+  HANDLER (SC_INT_CLEAR_RE_CMD)
 };
 
 static int
@@ -879,6 +881,18 @@ DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
     return;
 
   vif_stg_set(zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD)\n");
+  devsbmp_t dbmp;
+  enum status result;
+
+  result = POP_ARG (&dbmp);
+  if (result != ST_OK)
+    return;
+
+  ret_clear_devs_res(dbmp);
 }
 
 
@@ -2367,8 +2381,11 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
+DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
       goto out;
+    }
     route_handle_udt (frame->data, frame->len);
     goto out;
 

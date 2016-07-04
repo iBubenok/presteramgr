@@ -1637,7 +1637,7 @@ static void
 fdbman_handle_msg_udt(struct pti_fdbr_msg *msg, uint32_t len) {
   uint32_t daddr;
   memcpy(&daddr, msg->data, sizeof(daddr));
-DEBUG(">>>fdbman_handle_msg_udt(%d)\n", daddr);
+DEBUG(">>>fdbman_handle_msg_udt(%x)\n", daddr);
   fdbman_send_control_cmd(SC_INT_UDT_CMD, &daddr, sizeof(daddr));
 }
 
@@ -1723,6 +1723,7 @@ fdbman_set_master(const void *arg) {
   serial_t serial = *(serial_t*)((uint8_t*) arg) + 1;
   devsbmp_t dbmp = *(devsbmp_t*)((uint8_t*) arg + 1 + sizeof(serial_t));
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
+  devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
 DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
 DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
@@ -1775,6 +1776,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
       }
       break;
   }
+  fdbman_send_control_cmd(SC_INT_CLEAR_RE_CMD, &deldevs_bmp, sizeof(deldevs_bmp));
   fdbman_devsbmp = dbmp;
 DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;

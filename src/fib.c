@@ -150,6 +150,34 @@ fib_get (uint32_t addr, uint8_t len)
   }
 }
 
+struct fib_entry *
+fib_unhash_child (uint32_t addr, uint8_t len) { /* you should free child yourself */
+  assert (len == 32);
+
+  int i;
+  uint32_t pfx = addr;
+
+  for (i = 32; i > 0; i--) {
+    struct fib_entry *e;
+    HASH_FIND_INT (fib.e[i], &pfx, e);
+    if (e) {
+      if (e->gw == 0) {
+        /* Connected route. */
+        struct fib_entry *c;
+
+        HASH_FIND_INT (e->children, &addr, c);
+        if (c) {
+          HASH_DEL(e->children, c);
+          return c;
+        }
+      }
+    }
+    pfx &= ~(1 << (32 - i));
+  }
+
+  return NULL;
+}
+
 const struct fib_entry *
 fib_route (uint32_t addr)
 {

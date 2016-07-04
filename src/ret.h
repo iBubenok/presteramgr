@@ -15,6 +15,7 @@ extern int mcre_del_node (int, mcg_t, vid_t, vid_t);
 extern int mcre_find (const uint8_t *, const uint8_t *, vid_t);
 extern int mcre_create (const uint8_t *, const uint8_t *, mcg_t, vid_t, vid_t);
 extern int mcre_add_node (int, mcg_t, vid_t);
+extern void ret_clear_devs_res(devsbmp_t);
 extern void ret_dump(void);
 
 #endif /* __RET_H__ */

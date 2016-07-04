@@ -81,6 +81,8 @@ ret_add (const struct gw *gw, int def)
         CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
 //        struct port *port = port_ptr (re->pid);
         struct vif *vif = vif_getn (re->vif_id);
+        if (!vif)
+          return re->idx;
         int d;
 
         memset (&rt, 0, sizeof (rt));
@@ -192,6 +194,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id
       rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
     if (rc != ST_OK)
       return ST_HEX;
+
+    re->vif_id = vif_id;
 
     if (re->def) {
       DEBUG ("write default route entry");
@@ -554,10 +558,26 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 }
 
 void
+ret_clear_devs_res(devsbmp_t dbmp) {
+DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
+  struct re *s, *t;
+  HASH_ITER (hh, ret, s, t) {
+    if (in_range (((struct vif_id *)&s->vif_id)->type, VIFT_FE, VIFT_XG)
+        && ((1 << ((struct vif_id *)&s->vif_id)->dev) & dbmp)) {
+      DEBUG("deleting re:\n");
+      DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+          IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,
+          MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
+      route_reset_prefixes4gw (&s->gw);
+    }
+  }
+}
+
+void
 ret_dump(void) {
   struct re *s, *t;
   DEBUG("!!!! RET DUMP %d  !!!!\n", re_cnt);
-  DEBUG("gw IP                 :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
+  DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
   HASH_ITER (hh, ret, s, t) {
     DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
         IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,

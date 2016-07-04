@@ -451,6 +451,32 @@ route_prefix_set_drop (uint32_t ip, int len)
 }
 
 static void
+route_prefix_set_trap (uint32_t ip, int len)
+{
+DEBUG(">>>>route_prefix_set_trap (%x, %d)\n", ip, len);
+  if (len) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPADDR addr;
+
+    addr.u32Ip = htonl (ip);
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+  } else {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
+}
+
+static void
 route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 {
   struct gw gw;
@@ -674,6 +700,42 @@ route_get_udaddrs(void) {
     }
   }
   return r;
+}
+
+void
+route_reset_prefixes4gw(struct gw * gw) {
+  struct pfxs_by_gw *s;
+  struct pfx_by_pfx *s1,*t1;
+
+  HASH_FIND_GW (pfxs_by_gw, gw, s);
+  if (!s) {
+    DEBUG("GW: %x/%d not found. exiting\n", ntohl(gw->addr.u32Ip), gw->vid);
+    return;
+  }
+  HASH_ITER (hh, s->pfxs, s1, t1) {
+    struct route_pfx cache_pfx;
+    memcpy(&cache_pfx, &s1->pfx, sizeof(cache_pfx));
+
+    if (!s1->pfx.alen) { /* default route */
+      route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+      route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+    }
+    else {
+      if (s1->pfx.alen == 32) {
+        struct fib_entry *f = fib_unhash_child(ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen);
+        if (!f) {
+          DEBUG("connected fib child not found. next_iter\n");
+          continue;
+        }
+        route_del_fib_entry (f);
+        free(f);
+      }
+      else {
+        route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+        route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+      }
+    }
+  }
 }
 
 void

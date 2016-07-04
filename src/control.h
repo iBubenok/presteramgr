@@ -25,6 +25,7 @@ enum control_int_command {
   CC_INT_GET_UDADDRS_CMD,
   CC_INT_VIFSTG_GET,
   SC_INT_VIFSTG_SET,
+  SC_INT_CLEAR_RE_CMD,
   CC_INT_MAX
 };
 
