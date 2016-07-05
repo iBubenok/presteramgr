@@ -154,18 +154,44 @@ enum status fdbcomm_ctl(unsigned n, const struct pti_fdbr *arg);
 
 static void *pub_sock;   /* notifications to control.c -> manager */
 
-static void fdb_notification_send(port_id_t pid, uint8_t *mac)
+static void fdb_new_addr_notification_send(port_id_t pid,
+                                           uint8_t *mac,
+                                           GT_U16 vlan)
 {
   zmsg_t *msg = zmsg_new ();
-  notification_t tmp = CN_NA;
+  notification_t ntype = CN_NEW_ADDR;
 
   assert (msg);
 
-  zmsg_addmem (msg, &tmp, sizeof (tmp));
+  zmsg_addmem (msg, &ntype, sizeof (ntype));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, mac, 6);
+  zmsg_addmem (msg, &vlan, sizeof (GT_U16));
 
   zmsg_send (&msg, pub_sock);
+
+  zmsg_destroy (&msg);
+}
+
+static void fdb_mac_op_notification_send(mac_op_t type,
+                                         port_id_t pid,
+                                         uint8_t *mac,
+                                         GT_U16 vlan)
+{
+  zmsg_t *msg = zmsg_new ();
+  notification_t ntype = CN_MAC_OP;
+
+  assert (msg);
+
+  zmsg_addmem (msg, &ntype, sizeof (ntype));
+  zmsg_addmem (msg, &type, sizeof (type));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, mac, 6);
+  zmsg_addmem (msg, &vlan, sizeof (GT_U16));
+
+  zmsg_send (&msg, pub_sock);
+
+  zmsg_destroy (&msg);
 }
 
 static enum status __attribute__ ((unused))
@@ -174,7 +200,6 @@ fdb_ctl (int cmd, const void *arg, int size)
   zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, arg, size);
-
   zmsg_send (&msg, gctl_sock);
 
   msg = zmsg_recv (gctl_sock);
@@ -480,10 +505,6 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-//        if (fdb[i].me.userDefined != FEP_FOREIGN)
-//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
-
       }
   } else if (act_vid_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
@@ -493,10 +514,6 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-//        if (fdb[i].me.userDefined != FEP_FOREIGN)
-//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
-
       }
   } else if (port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
@@ -507,10 +524,6 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-//        if (fdb[i].me.userDefined != FEP_FOREIGN)
-//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
-
       }
   } else {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
@@ -519,16 +532,10 @@ fdb_flush (const struct fdb_flush_arg *arg)
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
         fdb[i].secure = 0;
-//        if (fdb[i].me.userDefined != FEP_FOREIGN)
-//          mac_form_fdbr(&fdb[i].me, PTI_FDB_OP_DEL, &fdbr[fridx++]);
-//        DEBUG("INVALIDATED: " MAC_FMT "\n", MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther));
-
       }
   }
 
   psec_after_flush ();
-//  if (fridx)
-//    fdbcomm_ctl(fridx, fdbr);
 
   do {
     all_done = 1;
@@ -672,6 +679,7 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign)
       for_each_dev (d)
         CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
       fdb[idx].valid = 0;
+ //     fdb[i].secure = 0;  XXX
 
       return ST_OK;
     }
@@ -722,6 +730,14 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
 
       me.daCommand = CPSS_MAC_TABLE_FRWRD_E;
       me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
+
+      if (port->fdb_addr_op_notify_enabled)
+      fdb_mac_op_notification_send(
+        MAC_LEARN,
+        port->id,
+        me.key.key.macVlan.macAddr.arEther,
+        me.key.key.macVlan.vlanId
+      );
     }
   }
 
@@ -975,12 +991,23 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
   port = port_ptr(lport);
 
   if (port) {
-    if (port->fdb_notify_enabled)
-      fdb_notification_send(port->id, u->macEntry.key.key.macVlan.macAddr.arEther);
-
+    if (port->fdb_new_addr_notify_enabled)
+      fdb_new_addr_notification_send(
+        port->id,
+        u->macEntry.key.key.macVlan.macAddr.arEther,
+        u->macEntry.key.key.macVlan.vlanId
+      );
   }
-  if (!port && !port->fdb_insertion_enabled)
+
+  if (!port || !port->fdb_insertion_enabled)
     return ST_BAD_STATE;
+ 
+  if (port->fdb_addr_op_notify_enabled)
+    fdb_mac_op_notification_send(
+      MAC_LEARN,
+      port->id,
+      u->macEntry.key.key.macVlan.macAddr.arEther,
+      u->macEntry.key.key.macVlan.vlanId);
 
   return fdb_insert (&u->macEntry, 0, 0);
 }
@@ -1071,105 +1098,8 @@ fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 
   return 0;
 }
-/*
-static int
-fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
-{
-  zmsg_t *msg = zmsg_recv (ctl_sock);
-  zframe_t *frame = zmsg_first (msg);
-  int cmd = *((int *) zframe_data (frame));
-  frame = zmsg_next(msg);
-  void *arg = zframe_data (frame);
-  status_t status = ST_BAD_REQUEST;
-  unsigned n;
 
-  switch (cmd) {
-  case FCC_MAC_OP:
-    DEBUG("FCC_MAP_OP\n"); // TODO remove
-    status = fdb_mac_op (arg, 0);
-    DEBUG("===FCC_MAP_OP\n"); // TODO remove
-    break;
-   case FCC_MAC_OP_VIF:
-    DEBUG("FCC_MAP_OP_VIF\n"); // TODO remove
-    if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
-      fdbman_send_msg_uni_macop(arg, 0, 1);
-      status = fdb_mac_op_vif (arg, 0);
-    }
-    else {
-      status = ST_OK;
-      fdbman_send_msg_uni_flush(arg, 0);
-    }
-     status = fdb_mac_op_vif (arg, 0);
-    DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
-    break;
-  case FCC_OWN_MAC_OP:
-    DEBUG("FCC_OWN_MAP_OP\n"); // TODO remove
-    status = fdb_mac_op (arg, 1);
-    DEBUG("===FCC_OWN_MAP_OP\n"); // TODO remove
-    break;
-   case FCC_OWN_MAC_OP_VIF:
-    DEBUG("FCC_OWN_MAP_OP_VIF\n"); // TODO remove
-    status = fdb_mac_op_vif (arg, 1);
-    DEBUG("===FCC_OWN_MAP_OP_VIF\n"); // TODO remove
-    break;
-  case FCC_MC_IP_OP:
-    DEBUG("FCC_MC_IP_OP\n"); // TODO remove
-    status = fdb_mac_mc_ip_op (arg);
-    DEBUG("===FCC_MC_IP_OP\n"); // TODO remove
-    break;
-  case FCC_MAC_OP_FOREIGN_BLCK:
-    DEBUG("FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
-    n = *((uint32_t*) arg);
-    arg = zframe_data (zmsg_next (msg));
-    status = fdb_mac_foreign_blck(n, arg);
-    DEBUG("===FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
-    break;
-  case FCC_FLUSH:
-    if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
-      fdbman_send_msg_uni_flush(arg, 1);
-      status = fdb_flush (arg);
-    }
-    else {
-      status = ST_OK;
-      fdbman_send_msg_uni_flush(arg, 0);
-    }
-    break;
-  case FCC_SET_MASTER:
-    DEBUG("FCC_SET_MASTER\n"); // TODO remove
-    status = fdbman_set_master(arg);
-    DEBUG("===FCC_SET_MASTER\n"); // TODO remove
-    break;
-  case FCC_FDBMAN_HANDLE_PKT:
-    DEBUG("FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
-//    n = *((uint32_t*) arg);
-//    arg = zframe_data (zmsg_next (msg));
-    status = fdbman_handle_pkt(arg, zframe_size(frame));
-    DEBUG("===FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
-    break;
-  case FCC_FDBMAN_SEND_RT:
-    fdbman_send_rtbd(arg, zframe_size (frame), ALL_DEVS);
-    break;
-  case FCC_FDBMAN_SEND_NA:
-    fdbman_send_na((struct arpd_ip_addr_msg *) arg);
-    break;
-  case FCC_FDBMAN_SEND_OPNA:
-    fdbman_send_opna(arg);
-    break;
-  case FCC_FDBMAN_SEND_UDT:
-    fdbman_send_udt(*(uint32_t*)arg);
-    break;
-  default:
-    status = ST_BAD_REQUEST;
-  }
-  zmsg_destroy (&msg);
 
-  msg = zmsg_new ();
-  zmsg_addmem (msg, &status, sizeof (status));
-  zmsg_send (&msg, ctl_sock);
-
-  return 0;
-}
-*/
 static enum status
 fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
 {
@@ -2217,7 +2147,7 @@ mac_start (void)
     n++;
     usleep (10000);
   }
-  DEBUG ("FDB startup finished after %d iteractions\r\n", n);
+  DEBUG ("FDB startup finished after %d iterations\r\n", n);
 
   gctl_sock = zsocket_new (zcontext, ZMQ_REQ);
   assert (gctl_sock);
