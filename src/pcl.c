@@ -966,8 +966,6 @@ free_vlan_pcl_id (vid_t vid) {
 
 uint8_t
 check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
-  DEBUG("\n%s (%d, %d)\n", __FUNCTION__, pid_or_vid, count);
-
   if (user_acl_fake_mode) {
 
   /* Magic */
