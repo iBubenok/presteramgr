@@ -793,8 +793,9 @@ pcl_source_guard_trap_enabled (port_id_t pi) {
 /* USER ACLs                                                                  */
 /******************************************************************************/
 #define PRINT_SEPARATOR(c, size) { \
-  char __SEPARATOR__[size];        \
+  char __SEPARATOR__[size + 1];    \
   memset (__SEPARATOR__, c, size); \
+  __SEPARATOR__[size] = '\0';      \
   DEBUG("%s\r\n", __SEPARATOR__);  \
 }
 
