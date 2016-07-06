@@ -174,8 +174,7 @@ static struct stack {
   int sp;
   int n_free;
   uint16_t data[1000];
-  //uint16_t *data;
-} rules[NDEVS], acl[NDEVS], pcl_ids;
+} rules[NDEVS], acl[NDEVS], acl_fake[NDEVS], pcl_ids;
 
 static void
 pcl_init_rules (void)
@@ -812,8 +811,54 @@ dump_acl_rule_stack () {
   }
 }
 
+static int user_acl_fake_mode = FALSE;
+
+enum status
+prepare_user_rule_alloc () {
+  if (!user_acl_fake_mode) {
+    user_acl_fake_mode = TRUE;
+    int d;
+    for_each_dev(d) {
+      acl_fake[d] = acl[d];
+    }
+    return ST_OK;
+  } else {
+    return ST_BAD_REQUEST;
+  }
+}
+
+enum status
+clear_user_rule_alloc () {
+  if (user_acl_fake_mode) {
+    user_acl_fake_mode = FALSE;
+    return ST_OK;
+  } else {
+    return ST_BAD_REQUEST;
+  }
+}
+
 uint32_t
 allocate_user_rule_ix (uint16_t pid_or_vid) {
+  if (user_acl_fake_mode) {
+
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    acl_fake[dev].n_free--;
+    return acl_fake[dev].data[(acl_fake[dev].sp)++];
+  } else {
+    uint32_t aggregated_ix = 0;
+    int d;
+    for_each_dev(d) {
+      acl_fake[d].n_free--;
+      aggregated_ix += ((acl_fake[d].data[(acl_fake[d].sp)++]) << d*16);
+    }
+    return aggregated_ix;
+  }
+
+  } else {
+
   /* Magic */
   if ( pid_or_vid < 10000 ) {
     struct port *port = port_ptr(pid_or_vid);
@@ -829,6 +874,8 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
     }
     return aggregated_ix;
   }
+
+  }
 }
 
 static int
@@ -842,6 +889,31 @@ cmp_uint16_t (const void *a, const void *b)
 
 void
 free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
+  if (user_acl_fake_mode) {
+
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    if (rule_ix < user_acl_max[dev]) {
+      acl_fake[dev].n_free++;
+      acl_fake[dev].data[--(acl_fake[dev].sp)] = (rule_ix & 0xffff);
+      qsort(acl_fake[dev].data, acl_fake[dev].n_free, sizeof(uint16_t), cmp_uint16_t);
+    }
+  } else {
+    int d;
+    for_each_dev(d) {
+      uint16_t ix = (rule_ix & (0xffff << d*16)) >> (d*16);
+      if (ix < user_acl_max[d]) {
+        acl_fake[d].n_free++;
+        acl_fake[d].data[--(acl_fake[d].sp)] = ix;
+        qsort(acl_fake[d].data, acl_fake[d].n_free, sizeof(uint16_t), cmp_uint16_t);
+      }
+    }
+  }
+
+  } else {
+
   /* Magic */
   if ( pid_or_vid < 10000 ) {
     struct port *port = port_ptr(pid_or_vid);
@@ -861,6 +933,8 @@ free_user_rule_ix (uint16_t pid_or_vid, uint32_t rule_ix) {
         qsort(acl[d].data, acl[d].n_free, sizeof(uint16_t), cmp_uint16_t);
       }
     }
+  }
+
   }
 }
 

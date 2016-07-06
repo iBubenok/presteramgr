@@ -153,6 +153,10 @@ extern void free_user_rule_ix (uint16_t, uint32_t);
 
 extern uint8_t check_user_rule_ix_count (uint16_t, uint16_t);
 
+extern enum status prepare_user_rule_alloc ();
+
+extern enum status clear_user_rule_alloc ();
+
 extern enum status pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
                                     enum PCL_DESTINATION, int);
 extern enum status pcl_mac_rule_set (uint16_t, struct mac_pcl_rule*,
