@@ -846,7 +846,8 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
     acl_fake[dev].n_free--;
-    return acl_fake[dev].data[(acl_fake[dev].sp)++];
+    uint32_t index = acl_fake[dev].data[(acl_fake[dev].sp)++];
+    return index;
   } else {
     uint32_t aggregated_ix = 0;
     int d;
@@ -864,7 +865,8 @@ allocate_user_rule_ix (uint16_t pid_or_vid) {
     struct port *port = port_ptr(pid_or_vid);
     int dev = port->ldev;
     acl[dev].n_free--;
-    return acl[dev].data[(acl[dev].sp)++];
+    uint32_t index = acl[dev].data[(acl[dev].sp)++];
+    return index;
   } else {
     uint32_t aggregated_ix = 0;
     int d;
@@ -964,6 +966,27 @@ free_vlan_pcl_id (vid_t vid) {
 
 uint8_t
 check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
+  DEBUG("\n%s (%d, %d)\n", __FUNCTION__, pid_or_vid, count);
+
+  if (user_acl_fake_mode) {
+
+  /* Magic */
+  if ( pid_or_vid < 10000 ) {
+    struct port *port = port_ptr(pid_or_vid);
+    int dev = port->ldev;
+    return !!(acl_fake[dev].n_free >= count);
+  } else {
+    int d;
+    uint16_t vid = pid_or_vid - 10000;
+    uint8_t result = new_vlan_ipcl_id(vid);
+    for_each_dev(d) {
+      result = (result && (acl_fake[d].n_free >= count));
+    }
+    return !!result;
+  }
+
+  } else {
+
   /* Magic */
   if ( pid_or_vid < 10000 ) {
     struct port *port = port_ptr(pid_or_vid);
@@ -978,6 +1001,9 @@ check_user_rule_ix_count (uint16_t pid_or_vid, uint16_t count) {
     }
     return !!result;
   }
+
+  }
+
 }
 
 #define get_port_ptr(port, pid) {                                           \
