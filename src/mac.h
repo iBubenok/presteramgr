@@ -20,6 +20,7 @@
 struct fdb_entry {
   int valid;
   int secure;
+  uint16_t pc_aging_status;
   CPSS_MAC_ENTRY_EXT_STC me;
 };
 extern struct fdb_entry fdb[];

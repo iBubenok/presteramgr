@@ -646,6 +646,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
   memcpy (&fdb[best_idx].me, e, sizeof (*e));
   fdb[best_idx].valid = 1;
   fdb[best_idx].secure = !!secure;
+  fdb[best_idx].pc_aging_status = fdbman_devsbmp;
   for_each_dev (d) {
     if (own)
       e->dstInterface.devPort.devNum = phys_dev (d);
@@ -657,7 +658,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
 #undef INVALID_IDX
 
 static enum status
-fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign)
+fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign, uint8_t sid)
 {
   GT_U32 idx;
   int i, d;
@@ -674,12 +675,24 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign)
       if (!is_foreign && fdb[idx].me.userDefined == FEP_FOREIGN)
         continue;
 */
+      if (fdbman_master == stack_id && fdb[idx].me.dstInterface.type == CPSS_INTERFACE_TRUNK_E && sid != 16) {
+//DEBUG("====fdb_remove before " MAC_FMT " PC %d sid: %d \n",
+//    MAC_ARG(fdb[idx].me.key.key.macVlan.macAddr.arEther), fdb[idx].me.dstInterface.trunkId, sid);
+        if ((fdb[idx].pc_aging_status &= ~(1 << sid))) {
+//DEBUG("====fdb_remove NOT AGING " MAC_FMT " PC %d sid: %d \n",
+//    MAC_ARG(fdb[idx].me.key.key.macVlan.macAddr.arEther), fdb[idx].me.dstInterface.trunkId, sid);
+          return ST_NOT_READY;
+        }
+//DEBUG("====fdb_remove after " MAC_FMT " PC %d sid: %d \n",
+//    MAC_ARG(fdb[idx].me.key.key.macVlan.macAddr.arEther), fdb[idx].me.dstInterface.trunkId, sid);
+      }
+
       psec_addr_del (&fdb[idx].me);
 
       for_each_dev (d)
         CRP (cpssDxChBrgFdbMacEntryInvalidate (d, idx));
       fdb[idx].valid = 0;
- //     fdb[i].secure = 0;  XXX
+      fdb[idx].secure = 0;
 
       return ST_OK;
     }
@@ -807,7 +820,7 @@ fdb_mac_delete (const struct mac_op_arg *arg)
   memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   key.key.macVlan.vlanId = arg->vid;
 
-  return fdb_remove (&key, 0);
+  return fdb_remove (&key, 0, 16);
 }
 
 static enum status
@@ -819,7 +832,7 @@ fdb_mac_delete_vif (const struct mac_op_arg_vif *arg)
   memcpy (key.key.macVlan.macAddr.arEther, arg->mac, sizeof (arg->mac));
   key.key.macVlan.vlanId = arg->vid;
 
-  return fdb_remove (&key, 0);
+  return fdb_remove (&key, 0, 16);
 }
 
 static enum status
@@ -853,7 +866,7 @@ fdb_mac_mc_ip_delete (const struct mc_ip_op_arg *arg)
   memcpy (key.key.ipMcast.dip, arg->dst, sizeof (arg->dst));
   key.key.ipMcast.vlanId = arg->vid;
 
-  return fdb_remove (&key, 0);
+  return fdb_remove (&key, 0, 16);
 }
 
 static enum status
@@ -929,12 +942,16 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
 
 //DEBUG("fdb_mac_foreign_add(const struct pti_fdbr *fr)\n"); //TODO remove
 //PRINTHexDump(&me, sizeof(me));
+//DEBUG("====fdb_mac_foreign_add() " MAC_FMT  "-%d, %d/%d:%d:%d\n",
+//    MAC_ARG(me.key.key.macVlan.macAddr.arEther), me.key.key.macVlan.vlanId,
+//    me.dstInterface.type, me.dstInterface.devPort.devNum, me.dstInterface.devPort.portNum,
+//    me.dstInterface.trunkId);
 
   return fdb_insert (&me, 0, 0);
 }
 
 static enum status
-fdb_mac_foreign_del(const struct pti_fdbr *fr) {
+fdb_mac_foreign_del(const struct pti_fdbr *fr, uint8_t sid) {
   CPSS_MAC_ENTRY_EXT_KEY_STC key;
 
   if (fr->vid == 0 || fr->vid >= 0xFFF || fr->port.hwdev > 0x1f) {
@@ -944,12 +961,14 @@ fdb_mac_foreign_del(const struct pti_fdbr *fr) {
   memcpy (key.key.macVlan.macAddr.arEther, fr->mac, sizeof (fr->mac));
   key.key.macVlan.vlanId = fr->vid;
 
-//  return fdb_remove (&key, 1);
-  return fdb_remove (&key, 0);
+//DEBUG("====fdb_mac_foreign_del() " MAC_FMT  "-%d\n",
+//    MAC_ARG(key.key.macVlan.macAddr.arEther), key.key.macVlan.vlanId);
+
+  return fdb_remove (&key, 0, sid);
 }
 
 static enum status
-fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa) {
+fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa, uint8_t sid) {
   unsigned i;
   status_t status = ST_OK, s = ST_BAD_REQUEST;
   for (i = 0; i < n; i++) {
@@ -958,7 +977,7 @@ fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa) {
         s = fdb_mac_foreign_add(&fa[i]);
         break;
       case PTI_FDB_OP_DEL:
-        s = fdb_mac_foreign_del(&fa[i]);
+        s = fdb_mac_foreign_del(&fa[i], sid);
     }
     if (s != GT_OK)
       status = s;
@@ -1021,7 +1040,7 @@ DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO rem
   /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
   /*        u->macEntry.key.key.macVlan.vlanId); */
 
-  return fdb_remove (&u->macEntry.key, 0);
+  return fdb_remove (&u->macEntry.key, 0, stack_id);
 }
 
 static void
@@ -1109,7 +1128,6 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   frame = zmsg_next(msg);
   void *arg = zframe_data (frame);
   status_t status = ST_BAD_REQUEST;
-  unsigned n;
 
   switch (cmd) {
   case FCC_MAC_OP:
@@ -1144,13 +1162,6 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     DEBUG("FCC_MC_IP_OP\n"); // TODO remove
     status = fdb_mac_mc_ip_op (arg);
     DEBUG("===FCC_MC_IP_OP\n"); // TODO remove
-    break;
-  case FCC_MAC_OP_FOREIGN_BLCK:
-    DEBUG("FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
-    n = *((uint32_t*) arg);
-    arg = zframe_data (zmsg_next (msg));
-    status = fdb_mac_foreign_blck(n, arg);
-    DEBUG("===FCC_MAC_OP_FOREIGN_BLCK\n"); // TODO remove
     break;
   case FCC_FLUSH:
     if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
@@ -1444,7 +1455,7 @@ DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
 static void
 fdbman_handle_msg_master_update(const struct pti_fdbr_msg *msg, uint32_t len) {
 
-  fdb_mac_foreign_blck(msg->nfdb, msg->data);
+  fdb_mac_foreign_blck(msg->nfdb, msg->data, msg->stack_id);
 }
 
 static void
@@ -1460,7 +1471,7 @@ DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
         s = fdb_mac_foreign_add(&fa[i]);
         break;
       case PTI_FDB_OP_DEL:
-        s = fdb_mac_foreign_del(&fa[i]);
+        s = fdb_mac_foreign_del(&fa[i], msg->stack_id);
     }
     if (s == ST_OK) {
       memcpy(&fdbr[idx], &fa[i], sizeof(struct pti_fdbr));
@@ -1763,17 +1774,20 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
         case FST_MASTER:
           fdbman_newmaster = fdbman_master = msg->stack_id;
           fdbman_newserial = fdbman_serial = msg->serial;
+          fdbman_devsbmp = msg->devsbmp;
           fdbman_state = FST_MEMBER;
           break;
         case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_newmaster = fdbman_master = msg->stack_id;
             fdbman_newserial = fdbman_serial = msg->serial;
+            fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
           }
           else {
             fdbman_newmaster = fdbman_master = msg->stack_id;
             fdbman_newserial = fdbman_serial = msg->serial;
+            fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
             DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n", 
                 msg->stack_id, fdbman_newmaster);
@@ -1783,11 +1797,13 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_newmaster = fdbman_master = msg->stack_id;
             fdbman_newserial = fdbman_serial = msg->serial;
+            fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
           }
           else {
             fdbman_newmaster = fdbman_master = msg->stack_id;
             fdbman_newserial = fdbman_serial = msg->serial;
+            fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
             DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
                   msg->stack_id, fdbman_newmaster);
