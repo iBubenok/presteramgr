@@ -367,7 +367,8 @@ mac_op_udt (uint32_t daddr) {
 enum status
 mac_op_send_stg(void *buf) {
   return fdb_actl (FCC_FDBMAN_SEND_STG, buf,
-      sizeof (uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)buf);
+//      sizeof (uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)buf);
+      sizeof (struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)buf)->n);
 }
 
 enum status
@@ -1356,10 +1357,16 @@ DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
   fdb_msg->nfdb = 0;
   fdb_msg->devsbmp = ALL_DEVS;
   fdb_msg->serial = fdbman_serial;
-  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(uint8_t)
-    + sizeof(uint8_t)+ sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p;
+//  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(uint8_t)
+//    + sizeof(uint8_t)+ sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p;
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct vif_stgblk_header)
+    + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n;
   assert(msglen < TIPC_MSG_MAX_LEN);
-  memcpy(fdb_msg->data, p, sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p);
+//  memcpy(fdb_msg->data, p, sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p);
+  memcpy(fdb_msg->data, p, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
+
+//DEBUG("===fdbman_send_vifstg_get_reply() len==%d\n", sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
+//PRINTHexDump(fdb_msg->data, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
 
   fdbman_send_pkt(buf, msglen);
 }
@@ -1612,12 +1619,17 @@ DEBUG(">>>fdbman_handle_msg_vifstg_get() %x\n", msg->devsbmp);
 
 static void
 fdbman_handle_msg_vifstg_get_reply(struct pti_fdbr_msg *msg, uint32_t len) {
-  void *arg = msg->data;
+//  void *arg = msg->data;
+  struct vif_stgblk_header *arg = (struct vif_stgblk_header*) msg->data;
 DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
   if (! (msg->devsbmp & (1 << stack_id)))
     return;
+
+//DEBUG("===fdbman_handle_msg_vifstg_get_reply() len==%d\n", sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
+//PRINTHexDump(msg->data, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
   fdbman_send_control_cmd(SC_INT_VIFSTG_SET, arg,
-      sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)arg);
+//      sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)arg);
+      sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
 }
 
 static void

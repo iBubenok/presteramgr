@@ -40,6 +40,13 @@ struct vif {
   enum status (*set_mdix_auto) (struct vif *, int);
 };
 
+struct vif_stgblk_header {
+  uint8_t n;
+  uint8_t st_id;
+  serial_t serial;
+  uint8_t data[];
+};
+
 typedef struct vif *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
 
 extern vifp_single_dev_t vifp_by_hw[];

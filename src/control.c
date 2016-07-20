@@ -4223,8 +4223,9 @@ DEBUG("====DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) == %p\n", r);
 
 DEFINE_HANDLER (CC_INT_VIFSTG_GET) { /* to be called from one thread only*/
 DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
-  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) +
-    sizeof(struct vif_stg) * NPORTS + 20];
+//  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) +
+  static uint8_t buf[sizeof(struct vif_stgblk_header)
+    + sizeof(struct vif_stg) * NPORTS + 20];
   uint32_t dummy;
   enum status result;
   zmsg_t *reply;
