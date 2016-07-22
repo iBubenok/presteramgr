@@ -335,6 +335,7 @@ DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
+DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
 DECLARE_HANDLER (CC_MAC_MC_IP_OP);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
@@ -493,6 +494,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
+  HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
   HANDLER (CC_MAC_MC_IP_OP),
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
@@ -1606,6 +1608,39 @@ DEFINE_HANDLER (CC_MAC_LIST)
 
   zmsg_t *reply = make_reply (ST_OK);
   data_encode_fdb_addrs (reply, vid, pid);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_LIST_VIF)
+{
+  enum status result;
+  vid_t vid;
+  vif_id_t vifid;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(vid == ALL_VLANS || vlan_valid (vid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
+  result = POP_ARG (&vifid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(vifid == ALL_VIFS || vif_getn(vifid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  data_encode_fdb_addrs_vif (reply, vid, vifid);
   send_reply (reply);
   return;
 

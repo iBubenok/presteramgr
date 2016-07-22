@@ -27,6 +27,11 @@ struct trunk {
 
 extern struct trunk trunks[];
 
+static inline struct vif*
+vif_by_trunkid(GT_U8 trunkid) {
+  return (struct vif*) &trunks[trunkid];
+}
+
 extern void trunk_init (void);
 extern enum status trunk_set_members (trunk_id_t, int, struct trunk_member *);
 extern enum status trunk_set_balance_mode(traffic_balance_mode_t mode);
