@@ -39,6 +39,7 @@ extern enum status mac_op_send_stg(void *);
 extern enum status mac_set_aging_time (aging_time_t);
 extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
+extern enum status mac_flush_vif (const struct mac_age_arg_vif *, GT_BOOL);
 extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
 extern enum status mac_set_master (uint8_t, serial_t, devsbmp_t);

@@ -142,7 +142,6 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
 
 void
 data_encode_fdb_addrs_vif (zmsg_t *msg, vid_t vid, vif_id_t vif_target) {
-DEBUG(">>>>data_encode_fdb_addrs_vif (zmsg_t *msg, %d, %x)\n", vid, vif_target);
   GT_U32 i;
 
   for (i = 0; i < FDB_MAX_ADDRS; i++) {

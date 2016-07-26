@@ -30,6 +30,11 @@ struct fdb_flush_arg {
   GT_BOOL ds;
 };
 
+struct fdb_flush_arg_vif {
+  struct mac_age_arg_vif aav;
+  GT_BOOL ds;
+};
+
 enum fdb_ctl_cmd {
   FCC_MAC_OP,
   FCC_MAC_OP_VIF,
@@ -38,6 +43,7 @@ enum fdb_ctl_cmd {
   FCC_MC_IP_OP,
   FCC_MAC_OP_FOREIGN_BLCK,
   FCC_FLUSH,
+  FCC_FLUSH_VIF,
   FCC_SET_MASTER,
   FCC_FDBMAN_HANDLE_PKT,
   FCC_FDBMAN_SEND_RT,
@@ -70,6 +76,8 @@ enum fdbman_cmd {
   FMC_MASTER_UPDATE,
   FMC_FLUSH,
   FMC_MASTER_FLUSH,
+  FMC_FLUSH_VIF,
+  FMC_MASTER_FLUSH_VIF,
   FMC_MACOP,
   FMC_MASTER_MACOP,
   FMC_MASTER_RT,
@@ -137,6 +145,7 @@ static void fdbman_send_vifstg_get_reply (void *p);
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
+static void fdbman_send_msg_uni_flush_vif(const struct fdb_flush_arg_vif *arg, int master);
 static void fdbman_send_msg_uni_macop(const struct mac_op_arg_vif *arg, int own, int master);
 static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master);
 
@@ -387,6 +396,16 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
 }
 
 enum status
+mac_flush_vif (const struct mac_age_arg_vif *arg, GT_BOOL del_static)
+{
+  struct fdb_flush_arg_vif fa;
+  memcpy(&fa.aav, arg, sizeof(*arg));
+  fa.ds = del_static;
+
+  return fdb_actl (FCC_FLUSH_VIF, &fa, sizeof (fa));
+}
+
+enum status
 mac_set_aging_time (aging_time_t time)
 {
   GT_STATUS rc;
@@ -445,8 +464,6 @@ fdb_flush (const struct fdb_flush_arg *arg)
   GT_BOOL done[NDEVS];
   int d, all_done, i;
 
-//DEBUG("fdb_flush(.vid==%03hX, .port==%02hX, del_static==%d)\n", arg->vid, arg->port, del_static); //TODO remove
-
   if (arg->aa.vid == ALL_VLANS) {
     act_vid = 0;
     act_vid_mask = 0;
@@ -494,8 +511,6 @@ fdb_flush (const struct fdb_flush_arg *arg)
     done[d] = GT_FALSE;
   }
 
-//  unsigned fridx = 0;
-
   if (act_vid_mask && port_mask) {
     for (i = 0; i < FDB_MAX_ADDRS; i++)
       if (fdb[i].valid
@@ -521,6 +536,159 @@ fdb_flush (const struct fdb_flush_arg *arg)
       if (fdb[i].valid
           && fdb[i].me.dstInterface.devPort.devNum == act_dev
           && fdb[i].me.dstInterface.devPort.portNum == port
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
+        fdb[i].valid = 0;
+        fdb[i].secure = 0;
+      }
+  } else {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].valid
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
+        fdb[i].valid = 0;
+        fdb[i].secure = 0;
+      }
+  }
+
+  psec_after_flush ();
+
+  do {
+    all_done = 1;
+    for_each_dev (d) {
+      if (!done[d]) {
+        CRP (cpssDxChBrgFdbTrigActionStatusGet (d, &done[d]));
+        all_done &= !!done[d];
+      }
+    }
+    usleep (100);
+  } while (!all_done);
+
+  for_each_dev (d) {
+    CRP (cpssDxChBrgFdbActionActiveInterfaceSet
+         (d, s_is_trunk, s_is_trunk_mask, s_port, s_port_mask));
+    CRP (cpssDxChBrgFdbActionActiveDevSet (d, s_act_dev, s_act_dev_mask));
+    CRP (cpssDxChBrgFdbActionModeSet (d, s_act_mode));
+    CRP (cpssDxChBrgFdbActionActiveVlanSet (d, s_act_vid, s_act_vid_mask));
+    CRP (cpssDxChBrgFdbMacTriggerModeSet (d, s_mac_mode));
+    CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
+
+    CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
+  }
+
+  return ST_OK;
+}
+
+static enum status
+fdb_flush_vif (const struct fdb_flush_arg_vif *arg)
+{
+  CPSS_FDB_ACTION_MODE_ENT s_act_mode;
+  CPSS_MAC_ACTION_MODE_ENT s_mac_mode;
+  GT_U32 s_act_dev, s_act_dev_mask, act_dev, act_dev_mask;
+  GT_U16 s_act_vid, s_act_vid_mask, act_vid, act_vid_mask;
+  GT_U32 s_is_trunk, s_is_trunk_mask, is_trunk, is_trunk_mask;
+  GT_U32 s_port, s_port_mask, port, port_mask;
+  GT_BOOL done[NDEVS];
+  int d, all_done, i;
+
+  if (arg->aav.vid == ALL_VLANS) {
+    act_vid = 0;
+    act_vid_mask = 0;
+  } else {
+    if (!vlan_valid (arg->aav.vid))
+      return ST_BAD_VALUE;
+    act_vid = arg->aav.vid;
+    act_vid_mask = 0x0FFF;
+  }
+
+  if (arg->aav.vifid == ALL_VIFS) {
+    act_dev = 0;
+    act_dev_mask = 0;
+    port = 0;
+    port_mask = 0;
+    is_trunk = 0;
+    is_trunk_mask = 0;
+  } else {
+    CPSS_INTERFACE_INFO_STC iface;
+
+    vif_rlock();
+    struct vif *v = vif_getn (arg->aav.vifid);
+    v->fill_cpss_if(v, &iface);
+    if (!v) {
+      vif_unlock();
+      return ST_BAD_VALUE;
+    }
+    vif_unlock();
+
+    if (iface.type == CPSS_INTERFACE_PORT_E) {
+      act_dev = iface.devPort.devNum;
+      act_dev_mask = 31;
+      port = iface.devPort.portNum;
+      port_mask = 0x0000007F;
+      is_trunk = 0;
+      is_trunk_mask = 0;
+    }
+    else {
+      act_dev = 0;
+      act_dev_mask = 0;
+      port = iface.trunkId;
+      port_mask = 0x0000007F;
+      is_trunk = 1;
+      is_trunk_mask = 1;
+     }
+  }
+
+  for_each_dev (d) {
+    CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_FALSE));
+
+    CRP (cpssDxChBrgFdbActionModeGet (d, &s_act_mode));
+    CRP (cpssDxChBrgFdbMacTriggerModeGet (d, &s_mac_mode));
+    CRP (cpssDxChBrgFdbActionActiveDevGet (d, &s_act_dev, &s_act_dev_mask));
+    CRP (cpssDxChBrgFdbActionActiveVlanGet (d, &s_act_vid, &s_act_vid_mask));
+    CRP (cpssDxChBrgFdbActionActiveInterfaceGet
+         (d, &s_is_trunk, &s_is_trunk_mask, &s_port, &s_port_mask));
+    CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_FALSE));
+
+    CRP (cpssDxChBrgFdbActionActiveDevSet (d, act_dev, act_dev_mask));
+    CRP (cpssDxChBrgFdbActionActiveVlanSet (d, act_vid, act_vid_mask));
+    CRP (cpssDxChBrgFdbActionActiveInterfaceSet (d, is_trunk, is_trunk_mask, port, port_mask));
+    CRP (cpssDxChBrgFdbStaticDelEnable (d, arg->ds));
+    CRP (cpssDxChBrgFdbTrigActionStart (d, CPSS_FDB_ACTION_DELETING_E));
+
+    done[d] = GT_FALSE;
+  }
+
+  if (act_vid_mask && port_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].valid
+          && fdb[i].me.key.key.macVlan.vlanId == act_vid
+          && ((!is_trunk_mask && fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E
+               && fdb[i].me.dstInterface.devPort.devNum == act_dev
+               && fdb[i].me.dstInterface.devPort.portNum == port)
+            || (is_trunk_mask && fdb[i].me.dstInterface.type == CPSS_INTERFACE_TRUNK_E
+               && fdb[i].me.dstInterface.trunkId == port))
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
+        fdb[i].valid = 0;
+        fdb[i].secure = 0;
+      }
+  } else if (act_vid_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].valid
+          && fdb[i].me.key.key.macVlan.vlanId == act_vid
+          && (arg->ds || !fdb[i].me.isStatic)) {
+        psec_addr_del (&fdb[i].me);
+        fdb[i].valid = 0;
+        fdb[i].secure = 0;
+      }
+  } else if (port_mask) {
+    for (i = 0; i < FDB_MAX_ADDRS; i++)
+      if (fdb[i].valid
+          && ((!is_trunk_mask && fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E
+               && fdb[i].me.dstInterface.devPort.devNum == act_dev
+               && fdb[i].me.dstInterface.devPort.portNum == port)
+            || (is_trunk_mask && fdb[i].me.dstInterface.type == CPSS_INTERFACE_TRUNK_E
+               && fdb[i].me.dstInterface.trunkId == port))
           && (arg->ds || !fdb[i].me.isStatic)) {
         psec_addr_del (&fdb[i].me);
         fdb[i].valid = 0;
@@ -1144,9 +1312,8 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     }
     else {
       status = ST_OK;
-      fdbman_send_msg_uni_flush(arg, 0);
+      fdbman_send_msg_uni_macop(arg, 0, 0);
     }
-     status = fdb_mac_op_vif (arg, 0);
     DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
     break;
   case FCC_OWN_MAC_OP:
@@ -1172,6 +1339,16 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     else {
       status = ST_OK;
       fdbman_send_msg_uni_flush(arg, 0);
+    }
+    break;
+  case FCC_FLUSH_VIF:
+    if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
+      fdbman_send_msg_uni_flush_vif(arg, 1);
+      status = fdb_flush_vif (arg);
+    }
+    else {
+      status = ST_OK;
+      fdbman_send_msg_uni_flush_vif(arg, 0);
     }
     break;
   case FCC_SET_MASTER:
@@ -1425,6 +1602,23 @@ DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\
 }
 
 static void
+fdbman_send_msg_uni_flush_vif(const struct fdb_flush_arg_vif *arg, int master) {
+DEBUG(">>>fdbman_send_msg_uni_flush_vif(arg.aav.vid==%d, arg.aav.vifid=%x, arg.ds==%d)\n", arg->aav.vid, arg->aav.vifid, arg->ds);
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = (master) ? FMC_MASTER_FLUSH_VIF : FMC_FLUSH_VIF;
+  fdb_msg->nfdb = 0;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, arg, sizeof(*arg));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
 DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
@@ -1518,6 +1712,21 @@ fdbman_handle_msg_master_flush(struct pti_fdbr_msg *msg, uint32_t len) {
 DEBUG(">>>fdbman_handle_msg_master_flush(%p, %d)\n", msg, len);
   struct fdb_flush_arg *arg = (struct fdb_flush_arg *) msg->data;
   fdb_flush (arg);
+}
+
+static void
+fdbman_handle_msg_flush_vif(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_flush_vif(%p, %d)\n", msg, len);
+  struct fdb_flush_arg_vif *arg = (struct fdb_flush_arg_vif *) msg->data;
+  fdbman_send_msg_uni_flush_vif(arg, 1);
+  fdb_flush_vif (arg);
+}
+
+static void
+fdbman_handle_msg_master_flush_vif(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_master_flush_vif(%p, %d)\n", msg, len);
+  struct fdb_flush_arg_vif *arg = (struct fdb_flush_arg_vif *) msg->data;
+  fdb_flush_vif (arg);
 }
 
 static void
@@ -1883,6 +2092,35 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
+          break;
+      }
+      break;
+
+    case FMC_FLUSH_VIF:
+      switch (fdbman_state) {
+        case FST_MASTER:
+        case FST_PRE_MEMBER:
+          fdbman_handle_msg_flush_vif(msg, len);
+          break;
+        case FST_MEMBER:
+          break;
+      }
+      break;
+
+    case FMC_MASTER_FLUSH_VIF:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
+        break;
+      }
+      switch (fdbman_state) {
+        case FST_MASTER:
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH_VIF\n");
+          break;
+        case FST_PRE_MEMBER:
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
+          break;
+        case FST_MEMBER:
+          fdbman_handle_msg_master_flush_vif(msg, len);
           break;
       }
       break;

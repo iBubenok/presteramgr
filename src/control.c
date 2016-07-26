@@ -337,6 +337,7 @@ DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
+DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF);
 DECLARE_HANDLER (CC_MAC_MC_IP_OP);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
@@ -496,6 +497,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
+  HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF),
   HANDLER (CC_MAC_MC_IP_OP),
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
@@ -1658,6 +1660,21 @@ DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
     goto out;
 
   result = mac_flush (&aa, GT_FALSE);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF)
+{
+  enum status result;
+  struct mac_age_arg_vif aa;
+
+  result = POP_ARG (&aa);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_flush_vif (&aa, GT_FALSE);
 
  out:
   report_status (result);
