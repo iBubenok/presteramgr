@@ -9,8 +9,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 
-#include <stack.h>
 #include <stackd.h>
+#include <stack.h>
 #include <vlan.h>
 #include <mcg.h>
 #include <dev.h>
@@ -22,17 +22,75 @@
 #include <pcl.h>
 #include <sysdeps.h>
 #include <qos.h>
+#include <mac.h>
 #include <debug.h>
 
-int stack_id = 0;
+int stack_id = 0, master_id;
+uint8_t master_mac[6] = {0, 0, 0, 0, 0, 0};
 struct port *stack_pri_port = NULL, *stack_sec_port = NULL;
 static int ring = 0;
 static uint32_t dev_bmp  = 0;
 static uint32_t dev_mask = 0;
+static serial_t stack_serial = 0;
 
 static struct stackd_unit stack_units[MAX_STACK_UNITS+1];
 static struct stackd_unit stack_units_update[MAX_STACK_UNITS+1];
 
+
+void
+stack_init (void)
+{
+  const char *mac, *p;
+  char *e;
+  int i;
+
+  master_id = stack_id;
+
+  mac = getenv ("MAC");
+  if (!mac) {
+    ERR ("MAC environment variable not defined\r\n");
+    exit (1);
+  }
+
+  for (i = 0, p = mac; i < 6; i++, p = e + 1) {
+    unsigned long b = strtoul (p, &e, 16);
+    if ((b > 255) || ((i < 5) && (*e != ':'))) {
+      ERR ("bad MAC environment variable format\r\n");
+      exit (1);
+    }
+    master_mac[i] = b;
+  }
+  if (*e) {
+    ERR ("bad MAC environment variable format\r\n");
+    exit (1);
+  }
+}
+
+enum status
+stack_set_master (uint8_t master, uint64_t serial, devsbmp_t dbmp, const uint8_t *mac)
+{
+DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
+  if (master > 16)
+    return ST_BAD_VALUE;
+
+  master_id = master;
+  if (stack_serial > serial)
+    DEBUG ("Stacking error, old stack configuration serial %llu is bigger or equal to new stack conf %llu\n",
+        stack_serial, serial);
+  stack_serial = serial;
+  memcpy (master_mac, mac, 6);
+
+  mac_set_master(master, serial, dbmp);
+
+  int d;
+  for_each_dev (d) {
+    CRP (cpssDxChNetIfCpuCodeDesignatedDeviceTableSet
+         (d, 1, master));
+  }
+  DEBUG("cpssDxChNetIfCpuCodeDesignatedDeviceTableSet (d, 1, %d))\n", master);
+
+  return ST_OK;
+}
 
 void
 stack_start (void)

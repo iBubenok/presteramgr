@@ -10,8 +10,11 @@
 #include <arpc.h>
 #include <ret.h>
 #include <control-proto.h>
+#include <stack.h>
+#include <mac.h>
 #include <zcontext.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <sys/types.h>
 #include <fcntl.h>
@@ -51,11 +54,15 @@ arpc_send_set_mac_addr (const mac_addr_t addr) {
   zmsg_send (&msg, arpd_sock);
 }
 
-static void
+void
 arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd) {
 
   if (!arpc_sock_ready)
     return;
+  if (stack_id != master_id) {
+    mac_op_opna(gw, cmd);
+    return;
+  }
   zmsg_t *msg = zmsg_new ();
 
   zmsg_addmem (msg, &cmd, sizeof (cmd));
@@ -83,8 +90,10 @@ void
 arpc_set_mac_addr (arpd_ip_addr_t ip,
                    arpd_vid_t vid,
                    const uint8_t *mac,
-                   arpd_port_id_t pid)
+                   arpd_vif_id_t vif)
 {
+DEBUG(">>>>arpc_set_mac_addr (%x, %d, " MAC_FMT ", %x)\n",
+    ip, vid, MAC_ARG(mac), vif);
   GT_IPADDR ip_addr;
   GT_ETHERADDR mac_addr;
   struct gw gw;
@@ -92,5 +101,5 @@ arpc_set_mac_addr (arpd_ip_addr_t ip,
   ip_addr.u32Ip = ip;
   route_fill_gw (&gw, &ip_addr, vid);
   memcpy (mac_addr.arEther, mac, 6);
-  ret_set_mac_addr (&gw, &mac_addr, pid);
+  ret_set_mac_addr (&gw, &mac_addr, vif);
 }

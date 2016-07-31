@@ -30,10 +30,14 @@ extern enum status route_add_mgmt_ip (ip_addr_t);
 extern enum status route_del_mgmt_ip (ip_addr_t);
 extern enum status route_set_router_mac_addr (mac_addr_t);
 extern void route_update_table (const struct gw *, int);
+extern void route_handle_udaddr (uint32_t);
 extern void route_handle_udt (const uint8_t *, int);
 extern enum status route_mc_add (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
 extern enum status route_mc_del (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
+extern void *route_get_udaddrs(void);
+extern void route_reset_prefixes4gw(struct gw *);
+extern void route_dump(void);
 
 #endif /* __ROUTE_H__ */

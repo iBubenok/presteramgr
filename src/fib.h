@@ -14,5 +14,9 @@ extern void fib_add (uint32_t, uint8_t, vid_t, uint32_t);
 extern int fib_del (uint32_t, uint8_t);
 extern const struct fib_entry *fib_route (uint32_t);
 extern struct fib_entry *fib_get (uint32_t, uint8_t);
+extern struct fib_entry *fib_unhash_child (uint32_t, uint8_t);
+extern void fib_clear_routing(void);
+extern void *fib_get_routes(void);
+extern void fib_dump(void);
 
 #endif /* __FIB_H__ */

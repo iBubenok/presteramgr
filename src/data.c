@@ -5,7 +5,9 @@
 #include <data.h>
 #include <mac.h>
 #include <port.h>
+#include <trunk.h>
 #include <log.h>
+#include <utils.h>
 
 enum status
 data_encode_port_state (struct port_link_state *state,
@@ -83,17 +85,43 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
   port_id_t p;
 
   for (i = 0; i < FDB_MAX_ADDRS; i++) {
+
+  if (fdb[i].valid ) { // TODO remove operator & block
+    DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+          "%hX,  %s\n",
+          i, fdb[i].me.key.entryType, fdb[i].me.dstInterface.type, MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther),
+          fdb[i].me.dstInterface.devPort.devNum, fdb[i].me.dstInterface.devPort.portNum,
+          fdb[i].me.dstInterface.trunkId, fdb[i].me.key.key.macVlan.vlanId, fdb[i].pc_aging_status,
+          (fdb[i].me.userDefined == 0)? "UNUSED" : (fdb[i].me.userDefined == 1)? "FOREIGN" : (fdb[i].me.userDefined == 2)? "DYNAMIC" : (fdb[i].me.userDefined == 3)? "STATIC" : (fdb[i].me.userDefined == 4)? "OWN": "UNKNOWN" );
+  }
+
+/*  GT_BOOL fvalid = 0xff, fskip=0xff, faged=0xff; //TODO remove block
+  GT_U8 fdev= 0xff;
+  CPSS_MAC_ENTRY_EXT_STC fme;
+  cpssDxChBrgFdbMacEntryRead(0, i, &fvalid, &fskip, &faged, &fdev, &fme);
+  if (fvalid || faged || fskip || fme.key.key.macVlan.vlanId) {
+    DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+          " %s, %d:%d:%d:%d\n",
+          i, fme.key.entryType, fme.dstInterface.type, MAC_ARG(fme.key.key.macVlan.macAddr.arEther),
+          fme.dstInterface.devPort.devNum, fme.dstInterface.devPort.portNum,
+          fme.dstInterface.trunkId, fme.key.key.macVlan.vlanId,
+          (fme.userDefined == 0)? "UNUSED" : (fme.userDefined == 1)? "FOREIGN" : (fme.userDefined == 2)? "DYNAMIC" : (fme.userDefined == 3)? "STATIC" : (fme.userDefined == 4)? "OWN": "UNKNOWN", fvalid, fskip, faged, fdev );
+  }
+*/
     if (fdb[i].valid &&
         fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
         (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&
         fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E &&
-        ((p = port_id (fdb[i].me.dstInterface.devPort.devNum,
-                      fdb[i].me.dstInterface.devPort.portNum)) &&
+/*        ((p = port_id (fdb[i].me.dstInterface.devPort.devNum,
+                        fdb[i].me.dstInterface.devPort.portNum))  */
+        ((p = port_id (stack_id,    /* FIXME do it a right way through gif  */
+                        fdb[i].me.dstInterface.devPort.portNum)) &&
          (pid == ALL_PORTS || pid == p))
         && fdb[i].me.key.key.macVlan.vlanId != 4095) {
       struct {
         struct mac_entry me;
         port_id_t ports[1];
+        uint16_t dev;
       } __attribute__ ((packed)) tmp;
 
       memcpy (tmp.me.mac, fdb[i].me.key.key.macVlan.macAddr.arEther, 6);
@@ -105,6 +133,68 @@ data_encode_fdb_addrs (zmsg_t *msg, vid_t vid, port_id_t pid)
       else
         tmp.me.type = MET_DYNAMIC;
       tmp.ports[0] = p;
+      tmp.dev = fdb[i].me.dstInterface.devPort.devNum;
+
+      zmsg_addmem (msg, &tmp, sizeof (tmp));
+    }
+  }
+}
+
+void
+data_encode_fdb_addrs_vif (zmsg_t *msg, vid_t vid, vif_id_t vif_target) {
+  GT_U32 i;
+
+  for (i = 0; i < FDB_MAX_ADDRS; i++) {
+    struct vif *vif;
+
+if (fdb[i].valid ) { // TODO remove operator & block
+  DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+        "%hX,  %s\n",
+        i, fdb[i].me.key.entryType, fdb[i].me.dstInterface.type, MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther),
+        fdb[i].me.dstInterface.devPort.devNum, fdb[i].me.dstInterface.devPort.portNum,
+        fdb[i].me.dstInterface.trunkId, fdb[i].me.key.key.macVlan.vlanId, fdb[i].pc_aging_status,
+        (fdb[i].me.userDefined == 0)? "UNUSED" : (fdb[i].me.userDefined == 1)? "FOREIGN" : (fdb[i].me.userDefined == 2)? "DYNAMIC" : (fdb[i].me.userDefined == 3)? "STATIC" : (fdb[i].me.userDefined == 4)? "OWN": "UNKNOWN" );
+}
+
+/*  GT_BOOL fvalid = 0xff, fskip=0xff, faged=0xff; //TODO remove block
+  GT_U8 fdev= 0xff;
+  CPSS_MAC_ENTRY_EXT_STC fme;
+  cpssDxChBrgFdbMacEntryRead(0, i, &fvalid, &fskip, &faged, &fdev, &fme);
+  if (fvalid || faged || fskip || fme.key.key.macVlan.vlanId) {
+    DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+          " %s, %d:%d:%d:%d\n",
+          i, fme.key.entryType, fme.dstInterface.type, MAC_ARG(fme.key.key.macVlan.macAddr.arEther),
+          fme.dstInterface.devPort.devNum, fme.dstInterface.devPort.portNum,
+          fme.dstInterface.trunkId, fme.key.key.macVlan.vlanId,
+          (fme.userDefined == 0)? "UNUSED" : (fme.userDefined == 1)? "FOREIGN" : (fme.userDefined == 2)? "DYNAMIC" : (fme.userDefined == 3)? "STATIC" : (fme.userDefined == 4)? "OWN": "UNKNOWN", fvalid, fskip, faged, fdev );
+  }
+*/
+
+    if (fdb[i].valid &&
+        fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
+        (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&
+        ((fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E
+          && fdb[i].me.dstInterface.devPort.portNum != CPSS_CPU_PORT_NUM_CNS
+          && (vif = vif_by_hw(fdb[i].me.dstInterface.devPort.devNum,
+                              fdb[i].me.dstInterface.devPort.portNum)))
+         || (fdb[i].me.dstInterface.type == CPSS_INTERFACE_TRUNK_E
+             && (vif = vif_by_trunkid(fdb[i].me.dstInterface.trunkId))))
+         && (vif_target == ALL_VIFS || vif_target == vif->id)
+        && fdb[i].me.key.key.macVlan.vlanId != 4095) {
+      struct {
+        struct mac_entry me;
+        vif_id_t vifid;
+      } __attribute__ ((packed)) tmp;
+
+      memcpy (tmp.me.mac, fdb[i].me.key.key.macVlan.macAddr.arEther, 6);
+      tmp.me.vid = fdb[i].me.key.key.macVlan.vlanId;
+      if (fdb[i].secure)
+        tmp.me.type = MET_SECURE;
+      else if (fdb[i].me.isStatic)
+        tmp.me.type = MET_STATIC;
+      else
+        tmp.me.type = MET_DYNAMIC;
+      tmp.vifid = vif->id;
 
       zmsg_addmem (msg, &tmp, sizeof (tmp));
     }

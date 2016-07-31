@@ -19,6 +19,8 @@
 #include <arpc.h>
 #include <sysdeps.h>
 #include <mcg.h>
+#include <mac.h>
+#include <stack.h>
 #include <debug.h>
 #include <utils.h>
 
@@ -37,6 +39,7 @@
 
 struct pfx_by_pfx {
   struct route_pfx pfx;
+  uint32_t udaddr;
   UT_hash_handle hh;
 };
 
@@ -191,7 +194,7 @@ route_start (void)
 }
 
 static void
-route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t udaddr)
 {
   GT_IPADDR ip;
   struct gw gw;
@@ -225,6 +228,7 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
   if (!pbp) {
     pbp = calloc (1, sizeof (*pbp));
     pbp->pfx = pfx;
+    pbp->udaddr = udaddr;
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 }
@@ -275,6 +279,9 @@ route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 enum status
 route_add (const struct route *rt)
 {
+DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   fib_add (ntohl (rt->pfx.addr.u32Ip),
            rt->pfx.alen,
            rt->vid,
@@ -362,6 +369,9 @@ route_del_fib_entry (struct fib_entry *e)
 enum status
 route_del (const struct route *rt)
 {
+DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
     DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
@@ -374,6 +384,8 @@ route_del (const struct route *rt)
 enum status
 route_add_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
   GT_IPADDR ga;
   GT_STATUS rc;
@@ -391,6 +403,7 @@ route_add_mgmt_ip (ip_addr_t addr)
 enum status
 route_del_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
   GT_STATUS rc;
   GT_IPADDR ga;
 
@@ -438,6 +451,32 @@ route_prefix_set_drop (uint32_t ip, int len)
 }
 
 static void
+route_prefix_set_trap (uint32_t ip, int len)
+{
+DEBUG(">>>>route_prefix_set_trap (%x, %d)\n", ip, len);
+  if (len) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPADDR addr;
+
+    addr.u32Ip = htonl (ip);
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+  } else {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
+}
+
+static void
 route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 {
   struct gw gw;
@@ -462,24 +501,12 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
-route_handle_udt (const uint8_t *data, int len)
-{
-  uint32_t daddr, rt;
+route_handle_udaddr (uint32_t daddr) {
+DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
+  uint32_t rt;
   int alen;
   const struct fib_entry *e;
 
-  if (len < MIN_IPv4_PKT_LEN) {
-    DEBUG ("frame length %d too small\r\n", len);
-    return;
-  }
-
-  if ((data[12] != 0x08) ||
-      (data[13] != 0x00)) {
-    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
-    return;
-  }
-
-  daddr = ntohl (*((uint32_t *) (data + 30)));
   e = fib_route (daddr);
   if (!e) {
     DEBUG ("can't route for %d.%d.%d.%d\r\n",
@@ -496,7 +523,7 @@ route_handle_udt (const uint8_t *data, int len)
     alen = 32;
   }
   route_prefix_set_drop (fib_entry_get_pfx (e), alen);
-  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e));
+  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e), daddr);
   route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen);
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
@@ -504,6 +531,31 @@ route_handle_udt (const uint8_t *data, int len)
          (daddr >> 8) & 0xFF, daddr & 0xFF,
          (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
          (rt >> 8) & 0xFF, rt & 0xFF);
+}
+
+void
+route_handle_udt (const uint8_t *data, int len)
+{
+  uint32_t daddr;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x08) ||
+      (data[13] != 0x00)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  daddr = ntohl (*((uint32_t *) (data + 30)));
+
+  if (master_id == stack_id) {
+    mac_op_udt(daddr);
+  }
+
+  route_handle_udaddr (daddr);
 }
 
 enum status
@@ -618,4 +670,92 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
  out_err:
   DEBUG ("Prefix was not found/\n");
   return ST_HEX;
+}
+
+void *
+route_get_udaddrs(void) {
+  uint32_t n = 0;
+  struct pfxs_by_gw *s, *t;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        n++;
+      }
+    }
+  }
+
+  void *r = malloc(sizeof(n) + sizeof(uint32_t) * n);
+  if (!r)
+    return NULL;
+
+  *(uint32_t*)r = n;
+  uint32_t *r1 = (uint32_t*)r + 1;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        *r1++ = s1->udaddr;
+      }
+    }
+  }
+  return r;
+}
+
+void
+route_reset_prefixes4gw(struct gw * gw) {
+  struct pfxs_by_gw *s;
+  struct pfx_by_pfx *s1,*t1;
+
+  HASH_FIND_GW (pfxs_by_gw, gw, s);
+  if (!s) {
+    DEBUG("GW: %x/%d not found. exiting\n", ntohl(gw->addr.u32Ip), gw->vid);
+    return;
+  }
+  HASH_ITER (hh, s->pfxs, s1, t1) {
+    struct route_pfx cache_pfx;
+    memcpy(&cache_pfx, &s1->pfx, sizeof(cache_pfx));
+
+    if (!s1->pfx.alen) { /* default route */
+      route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+      route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+    }
+    else {
+      if (s1->pfx.alen == 32) {
+        struct fib_entry *f = fib_unhash_child(ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen);
+        if (!f) {
+          DEBUG("connected fib child not found. next_iter\n");
+          continue;
+        }
+        route_del_fib_entry (f);
+        free(f);
+      }
+      else {
+        route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+        route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+      }
+    }
+  }
+}
+
+void
+route_dump(void) {
+  struct pfxs_by_gw *s, *t;
+  DEBUG("!!!! ROUTE DUMP  !!!!\n");
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
+      }
+    }
+  }
+  DEBUG("!!!! end GW DUMP!!!!\n\n");
+/*struct pfxs_by_gw {
+  struct gw gw;
+  struct pfx_by_pfx *pfxs;
+  UT_hash_handle hh;
+};*/
+
 }

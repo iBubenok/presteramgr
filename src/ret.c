@@ -12,6 +12,7 @@
 #include <ret.h>
 #include <arpc.h>
 #include <port.h>
+#include <vif.h>
 #include <route.h>
 #include <debug.h>
 #include <route-p.h>
@@ -59,7 +60,7 @@ struct re {
   uint16_t idx;
   GT_ETHERADDR addr;
   uint16_t nh_idx;
-  port_id_t pid;
+  vif_id_t vif_id;
   int refc;
   UT_hash_handle hh;
 };
@@ -78,15 +79,19 @@ ret_add (const struct gw *gw, int def)
       re->def = 1;
       if (re->valid) {
         CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-        struct port *port = port_ptr (re->pid);
+//        struct port *port = port_ptr (re->pid);
+        struct vif *vif = vif_getn (re->vif_id);
+        if (!vif)
+          return re->idx;
         int d;
 
         memset (&rt, 0, sizeof (rt));
         rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
         rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+        vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
         DEBUG ("write default route entry\r\n");
@@ -159,15 +164,15 @@ ret_unref (const struct gw *gw, int def)
 }
 
 enum status
-ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
+ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id)
 {
   struct re *re;
   int idx, nh_idx, d;
   CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
   GT_STATUS rc;
-  struct port *port = port_ptr (pid);
+  struct vif *vif = vif_getn (vif_id);
 
-  if (!port)
+  if (!vif)
     return ST_HEX;
 
   HASH_FIND_GW (ret, gw, re);
@@ -178,9 +183,10 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+    vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
     rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
     rt.entry.regularEntry.nextHopVlanId = gw->vid;
     DEBUG ("write route entry");
@@ -188,6 +194,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
       rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
     if (rc != ST_OK)
       return ST_HEX;
+
+    re->vif_id = vif_id;
 
     if (re->def) {
       DEBUG ("write default route entry");
@@ -199,7 +207,7 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   }
 
   memcpy (&re->addr, addr, sizeof (*addr));
-  re->pid = pid;
+  re->vif_id = vif_id;
 
   nh_idx = nht_add (addr);
   if (nh_idx < 0)
@@ -212,9 +220,10 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, port_id_t pid)
   memset (&rt, 0, sizeof (rt));
   rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
   rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
   DEBUG ("write route entry at %d\r\n", idx);
@@ -546,4 +555,46 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 
   // We should not get here
   return -2;
+}
+
+void
+ret_clear_devs_res(devsbmp_t dbmp) {
+DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
+  struct re *s, *t;
+  HASH_ITER (hh, ret, s, t) {
+    if (in_range (((struct vif_id *)&s->vif_id)->type, VIFT_FE, VIFT_XG)
+        && ((1 << ((struct vif_id *)&s->vif_id)->dev) & dbmp)) {
+      DEBUG("deleting re:\n");
+      DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+          IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,
+          MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
+      route_reset_prefixes4gw (&s->gw);
+    }
+  }
+}
+
+void
+ret_dump(void) {
+  struct re *s, *t;
+  DEBUG("!!!! RET DUMP %d  !!!!\n", re_cnt);
+  DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
+  HASH_ITER (hh, ret, s, t) {
+    DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+        IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,
+        MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
+  }
+  DEBUG("!!!! end RET DUMP!!!!\n\n");
+/*
+struct re {
+  struct gw gw;
+  int valid;
+  int def;
+  uint16_t idx;
+  GT_ETHERADDR addr;
+  uint16_t nh_idx;
+  vif_id_t vif_id;
+  int refc;
+  UT_hash_handle hh;
+};
+*/
 }

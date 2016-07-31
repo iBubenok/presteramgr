@@ -9,6 +9,7 @@
 #include <control-proto.h>
 #include <sysdeps.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -120,4 +121,15 @@ nht_init (void)
   nhs.sp = 0;
 
   return ST_OK;
+}
+
+void
+nht_dump (void) {
+  struct nexthop *s, *t;
+  DEBUG("!!!! NHT DUMP!!!!\n");
+  HASH_ITER (hh, nht, s, t) {
+    DEBUG(MAC_FMT ",    %08d:%02d\n",
+        MAC_ARG(s->addr.arEther), s->idx, s->refc);
+  }
+  DEBUG("!!!! end NHT DUMP!!!!\n\n");
 }

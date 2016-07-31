@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <log.h>
+#include <czmq.h>
 #include <stdint.h>
 #include <netinet/in.h>
 
@@ -134,5 +135,29 @@ is_llc_snap_frame__ (void* frame, int len) {
 }
 
 #define is_llc_snap_frame(frame, len) is_llc_snap_frame__(frame, len)
+
+struct _zmsg_t {
+  zlist_t *frames;
+  size_t content_size;
+};
+
+#define DEBUG_ZMSG_SEND(self_p, socket) \
+do { zmsg_t **sself = (zmsg_t**)(self_p); \
+  struct _zmsg_t *self = *sself; \
+    if (self) { \
+      zframe_t *frame = (zframe_t *) zlist_pop (self->frames); \
+      while (frame) { \
+        int rc; \
+        rc = zframe_send (&frame, socket, \
+        zlist_size (self->frames)? ZFRAME_MORE: 0); \
+        if (rc != 0) { \
+          DEBUG ("DEBUG_ZMSG_SEND: UNABLE to zframe_send " #self_p " with rc==%d, message: %s", \
+              rc, strerror(rc)); \
+        } \
+        frame = (zframe_t *) zlist_pop (self->frames); \
+      } \
+   zmsg_destroy (sself); \
+   } \
+} while (0)
 
 #endif /* __UTILS_H__ */

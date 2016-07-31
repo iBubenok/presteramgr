@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <control.h>
 #include <control-proto.h>
+#include <vif.h>
 #include <port.h>
 #include <data.h>
 #include <sysdeps.h>
@@ -22,6 +23,7 @@
 #include <debug.h>
 #include <wnct.h>
 #include <mcg.h>
+#include <fib.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -37,6 +39,9 @@
 #include <gif.h>
 #include <pcl.h>
 #include <ip.h>
+
+#include <nht.h>
+#include <fib.h>
 
 #include <gtOs/gtOsTask.h>
 
@@ -74,6 +79,23 @@ forwarder_thread (void *dummy)
   return NULL;
 }
 
+void
+control_pre_mac_init(void) {
+
+  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  assert (stack_cmd_sock);
+  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+
+  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (cmd_sock);
+  zsocket_bind (cmd_sock, CMD_SOCK_EP);
+
+  inp_sock = zsocket_new (zcontext, ZMQ_REP);
+  assert (inp_sock);
+  zsocket_bind (inp_sock, INP_SOCK_EP);
+
+}
+
 int
 control_init (void)
 {
@@ -109,15 +131,11 @@ control_init (void)
   rc = zsocket_bind (inp_pub_sock, INP_PUB_SOCK_EP);
 
   pthread_create (&tid, NULL, forwarder_thread, NULL);
-
-  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
-  assert (cmd_sock);
-  rc = zsocket_bind (cmd_sock, CMD_SOCK_EP);
-
+/*
   inp_sock = zsocket_new (zcontext, ZMQ_REP);
   assert (inp_sock);
   rc = zsocket_bind (inp_sock, INP_SOCK_EP);
-
+*/
   evt_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (evt_sock);
   rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
@@ -133,10 +151,6 @@ control_init (void)
   arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
   assert (arpd_sock);
   zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
-
-  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
-  assert (stack_cmd_sock);
-  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
   fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (fdb_sock);
@@ -185,6 +199,12 @@ static inline void
 put_port_id (zmsg_t *msg, port_id_t pid)
 {
   zmsg_addmem (msg, &pid, sizeof (pid));
+}
+
+static inline void
+put_vif_id (zmsg_t *msg, vif_id_t vifid)
+{
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
 }
 
 static inline void
@@ -285,7 +305,9 @@ DECLARE_HANDLER (CC_PORT_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
+DECLARE_HANDLER (CC_VIF_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
+DECLARE_HANDLER (CC_VIF_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
@@ -309,9 +331,12 @@ DECLARE_HANDLER (CC_VLAN_SET_CPU);
 DECLARE_HANDLER (CC_VLAN_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
+DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
+DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC);
+DECLARE_HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF);
 DECLARE_HANDLER (CC_MAC_MC_IP_OP);
 DECLARE_HANDLER (CC_QOS_SET_MLS_QOS_TRUST);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
@@ -372,8 +397,11 @@ DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
 DECLARE_HANDLER (CC_WNCT_ENABLE_PROTO);
 DECLARE_HANDLER (CC_GET_HW_PORTS);
 DECLARE_HANDLER (CC_SET_HW_PORTS);
+DECLARE_HANDLER (CC_GET_VIF_PORTS);
+DECLARE_HANDLER (CC_SET_VIF_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_GIF_TX);
+DECLARE_HANDLER (CC_VIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
@@ -412,9 +440,21 @@ DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 DECLARE_HANDLER (CC_PCL_GET_COUNTER);
 DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
+DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
+DECLARE_HANDLER (CC_INT_GET_RT_CMD);
+DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
+DECLARE_HANDLER (CC_INT_VIFSTG_GET);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
+DECLARE_HANDLER (SC_INT_RTBD_CMD);
+DECLARE_HANDLER (SC_INT_NA_CMD);
+DECLARE_HANDLER (SC_INT_OPNA_CMD);
+DECLARE_HANDLER (SC_INT_UDT_CMD);
+DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
+DECLARE_HANDLER (SC_INT_VIFSTG_SET);
+DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
+
 
 static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
@@ -428,7 +468,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
   HANDLER (CC_PORT_SET_SPEED),
+  HANDLER (CC_VIF_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
+  HANDLER (CC_VIF_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
@@ -452,9 +494,12 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_SET_MAC_ADDR),
   HANDLER (CC_VLAN_DUMP),
   HANDLER (CC_MAC_OP),
+  HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
   HANDLER (CC_MAC_LIST),
+  HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_FLUSH_DYNAMIC),
+  HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF),
   HANDLER (CC_MAC_MC_IP_OP),
   HANDLER (CC_QOS_SET_MLS_QOS_TRUST),
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS),
@@ -515,8 +560,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_WNCT_ENABLE_PROTO),
   HANDLER (CC_GET_HW_PORTS),
   HANDLER (CC_SET_HW_PORTS),
+  HANDLER (CC_GET_VIF_PORTS),
+  HANDLER (CC_SET_VIF_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_GIF_TX),
+  HANDLER (CC_VIF_TX),
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
@@ -524,6 +572,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
   HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
   HANDLER (CC_VLAN_IGMP_SNOOP),
@@ -555,11 +604,22 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARPD_SOCK_CONNECT),
   HANDLER (CC_PCL_GET_COUNTER),
   HANDLER (CC_PCL_CLEAR_COUNTER),
-  HANDLER (CC_LOAD_BALANCE_MODE)
+  HANDLER (CC_STACK_SET_MASTER),
+  HANDLER (CC_LOAD_BALANCE_MODE),
+  HANDLER (CC_INT_GET_RT_CMD),
+  HANDLER (CC_INT_GET_UDADDRS_CMD),
+  HANDLER (CC_INT_VIFSTG_GET)
 };
 
 static cmd_handler_t stack_handlers[] = {
-  HANDLER (SC_UPDATE_STACK_CONF)
+  HANDLER (SC_UPDATE_STACK_CONF),
+  HANDLER (SC_INT_RTBD_CMD),
+  HANDLER (SC_INT_NA_CMD),
+  HANDLER (SC_INT_OPNA_CMD),
+  HANDLER (SC_INT_UDT_CMD),
+  HANDLER (SC_INT_CLEAR_RT_CMD),
+  HANDLER (SC_INT_VIFSTG_SET),
+  HANDLER (SC_INT_CLEAR_RE_CMD)
 };
 
 static int
@@ -570,6 +630,7 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+__attribute__ ((unused))
 static int
 secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
@@ -578,6 +639,7 @@ secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   return 0;
 }
 
+__attribute__ ((unused))
 static int
 fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 {
@@ -597,6 +659,9 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
   case RCN_IP_ADDR:
     frame = zmsg_next (msg);
     struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
+
+    mac_op_rt(notif, am, sizeof(*am));
+
     ip_addr_t addr;
     memcpy (&addr, &am->addr, 4);
     switch (am->op) {
@@ -612,8 +677,17 @@ rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     break;
 
   case RCN_ROUTE:
+    if (stack_id != master_id) {
+DEBUG("RTBD DROP!!!!\n");
+      zmsg_destroy (&msg);
+      return ST_OK;
+    }
+
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
+
+    mac_op_rt(notif, rm, sizeof(*rm));
+
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
     rt.pfx.alen = rm->dst_len;
@@ -652,8 +726,10 @@ arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
     struct arpd_ip_addr_msg *iam =
       (struct arpd_ip_addr_msg *) zframe_data (frame);
 
+    mac_op_na(iam);
+
     arpc_set_mac_addr
-      (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->port_id);
+      (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
     break;
 
   default:
@@ -710,13 +786,126 @@ control_loop (void *dummy)
 DEFINE_HANDLER (SC_UPDATE_STACK_CONF) {
 
 DEBUG("===SC_UPDATE_STACK_CONF\n");
-  enum status result = ST_BAD_FORMAT;
   zframe_t *frame = FIRST_ARG;
   if (!frame)
     return;
 
-  result = stack_update_conf(zframe_data(frame), zframe_size(frame));
+  stack_update_conf(zframe_data(frame), zframe_size(frame));
 }
+
+DEFINE_HANDLER (SC_INT_RTBD_CMD) {
+
+DEBUG("===SC_INT_RTBD_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct rtbd_ip_addr_msg *am;
+  struct rtbd_route_msg *rm;
+  rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  switch (notif) {
+  case RCN_IP_ADDR:
+    am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
+    ip_addr_t addr;
+    memcpy (&addr, &am->addr, 4);
+    switch (am->op) {
+    case RIAO_ADD:
+      route_add_mgmt_ip (addr);
+      break;
+    case RIAO_DEL:
+      route_del_mgmt_ip (addr);
+      break;
+    default:
+      break;
+    }
+    break;
+
+  case RCN_ROUTE:
+    rm = (struct rtbd_route_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
+    struct route rt;
+    rt.pfx.addr.u32Ip = rm->dst;
+    rt.pfx.alen = rm->dst_len;
+    rt.gw.u32Ip = rm->gw;
+    rt.vid = rm->vid;
+    switch (rm->op) {
+    case RRTO_ADD:
+      route_add (&rt);
+      break;
+    case RRTO_DEL:
+      route_del (&rt);
+      break;
+    default:
+      break;
+    }
+    break;
+
+  default:
+    break;
+  }
+}
+
+DEFINE_HANDLER (SC_INT_NA_CMD) {
+DEBUG("===SC_INT_NA_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct arpd_ip_addr_msg *iam =
+    (struct arpd_ip_addr_msg *) zframe_data (frame);
+  arpc_set_mac_addr
+    (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+}
+
+DEFINE_HANDLER (SC_INT_OPNA_CMD) {
+DEBUG("===SC_INT_OPNA_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  arpd_command_t cmd = *((arpd_command_t *) zframe_data (frame));
+  struct gw *gw  = (struct gw *) ((arpd_command_t *) zframe_data (frame) + 1);
+  arpc_ip_addr_op (gw, cmd);
+}
+
+DEFINE_HANDLER (SC_INT_UDT_CMD) {
+DEBUG("===SC_INT_UDT_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  route_handle_udaddr (*(uint32_t*)zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_CLEAR_RT_CMD) {
+DEBUG("===SC_INT_CLEAR_RT_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  fib_clear_routing();
+}
+
+DEFINE_HANDLER (SC_INT_VIFSTG_SET) { /* to be called from one thread only*/
+DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  vif_stg_set(zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD)\n");
+  devsbmp_t dbmp;
+  enum status result;
+
+  result = POP_ARG (&dbmp);
+  if (result != ST_OK)
+    return;
+
+  ret_clear_devs_res(dbmp);
+}
+
 
 /*
  * Command handlers.
@@ -897,6 +1086,7 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
 
   arg.vid = ALL_VLANS;
   arg.port = pid;
+  arg.bmp_devs = LOCAL_DEV;
   result = mac_flush (&arg, GT_FALSE);
 
  out:
@@ -1031,6 +1221,21 @@ DEFINE_HANDLER (CC_MAC_OP)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_MAC_OP_VIF)
+{
+  enum status result;
+  struct mac_op_arg_vif op_arg;
+
+  result = POP_ARG (&op_arg);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_op_vif (&op_arg);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
 {
   enum status result;
@@ -1126,6 +1331,26 @@ DEFINE_HANDLER (CC_PORT_SET_SPEED)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_SPEED)
+{
+  enum status result;
+  vif_id_t vif;
+  struct port_speed_arg psa;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&psa);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_speed (vif, &psa);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
 {
   enum status result;
@@ -1141,6 +1366,26 @@ DEFINE_HANDLER (CC_PORT_SET_DUPLEX)
     goto out;
 
   result = port_set_duplex (pid, duplex);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_DUPLEX)
+{
+  enum status result;
+  vif_id_t vif;
+  port_duplex_t duplex;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&duplex);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_duplex (vif, duplex);
 
  out:
   report_status (result);
@@ -1258,6 +1503,7 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   enum status result;
   port_id_t pid;
   uint16_t page, reg, val;
+  int i;
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
@@ -1271,7 +1517,28 @@ DEFINE_HANDLER (CC_PORT_DUMP_PHY_REG)
   if (result != ST_OK)
     goto err;
 
-  else {
+if (page >= 3000) {   //TODO remove BEGIN
+//  DEBUG("going mac_count(%hu)\n", reg);
+//  mac_count(pid, page, reg);
+  switch (page){
+    case 4000:
+      nht_dump();
+      fib_dump();
+      ret_dump();
+      route_dump();
+      break;
+    case 4001:
+      for (i = 1; i < NPORTS; i++) {
+        struct vif *vif = vif_get_by_pid(reg, i);
+        if (!vif)
+          continue;
+        DEBUG("VIF: %x, stg:\n", vif->id);
+        PRINTHexDump(vif->stg_state, 16);
+      }
+      break;
+  }
+  val = 0;
+}   else { //  TODO remove END
   result = port_dump_phy_reg (pid, page, reg, &val);
   if (result != ST_OK)
     goto err;
@@ -1353,6 +1620,39 @@ DEFINE_HANDLER (CC_MAC_LIST)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_MAC_LIST_VIF)
+{
+  enum status result;
+  vid_t vid;
+  vif_id_t vifid;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(vid == ALL_VLANS || vlan_valid (vid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
+  result = POP_ARG (&vifid);
+  if (result != ST_OK)
+    goto err;
+
+  if (!(vifid == ALL_VIFS || vif_getn(vifid))) {
+    result = ST_BAD_VALUE;
+    goto err;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  data_encode_fdb_addrs_vif (reply, vid, vifid);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
 {
   enum status result;
@@ -1363,6 +1663,21 @@ DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC)
     goto out;
 
   result = mac_flush (&aa, GT_FALSE);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_FLUSH_DYNAMIC_VIF)
+{
+  enum status result;
+  struct mac_age_arg_vif aa;
+
+  result = POP_ARG (&aa);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_flush_vif (&aa, GT_FALSE);
 
  out:
   report_status (result);
@@ -1956,9 +2271,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   struct pdsa_spec_frame *frame;
   notification_t type;
   port_id_t pid;
-  int put_vid = 0;
+  int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
+  struct vif *vif;
+
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -1967,11 +2284,30 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
 
-  pid = port_id (frame->dev, frame->port);
-  if (!pid && frame->port != 63) {
+  vif = vif_by_hw(frame->dev, frame->port);
+  if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
+DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
   }
+
+  pid = port_id (frame->dev, frame->port);
+  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
+//DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
+//DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
+    if (frame->dev != stack_id && frame->dev != stack_id + NEXTDEV_INC) {
+      pid = port_id((frame->dev < 16)? stack_id : stack_id + NEXTDEV_INC, frame->port);
+//DEBUG("!!!pid = %d\n ", pid);
+    }
+    if (!pid) {
+      result = ST_OK;
+//DEBUG("!!!pid outing\n ");
+      goto out;
+    }
+  }
+
+  if (vif && vif->trunk)
+    vif = vif->trunk;
 
   result = ST_BAD_VALUE;
 
@@ -2052,12 +2388,14 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
@@ -2088,6 +2426,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
@@ -2098,8 +2437,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
+DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
       goto out;
+    }
     route_handle_udt (frame->data, frame->len);
     goto out;
 
@@ -2122,12 +2464,15 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   }
 
   if (conform2stp_state)
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid)) {
+    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
+DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->vid, vif->id, pid, frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
 
   zmsg_t *msg = make_notify_message (type);
+  if (put_vif)
+    put_vif_id (msg, vif->id);
   if (put_vid)
     put_vlan_id (msg, frame->vid);
   put_port_id (msg, pid);
@@ -2955,6 +3300,55 @@ DEFINE_HANDLER (CC_SET_HW_PORTS)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_GET_VIF_PORTS)
+{
+  static struct vif_def pd[NPORTS + 1];
+  static int done = 0;
+  enum status result = ST_OK;
+
+  if (!done) {
+    result = vif_get_hw_ports (pd);
+    done = 1;
+  }
+
+  zmsg_t *reply = make_reply (result);
+  if (result == ST_OK) {
+    uint8_t n = NPORTS + 1;
+    zmsg_addmem (reply, &n, sizeof (n));
+    zmsg_addmem (reply, pd, sizeof (pd));
+  }
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_SET_VIF_PORTS)
+{
+  uint8_t d, n;
+  struct vif_def *pd = NULL;
+  enum status result;
+
+  result = POP_ARG (&d);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&n);
+  if (result != ST_OK)
+    goto out;
+
+  if (n) {
+    zframe_t *frame = FIRST_ARG;
+    if (!frame) {
+      result = ST_BAD_FORMAT;
+      goto out;
+    }
+    pd = (struct vif_def *) zframe_data (frame);
+  }
+
+  result = vif_set_hw_ports (d, n, pd);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
 {
   enum status result;
@@ -3022,6 +3416,30 @@ DEFINE_HANDLER (CC_GIF_TX)
 
   frame = NEXT_ARG;
   result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_TX)
+{
+  zframe_t *frame;
+  struct vif_id *id;
+  struct vif_tx_opts *opts;
+  enum status result = ST_BAD_FORMAT;
+
+  frame = FIRST_ARG;
+  if (zframe_size (frame) != sizeof (*id))
+    goto out;
+  id = (struct vif_id *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  if (zframe_size (frame) != sizeof (*opts))
+    goto out;
+  opts = (struct vif_tx_opts *) zframe_data (frame);
+
+  frame = NEXT_ARG;
+  result = vif_tx (id, opts, zframe_size (frame), zframe_data (frame));
 
  out:
   report_status (result);
@@ -3795,6 +4213,38 @@ DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_STACK_SET_MASTER)
+{
+  enum status result;
+  zframe_t *frame;
+  uint8_t master;
+  serial_t serial;
+  devsbmp_t devsbmp;
+
+  result = POP_ARG (&master);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&serial);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&devsbmp);
+  if (result != ST_OK)
+    goto out;
+
+  frame = FIRST_ARG;
+  if (!frame || zframe_size (frame) != 6) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = stack_set_master (master, serial, devsbmp, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_LOAD_BALANCE_MODE)
 {
   enum status result;
@@ -3808,4 +4258,68 @@ DEFINE_HANDLER (CC_LOAD_BALANCE_MODE)
 
   out:
     report_status (result);
+}
+
+DEFINE_HANDLER (CC_INT_GET_RT_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_GET_RT_CMD)\n");
+  void *r = NULL;
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  r = fib_get_routes();
+DEBUG("====DEFINE_HANDLER (CC_INT_GET_RT_CMD) == %p\n", r);
+
+  out:
+
+  reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &r, sizeof (r));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) {
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD)\n");
+  void *r = NULL;
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  r = route_get_udaddrs();
+DEBUG("====DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) == %p\n", r);
+
+  out:
+
+  reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &r, sizeof (r));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_INT_VIFSTG_GET) { /* to be called from one thread only*/
+DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
+//  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) +
+  static uint8_t buf[sizeof(struct vif_stgblk_header)
+    + sizeof(struct vif_stg) * NPORTS + 20];
+  uint32_t dummy;
+  enum status result;
+  zmsg_t *reply;
+  void *p = buf;
+
+  result = POP_ARG (&dummy);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_stg_get(buf);
+
+ out:
+  reply = make_reply (result);
+  zmsg_addmem (reply, &p, sizeof(void*));
+  send_reply (reply);
 }

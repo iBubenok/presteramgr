@@ -6,6 +6,7 @@
 #include <debug.h>
 #include <sysdeps.h>
 #include <variant.h>
+#include <vif.h>
 #include <port.h>
 #include <control.h>
 #include <data.h>
@@ -190,8 +191,10 @@ port_init (void)
 
   memset (dev_ports, 0, sizeof (dev_ports));
 
-  ports = calloc (NPORTS, sizeof (struct port));
-  assert (ports);
+//  ports = calloc (NPORTS, sizeof (struct port));
+//  assert (ports);
+
+//  ports = (struct ports*) vif_get();
 
   memset (all_ports_bmp, 0, sizeof (all_ports_bmp));
   memset (nst_ports_bmp, 0, sizeof (nst_ports_bmp));
@@ -204,6 +207,7 @@ port_init (void)
   }
 
   for (i = 0; i < NPORTS; i++) {
+DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].id = i + 1;
 
 #if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
@@ -1107,6 +1111,9 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   if (result != ST_OK)
     return result;
 
+  struct vif *vif = vif_get_by_pid (stack_id, pid);
+  assert (vif);
+
   if (all) {
     DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
     stp_id_t stg;
@@ -1114,13 +1121,21 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
     for (stg = 0; stg < 256; stg++)
       if (stg_is_active (stg)) {
         stg_state[pid - 1][stg] = state;
+        vif->stg_state[stg] = state;
+
         CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stg, cs));
     }
   } else {
       stg_state[pid - 1][stp_id] = state;
+      vif->stg_state[stp_id] = state;
       DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
       CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   }
+
+//  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) + 10];
+  static uint8_t buf[sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) + 10];
+  vif_stg_get_single(vif, buf, 1);
+  mac_op_send_stg(buf);
 
   return ST_OK;
 }

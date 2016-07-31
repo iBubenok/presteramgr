@@ -80,6 +80,7 @@
 
 #include <extsvc.h>
 #include <control.h>
+#include <vif.h>
 #include <port.h>
 #include <gif.h>
 #include <vlan.h>
@@ -443,7 +444,9 @@ port_lib_init (int d)
   GT_STATUS rc;
 
   if (d == 0) {
+    vif_init ();
     port_init ();
+    vif_post_port_init ();
     gif_init ();
   }
 
@@ -740,6 +743,8 @@ init_cpss (void)
     dev_set_map(i, hw_dev_num);
   }
 
+  stack_init ();
+
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
 
@@ -823,6 +828,8 @@ cpss_start (void)
 
   event_start_notify_thread();
 
+  control_pre_mac_init();
+
   init_cpss ();
   if (just_reset) {
     exit (EXIT_SUCCESS);
@@ -840,7 +847,7 @@ cpss_start (void)
   mgmt_init ();
 
   INFO ("start tipc interface\n");
-  tipc_start ();
+  tipc_start (zcontext);
 
   INFO ("start control interface\n");
   control_start ();

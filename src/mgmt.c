@@ -76,13 +76,14 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 {
   struct pdsa_spec_frame *frame = NLMSG_DATA (nlh);
+/*
   port_id_t pid = port_id (frame->dev, frame->port);
 
   if (!pid && frame->port != 63) {
     ERR ("invalid port spec %d-%d\n", frame->dev, frame->port);
     return;
   }
-
+*/
   if (PDSA_SPEC_FRAME_SIZE (frame->len) > MAX_PAYLOAD) {
     ERR ("CPU captured oversized for %u bytes buffer frame in %u bytes\n",
         MAX_PAYLOAD - sizeof(struct pdsa_spec_frame), frame->len);

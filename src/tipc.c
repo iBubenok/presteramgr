@@ -12,10 +12,14 @@
 #include <utils.h>
 #include <sysdeps.h>
 #include <port.h>
+#include <mac.h>
+#include <string.h>
 
 
 #define BPDU_IOVLEN   2
 #define BPDU_IOV_DATA 1
+
+static int ntf_sock, fdb_tsock;
 
 static struct sockaddr_tipc bpdu_dst = {
   .family             = AF_TIPC,
@@ -49,13 +53,26 @@ static struct sockaddr_tipc link_dst = {
   .addr.nameseq.upper = 64
 };
 
-static int ntf_sock;
+#define PTI_FDB_TYPE (4242)
+//#define PTI_FDB_MAX (5000)
+
+struct sockaddr_tipc fdb_dst = {
+  .family             = AF_TIPC,
+  .addrtype           = TIPC_ADDR_MCAST,
+  .addr.nameseq.type  = PTI_FDB_TYPE,
+  .addr.nameseq.lower = 0,
+  .addr.nameseq.upper = 15
+};
 
 static void
 tipc_notify_init (void)
 {
   ntf_sock = socket (AF_TIPC, SOCK_RDM, 0);
   if (ntf_sock < 0)
+    errex ("socket() failed");
+
+  fdb_tsock = socket (AF_TIPC, SOCK_RDM, 0);
+  if (fdb_tsock < 0)
     errex ("socket() failed");
 
   bpdu_hdr.dev = stack_id;
@@ -113,9 +130,37 @@ tipc_bc_link_state (void)
     err ("sendmsg() failed");
 }
 
+int
+tipc_fdbcomm_connect (void) {
+  struct sockaddr_tipc taddr;
+  int sock = socket(AF_TIPC, SOCK_RDM, 0);
+  if (sock < 0) {
+    ERR ("tipc socket() for fdbcomm failed");
+    exit (EXIT_FAILURE);
+  }
+
+  memset(&taddr, 0, sizeof(taddr));
+  taddr.family = AF_TIPC;
+  taddr.addrtype  = TIPC_ADDR_MCAST;
+  taddr.scope = TIPC_CLUSTER_SCOPE;
+
+  taddr.addr.nameseq.type     = PTI_FDB_TYPE;
+  taddr.addr.nameseq.lower =  (1);
+  taddr.addr.nameseq.upper =  (15);
+
+  if (bind (sock, (struct sockaddr *) &taddr, sizeof (taddr)) < 0) {
+    ERR ("tipc socket bind for fdbcomm failed");
+    exit (EXIT_FAILURE);
+  }
+  return sock;
+}
+
 void
-tipc_start (void)
+tipc_start (zctx_t *zcontext)
 {
   tipc_notify_init ();
+
+  DEBUG ("TIPC stared \r\n");
+
 }
 
