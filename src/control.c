@@ -261,7 +261,6 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     zmsg_addmem (sg_msg, src_ip, 4);
 
     pcl_source_guard_drop_enable(pid);
-    DEBUG("packet trapped! enable drop! port #%d\r\n", pid);
 
     notify_send (&sg_msg);
   }
@@ -430,7 +429,10 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_ALLOCATE_USER_RULE_IX);
 DECLARE_HANDLER (CC_FREE_USER_RULE_IX);
 DECLARE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT);
+DECLARE_HANDLER (CC_CLEAR_USER_RULE_ALLOC);
+DECLARE_HANDLER (CC_PREP_USER_RULE_ALLOC);
 DECLARE_HANDLER (CC_USER_ACL_RULE);
+DECLARE_HANDLER (CC_FREE_VLAN_PCL_ID);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
@@ -591,7 +593,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ALLOCATE_USER_RULE_IX),
   HANDLER (CC_FREE_USER_RULE_IX),
   HANDLER (CC_CHECK_USER_RULE_IX_COUNT),
+  HANDLER (CC_CLEAR_USER_RULE_ALLOC),
+  HANDLER (CC_PREP_USER_RULE_ALLOC),
   HANDLER (CC_USER_ACL_RULE),
+  HANDLER (CC_FREE_VLAN_PCL_ID),
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
@@ -1131,7 +1136,6 @@ DEFINE_HANDLER (CC_VLAN_ADD)
   }
 
  out:
-  DEBUG("CC_VLAN_ADD returns %d\r\n", result);
   report_status (result);
 }
 
@@ -1164,7 +1168,6 @@ DEFINE_HANDLER (CC_VLAN_DELETE)
   }
 
  out:
-  DEBUG("CC_VLAN_DELETE returns %d\r\n", result);
   report_status (result);
 }
 
@@ -2000,7 +2003,6 @@ DEFINE_HANDLER (CC_VLAN_SET_CPU)
   }
 
  out:
-  DEBUG("CC_VLAN_SET_CPU returns %d\r\n", result);
   report_status (result);
 }
 
@@ -3938,7 +3940,6 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
     goto out;
   if ((result = POP_ARG (&rule_ix)) != ST_OK)
     goto out;
-  DEBUG("CC_SOURCE_GUARD_DELETE rule\r\n");
 
   pcl_source_guard_rule_unset (pid, rule_ix);
   result = ST_OK;
@@ -4008,6 +4009,20 @@ DEFINE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_CLEAR_USER_RULE_ALLOC)
+{
+  enum status result;
+  result = clear_user_rule_alloc();
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PREP_USER_RULE_ALLOC)
+{
+  enum status result;
+  result = prepare_user_rule_alloc();
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_USER_ACL_RULE) {
   enum status result = ST_OK;
   uint16_t pid_or_vid;
@@ -4069,6 +4084,21 @@ DEFINE_HANDLER (CC_USER_ACL_RULE) {
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_FREE_VLAN_PCL_ID)
+{
+  enum status result;
+  uint16_t vid;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = free_vlan_pcl_id (vid);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
 {
   enum status result;
@@ -4107,7 +4137,6 @@ DEFINE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA)
 
 DEFINE_HANDLER (CC_VRRP_SET_MAC)
 {
-  DEBUG("CC_VRRP_SET_MAC\r\n");
   enum status result;
   vid_t vid;
   mac_addr_t addr;

@@ -6,6 +6,10 @@
 extern enum status pcl_cpss_lib_init (int);
 extern enum status pcl_port_setup (port_id_t);
 extern enum status pcl_enable_port (port_id_t, int);
+extern enum status pcl_enable_vlan (uint16_t vid);
+
+extern enum status free_vlan_pcl_id (vid_t);
+
 extern enum status pcl_enable_lbd_trap (port_id_t, int);
 extern enum status pcl_enable_dhcp_trap (int);
 extern enum status pcl_setup_vt (port_id_t, vid_t, vid_t, int, int);
@@ -148,6 +152,10 @@ extern uint32_t allocate_user_rule_ix (uint16_t);
 extern void free_user_rule_ix (uint16_t, uint32_t);
 
 extern uint8_t check_user_rule_ix_count (uint16_t, uint16_t);
+
+extern enum status prepare_user_rule_alloc ();
+
+extern enum status clear_user_rule_alloc ();
 
 extern enum status pcl_ip_rule_set (uint16_t, struct ip_pcl_rule*,
                                     enum PCL_DESTINATION, int);
