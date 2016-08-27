@@ -426,20 +426,19 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
-DECLARE_HANDLER (CC_ALLOCATE_USER_RULE_IX);
-DECLARE_HANDLER (CC_FREE_USER_RULE_IX);
-DECLARE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT);
-DECLARE_HANDLER (CC_CLEAR_USER_RULE_ALLOC);
-DECLARE_HANDLER (CC_PREP_USER_RULE_ALLOC);
-DECLARE_HANDLER (CC_USER_ACL_RULE);
-DECLARE_HANDLER (CC_FREE_VLAN_PCL_ID);
+DECLARE_HANDLER (CC_USER_ACL_SET);
+DECLARE_HANDLER (CC_USER_ACL_RESET);
+DECLARE_HANDLER (CC_USER_ACL_FAKE_MODE);
+DECLARE_HANDLER (CC_USER_ACL_GET_COUNTER);
+DECLARE_HANDLER (CC_USER_ACL_CLEAR_COUNTER);
+DECLARE_HANDLER (CC_PCL_TEST_START);
+DECLARE_HANDLER (CC_PCL_TEST_ITER);
+DECLARE_HANDLER (CC_PCL_TEST_STOP);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
-DECLARE_HANDLER (CC_PCL_GET_COUNTER);
-DECLARE_HANDLER (CC_PCL_CLEAR_COUNTER);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 DECLARE_HANDLER (CC_INT_GET_RT_CMD);
@@ -590,20 +589,19 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
-  HANDLER (CC_ALLOCATE_USER_RULE_IX),
-  HANDLER (CC_FREE_USER_RULE_IX),
-  HANDLER (CC_CHECK_USER_RULE_IX_COUNT),
-  HANDLER (CC_CLEAR_USER_RULE_ALLOC),
-  HANDLER (CC_PREP_USER_RULE_ALLOC),
-  HANDLER (CC_USER_ACL_RULE),
-  HANDLER (CC_FREE_VLAN_PCL_ID),
+  HANDLER (CC_USER_ACL_SET),
+  HANDLER (CC_USER_ACL_RESET),
+  HANDLER (CC_USER_ACL_FAKE_MODE),
+  HANDLER (CC_USER_ACL_GET_COUNTER),
+  HANDLER (CC_USER_ACL_CLEAR_COUNTER),
+  HANDLER (CC_PCL_TEST_START),
+  HANDLER (CC_PCL_TEST_ITER),
+  HANDLER (CC_PCL_TEST_STOP),
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
   HANDLER (CC_ARPD_SOCK_CONNECT),
-  HANDLER (CC_PCL_GET_COUNTER),
-  HANDLER (CC_PCL_CLEAR_COUNTER),
   HANDLER (CC_STACK_SET_MASTER),
   HANDLER (CC_LOAD_BALANCE_MODE),
   HANDLER (CC_INT_GET_RT_CMD),
@@ -3947,157 +3945,221 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_ALLOCATE_USER_RULE_IX)
+#define INIT_VAR(var) do {                          \
+    if ((result = POP_ARG (&var)) != ST_OK) {       \
+      DEBUG("%s: error: %s\n", __FUNCTION__, #var); \
+      goto out;                                     \
+    }                                               \
+  } while (0)
+
+#define INIT_PTR_SZ(ptr, size) do {                   \
+    ptr = malloc(size);                               \
+    assert(ptr);                                      \
+    if ((result = POP_ARG_SZ (ptr, size)) != ST_OK) { \
+      free(ptr);                                      \
+      goto out;                                       \
+    }                                                 \
+  } while (0)
+
+DEFINE_HANDLER (CC_USER_ACL_SET)
 {
-  enum status result;
-  uint16_t pid_or_vid;
-  uint32_t rule_ix;
+  enum status            result;
+  struct pcl_interface   interface;
+  pcl_dest_t             dest;
+  uint16_t               rules_count;
+  pcl_default_action_t   default_action;
 
-  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
-    goto out;
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+  INIT_VAR(default_action);
+  INIT_VAR(rules_count);
 
-  rule_ix = allocate_user_rule_ix (pid_or_vid);
+  int i;
+  for (i = 0; i < rules_count; i++) {
+    pcl_type_t        pcl_type;
+    uint8_t           name_len;
+    char              *name = NULL;
+    pcl_rule_action_t rule_action;
+    pcl_rule_num_t    rule_num;
+    void              *rule_params = NULL;
 
-  zmsg_t *reply = make_reply (ST_OK);
-  zmsg_addmem (reply, &rule_ix, sizeof (rule_ix));
-  send_reply (reply);
-  return;
+    INIT_VAR(pcl_type);
+    INIT_VAR(name_len);
+    INIT_PTR_SZ(name, name_len);
+    INIT_VAR(rule_action);
+    INIT_VAR(rule_num);
 
- out:
-  report_status (result);
-}
+    switch (pcl_type) {
+      case PCL_TYPE_IP:
+        INIT_PTR_SZ(rule_params, sizeof(struct ip_pcl_rule));
+        result = pcl_ip_rule_set(name,
+                                 name_len,
+                                 rule_num,
+                                 interface,
+                                 dest,
+                                 rule_action,
+                                 rule_params);
+        break;
+      case PCL_TYPE_MAC:
+        INIT_PTR_SZ(rule_params, sizeof(struct mac_pcl_rule));
+        result = pcl_mac_rule_set(name,
+                                  name_len,
+                                  rule_num,
+                                  interface,
+                                  dest,
+                                  rule_action,
+                                  rule_params);
+        break;
+      case PCL_TYPE_IPV6:
+        INIT_PTR_SZ(rule_params, sizeof(struct ipv6_pcl_rule));
+        result = pcl_ipv6_rule_set(name,
+                                   name_len,
+                                   rule_num,
+                                   interface,
+                                   dest,
+                                   rule_action,
+                                   rule_params);
+        break;
+      default:
+        result = ST_BAD_VALUE;
+    };
 
-DEFINE_HANDLER (CC_FREE_USER_RULE_IX)
-{
-  enum status result;
-  uint16_t pid_or_vid;
-  uint32_t rule_ix;
+    free(name);
+    free(rule_params);
 
-
-  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&rule_ix)) != ST_OK)
-    goto out;
-
-  free_user_rule_ix (pid_or_vid, rule_ix);
-
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_CHECK_USER_RULE_IX_COUNT)
-{
-  enum status result;
-  uint16_t pid_or_vid;
-  uint16_t count;
-  uint8_t check;
-
-  if ((result = POP_ARG (&pid_or_vid)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&count)) != ST_OK)
-    goto out;
-
-  check = check_user_rule_ix_count(pid_or_vid, count);
-
-  zmsg_t *reply = make_reply (ST_OK);
-  zmsg_addmem (reply, &check, sizeof (check));
-  send_reply (reply);
-  return;
-
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_CLEAR_USER_RULE_ALLOC)
-{
-  enum status result;
-  result = clear_user_rule_alloc();
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_PREP_USER_RULE_ALLOC)
-{
-  enum status result;
-  result = prepare_user_rule_alloc();
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_USER_ACL_RULE) {
-  enum status result = ST_OK;
-  uint16_t pid_or_vid;
-  uint8_t destination;
-  uint8_t rule_type;
-  bool_t enable;
-
-  if ((result = POP_ARG (&pid_or_vid)) != ST_OK) {
-    goto out;
-  }
-  if ((result = POP_ARG (&destination)) != ST_OK) {
-    goto out;
-  }
-  if ((result = POP_ARG (&rule_type)) != ST_OK) {
-    goto out;
-  }
-  if ((result = POP_ARG (&enable)) != ST_OK) {
-    goto out;
+    if (result != ST_OK) {
+      goto out;
+    }
   }
 
-  switch (rule_type) {
-    case PCL_RULE_TYPE_IP: {
-      struct ip_pcl_rule ip_rule;
-      if ((result = POP_ARG (&ip_rule)) != ST_OK) {
-        goto out;
-      }
-      result = pcl_ip_rule_set(pid_or_vid, &ip_rule, destination, enable);
+  switch (default_action) {
+    case PCL_DEFAULT_ACTION_DENY:
+      // pcl_default_rule_set(interface, dest, default_action);
       break;
-    }
-    case PCL_RULE_TYPE_MAC: {
-      struct mac_pcl_rule mac_rule;
-      if ((result = POP_ARG (&mac_rule)) != ST_OK) {
-        goto out;
-      }
-      result = pcl_mac_rule_set(pid_or_vid, &mac_rule, destination, enable);
+    case PCL_DEFAULT_ACTION_PERMIT:
+      // pcl_default_rule_set(interface, dest, default_action);
       break;
-    }
-    case PCL_RULE_TYPE_IPV6: {
-      struct ipv6_pcl_rule ipv6_rule;
-      if ((result = POP_ARG (&ipv6_rule)) != ST_OK) {
-        goto out;
-      }
-      result = pcl_ipv6_rule_set(pid_or_vid, &ipv6_rule, destination, enable);
-      break;
-    }
-    case PCL_RULE_TYPE_DEFAULT: {
-      struct default_pcl_rule default_rule;
-      if ((result = POP_ARG (&default_rule)) != ST_OK) {
-        goto out;
-      }
-      result = pcl_default_rule_set(pid_or_vid, &default_rule, destination, enable);
-      break;
-    }
     default:
-      result = ST_HEX;
+      result = ST_BAD_VALUE;
   };
 
- out:
+out:
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_FREE_VLAN_PCL_ID)
+DEFINE_HANDLER (CC_USER_ACL_RESET)
+{
+  enum status          result;
+  struct pcl_interface interface;
+  pcl_dest_t           dest;
+
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+
+  pcl_reset_rules(interface, dest);
+
+out:
+  report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_FAKE_MODE)
 {
   enum status result;
-  uint16_t vid;
+  bool_t      fake_mode;
 
-  result = POP_ARG (&vid);
-  if (result != ST_OK)
+  INIT_VAR(fake_mode);
+
+  pcl_set_fake_mode_enabled(fake_mode);
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_USER_ACL_GET_COUNTER)
+{
+  enum status          result;
+  struct pcl_interface interface;
+  pcl_dest_t           dest;
+  uint8_t              name_len;
+  char                 *name = NULL;
+  pcl_rule_num_t       rule_num;
+
+  uint64_t             counter;
+
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+  INIT_VAR(name_len);
+  INIT_PTR_SZ(name, name_len);
+  INIT_VAR(rule_num);
+
+  result = pcl_get_counter(interface, dest, name, name_len, rule_num, &counter);
+
+  free(name);
+
+  if (result != ST_OK) {
     goto out;
+  }
 
-  result = free_vlan_pcl_id (vid);
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &counter, sizeof(counter));
+  send_reply (reply);
+  return;
 
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_USER_ACL_CLEAR_COUNTER)
+{
+  enum status          result;
+  struct pcl_interface interface;
+  pcl_dest_t           dest;
+  uint8_t              name_len;
+  char                 *name = NULL;
+  pcl_rule_num_t       rule_num;
+
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+  INIT_VAR(name_len);
+  INIT_PTR_SZ(name, name_len);
+  INIT_VAR(rule_num);
+
+  result = pcl_clear_counter(interface, dest, name, name_len, rule_num);
+
+  free(name);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PCL_TEST_START)
+{
+  enum status result = ST_OK;
+  uint16_t pcl_id;
+  uint16_t rule_ix;
+
+  INIT_VAR(pcl_id);
+  INIT_VAR(rule_ix);
+
+  pcl_test_start(pcl_id, rule_ix);
+
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PCL_TEST_ITER)
+{
+  pcl_test_iter();
+  report_status (ST_OK);
+}
+
+DEFINE_HANDLER (CC_PCL_TEST_STOP)
+{
+  pcl_test_stop();
+  report_status (ST_OK);
+}
+
+#undef INIT_VAR
+#undef INIT_PTR_SZ
 
 DEFINE_HANDLER (CC_ARP_TRAP_ENABLE)
 {
@@ -4165,52 +4227,6 @@ DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
   arpc_connect();
 
   report_status (ST_OK);
-}
-
-DEFINE_HANDLER (CC_PCL_GET_COUNTER)
-{
-  enum status result;
-  uint16_t pid_or_vid;
-  uint16_t rule_ix;
-  uint64_t counter;
-
-  result = POP_ARG (&pid_or_vid);
-  if (result != ST_OK)
-    goto out;
-
-  result = POP_ARG (&rule_ix);
-  if (result != ST_OK)
-    goto out;
-
-  counter = pcl_get_counter(pid_or_vid, rule_ix);
-
-  zmsg_t *reply = make_reply (ST_OK);
-  zmsg_addmem (reply, &counter, sizeof(counter));
-  send_reply (reply);
-  return;
-
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_PCL_CLEAR_COUNTER)
-{
-  enum status result;
-  uint16_t pid_or_vid;
-  uint16_t rule_ix;
-
-  result = POP_ARG (&pid_or_vid);
-  if (result != ST_OK)
-    goto out;
-
-  result = POP_ARG (&rule_ix);
-  if (result != ST_OK)
-    goto out;
-
-  pcl_clear_counter(pid_or_vid, rule_ix);
-
- out:
-  report_status (result);
 }
 
 DEFINE_HANDLER (CC_STACK_SET_MASTER)

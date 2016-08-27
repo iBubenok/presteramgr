@@ -15,6 +15,7 @@ presteramgr_SOURCES =	\
 	utils.h				\
 	control.c			\
 	data.c				\
+	dstack.c \
 	sysdeps.c			\
 	mac.c				\
 	qos.c				\

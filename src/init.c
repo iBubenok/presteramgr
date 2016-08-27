@@ -635,10 +635,6 @@ lib_init (int d)
   mon_cpss_lib_init (d);
   DEBUG ("monitor init done\n");
 
-  DEBUG ("doing pcl library init\n");
-  pcl_cpss_lib_init (d);
-  DEBUG ("pcl library init done\n");
-
   DEBUG ("doing policer library init\n");
   RCC ((rc = policer_lib_init (d)), policer_lib_init);
   DEBUG ("policer library init done\n");
@@ -777,6 +773,10 @@ init_cpss (void)
     RCC (rc, lib_init);
     DEBUG ("library init done\n");
   }
+
+  DEBUG ("doing pcl library init\n");
+  pcl_cpss_lib_init ();
+  DEBUG ("pcl library init done\n");
 
   trunk_init ();
   sysd_setup_ic ();

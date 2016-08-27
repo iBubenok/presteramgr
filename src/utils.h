@@ -76,7 +76,7 @@ static inline void hexdump (void *addr, int len) {
   unsigned char *pbuff;
   size_t nc = 0;
   unsigned char *pc = (unsigned char*)addr;
-  if (!addr) {DEBUG("(NULL)"); return; }
+  if (!addr) {fprintf(stderr, "(NULL)"); return; }
   /* process every byte in the data. */
   for (i=0;i<len;i++) {
     /* multiple of 16 means new line (with line offset). */
@@ -85,7 +85,7 @@ static inline void hexdump (void *addr, int len) {
       /* just don't print  for the 0-th line. */
       if (i!=0) {
         nc += snprintf((char*) pbuff + nc, 80 - nc, "  %s\n", buff);
-        DEBUG ("%s", pbuff);
+        fprintf (stderr, "%s", pbuff);
         nc = 0;
       }
       /* output the offset. */
@@ -102,10 +102,10 @@ static inline void hexdump (void *addr, int len) {
   while ((i%16)!=0) { nc += snprintf((char*)pbuff + nc, 80 - nc, "   "); i++; }
   // And print the final ASCII bit.
   nc += snprintf((char*)pbuff + nc, 80 -nc,  "  %s\n", buff);
-  DEBUG("%s", pbuff);
+  fprintf(stderr, "%s", pbuff);
 }
 
-#define PRINTHexDump(x, y)  if ((y)<=0) DEBUG("(NULL)"); else hexdump((void*)(x),(y))
+#define PRINTHexDump(x, y)  if ((y)<=0) fprintf(stderr, "(NULL)"); else hexdump((void*)(x),(y))
 
 static inline int
 is_llc_snap_frame__ (void* frame, int len) {
