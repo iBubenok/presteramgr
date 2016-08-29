@@ -1615,14 +1615,15 @@ get_port_ptr (uint16_t pid, struct port** port)
         #type,                                                                \
         rule_ix,                                                              \
         rule_opt_bmp);                                                        \
-  DEBUG("\n<mask>:\n");                                                       \
+  CRP(cpssDxChPclRuleSet(dev, type, rule_ix, rule_opt_bmp, mask, rule, act)); \
+}
+
+/*DEBUG("\n<mask>:\n");                                                       \
   PRINTHexDump(mask, sizeof(*mask));                                          \
   DEBUG("\n<rule>:\n");                                                       \
   PRINTHexDump(rule, sizeof(*rule));                                          \
   DEBUG("\n<act>:\n");                                                        \
-  PRINTHexDump(act, sizeof(*act));                                            \
-  CRP(cpssDxChPclRuleSet(dev, type, rule_ix, rule_opt_bmp, mask, rule, act)); \
-}
+  PRINTHexDump(act, sizeof(*act));                                            \*/
 
 #define set_ip_rule(dev, rule, mask, format, type, pcl_id, act, ip_rule, rule_ix, src_cmp_ix, dst_cmp_ix, cmp_bitmap_field) { \
   set_pcl_id(rule, mask, format, pcl_id);                                                                                     \
@@ -3185,12 +3186,12 @@ pcl_test_start (uint16_t pcl_id, uint16_t rule_ix)
         "CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E",
         rule_ix,
         0);
-  DEBUG("\n<mask>:\n");
+  /*DEBUG("\n<mask>:\n");
   PRINTHexDump(&mask, sizeof(mask));
   DEBUG("\n<rule>:\n");
   PRINTHexDump(&rule, sizeof(rule));
   DEBUG("\n<act>:\n");
-  PRINTHexDump(&act, sizeof(act));
+  PRINTHexDump(&act, sizeof(act));*/
   CRP(cpssDxChPclRuleSet
       (0,
        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
