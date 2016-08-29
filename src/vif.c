@@ -455,25 +455,26 @@ vif_tx (const struct vif_id *id,
 
 DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
 
-  if (opts->find_iface_by_portid) {
-    vifp = vif = vif_get_by_pid (id->dev, id->num);
-  } else {
-    vifp = vif = vif_get(id->type, id->dev, id->num);
-DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
-    if (vif == NULL)
-      return ST_DOES_NOT_EXIST;
-    if (vif->vifid.type == VIFT_PC) {
-      vifp = ((struct trunk*)vif)->designated;
-      trunk = ((struct trunk*)vif)->id;
-DEBUG("====2vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
+  if ((opts->send_to != VIFD_VLAN && opts->send_to != VIFD_VIDX) || opts->exclude_src_port) {
+    if (opts->find_iface_by_portid) {
+      vifp = vif = vif_get_by_pid (id->dev, id->num);
+    } else {
+      vifp = vif = vif_get(id->type, id->dev, id->num);
+//DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
+      if (vif == NULL)
+        return ST_DOES_NOT_EXIST;
+      if (vif->vifid.type == VIFT_PC) {
+        vifp = ((struct trunk*)vif)->designated;
+        trunk = ((struct trunk*)vif)->id;
+//DEBUG("====2vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
+      }
     }
+
+    result = vif_get_hw(&hp, vifp);
+    if (result != ST_OK)
+      return result;
   }
-
-  result = vif_get_hw(&hp, vifp);
-  if (result != ST_OK)
-    return result;
-
-DEBUG("====vif_tx, hp.hw_dev== %x, hp.hw_port== %d\n", hp.hw_dev, hp.hw_port);
+//DEBUG("====vif_tx, hp.hw_dev== %x, hp.hw_port== %d\n", hp.hw_dev, hp.hw_port);
   memset (&tp, 0, sizeof (tp));
 
   switch (opts->send_to)
