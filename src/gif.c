@@ -174,6 +174,11 @@ gif_tx (const struct gif_id *id,
           (opts->vid)) {
 
         tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
+      } else if ((port->mode == PM_ACCESS) &&
+                 (port->voice_vid != 0) &&
+                 (port->voice_vid == opts->vid))
+      {
+        tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
       }
 
     } break;
