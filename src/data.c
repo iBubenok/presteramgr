@@ -33,7 +33,7 @@ data_encode_port_state (struct port_link_state *state,
   assert (attrs->portSpeed >= 0 && attrs->portSpeed <= CPSS_PORT_SPEED_NA_E);
   state->speed = psm[attrs->portSpeed];
 
-  return 0;
+  return ST_OK;
 }
 
 enum status

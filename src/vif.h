@@ -22,6 +22,7 @@ struct vif {
     struct port *local;
     struct hw_port remote;
   };
+  struct port_link_state state;
   uint8_t stg_state[256];
 
   enum port_mode mode;
