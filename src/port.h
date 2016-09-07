@@ -99,7 +99,7 @@ extern enum status port_start (void);
 extern int port_exists (GT_U8, GT_U8);
 extern int port_id (GT_U8, GT_U8);
 extern int port_is_phyless (struct port *);
-extern enum status port_handle_link_change (GT_U8, GT_U8, port_id_t *, CPSS_PORT_ATTRIBUTES_STC *);
+extern enum status port_handle_link_change (GT_U8, GT_U8, vif_id_t *, port_id_t *, CPSS_PORT_ATTRIBUTES_STC *);
 extern enum status port_get_state (port_id_t, struct port_link_state *);
 extern enum status port_get_type (port_id_t, port_type_t *);
 extern enum status port_set_stp_state (port_id_t, stp_id_t, int, enum port_stp_state);
