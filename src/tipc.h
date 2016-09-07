@@ -15,7 +15,7 @@
 extern struct sockaddr_tipc fdb_dst;
 
 extern void tipc_start (zctx_t *);
-extern void tipc_notify_bpdu (port_id_t, size_t, void *);
+extern void tipc_notify_bpdu (vif_id_t, port_id_t, size_t, void *);
 extern void tipc_notify_link (vif_id_t vif, port_id_t, const CPSS_PORT_ATTRIBUTES_STC *);
 extern void tipc_bc_link_state (void);
 extern int tipc_fdbcomm_connect (void);

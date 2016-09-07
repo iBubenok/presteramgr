@@ -79,7 +79,7 @@ tipc_notify_init (void)
 }
 
 void
-tipc_notify_bpdu (port_id_t pid, vif_id_t vif_id, size_t len, void *data)
+tipc_notify_bpdu (vif_id_t vif_id, port_id_t pid, size_t len, void *data)
 {
   bpdu_hdr.iid = pid;
   bpdu_hdr.vif_id = vif_id;
