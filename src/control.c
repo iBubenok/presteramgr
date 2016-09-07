@@ -2319,7 +2319,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
         type = CN_LLDP_MCAST;
         break;
       default:
-        tipc_notify_bpdu (pid, frame->len, frame->data);
+        tipc_notify_bpdu (pid, vif->id, frame->len, frame->data);
         result = ST_OK;
         goto out;
       }
@@ -2372,7 +2372,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_CISCO_MC_TM:
-    tipc_notify_bpdu (pid, frame->len, frame->data);
+    tipc_notify_bpdu (pid, vif->id, frame->len, frame->data);
     result = ST_OK;
     goto out;
     break;
