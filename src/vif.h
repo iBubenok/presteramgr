@@ -111,5 +111,6 @@ extern enum status vif_##proc##_trunk (struct vif *, ##arg)
 
 VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
 VIF_DEF_PROC(set_duplex, enum port_duplex);
+VIF_DEF_PROC(shutdown, int shutdown);
 
 #endif /* __VIF_H__ */
