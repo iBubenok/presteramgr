@@ -163,6 +163,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_remote;
   v->set_duplex = vif_set_duplex_remote;
   v->shutdown = vif_shutdown_remote;
+  v->block = vif_block_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -171,6 +172,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_port;
   v->set_duplex = vif_set_duplex_port;
   v->shutdown = vif_shutdown_port;
+  v->block = vif_block_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -179,6 +181,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_trunk;
   v->set_duplex = vif_set_duplex_trunk;
   v->shutdown = vif_shutdown_trunk;
+  v->block = vif_block_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -922,4 +925,22 @@ VIF_PROC_TRUNK_BODY(shutdown, shutdown)
 VIF_PROC_ROOT_HEAD(shutdown, int shutdown)
 {
 VIF_PROC_ROOT_BODY(shutdown, shutdown)
+}
+
+
+VIF_PROC_REMOTE(block, const struct port_block *what)
+
+VIF_PROC_PORT_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_PORT_BODY(block, what)
+}
+
+VIF_PROC_TRUNK_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_TRUNK_BODY(block, what)
+}
+
+VIF_PROC_ROOT_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_ROOT_BODY(block, what)
 }

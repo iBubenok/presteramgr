@@ -37,6 +37,7 @@ struct vif {
   enum status (*set_duplex) (struct vif *, enum port_duplex);
   enum status (*update_sd) (struct vif *);
   enum status (*shutdown) (struct vif *, int);
+  enum status (*block) (struct vif *, const struct port_block *);
   enum status (*set_mdix_auto) (struct vif *, int);
 };
 
@@ -112,5 +113,6 @@ extern enum status vif_##proc##_trunk (struct vif *, ##arg)
 VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
 VIF_DEF_PROC(set_duplex, enum port_duplex);
 VIF_DEF_PROC(shutdown, int shutdown);
+VIF_DEF_PROC(block, const struct port_block *);
 
 #endif /* __VIF_H__ */
