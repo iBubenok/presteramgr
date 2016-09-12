@@ -369,6 +369,7 @@ DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
+DECLARE_HANDLER (CC_VIF_SET_COMM);
 DECLARE_HANDLER (CC_MON_SESSION_ADD);
 DECLARE_HANDLER (CC_MON_SESSION_ENABLE);
 DECLARE_HANDLER (CC_MON_SESSION_DEL);
@@ -534,6 +535,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
+  HANDLER (CC_VIF_SET_COMM),
   HANDLER (CC_MON_SESSION_ADD),
   HANDLER (CC_MON_SESSION_ENABLE),
   HANDLER (CC_MON_SESSION_DEL),
@@ -2776,6 +2778,26 @@ DEFINE_HANDLER (CC_PORT_SET_COMM)
     goto out;
 
   result = port_set_comm (pid, comm);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_COMM)
+{
+  enum status result;
+  vif_id_t vif;
+  port_comm_t comm;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&comm);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_comm (vif, comm);
 
  out:
   report_status (result);
