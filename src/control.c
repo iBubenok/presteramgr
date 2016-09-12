@@ -374,6 +374,7 @@ DECLARE_HANDLER (CC_MON_SESSION_ADD);
 DECLARE_HANDLER (CC_MON_SESSION_ENABLE);
 DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
+DECLARE_HANDLER (CC_VIF_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
 DECLARE_HANDLER (CC_DGASP_ENABLE);
@@ -540,6 +541,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MON_SESSION_ENABLE),
   HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
+  HANDLER (CC_VIF_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
   HANDLER (CC_MON_SESSION_SET_DST),
   HANDLER (CC_DGASP_ENABLE),
@@ -2818,6 +2820,26 @@ DEFINE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
     goto out;
 
   result = port_set_customer_vid (pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_CUSTOMER_VLAN)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t vid;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_customer_vid (vif, vid);
 
  out:
   report_status (result);
