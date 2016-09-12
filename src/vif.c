@@ -164,6 +164,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_duplex = vif_set_duplex_remote;
   v->shutdown = vif_shutdown_remote;
   v->block = vif_block_remote;
+  v->set_access_vid = vif_set_access_vid_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -173,6 +174,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_duplex = vif_set_duplex_port;
   v->shutdown = vif_shutdown_port;
   v->block = vif_block_port;
+  v->set_access_vid = vif_set_access_vid_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -182,6 +184,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_duplex = vif_set_duplex_trunk;
   v->shutdown = vif_shutdown_trunk;
   v->block = vif_block_trunk;
+  v->set_access_vid = vif_set_access_vid_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -943,4 +946,22 @@ VIF_PROC_TRUNK_BODY(block, what)
 VIF_PROC_ROOT_HEAD(block, const struct port_block *what)
 {
 VIF_PROC_ROOT_BODY(block, what)
+}
+
+
+VIF_PROC_REMOTE(set_access_vid, vid_t vid)
+
+VIF_PROC_PORT_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_PORT_BODY(set_access_vid, vid)
+}
+
+VIF_PROC_TRUNK_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_TRUNK_BODY(set_access_vid, vid)
+}
+
+VIF_PROC_ROOT_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_ROOT_BODY(set_access_vid, vid)
 }
