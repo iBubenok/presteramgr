@@ -304,6 +304,7 @@ DECLARE_HANDLER (CC_PORT_BLOCK);
 DECLARE_HANDLER (CC_VIF_BLOCK);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
 DECLARE_HANDLER (CC_PORT_SET_MODE);
+DECLARE_HANDLER (CC_VIF_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_VIF_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
@@ -471,6 +472,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VIF_BLOCK),
   HANDLER (CC_PORT_FDB_FLUSH),
   HANDLER (CC_PORT_SET_MODE),
+  HANDLER (CC_VIF_SET_MODE),
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
   HANDLER (CC_VIF_SET_ACCESS_VLAN),
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
@@ -1314,6 +1316,26 @@ DEFINE_HANDLER (CC_PORT_SET_MODE)
     goto out;
 
   result = port_set_mode (pid, mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_MODE)
+{
+  enum status result;
+  vif_id_t vif;
+  port_mode_t mode;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_mode (vif, mode);
 
  out:
   report_status (result);
