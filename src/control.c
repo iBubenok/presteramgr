@@ -391,6 +391,7 @@ DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
+DECLARE_HANDLER (CC_VIF_SET_TRUNK_VLANS);
 DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
 DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
@@ -562,6 +563,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
   HANDLER (CC_PORT_SET_TRUNK_VLANS),
+  HANDLER (CC_VIF_SET_TRUNK_VLANS),
   HANDLER (CC_MAIL_TO_NEIGHBOR),
   HANDLER (CC_STACK_PORT_GET_STATE),
   HANDLER (CC_STACK_SET_DEV_MAP),
@@ -3218,6 +3220,28 @@ DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
   }
 
   result = port_set_trunk_vlans (pid, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_TRUNK_VLANS)
+{
+  enum status result;
+  vif_id_t vif;
+  zframe_t *frame;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != VLAN_BITMAP_SIZE) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = vif_set_trunk_vlans (vif, zframe_data (frame));
 
  out:
   report_status (result);
