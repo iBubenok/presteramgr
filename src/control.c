@@ -364,6 +364,7 @@ DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_MRU);
 DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
+DECLARE_HANDLER (CC_VIF_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 DECLARE_HANDLER (CC_QOS_SET_WRTD);
@@ -532,6 +533,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MRU),
   HANDLER (CC_INT_RET_SET_MAC_ADDR),
   HANDLER (CC_PORT_SET_PVE_DST),
+  HANDLER (CC_VIF_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
   HANDLER (CC_QOS_SET_WRTD),
@@ -2698,6 +2700,31 @@ DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
     goto out;
 
   result = port_set_pve_dst (spid, dpid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_PVE_DST)
+{
+  enum status result;
+  vif_id_t vif;
+  port_id_t dpid;
+  bool_t enable;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&dpid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_pve_dst (vif, dpid, enable);
 
  out:
   report_status (result);
