@@ -172,6 +172,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_protected = vif_set_protected_remote;
   v->set_native_vid = vif_set_native_vid_remote;
   v->set_trunk_vlans = vif_set_trunk_vlans_remote;
+  v->vlan_translate = vif_vlan_translate_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -189,6 +190,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_protected = vif_set_protected_port;
   v->set_native_vid = vif_set_native_vid_port;
   v->set_trunk_vlans = vif_set_trunk_vlans_port;
+  v->vlan_translate = vif_vlan_translate_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -206,6 +208,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_protected = vif_set_protected_trunk;
   v->set_native_vid = vif_set_native_vid_trunk;
   v->set_trunk_vlans = vif_set_trunk_vlans_trunk;
+  v->vlan_translate = vif_vlan_translate_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -1105,4 +1108,22 @@ VIF_PROC_TRUNK_BODY(set_trunk_vlans, bmp)
 VIF_PROC_ROOT_HEAD(set_trunk_vlans, const uint8_t *bmp)
 {
 VIF_PROC_ROOT_BODY(set_trunk_vlans, bmp)
+}
+
+
+VIF_PROC_REMOTE(vlan_translate, vid_t from, vid_t to, int add)
+
+VIF_PROC_PORT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_PORT_BODY(vlan_translate, from, to, add)
+}
+
+VIF_PROC_TRUNK_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_TRUNK_BODY(vlan_translate, from, to, add)
+}
+
+VIF_PROC_ROOT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_ROOT_BODY(vlan_translate, from, to, add)
 }

@@ -388,6 +388,7 @@ DECLARE_HANDLER (CC_DGASP_PORT_OP);
 DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
+DECLARE_HANDLER (CC_VIF_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
@@ -560,6 +561,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
+  HANDLER (CC_VIF_VLAN_TRANSLATE),
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
   HANDLER (CC_PORT_SET_TRUNK_VLANS),
@@ -3140,6 +3142,35 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
     goto out;
 
   result = port_vlan_translate (pid, from, to, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_VLAN_TRANSLATE)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t from, to;
+  bool_t enable;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&from);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&to);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_vlan_translate (vif, from, to, enable);
 
  out:
   report_status (result);
