@@ -320,6 +320,7 @@ DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
+DECLARE_HANDLER (CC_VIF_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
@@ -489,6 +490,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
+  HANDLER (CC_VIF_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_SET_XG_SFP_MODE),
@@ -2015,6 +2017,26 @@ DEFINE_HANDLER (CC_PORT_SET_PROTECTED)
     goto out;
 
   result = port_set_protected (pid, protected);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_PROTECTED)
+{
+  enum status result;
+  vif_id_t vif;
+  bool_t protected;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&protected);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_protected (vif, protected);
 
  out:
   report_status (result);

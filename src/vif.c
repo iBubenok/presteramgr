@@ -169,6 +169,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_customer_vid = vif_set_customer_vid_remote;
   v->set_mode = vif_set_mode_remote;
   v->set_pve_dst = vif_set_pve_dst_remote;
+  v->set_protected = vif_set_protected_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -183,6 +184,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_customer_vid = vif_set_customer_vid_port;
   v->set_mode = vif_set_mode_port;
   v->set_pve_dst = vif_set_pve_dst_port;
+  v->set_protected = vif_set_protected_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -197,6 +199,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_customer_vid = vif_set_customer_vid_trunk;
   v->set_mode = vif_set_mode_trunk;
   v->set_pve_dst = vif_set_pve_dst_trunk;
+  v->set_protected = vif_set_protected_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -1045,4 +1048,21 @@ VIF_PROC_TRUNK_BODY(set_pve_dst, dpid, enable)
 VIF_PROC_ROOT_HEAD(set_pve_dst, port_id_t dpid, int enable)
 {
 VIF_PROC_ROOT_BODY(set_pve_dst, dpid, enable)
+}
+
+VIF_PROC_REMOTE(set_protected, bool_t protected)
+
+VIF_PROC_PORT_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_PORT_BODY(set_protected, protected)
+}
+
+VIF_PROC_TRUNK_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_TRUNK_BODY(set_protected, protected)
+}
+
+VIF_PROC_ROOT_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_ROOT_BODY(set_protected, protected)
 }
