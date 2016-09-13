@@ -362,11 +362,14 @@ void *not_sock;
 
 static void
 notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  struct port_link_state ps;
+  data_encode_port_state (&ps, attrs);
+
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
-  zmsg_addmem (msg, attrs, sizeof (*attrs));
+  zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
 }
 
