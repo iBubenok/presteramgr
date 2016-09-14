@@ -304,6 +304,7 @@ DECLARE_HANDLER (CC_VIF_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_BLOCK);
 DECLARE_HANDLER (CC_VIF_BLOCK);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
+DECLARE_HANDLER (CC_VIF_FDB_FLUSH);
 DECLARE_HANDLER (CC_PORT_SET_MODE);
 DECLARE_HANDLER (CC_VIF_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
@@ -478,6 +479,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_BLOCK),
   HANDLER (CC_VIF_BLOCK),
   HANDLER (CC_PORT_FDB_FLUSH),
+  HANDLER (CC_VIF_FDB_FLUSH),
   HANDLER (CC_PORT_SET_MODE),
   HANDLER (CC_VIF_SET_MODE),
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
@@ -1189,6 +1191,26 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
+{
+  struct mac_age_arg_vif arg;
+  vif_id_t vif;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  arg.vid = ALL_VLANS;
+  arg.vifid = vif;
+  // arg.bmp_devs = LOCAL_DEV;
+  result = mac_flush_vif (&arg, GT_FALSE);
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_SET_FDB_MAP)
 {
