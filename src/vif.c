@@ -162,6 +162,17 @@ void
 vif_remote_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_remote;
   v->set_duplex = vif_set_duplex_remote;
+  v->shutdown = vif_shutdown_remote;
+  v->block = vif_block_remote;
+  v->set_access_vid = vif_set_access_vid_remote;
+  v->set_comm = vif_set_comm_remote;
+  v->set_customer_vid = vif_set_customer_vid_remote;
+  v->set_mode = vif_set_mode_remote;
+  v->set_pve_dst = vif_set_pve_dst_remote;
+  v->set_protected = vif_set_protected_remote;
+  v->set_native_vid = vif_set_native_vid_remote;
+  v->set_trunk_vlans = vif_set_trunk_vlans_remote;
+  v->vlan_translate = vif_vlan_translate_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -169,6 +180,17 @@ void
 vif_port_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_port;
   v->set_duplex = vif_set_duplex_port;
+  v->shutdown = vif_shutdown_port;
+  v->block = vif_block_port;
+  v->set_access_vid = vif_set_access_vid_port;
+  v->set_comm = vif_set_comm_port;
+  v->set_customer_vid = vif_set_customer_vid_port;
+  v->set_mode = vif_set_mode_port;
+  v->set_pve_dst = vif_set_pve_dst_port;
+  v->set_protected = vif_set_protected_port;
+  v->set_native_vid = vif_set_native_vid_port;
+  v->set_trunk_vlans = vif_set_trunk_vlans_port;
+  v->vlan_translate = vif_vlan_translate_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -176,6 +198,17 @@ void
 vif_trunk_proc_init(struct vif* v) {
   v->set_speed = vif_set_speed_trunk;
   v->set_duplex = vif_set_duplex_trunk;
+  v->shutdown = vif_shutdown_trunk;
+  v->block = vif_block_trunk;
+  v->set_access_vid = vif_set_access_vid_trunk;
+  v->set_comm = vif_set_comm_trunk;
+  v->set_customer_vid = vif_set_customer_vid_trunk;
+  v->set_mode = vif_set_mode_trunk;
+  v->set_pve_dst = vif_set_pve_dst_trunk;
+  v->set_protected = vif_set_protected_trunk;
+  v->set_native_vid = vif_set_native_vid_trunk;
+  v->set_trunk_vlans = vif_set_trunk_vlans_trunk;
+  v->vlan_translate = vif_vlan_translate_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -901,4 +934,196 @@ VIF_PROC_TRUNK_BODY(set_duplex, duplex)
 VIF_PROC_ROOT_HEAD(set_duplex, enum port_duplex duplex)
 {
 VIF_PROC_ROOT_BODY(set_duplex, duplex)
+}
+
+
+VIF_PROC_REMOTE(shutdown, int shutdown)
+
+VIF_PROC_PORT_HEAD(shutdown, int shutdown)
+{
+VIF_PROC_PORT_BODY(shutdown, shutdown)
+}
+
+VIF_PROC_TRUNK_HEAD(shutdown, int shutdown)
+{
+VIF_PROC_TRUNK_BODY(shutdown, shutdown)
+}
+
+VIF_PROC_ROOT_HEAD(shutdown, int shutdown)
+{
+VIF_PROC_ROOT_BODY(shutdown, shutdown)
+}
+
+
+VIF_PROC_REMOTE(block, const struct port_block *what)
+
+VIF_PROC_PORT_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_PORT_BODY(block, what)
+}
+
+VIF_PROC_TRUNK_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_TRUNK_BODY(block, what)
+}
+
+VIF_PROC_ROOT_HEAD(block, const struct port_block *what)
+{
+VIF_PROC_ROOT_BODY(block, what)
+}
+
+
+VIF_PROC_REMOTE(set_access_vid, vid_t vid)
+
+VIF_PROC_PORT_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_PORT_BODY(set_access_vid, vid)
+}
+
+VIF_PROC_TRUNK_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_TRUNK_BODY(set_access_vid, vid)
+}
+
+VIF_PROC_ROOT_HEAD(set_access_vid, vid_t vid)
+{
+VIF_PROC_ROOT_BODY(set_access_vid, vid)
+}
+
+VIF_PROC_REMOTE(set_comm, port_comm_t comm)
+
+VIF_PROC_PORT_HEAD(set_comm, port_comm_t comm)
+{
+VIF_PROC_PORT_BODY(set_comm, comm)
+}
+
+VIF_PROC_TRUNK_HEAD(set_comm, port_comm_t comm)
+{
+VIF_PROC_TRUNK_BODY(set_comm, comm)
+}
+
+VIF_PROC_ROOT_HEAD(set_comm, port_comm_t comm)
+{
+VIF_PROC_ROOT_BODY(set_comm, comm)
+}
+
+VIF_PROC_REMOTE(set_customer_vid, vid_t vid)
+
+VIF_PROC_PORT_HEAD(set_customer_vid, vid_t vid)
+{
+VIF_PROC_PORT_BODY(set_customer_vid, vid)
+}
+
+VIF_PROC_TRUNK_HEAD(set_customer_vid, vid_t vid)
+{
+VIF_PROC_TRUNK_BODY(set_customer_vid, vid)
+}
+
+VIF_PROC_ROOT_HEAD(set_customer_vid, vid_t vid)
+{
+VIF_PROC_ROOT_BODY(set_customer_vid, vid)
+}
+
+
+VIF_PROC_REMOTE(set_mode, enum port_mode mode)
+
+VIF_PROC_PORT_HEAD(set_mode, enum port_mode mode)
+{
+VIF_PROC_PORT_BODY(set_mode, mode)
+}
+
+VIF_PROC_TRUNK_HEAD(set_mode, enum port_mode mode)
+{
+VIF_PROC_TRUNK_BODY(set_mode, mode)
+}
+
+VIF_PROC_ROOT_HEAD(set_mode, enum port_mode mode)
+{
+VIF_PROC_ROOT_BODY(set_mode, mode)
+}
+
+VIF_PROC_REMOTE(set_pve_dst, port_id_t dpid, int enable)
+
+VIF_PROC_PORT_HEAD(set_pve_dst, port_id_t dpid, int enable)
+{
+VIF_PROC_PORT_BODY(set_pve_dst, dpid, enable)
+}
+
+VIF_PROC_TRUNK_HEAD(set_pve_dst, port_id_t dpid, int enable)
+{
+VIF_PROC_TRUNK_BODY(set_pve_dst, dpid, enable)
+}
+
+VIF_PROC_ROOT_HEAD(set_pve_dst, port_id_t dpid, int enable)
+{
+VIF_PROC_ROOT_BODY(set_pve_dst, dpid, enable)
+}
+
+VIF_PROC_REMOTE(set_protected, bool_t protected)
+
+VIF_PROC_PORT_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_PORT_BODY(set_protected, protected)
+}
+
+VIF_PROC_TRUNK_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_TRUNK_BODY(set_protected, protected)
+}
+
+VIF_PROC_ROOT_HEAD(set_protected, bool_t protected)
+{
+VIF_PROC_ROOT_BODY(set_protected, protected)
+}
+
+VIF_PROC_REMOTE(set_native_vid, vid_t vid)
+
+VIF_PROC_PORT_HEAD(set_native_vid, vid_t vid)
+{
+VIF_PROC_PORT_BODY(set_native_vid, vid)
+}
+
+VIF_PROC_TRUNK_HEAD(set_native_vid,vid_t vid)
+{
+VIF_PROC_TRUNK_BODY(set_native_vid, vid)
+}
+
+VIF_PROC_ROOT_HEAD(set_native_vid, vid_t vid)
+{
+VIF_PROC_ROOT_BODY(set_native_vid, vid)
+}
+
+VIF_PROC_REMOTE(set_trunk_vlans, const uint8_t *bmp)
+
+VIF_PROC_PORT_HEAD(set_trunk_vlans, const uint8_t *bmp)
+{
+VIF_PROC_PORT_BODY(set_trunk_vlans, bmp)
+}
+
+VIF_PROC_TRUNK_HEAD(set_trunk_vlans,const uint8_t *bmp)
+{
+VIF_PROC_TRUNK_BODY(set_trunk_vlans, bmp)
+}
+
+VIF_PROC_ROOT_HEAD(set_trunk_vlans, const uint8_t *bmp)
+{
+VIF_PROC_ROOT_BODY(set_trunk_vlans, bmp)
+}
+
+
+VIF_PROC_REMOTE(vlan_translate, vid_t from, vid_t to, int add)
+
+VIF_PROC_PORT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_PORT_BODY(vlan_translate, from, to, add)
+}
+
+VIF_PROC_TRUNK_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_TRUNK_BODY(vlan_translate, from, to, add)
+}
+
+VIF_PROC_ROOT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
+{
+VIF_PROC_ROOT_BODY(vlan_translate, from, to, add)
 }
