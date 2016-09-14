@@ -297,12 +297,14 @@ control_start (void)
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
+DECLARE_HANDLER (CC_VIF_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_VIF_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_BLOCK);
 DECLARE_HANDLER (CC_VIF_BLOCK);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
+DECLARE_HANDLER (CC_VIF_FDB_FLUSH);
 DECLARE_HANDLER (CC_PORT_SET_MODE);
 DECLARE_HANDLER (CC_VIF_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
@@ -470,12 +472,14 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
   HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
+  HANDLER (CC_VIF_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_VIF_SHUTDOWN),
   HANDLER (CC_PORT_BLOCK),
   HANDLER (CC_VIF_BLOCK),
   HANDLER (CC_PORT_FDB_FLUSH),
+  HANDLER (CC_VIF_FDB_FLUSH),
   HANDLER (CC_PORT_SET_MODE),
   HANDLER (CC_VIF_SET_MODE),
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
@@ -1012,6 +1016,41 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
+{
+  vif_id_t vif;
+  stp_id_t stp_id;
+  stp_state_t state;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&state);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_OPT_ARG (&stp_id);
+  switch (result) {
+  case ST_OK:
+    result = vif_set_stp_state (vif, stp_id, 0, state);
+    break;
+  case ST_DOES_NOT_EXIST:
+    stp_id = ALL_STP_IDS;
+    result = vif_set_stp_state (vif, 0, 1, state);
+    break;
+  default:
+    break;
+  }
+
+  if (result == ST_OK)
+    control_notify_stp_state (vif, stp_id, state);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SEND_FRAME)
 {
   port_id_t pid;
@@ -1152,6 +1191,26 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
+{
+  struct mac_age_arg_vif arg;
+  vif_id_t vif;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  arg.vid = ALL_VLANS;
+  arg.vifid = vif;
+  // arg.bmp_devs = LOCAL_DEV;
+  result = mac_flush_vif (&arg, GT_FALSE);
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_SET_FDB_MAP)
 {
