@@ -297,6 +297,7 @@ control_start (void)
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
+DECLARE_HANDLER (CC_VIF_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_VIF_SHUTDOWN);
@@ -470,6 +471,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
   HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
+  HANDLER (CC_VIF_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_VIF_SHUTDOWN),
@@ -1007,6 +1009,41 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 
   if (result == ST_OK)
     control_notify_stp_state (pid, stp_id, state);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
+{
+  vif_id_t vif;
+  stp_id_t stp_id;
+  stp_state_t state;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&state);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_OPT_ARG (&stp_id);
+  switch (result) {
+  case ST_OK:
+    result = vif_set_stp_state (vif, stp_id, 0, state);
+    break;
+  case ST_DOES_NOT_EXIST:
+    stp_id = ALL_STP_IDS;
+    result = vif_set_stp_state (vif, 0, 1, state);
+    break;
+  default:
+    break;
+  }
+
+  if (result == ST_OK)
+    control_notify_stp_state (vif, stp_id, state);
 
  out:
   report_status (result);

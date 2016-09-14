@@ -173,6 +173,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_native_vid = vif_set_native_vid_remote;
   v->set_trunk_vlans = vif_set_trunk_vlans_remote;
   v->vlan_translate = vif_vlan_translate_remote;
+  v->set_stp_state = vif_set_stp_state_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -191,6 +192,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_native_vid = vif_set_native_vid_port;
   v->set_trunk_vlans = vif_set_trunk_vlans_port;
   v->vlan_translate = vif_vlan_translate_port;
+  v->set_stp_state = vif_set_stp_state_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -209,6 +211,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_native_vid = vif_set_native_vid_trunk;
   v->set_trunk_vlans = vif_set_trunk_vlans_trunk;
   v->vlan_translate = vif_vlan_translate_trunk;
+  v->set_stp_state = vif_set_stp_state_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -1126,4 +1129,25 @@ VIF_PROC_TRUNK_BODY(vlan_translate, from, to, add)
 VIF_PROC_ROOT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
 {
 VIF_PROC_ROOT_BODY(vlan_translate, from, to, add)
+}
+
+VIF_PROC_REMOTE(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state)
+
+VIF_PROC_PORT_HEAD(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state)
+{
+VIF_PROC_PORT_BODY(set_stp_state, stp_id, all, state)
+}
+
+VIF_PROC_TRUNK_HEAD(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state)
+{
+VIF_PROC_TRUNK_BODY(set_stp_state, stp_id, all, state)
+}
+
+VIF_PROC_ROOT_HEAD(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state)
+{
+VIF_PROC_ROOT_BODY(set_stp_state, stp_id, all, state)
 }

@@ -46,6 +46,8 @@ struct vif {
   enum status (*set_protected) (struct vif *, bool_t protected);
   enum status (*set_native_vid) (struct vif *, vid_t vid);
   enum status (*set_trunk_vlans) (struct vif *, const uint8_t *);
+  enum status (*set_stp_state) (struct vif *, stp_id_t stp_id,
+    int all, enum port_stp_state state);
   enum status (*set_mdix_auto) (struct vif *, int);
   enum status (*vlan_translate) (struct vif *, vid_t, vid_t, int);
 };
@@ -132,5 +134,7 @@ VIF_DEF_PROC(set_protected, bool_t protected);
 VIF_DEF_PROC(set_native_vid, vid_t vid);
 VIF_DEF_PROC(set_trunk_vlans, const uint8_t *bmp);
 VIF_DEF_PROC(vlan_translate, vid_t from, vid_t to, int add);
+VIF_DEF_PROC(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state);
 
 #endif /* __VIF_H__ */
