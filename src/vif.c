@@ -993,6 +993,7 @@ VIF_PROC_ROOT_HEAD(set_access_vid, vid_t vid)
 VIF_PROC_ROOT_BODY(set_access_vid, vid)
 }
 
+
 VIF_PROC_REMOTE(set_comm, port_comm_t comm)
 
 VIF_PROC_PORT_HEAD(set_comm, port_comm_t comm)
@@ -1009,6 +1010,7 @@ VIF_PROC_ROOT_HEAD(set_comm, port_comm_t comm)
 {
 VIF_PROC_ROOT_BODY(set_comm, comm)
 }
+
 
 VIF_PROC_REMOTE(set_customer_vid, vid_t vid)
 
@@ -1045,6 +1047,7 @@ VIF_PROC_ROOT_HEAD(set_mode, enum port_mode mode)
 VIF_PROC_ROOT_BODY(set_mode, mode)
 }
 
+
 VIF_PROC_REMOTE(set_pve_dst, port_id_t dpid, int enable)
 
 VIF_PROC_PORT_HEAD(set_pve_dst, port_id_t dpid, int enable)
@@ -1061,6 +1064,7 @@ VIF_PROC_ROOT_HEAD(set_pve_dst, port_id_t dpid, int enable)
 {
 VIF_PROC_ROOT_BODY(set_pve_dst, dpid, enable)
 }
+
 
 VIF_PROC_REMOTE(set_protected, bool_t protected)
 
@@ -1079,6 +1083,7 @@ VIF_PROC_ROOT_HEAD(set_protected, bool_t protected)
 VIF_PROC_ROOT_BODY(set_protected, protected)
 }
 
+
 VIF_PROC_REMOTE(set_native_vid, vid_t vid)
 
 VIF_PROC_PORT_HEAD(set_native_vid, vid_t vid)
@@ -1095,6 +1100,7 @@ VIF_PROC_ROOT_HEAD(set_native_vid, vid_t vid)
 {
 VIF_PROC_ROOT_BODY(set_native_vid, vid)
 }
+
 
 VIF_PROC_REMOTE(set_trunk_vlans, const uint8_t *bmp)
 
@@ -1130,6 +1136,7 @@ VIF_PROC_ROOT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
 {
 VIF_PROC_ROOT_BODY(vlan_translate, from, to, add)
 }
+
 
 VIF_PROC_REMOTE(set_stp_state, stp_id_t stp_id,
   int all, enum port_stp_state state)

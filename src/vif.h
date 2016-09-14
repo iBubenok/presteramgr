@@ -38,16 +38,15 @@ struct vif {
   enum status (*update_sd) (struct vif *);
   enum status (*shutdown) (struct vif *, int);
   enum status (*block) (struct vif *, const struct port_block *);
-  enum status (*set_access_vid) (struct vif *, vid_t vid);
-  enum status (*set_comm) (struct vif *, port_comm_t comm);
-  enum status (*set_customer_vid) (struct vif *, vid_t vid);
-  enum status (*set_mode) (struct vif *, enum port_mode mode);
-  enum status (*set_pve_dst) (struct vif *, port_id_t dpid, int enable);
-  enum status (*set_protected) (struct vif *, bool_t protected);
-  enum status (*set_native_vid) (struct vif *, vid_t vid);
+  enum status (*set_access_vid) (struct vif *, vid_t);
+  enum status (*set_comm) (struct vif *, port_comm_t);
+  enum status (*set_customer_vid) (struct vif *, vid_t);
+  enum status (*set_mode) (struct vif *, enum port_mode);
+  enum status (*set_pve_dst) (struct vif *, port_id_t, int);
+  enum status (*set_protected) (struct vif *, bool_t);
+  enum status (*set_native_vid) (struct vif *, vid_t);
   enum status (*set_trunk_vlans) (struct vif *, const uint8_t *);
-  enum status (*set_stp_state) (struct vif *, stp_id_t stp_id,
-    int all, enum port_stp_state state);
+  enum status (*set_stp_state) (struct vif *, stp_id_t, int, enum port_stp_state);
   enum status (*set_mdix_auto) (struct vif *, int);
   enum status (*vlan_translate) (struct vif *, vid_t, vid_t, int);
 };
