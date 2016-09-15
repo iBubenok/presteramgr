@@ -489,7 +489,7 @@ vif_tx (const struct vif_id *id,
   struct vif *vif, *vifp;
   trunk_id_t trunk = 0;
 
-DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
+// DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
 
   if ((opts->send_to != VIFD_VLAN && opts->send_to != VIFD_VIDX) || opts->exclude_src_port) {
     if (opts->find_iface_by_portid) {
@@ -870,9 +870,7 @@ enum status \
 vif_##proc##_port (struct vif *vif, ##arg)
 
 #define VIF_PROC_PORT_BODY(proc, arg...) \
-DEBUG(">>>>vif_" #proc "_port (%p, ...), vif->n == %d\n", vif, vif->vifid.num); \
   struct port *port = (struct port*) vif; \
-DEBUG("====vif_" #proc "_port (), port == %p, pid == %d\n", port, port->id); \
   return port_##proc (port->id, ##arg);
 
 #define VIF_PROC_TRUNK_HEAD(proc, arg...) \
@@ -897,9 +895,7 @@ enum status \
 vif_##proc (vif_id_t nvif, ##arg)
 
 #define VIF_PROC_ROOT_BODY(proc, arg...) \
-DEBUG(">>>>vif_" #proc "(%08x, ...)\n", nvif); \
   struct vif *vif = vif_getn (nvif); \
-DEBUG("====vif_" #proc "(...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num); \
   if (!vif) \
     return ST_DOES_NOT_EXIST; \
   return vif->proc (vif, ##arg);

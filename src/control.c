@@ -1196,16 +1196,32 @@ DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
 {
   struct mac_age_arg_vif arg;
   vif_id_t vif;
+  stp_id_t stp_id;
+
   enum status result;
 
   result = POP_ARG (&vif);
   if (result != ST_OK)
     goto out;
 
-  arg.vid = ALL_VLANS;
   arg.vifid = vif;
-  // arg.bmp_devs = LOCAL_DEV;
-  result = mac_flush_vif (&arg, GT_FALSE);
+
+  if (POP_ARG(&stp_id) == ST_OK) {
+    vid_t vid;
+    for (vid = 1; vid <= NVLANS; vid++) {
+      stp_id_t *vlan_stp_id = NULL;
+      vlan_get_stp_id(vid, vlan_stp_id);
+      if (vlan_stp_id && stp_id == *vlan_stp_id) {
+        arg.vid = vid;
+        result = mac_flush_vif (&arg, GT_FALSE);
+      }
+      if (result != ST_OK)
+        goto out;
+    }
+  } else {
+    arg.vid = ALL_VLANS;
+    result = mac_flush_vif (&arg, GT_FALSE);
+  }
 
  out:
   report_status (result);

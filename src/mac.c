@@ -1157,8 +1157,8 @@ fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa, uint8_t sid) {
 static enum status
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
-        u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
+// DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
+//         u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
 
   port_id_t lport;
   struct port *port;
@@ -1189,7 +1189,7 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
 
   if (!port || !port->fdb_insertion_enabled)
     return ST_BAD_STATE;
- 
+
   if (port->fdb_addr_op_notify_enabled)
     fdb_mac_op_notification_send(
       MAC_LEARN,
@@ -1203,8 +1203,8 @@ DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO rem
 static enum status
 fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO remove
-  u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
+// DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO remove
+//   u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
   /* DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n", */
   /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
   /*        u->macEntry.key.key.macVlan.vlanId); */
@@ -1250,7 +1250,7 @@ fdb_upd_for_dev (int d)
             mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
         break;
       default:
-        DEBUG("fdb_upd_for_dev(): UNRESOLVED!!!! fdb_addrs[i].updType==%u  \n", fdb_addrs[i].updType);
+        // DEBUG("fdb_upd_for_dev(): UNRESOLVED!!!! fdb_addrs[i].updType==%u  \n", fdb_addrs[i].updType);
         break;
       }
     }
@@ -1300,12 +1300,12 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
 
   switch (cmd) {
   case FCC_MAC_OP:
-    DEBUG("FCC_MAP_OP\n"); // TODO remove
+    // DEBUG("FCC_MAP_OP\n"); // TODO remove
     status = fdb_mac_op (arg, 0);
-    DEBUG("===FCC_MAP_OP\n"); // TODO remove
+    // DEBUG("===FCC_MAP_OP\n"); // TODO remove
     break;
    case FCC_MAC_OP_VIF:
-    DEBUG("FCC_MAP_OP_VIF\n"); // TODO remove
+    // DEBUG("FCC_MAP_OP_VIF\n"); // TODO remove
     if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
       fdbman_send_msg_uni_macop(arg, 0, 1);
       status = fdb_mac_op_vif (arg, 0);
@@ -1314,22 +1314,22 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
       status = ST_OK;
       fdbman_send_msg_uni_macop(arg, 0, 0);
     }
-    DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
+    // DEBUG("===FCC_MAP_OP_VIF\n"); // TODO remove
     break;
   case FCC_OWN_MAC_OP:
-    DEBUG("FCC_OWN_MAP_OP\n"); // TODO remove
+    // DEBUG("FCC_OWN_MAP_OP\n"); // TODO remove
     status = fdb_mac_op (arg, 1);
-    DEBUG("===FCC_OWN_MAP_OP\n"); // TODO remove
+    // DEBUG("===FCC_OWN_MAP_OP\n"); // TODO remove
     break;
    case FCC_OWN_MAC_OP_VIF:
-    DEBUG("FCC_OWN_MAP_OP_VIF\n"); // TODO remove
+    // DEBUG("FCC_OWN_MAP_OP_VIF\n"); // TODO remove
     status = fdb_mac_op_vif (arg, 1);
-    DEBUG("===FCC_OWN_MAP_OP_VIF\n"); // TODO remove
+    // DEBUG("===FCC_OWN_MAP_OP_VIF\n"); // TODO remove
     break;
   case FCC_MC_IP_OP:
-    DEBUG("FCC_MC_IP_OP\n"); // TODO remove
+    // DEBUG("FCC_MC_IP_OP\n"); // TODO remove
     status = fdb_mac_mc_ip_op (arg);
-    DEBUG("===FCC_MC_IP_OP\n"); // TODO remove
+    // DEBUG("===FCC_MC_IP_OP\n"); // TODO remove
     break;
   case FCC_FLUSH:
     if (fdbman_state == FST_MASTER || fdbman_state == FST_PRE_MEMBER) {
@@ -1352,16 +1352,16 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
     }
     break;
   case FCC_SET_MASTER:
-    DEBUG("FCC_SET_MASTER\n"); // TODO remove
+    // DEBUG("FCC_SET_MASTER\n"); // TODO remove
     status = fdbman_set_master(arg);
-    DEBUG("===FCC_SET_MASTER\n"); // TODO remove
+    // DEBUG("===FCC_SET_MASTER\n"); // TODO remove
     break;
   case FCC_FDBMAN_HANDLE_PKT:
-    DEBUG("FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
+    // DEBUG("FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
 //    n = *((uint32_t*) arg);
 //    arg = zframe_data (zmsg_next (msg));
     status = fdbman_handle_pkt(arg, zframe_size(frame));
-    DEBUG("===FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
+    // DEBUG("===FCC_FDBMAN_HANDLE_PKT\n"); // TODO remove
     break;
   case FCC_FDBMAN_SEND_RT:
     fdbman_send_rtbd(arg, zframe_size (frame), ALL_DEVS);
@@ -1415,7 +1415,7 @@ fdbman_send_pkt(const void *arg, uint32_t len) {
 
 static void
 fdbman_send_rtbd(const void *arg, int len, devsbmp_t bmp) {
-DEBUG(">>>fdbman_send_rtbd(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
+// DEBUG(">>>fdbman_send_rtbd(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1433,9 +1433,9 @@ DEBUG(">>>fdbman_send_rtbd(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
 
 static void
 fdbman_send_na(const struct arpd_ip_addr_msg *arg) {
-DEBUG(">>>fdbman_send_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
+// DEBUG(">>>fdbman_send_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
 //    "mac==%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n",
-    arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
+    // arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
 //    arg->mac[0],arg->mac[1],arg->mac[2],arg->mac[3],arg->mac[4],arg->mac[5],arg->mac[6],arg->mac[7]);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
@@ -1454,7 +1454,7 @@ DEBUG(">>>fdbman_send_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
 
 static void
 fdbman_send_opna(void *arg) {
-DEBUG(">>>fdbman_send_opna()\n");
+// DEBUG(">>>fdbman_send_opna()\n");
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1472,7 +1472,7 @@ DEBUG(">>>fdbman_send_opna()\n");
 
 static void
 fdbman_send_udt(uint32_t daddr, devsbmp_t bmp) {
-DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
+// DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1490,7 +1490,7 @@ DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
 
 static void
 fdbman_send_clear_routing (devsbmp_t newdevs_bmp) {
-DEBUG(">>>fdbman_send_clear_routing(%x)\n", newdevs_bmp);
+// DEBUG(">>>fdbman_send_clear_routing(%x)\n", newdevs_bmp);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1507,7 +1507,7 @@ DEBUG(">>>fdbman_send_clear_routing(%x)\n", newdevs_bmp);
 
 static void
 fdbman_send_vifstg_get (devsbmp_t bmp) {
-DEBUG(">>>fdbman_send_vifstg_get(%x)\n", bmp);
+// DEBUG(">>>fdbman_send_vifstg_get(%x)\n", bmp);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1526,7 +1526,7 @@ static void
 fdbman_send_vifstg_get_reply (void *p) {
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
-DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
+// DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
 
   fdb_msg->version = PTI_FDB_VERSION;
   fdb_msg->stack_id = stack_id;
@@ -1550,7 +1550,7 @@ DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
 
 static void
 fdbman_send_master_announce_pkt(serial_t serial, devsbmp_t bmp) {
-DEBUG(">>>fdbman_send_master_announce_pkt(%llu, %hx)\n", serial, bmp);
+// DEBUG(">>>fdbman_send_master_announce_pkt(%llu, %hx)\n", serial, bmp);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1566,10 +1566,10 @@ DEBUG(">>>fdbman_send_master_announce_pkt(%llu, %hx)\n", serial, bmp);
 
 static void
 fdbman_send_msg_uni_macop(const struct mac_op_arg_vif *arg, int own, int master) {
-DEBUG(">>>fdbman_send_msg_uni_macop(vid==%d, vif=%x, type==%d, drop=%d, delete=%d, bmp_devs=%x, "
-    "mac==%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n",
-    arg->vid, arg->vifid, arg->type, arg->drop, arg->delete, arg->bmp_devs,
-    arg->mac[0],arg->mac[1],arg->mac[2],arg->mac[3],arg->mac[4],arg->mac[5],arg->mac[6],arg->mac[7]);
+// DEBUG(">>>fdbman_send_msg_uni_macop(vid==%d, vif=%x, type==%d, drop=%d, delete=%d, bmp_devs=%x, "
+//     "mac==%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n",
+//     arg->vid, arg->vifid, arg->type, arg->drop, arg->delete, arg->bmp_devs,
+//     arg->mac[0],arg->mac[1],arg->mac[2],arg->mac[3],arg->mac[4],arg->mac[5],arg->mac[6],arg->mac[7]);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1586,7 +1586,7 @@ DEBUG(">>>fdbman_send_msg_uni_macop(vid==%d, vif=%x, type==%d, drop=%d, delete=%
 
 static void
 fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master) {
-DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\n", arg->aa.vid, arg->aa.port, arg->ds);
+// DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\n", arg->aa.vid, arg->aa.port, arg->ds);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1603,7 +1603,7 @@ DEBUG(">>>fdbman_send_msg_uni_flush(arg.aa.vid==%d, arg.aa.port=%d, arg.ds==%d)\
 
 static void
 fdbman_send_msg_uni_flush_vif(const struct fdb_flush_arg_vif *arg, int master) {
-DEBUG(">>>fdbman_send_msg_uni_flush_vif(arg.aav.vid==%d, arg.aav.vifid=%x, arg.ds==%d)\n", arg->aav.vid, arg->aav.vifid, arg->ds);
+// DEBUG(">>>fdbman_send_msg_uni_flush_vif(arg.aav.vid==%d, arg.aav.vifid=%x, arg.ds==%d)\n", arg->aav.vid, arg->aav.vifid, arg->ds);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1620,7 +1620,7 @@ DEBUG(">>>fdbman_send_msg_uni_flush_vif(arg.aav.vid==%d, arg.aav.vifid=%x, arg.d
 
 static void
 fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
-DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
+// DEBUG(">>>fdbman_send_msg_uni_update(%p, %d, %d)\n", pf, n, master);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
   struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
 
@@ -1661,7 +1661,7 @@ fdbman_handle_msg_master_update(const struct pti_fdbr_msg *msg, uint32_t len) {
 
 static void
 fdbman_handle_msg_update(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
   unsigned i, idx = 0;
   struct pti_fdbr *fa = msg->data;
   status_t s = ST_DOES_NOT_EXIST;
@@ -1686,7 +1686,7 @@ DEBUG(">>>fdbman_handle_msg_update(%p, %d)\n", msg, len);
 
 static void
 fdbman_handle_msg_macop(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_macop(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_macop(%p, %d)\n", msg, len);
   struct mac_op_arg_vif *arg = (struct mac_op_arg_vif *) msg->data;
   fdbman_send_msg_uni_macop(arg, 0, 1);
   fdb_mac_op_vif (arg, 0);
@@ -1694,14 +1694,14 @@ DEBUG(">>>fdbman_handle_msg_macop(%p, %d)\n", msg, len);
 
 static void
 fdbman_handle_msg_master_macop(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_master_macop(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_master_macop(%p, %d)\n", msg, len);
   struct mac_op_arg_vif *arg = (struct mac_op_arg_vif *) msg->data;
   fdb_mac_op_vif (arg, 0);
 }
 
 static void
 fdbman_handle_msg_flush(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_flush(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_flush(%p, %d)\n", msg, len);
   struct fdb_flush_arg *arg = (struct fdb_flush_arg *) msg->data;
   fdbman_send_msg_uni_flush(arg, 1);
   fdb_flush (arg);
@@ -1709,14 +1709,14 @@ DEBUG(">>>fdbman_handle_msg_flush(%p, %d)\n", msg, len);
 
 static void
 fdbman_handle_msg_master_flush(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_master_flush(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_master_flush(%p, %d)\n", msg, len);
   struct fdb_flush_arg *arg = (struct fdb_flush_arg *) msg->data;
   fdb_flush (arg);
 }
 
 static void
 fdbman_handle_msg_flush_vif(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_flush_vif(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_flush_vif(%p, %d)\n", msg, len);
   struct fdb_flush_arg_vif *arg = (struct fdb_flush_arg_vif *) msg->data;
   fdbman_send_msg_uni_flush_vif(arg, 1);
   fdb_flush_vif (arg);
@@ -1724,7 +1724,7 @@ DEBUG(">>>fdbman_handle_msg_flush_vif(%p, %d)\n", msg, len);
 
 static void
 fdbman_handle_msg_master_flush_vif(struct pti_fdbr_msg *msg, uint32_t len) {
-DEBUG(">>>fdbman_handle_msg_master_flush_vif(%p, %d)\n", msg, len);
+// DEBUG(">>>fdbman_handle_msg_master_flush_vif(%p, %d)\n", msg, len);
   struct fdb_flush_arg_vif *arg = (struct fdb_flush_arg_vif *) msg->data;
   fdb_flush_vif (arg);
 }
@@ -1742,7 +1742,7 @@ fdbman_send_control_cmd (command_t cmd, void *buf, size_t len) {
 __attribute__ ((unused))
 static void *
 fdbman_execute_control_cmd (command_t cmd, void *buf, size_t len) {
-DEBUG(">>>>fdbman_execute_control_cmd(%d, , %d) == \n", cmd, len);
+// DEBUG(">>>>fdbman_execute_control_cmd(%d, , %d) == \n", cmd, len);
   zmsg_t *msg = zmsg_new ();
   assert (msg);
 
@@ -1755,18 +1755,18 @@ DEBUG(">>>>fdbman_execute_control_cmd(%d, , %d) == \n", cmd, len);
     return NULL;
   zframe_t *frame = zmsg_pop(msg);
   if (zframe_size(frame) != sizeof(status_t) || *(status_t*)zframe_data(frame) != ST_OK) {
-    DEBUG("====fdbman_execute_control_cmd OOPS1\n");
+    // DEBUG("====fdbman_execute_control_cmd OOPS1\n");
     return NULL;
   }
   zframe_destroy(&frame);
   frame = zmsg_next(msg);
   if (zframe_size(frame) != sizeof(void*)) {
-    DEBUG("====fdbman_execute_control_cmd OOPS2\n");
+    // DEBUG("====fdbman_execute_control_cmd OOPS2\n");
     return NULL;
   }
   void *r = *(void**)zframe_data(frame);
   zmsg_destroy(&msg);
-DEBUG("<<<<fdbman_execute_control_cmd == %p\n", r);
+// DEBUG("<<<<fdbman_execute_control_cmd == %p\n", r);
   return r;
 }
 
@@ -1776,7 +1776,7 @@ fdbman_handle_msg_rt(struct pti_fdbr_msg *msg, uint32_t len) {
     return;
   void *arg = msg->data;
   size_t msglen = len - sizeof(struct pti_fdbr_msg);
-DEBUG(">>>fdbman_handle_msg_rt(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
+// DEBUG(">>>fdbman_handle_msg_rt(%d, len == %d)\n", *((rtbd_notif_t*)arg), len);
   fdbman_send_control_cmd(SC_INT_RTBD_CMD, arg, msglen);
 }
 
@@ -1785,8 +1785,8 @@ fdbman_handle_msg_na(struct pti_fdbr_msg *msg, uint32_t len) {
   if (! (msg->devsbmp & (1 << stack_id)))
     return;
   struct arpd_ip_addr_msg *arg = (struct arpd_ip_addr_msg *) msg->data;
-DEBUG(">>>fdbman_handle_msg_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
-arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
+// DEBUG(">>>fdbman_handle_msg_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
+// arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
   fdbman_send_control_cmd(SC_INT_NA_CMD, arg, sizeof(*arg));
 }
 
@@ -1794,7 +1794,7 @@ static void
 fdbman_handle_msg_opna(struct pti_fdbr_msg *msg, uint32_t len) {
   void *arg = msg->data;
   size_t msglen = len - sizeof(struct pti_fdbr_msg);
-DEBUG(">>>fdbman_handle_msg_opna(%d, len == %d)\n", *((arpd_command_t*)arg), len);
+// DEBUG(">>>fdbman_handle_msg_opna(%d, len == %d)\n", *((arpd_command_t*)arg), len);
   fdbman_send_control_cmd(SC_INT_OPNA_CMD, arg, msglen);
 }
 
@@ -1802,14 +1802,14 @@ static void
 fdbman_handle_msg_udt(struct pti_fdbr_msg *msg, uint32_t len) {
   uint32_t daddr;
   memcpy(&daddr, msg->data, sizeof(daddr));
-DEBUG(">>>fdbman_handle_msg_udt(%x)\n", daddr);
+// DEBUG(">>>fdbman_handle_msg_udt(%x)\n", daddr);
   fdbman_send_control_cmd(SC_INT_UDT_CMD, &daddr, sizeof(daddr));
 }
 
 static void
 fdbman_handle_msg_clear_routing(struct pti_fdbr_msg *msg, uint32_t len) {
   int dummy;
-DEBUG(">>>fdbman_handle_msg_clear_routing() %x\n", msg->devsbmp);
+// DEBUG(">>>fdbman_handle_msg_clear_routing() %x\n", msg->devsbmp);
   if (! (msg->devsbmp & (1 << stack_id)))
     return;
   fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
@@ -1818,7 +1818,7 @@ DEBUG(">>>fdbman_handle_msg_clear_routing() %x\n", msg->devsbmp);
 static void
 fdbman_handle_msg_vifstg_get(struct pti_fdbr_msg *msg, uint32_t len) {
   int dummy;
-DEBUG(">>>fdbman_handle_msg_vifstg_get() %x\n", msg->devsbmp);
+// DEBUG(">>>fdbman_handle_msg_vifstg_get() %x\n", msg->devsbmp);
   if (! (msg->devsbmp & (1 << stack_id)))
     return;
   void *p = fdbman_execute_control_cmd(CC_INT_VIFSTG_GET, &dummy, sizeof(dummy));
@@ -1830,7 +1830,7 @@ static void
 fdbman_handle_msg_vifstg_get_reply(struct pti_fdbr_msg *msg, uint32_t len) {
 //  void *arg = msg->data;
   struct vif_stgblk_header *arg = (struct vif_stgblk_header*) msg->data;
-DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
+// DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
   if (! (msg->devsbmp & (1 << stack_id)))
     return;
 
@@ -1843,16 +1843,14 @@ DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
 
 static void
 fdbman_sync_routing(devsbmp_t nbmp) {
-DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
-  if (!nbmp)
-    return;
+// DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
+  if (!nbmp) return;
 
   fdbman_send_clear_routing (nbmp);
 
   uint32_t dummy;
   void *p = fdbman_execute_control_cmd(CC_INT_GET_RT_CMD, &dummy, sizeof(dummy));
-  if (!p)
-    goto out;
+  if (!p) return;
   int nr = *(uint32_t*)p;
   assert(sizeof(rtbd_notif_t) <= sizeof(uint32_t));
   struct rtbd_route_msg *rt = (struct rtbd_route_msg *)((uint32_t*)p + 1);
@@ -1865,8 +1863,7 @@ DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   free(p);
 
   p = fdbman_execute_control_cmd(CC_INT_GET_UDADDRS_CMD, &dummy, sizeof(dummy));
-  if (!p)
-    goto out;
+  if (!p) return;
   nr = *(uint32_t*)p;
   uint32_t *udaddr = (uint32_t*)p + 1;
   for (i = 0; i < nr; i++) {
@@ -1874,13 +1871,12 @@ DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   }
   free(p);
 
- out:
-DEBUG("<<<<fdbman_sync_routing");
+// DEBUG("<<<<fdbman_sync_routing");
 }
 
 static void
 fdbman_sync_stg(devsbmp_t nbmp) {
-DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
+// DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
   if (!nbmp)
     return;
   fdbman_send_vifstg_get(nbmp);
@@ -1895,10 +1891,10 @@ fdbman_set_master(const void *arg) {
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
   devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
-DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
-DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+// DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
+// DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   if (serial < fdbman_serial) {
-    DEBUG("====fdbman_set_master() serial %llu < than the current fdbman_serial %llu", serial, fdbman_serial);
+    // DEBUG("====fdbman_set_master() serial %llu < than the current fdbman_serial %llu", serial, fdbman_serial);
     return ST_OK;
   }
   if (serial <= fdbman_newserial)
@@ -1949,22 +1945,22 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
   }
   fdbman_send_control_cmd(SC_INT_CLEAR_RE_CMD, &deldevs_bmp, sizeof(deldevs_bmp));
   fdbman_devsbmp = dbmp;
-DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+// DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;
 }
 
 static enum status
 fdbman_handle_pkt (const void *pkt, uint32_t len) {
-DEBUG(">>>fdbman_handle_pkt (%p, %d)\n", pkt, len);
+// DEBUG(">>>fdbman_handle_pkt (%p, %d)\n", pkt, len);
 
   struct pti_fdbr_msg *msg = (struct pti_fdbr_msg*) pkt;
-DEBUG("msg: cmd %d, n %d, stid %d, serial: %llu, devsbmp: %hx\n",
-    msg->command, ntohs(msg->nfdb), msg->stack_id, msg->serial, msg->devsbmp);
-DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n",
-    fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+// DEBUG("msg: cmd %d, n %d, stid %d, serial: %llu, devsbmp: %hx\n",
+    // msg->command, ntohs(msg->nfdb), msg->stack_id, msg->serial, msg->devsbmp);
+// DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n",
+    // fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
 
   if (msg->command != FMC_MASTER_READY && msg->serial < fdbman_serial) {
-DEBUG("<<<<fdbman_handle_pkt() DROP;\n");
+// DEBUG("<<<<fdbman_handle_pkt() DROP;\n");
     return ST_OK;
   }
 
@@ -1978,12 +1974,12 @@ DEBUG("<<<<fdbman_handle_pkt() DROP;\n");
   switch (msg->command) {
     case FMC_MASTER_READY:
       if (!(msg->devsbmp & (1 << stack_id))) {
-DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
+// DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
         return ST_OK;
       }
       if (msg->serial < fdbman_serial) {
-        DEBUG("ERROR: fdbman: with serial: %llu recieved outdated FMS_MASTER_READY with serial %llu ",
-            fdbman_serial, msg->serial);
+        // DEBUG("ERROR: fdbman: with serial: %llu recieved outdated FMS_MASTER_READY with serial %llu ",
+        //     fdbman_serial, msg->serial);
         break;
       }
       if (msg->serial < fdbman_newserial) {
@@ -2010,8 +2006,8 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
             fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
-            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n", 
-                msg->stack_id, fdbman_newmaster);
+            // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+            //     msg->stack_id, fdbman_newmaster);
           }
           break;
         case FST_MEMBER:
@@ -2026,8 +2022,8 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
             fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
-            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
-                  msg->stack_id, fdbman_newmaster);
+            // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+            //       msg->stack_id, fdbman_newmaster);
           }
           break;
       }
@@ -2046,19 +2042,19 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
 
     case FMC_MASTER_UPDATE:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
+          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
           break;
         case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_handle_msg_master_update(msg, len);
           }
           else {
-            DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
+            // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
           }
           break;
         case FST_MEMBER:
@@ -2080,15 +2076,15 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
 
     case FMC_MASTER_FLUSH:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
+          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
           break;
         case FST_PRE_MEMBER:
-          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
+          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
@@ -2109,15 +2105,15 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
 
     case FMC_MASTER_FLUSH_VIF:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH_VIF\n");
+          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH_VIF\n");
           break;
         case FST_PRE_MEMBER:
-          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
+          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush_vif(msg, len);
@@ -2138,15 +2134,15 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
 
     case FMC_MASTER_MACOP:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_MACOP data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_MACOP data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
+          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
           break;
         case FST_PRE_MEMBER:
-          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
+          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_macop(msg, len);
@@ -2162,7 +2158,7 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
       break;
     case FMC_MASTER_NA:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_NA data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_NA data block\n", msg->stack_id);
         break;
       }
       fdbman_handle_msg_na(msg, len);
@@ -2172,7 +2168,7 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
       break;
     case FMC_MASTER_UDT:
       if (msg->stack_id != fdbman_master) {
-        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UDT data block\n", msg->stack_id);
+        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UDT data block\n", msg->stack_id);
         break;
       }
       fdbman_handle_msg_udt(msg, len);
@@ -2188,7 +2184,7 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
       break;
     }
 
-DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+// DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;
 }
 

@@ -1096,7 +1096,7 @@ port_get_type (port_id_t pid, port_type_t *ptype)
   return ST_OK;
 }
 
-static char*
+static char __attribute__ ((unused)) *
 stp_state_to_string (enum port_stp_state state)
 {
   switch (state) {
@@ -1131,7 +1131,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   assert (vif);
 
   if (all) {
-    DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
+    // DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
@@ -1144,7 +1144,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   } else {
       stg_state[pid - 1][stp_id] = state;
       vif->stg_state[stp_id] = state;
-      DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
+      // DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
       CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   }
 
