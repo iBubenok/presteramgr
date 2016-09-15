@@ -38,7 +38,18 @@ struct vif {
   enum status (*set_duplex) (struct vif *, enum port_duplex);
   enum status (*update_sd) (struct vif *);
   enum status (*shutdown) (struct vif *, int);
+  enum status (*block) (struct vif *, const struct port_block *);
+  enum status (*set_access_vid) (struct vif *, vid_t);
+  enum status (*set_comm) (struct vif *, port_comm_t);
+  enum status (*set_customer_vid) (struct vif *, vid_t);
+  enum status (*set_mode) (struct vif *, enum port_mode);
+  enum status (*set_pve_dst) (struct vif *, port_id_t, int);
+  enum status (*set_protected) (struct vif *, bool_t);
+  enum status (*set_native_vid) (struct vif *, vid_t);
+  enum status (*set_trunk_vlans) (struct vif *, const uint8_t *);
+  enum status (*set_stp_state) (struct vif *, stp_id_t, int, enum port_stp_state);
   enum status (*set_mdix_auto) (struct vif *, int);
+  enum status (*vlan_translate) (struct vif *, vid_t, vid_t, int);
 };
 
 struct vif_stgblk_header {
@@ -112,5 +123,18 @@ extern enum status vif_##proc##_trunk (struct vif *, ##arg)
 
 VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
 VIF_DEF_PROC(set_duplex, enum port_duplex);
+VIF_DEF_PROC(shutdown, int shutdown);
+VIF_DEF_PROC(block, const struct port_block *);
+VIF_DEF_PROC(set_access_vid, vid_t vid);
+VIF_DEF_PROC(set_comm, port_comm_t comm);
+VIF_DEF_PROC(set_customer_vid, vid_t vid);
+VIF_DEF_PROC(set_mode, enum port_mode mode);
+VIF_DEF_PROC(set_pve_dst, port_id_t dpid, int enable);
+VIF_DEF_PROC(set_protected, bool_t protected);
+VIF_DEF_PROC(set_native_vid, vid_t vid);
+VIF_DEF_PROC(set_trunk_vlans, const uint8_t *bmp);
+VIF_DEF_PROC(vlan_translate, vid_t from, vid_t to, int add);
+VIF_DEF_PROC(set_stp_state, stp_id_t stp_id,
+  int all, enum port_stp_state state);
 
 #endif /* __VIF_H__ */

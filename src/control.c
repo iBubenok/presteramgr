@@ -297,13 +297,20 @@ control_start (void)
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
+DECLARE_HANDLER (CC_VIF_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
+DECLARE_HANDLER (CC_VIF_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_BLOCK);
+DECLARE_HANDLER (CC_VIF_BLOCK);
 DECLARE_HANDLER (CC_PORT_FDB_FLUSH);
+DECLARE_HANDLER (CC_VIF_FDB_FLUSH);
 DECLARE_HANDLER (CC_PORT_SET_MODE);
+DECLARE_HANDLER (CC_VIF_SET_MODE);
 DECLARE_HANDLER (CC_PORT_SET_ACCESS_VLAN);
+DECLARE_HANDLER (CC_VIF_SET_ACCESS_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_NATIVE_VLAN);
+DECLARE_HANDLER (CC_VIF_SET_NATIVE_VLAN);
 DECLARE_HANDLER (CC_PORT_SET_SPEED);
 DECLARE_HANDLER (CC_VIF_SET_SPEED);
 DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
@@ -316,6 +323,7 @@ DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
+DECLARE_HANDLER (CC_VIF_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
@@ -360,16 +368,19 @@ DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_MRU);
 DECLARE_HANDLER (CC_INT_RET_SET_MAC_ADDR);
 DECLARE_HANDLER (CC_PORT_SET_PVE_DST);
+DECLARE_HANDLER (CC_VIF_SET_PVE_DST);
 DECLARE_HANDLER (CC_QOS_SET_PRIOQ_NUM);
 DECLARE_HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS);
 DECLARE_HANDLER (CC_QOS_SET_WRTD);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_START);
 DECLARE_HANDLER (CC_PORT_TDR_TEST_GET_RESULT);
 DECLARE_HANDLER (CC_PORT_SET_COMM);
+DECLARE_HANDLER (CC_VIF_SET_COMM);
 DECLARE_HANDLER (CC_MON_SESSION_ADD);
 DECLARE_HANDLER (CC_MON_SESSION_ENABLE);
 DECLARE_HANDLER (CC_MON_SESSION_DEL);
 DECLARE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN);
+DECLARE_HANDLER (CC_VIF_SET_CUSTOMER_VLAN);
 DECLARE_HANDLER (CC_MON_SESSION_SET_SRCS);
 DECLARE_HANDLER (CC_MON_SESSION_SET_DST);
 DECLARE_HANDLER (CC_DGASP_ENABLE);
@@ -379,9 +390,11 @@ DECLARE_HANDLER (CC_DGASP_PORT_OP);
 DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
+DECLARE_HANDLER (CC_VIF_VLAN_TRANSLATE);
 DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
+DECLARE_HANDLER (CC_VIF_SET_TRUNK_VLANS);
 DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
 DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
@@ -459,13 +472,20 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
   HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
+  HANDLER (CC_VIF_SET_STP_STATE),
   HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
+  HANDLER (CC_VIF_SHUTDOWN),
   HANDLER (CC_PORT_BLOCK),
+  HANDLER (CC_VIF_BLOCK),
   HANDLER (CC_PORT_FDB_FLUSH),
+  HANDLER (CC_VIF_FDB_FLUSH),
   HANDLER (CC_PORT_SET_MODE),
+  HANDLER (CC_VIF_SET_MODE),
   HANDLER (CC_PORT_SET_ACCESS_VLAN),
+  HANDLER (CC_VIF_SET_ACCESS_VLAN),
   HANDLER (CC_PORT_SET_NATIVE_VLAN),
+  HANDLER (CC_VIF_SET_NATIVE_VLAN),
   HANDLER (CC_PORT_SET_SPEED),
   HANDLER (CC_VIF_SET_SPEED),
   HANDLER (CC_PORT_SET_DUPLEX),
@@ -478,6 +498,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
+  HANDLER (CC_VIF_SET_PROTECTED),
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_SET_XG_SFP_MODE),
@@ -522,16 +543,19 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_MRU),
   HANDLER (CC_INT_RET_SET_MAC_ADDR),
   HANDLER (CC_PORT_SET_PVE_DST),
+  HANDLER (CC_VIF_SET_PVE_DST),
   HANDLER (CC_QOS_SET_PRIOQ_NUM),
   HANDLER (CC_QOS_SET_WRR_QUEUE_WEIGHTS),
   HANDLER (CC_QOS_SET_WRTD),
   HANDLER (CC_PORT_TDR_TEST_START),
   HANDLER (CC_PORT_TDR_TEST_GET_RESULT),
   HANDLER (CC_PORT_SET_COMM),
+  HANDLER (CC_VIF_SET_COMM),
   HANDLER (CC_MON_SESSION_ADD),
   HANDLER (CC_MON_SESSION_ENABLE),
   HANDLER (CC_MON_SESSION_DEL),
   HANDLER (CC_PORT_SET_CUSTOMER_VLAN),
+  HANDLER (CC_VIF_SET_CUSTOMER_VLAN),
   HANDLER (CC_MON_SESSION_SET_SRCS),
   HANDLER (CC_MON_SESSION_SET_DST),
   HANDLER (CC_DGASP_ENABLE),
@@ -541,9 +565,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
+  HANDLER (CC_VIF_VLAN_TRANSLATE),
   HANDLER (CC_PORT_CLEAR_TRANSLATION),
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
   HANDLER (CC_PORT_SET_TRUNK_VLANS),
+  HANDLER (CC_VIF_SET_TRUNK_VLANS),
   HANDLER (CC_MAIL_TO_NEIGHBOR),
   HANDLER (CC_STACK_PORT_GET_STATE),
   HANDLER (CC_STACK_SET_DEV_MAP),
@@ -990,6 +1016,41 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
+{
+  vif_id_t vif;
+  stp_id_t stp_id;
+  stp_state_t state;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&state);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_OPT_ARG (&stp_id);
+  switch (result) {
+  case ST_OK:
+    result = vif_set_stp_state (vif, stp_id, 0, state);
+    break;
+  case ST_DOES_NOT_EXIST:
+    stp_id = ALL_STP_IDS;
+    result = vif_set_stp_state (vif, 0, 1, state);
+    break;
+  default:
+    break;
+  }
+
+  if (result == ST_OK)
+    control_notify_stp_state (vif, stp_id, state);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SEND_FRAME)
 {
   port_id_t pid;
@@ -1050,6 +1111,26 @@ DEFINE_HANDLER (CC_PORT_SHUTDOWN)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SHUTDOWN)
+{
+  enum status result;
+  vif_id_t vif;
+  bool_t shutdown;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&shutdown);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_shutdown (vif, shutdown);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_BLOCK)
 {
   enum status result;
@@ -1065,6 +1146,26 @@ DEFINE_HANDLER (CC_PORT_BLOCK)
     goto out;
 
   result = port_block (pid, &what);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_BLOCK)
+{
+  enum status result;
+  vif_id_t vif;
+  struct port_block what;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&what);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_block (vif, &what);
 
  out:
   report_status (result);
@@ -1090,6 +1191,26 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
+{
+  struct mac_age_arg_vif arg;
+  vif_id_t vif;
+  enum status result;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  arg.vid = ALL_VLANS;
+  arg.vifid = vif;
+  // arg.bmp_devs = LOCAL_DEV;
+  result = mac_flush_vif (&arg, GT_FALSE);
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_SET_FDB_MAP)
 {
@@ -1269,6 +1390,26 @@ DEFINE_HANDLER (CC_PORT_SET_MODE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_MODE)
+{
+  enum status result;
+  vif_id_t vif;
+  port_mode_t mode;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_mode (vif, mode);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
 {
   enum status result;
@@ -1289,6 +1430,27 @@ DEFINE_HANDLER (CC_PORT_SET_ACCESS_VLAN)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_ACCESS_VLAN)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t vid;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_access_vid (vif, vid);
+
+ out:
+  report_status (result);
+}
+
+
 DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
 {
   enum status result;
@@ -1304,6 +1466,26 @@ DEFINE_HANDLER (CC_PORT_SET_NATIVE_VLAN)
     goto out;
 
   result = port_set_native_vid (pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_NATIVE_VLAN)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t vid;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_native_vid (vif, vid);
 
  out:
   report_status (result);
@@ -1920,6 +2102,26 @@ DEFINE_HANDLER (CC_PORT_SET_PROTECTED)
     goto out;
 
   result = port_set_protected (pid, protected);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_PROTECTED)
+{
+  enum status result;
+  vif_id_t vif;
+  bool_t protected;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&protected);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_protected (vif, protected);
 
  out:
   report_status (result);
@@ -2610,6 +2812,31 @@ DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_PVE_DST)
+{
+  enum status result;
+  vif_id_t vif;
+  port_id_t dpid;
+  bool_t enable;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&dpid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_pve_dst (vif, dpid, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_QOS_SET_PRIOQ_NUM)
 {
   enum status result;
@@ -2714,6 +2941,26 @@ DEFINE_HANDLER (CC_PORT_SET_COMM)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_SET_COMM)
+{
+  enum status result;
+  vif_id_t vif;
+  port_comm_t comm;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&comm);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_comm (vif, comm);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
 {
   enum status result;
@@ -2729,6 +2976,26 @@ DEFINE_HANDLER (CC_PORT_SET_CUSTOMER_VLAN)
     goto out;
 
   result = port_set_customer_vid (pid, vid);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_CUSTOMER_VLAN)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t vid;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_customer_vid (vif, vid);
 
  out:
   report_status (result);
@@ -2939,6 +3206,35 @@ DEFINE_HANDLER (CC_PORT_VLAN_TRANSLATE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_VLAN_TRANSLATE)
+{
+  enum status result;
+  vif_id_t vif;
+  vid_t from, to;
+  bool_t enable;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&from);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&to);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_vlan_translate (vif, from, to, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
 {
   port_stack_role_t role;
@@ -3014,6 +3310,28 @@ DEFINE_HANDLER (CC_PORT_SET_TRUNK_VLANS)
   }
 
   result = port_set_trunk_vlans (pid, zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_TRUNK_VLANS)
+{
+  enum status result;
+  vif_id_t vif;
+  zframe_t *frame;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  frame = zmsg_pop (__args);
+  if (!frame || zframe_size (frame) != VLAN_BITMAP_SIZE) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
+
+  result = vif_set_trunk_vlans (vif, zframe_data (frame));
 
  out:
   report_status (result);
