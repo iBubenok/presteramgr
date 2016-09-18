@@ -21,6 +21,7 @@
 struct vif_dev_ports {
   int local;
   int n_total;
+  serial_t vif_link_state_serial;
   int n_by_type[VIFT_PORT_TYPES];
   struct port port[CPSS_MAX_PORTS_NUM_CNS];
 };
@@ -113,6 +114,10 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.c_speed_auto = 1;
     dp->port[i].vif.c_duplex = PORT_DUPLEX_AUTO;
     dp->port[i].vif.c_shutdown = 0;
+
+    dp->port[i].vif.state.link = 0;
+    dp->port[i].vif.state.speed = 0;
+    dp->port[i].vif.state.duplex = 0;
 
     vif_port_proc_init(&dp->port[i].vif);
 
@@ -362,15 +367,171 @@ vif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
+static void
+notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps, void *sock) {
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, ps, sizeof (*ps));
+  zmsg_send (&msg, sock);
+}
+
+/* should be vif_wlock() protected in callink function */
+static enum status
+vif_update_trunk_link_status(struct trunk* trunk, void *socket) {
+
+  int i;
+  struct port_link_state pls = {.link = 0, .speed = PORT_SPEED_10, .duplex = 0};
+  for (i = 0; i < trunk->nports; i++) {
+    if (trunk->port_enabled[i]) {
+      if (trunk->vif_port[i]->state.link) {
+        pls.link = 1;
+        if (trunk->vif_port[i]->state.speed > pls.speed)
+          pls.speed = trunk->vif_port[i]->state.speed;
+        if (trunk->vif_port[i]->state.duplex > pls.duplex)
+          pls.duplex = trunk->vif_port[i]->state.duplex;
+      }
+    }
+  }
+
+  if (pls.link != trunk->vif.state.link
+      || pls.speed != trunk->vif.state.speed
+      || pls.duplex != trunk->vif.state.duplex) {
+
+    notify_port_state(trunk->vif.id, 0, &pls, socket);
+
+    trunk->vif.state.link = pls.link;
+    trunk->vif.state.speed = pls.speed;
+    trunk->vif.state.duplex = pls.duplex;
+  }
+  return ST_OK;
+}
+
+enum status
+vif_set_link_status(vif_id_t vifid, struct port_link_state *state, void *socket) {
+
+  static uint8_t buf[sizeof(struct vif_link_state_header) + sizeof(struct vif_link_state)];
+  struct vif_link_state_header *vif_lsh = (struct vif_link_state_header*) buf;
+
+  vif_wlock();
+
+  vif_lsh->n = 1;
+  vif_lsh->stack_id = stack_id;
+  vif_lsh->serial = ++vifs[stack_id].vif_link_state_serial;
+  vif_lsh->data[0].vifid = vifid;
+  memcpy(&vif_lsh->data[0].state, state, sizeof(*state));
+  mac_op_send_vif_ls(vif_lsh);
+
+  struct vif *vif = vif_getn(vifid);
+  if (!vif) {
+    vif_unlock();
+    return ST_DOES_NOT_EXIST;
+  }
+
+  vif->state.link = state->link;
+  vif->state.speed = state->speed;
+  vif->state.duplex = state->duplex;
+
+  if (!vif->trunk) {
+    vif_unlock();
+    return ST_OK;
+  }
+
+#if 0
+  int i;
+  struct port_link_state pls = {0,0,0};
+  for (i = 0; i < ((struct trunk*) vif->trunk)->nports; i++) {
+    if (((struct trunk*) vif->trunk)->port_enabled[i]) {
+      if (((struct trunk*) vif->trunk)->vif_port[i]->state.link) {
+        pls.link = 1;
+        if (((struct trunk*) vif->trunk)->vif_port[i]->state.speed > pls.speed)
+          pls.speed = ((struct trunk*) vif->trunk)->vif_port[i]->state.speed;
+        if (((struct trunk*) vif->trunk)->vif_port[i]->state.duplex > pls.duplex)
+          pls.duplex = ((struct trunk*) vif->trunk)->vif_port[i]->state.duplex;
+      }
+    }
+  }
+
+  if (pls.link != vif->trunk->state.link
+      || pls.speed != vif->trunk->state.speed
+      || pls.duplex != vif->trunk->state.duplex) {
+
+    notify_port_state(vif->trunk->id, 0, pls, socket);
+
+    vif->trunk->state.link = pls.link;
+    vif->trunk->state.speed = pls.speed;
+    vif->trunk->state.duplex = pls.duplex;
+  }
+#endif //0
+
+  vif_update_trunk_link_status((struct trunk*)vif->trunk, socket);
+
+  vif_unlock();
+  return ST_OK;
+}
+
+enum status
+vif_process_ls_pkt(struct vif_link_state_header *vif_lsh, void *socket) {
+DEBUG(">>>>>vif_process_ls_pkt(%p) vif_lsh->n== %d, ->stack_id== %d, ->serial== %llu\n",
+   vif_lsh, vif_lsh->n, vif_lsh->stack_id, vif_lsh->serial);
+
+  vif_wlock();
+  if (vif_lsh->serial <= vifs[vif_lsh->stack_id].vif_link_state_serial || vif_lsh->stack_id == stack_id) {
+    vif_unlock();
+    return ST_ALREADY_EXISTS;
+  }
+
+  vif_lsh->serial = vifs[vif_lsh->stack_id].vif_link_state_serial;
+  int i;
+  for (i = 0; i < vif_lsh->n; i++) {
+    struct vif *vif = vif_getn(vif_lsh->data[i].vifid);
+    if (!vif) {
+DEBUG("====vif_process_ls_pkt() vifid= %x SKIPPED\n", vif_lsh->data[i].vifid);
+      continue;
+    }
+    memcpy(&vif->state, &vif_lsh->data[0].state, sizeof(vif->state));
+    if (vif->trunk)
+      vif_update_trunk_link_status((struct trunk*)vif->trunk, socket);
+  }
+
+  vif_unlock();
+  return ST_OK;
+}
+
+struct vif_link_state_header *
+vif_form_ls_sync_pkt(void) {
+DEBUG(">>>>vif_form_ls_sync_pkt(void)\n");
+  uint8_t *buf[sizeof(struct vif_link_state_header) + NPORTS * sizeof(struct vif_link_state)];
+  struct vif_link_state_header *vif_lsh = (struct vif_link_state_header*) buf;
+
+  vif_rlock();
+
+  vif_lsh->n = NPORTS;
+  vif_lsh->stack_id = stack_id;
+  vif_lsh->serial = vifs[stack_id].vif_link_state_serial;
+
+  int i;
+  for (i = 0; i < NPORTS; i++) {
+    struct vif *vif = vif_get_by_pid(stack_id, i + 1);
+    if (!vif)
+      continue;
+    vif_lsh->data[i].vifid = vif->id;
+    memcpy(&vif_lsh->data[i].state, &vif->state, sizeof(vif_lsh->data[i].state));
+  }
+
+  vif_unlock();
+  return vif_lsh;
+}
+
 void
-vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem) {
+vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
 DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
 
   struct trunk *ctrunk = trunks + trunk;
   int k;
 for (k = 0; k < ctrunk->nports; k++)
   DEBUG("====1vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);
-
 
   int i = 0;
 
@@ -430,6 +591,8 @@ for (k = 0; k < ctrunk->nports; k++)
     }
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
+
+  vif_update_trunk_link_status(ctrunk, socket);
 
   vif_unlock();
 

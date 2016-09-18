@@ -371,6 +371,8 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
+
+  vif_set_link_status(vifid, &ps, not_sock);
 }
 
 /* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling

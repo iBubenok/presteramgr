@@ -15,6 +15,7 @@
 #include <port.h>
 #include <vlan.h>
 #include <dev.h>
+#include <presteramgr.h>
 #include <mcg.h>
 #include <utils.h>
 #include <debug.h>
@@ -50,7 +51,8 @@ enum fdb_ctl_cmd {
   FCC_FDBMAN_SEND_NA,
   FCC_FDBMAN_SEND_OPNA,
   FCC_FDBMAN_SEND_UDT,
-  FCC_FDBMAN_SEND_STG
+  FCC_FDBMAN_SEND_STG,
+  FCC_FDBMAN_SEND_VIF_LS
 };
 
 #define PTI_FDB_VERSION (1)
@@ -86,7 +88,8 @@ enum fdbman_cmd {
   FMC_MASTER_UDT,
   FMC_MASTER_CLEAR_ROUTING,
   FMC_VIFSTG_GET,
-  FMC_VIFSTG_GET_REPLY
+  FMC_VIFSTG_GET_REPLY,
+  FMC_VIF_LS
 };
 
 enum fdbman_state {
@@ -142,6 +145,7 @@ static void fdbman_send_opna(void *arg);
 static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static void fdbman_send_vifstg_get_reply (void *p);
+static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
@@ -154,6 +158,7 @@ static void *gctl_sock;
 static void *gctl_asock;
 static void *scmd_sock; /* control sync cmd to be used in fdbman thread only */
 static void *acmd_sock; /* control async cmd to be used in fdbman thread only */
+static void *evt_sock; /* vif link notification */
 /** FDB sync records array to form sync message from fdb thread */
 static struct pti_fdbr fdbr[FDB_MAX_ADDRS];
 /** FDB sync records array to form sync message from main control thread */
@@ -378,6 +383,13 @@ mac_op_send_stg(void *buf) {
   return fdb_actl (FCC_FDBMAN_SEND_STG, buf,
 //      sizeof (uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)buf);
       sizeof (struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)buf)->n);
+}
+
+enum status
+mac_op_send_vif_ls(struct vif_link_state_header *s) {
+  return fdb_actl (FCC_FDBMAN_SEND_VIF_LS, s,
+//      sizeof (struct vif_link_state_header) + sizeof(struct vif_link_state) * ((struct vif_stgblk_header*)buf)->n);
+      sizeof(*s));
 }
 
 enum status
@@ -1378,6 +1390,9 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   case FCC_FDBMAN_SEND_STG:
     fdbman_send_vifstg_get_reply(arg);
     break;
+  case FCC_FDBMAN_SEND_VIF_LS:
+    fdbman_send_vif_ls((struct vif_link_state_header *) arg);
+    break;
   default:
     status = ST_BAD_REQUEST;
   }
@@ -1544,6 +1559,25 @@ DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
 
 //DEBUG("===fdbman_send_vifstg_get_reply() len==%d\n", sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
 //PRINTHexDump(fdb_msg->data, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
+fdbman_send_vif_ls(const struct vif_link_state_header *arg) {
+DEBUG(">>>fdbman_send_vif_ls(vif=%x)\n", arg->data[0].vifid);
+
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_VIF_LS;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = ALL_DEVS;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, arg, arg->n * sizeof(struct vif_link_state));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg) + arg->n * sizeof(struct vif_link_state);
 
   fdbman_send_pkt(buf, msglen);
 }
@@ -1842,6 +1876,16 @@ DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
 }
 
 static void
+fdbman_handle_msg_vif_ls(struct pti_fdbr_msg *msg, uint32_t len) {
+  struct vif_link_state_header *arg = (struct vif_link_state_header*) msg->data;
+DEBUG(">>>fdbman_handle_msg_vif_ls() %x\n", msg->devsbmp);
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
+
+  vif_process_ls_pkt(arg, evt_sock);
+}
+
+static void
 fdbman_sync_routing(devsbmp_t nbmp) {
 DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   if (!nbmp)
@@ -1903,6 +1947,9 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
   }
   if (serial <= fdbman_newserial)
     return ST_OK;
+
+  if (fdbman_devsbmp != dbmp)
+    fdbman_send_vif_ls(vif_form_ls_sync_pkt());
 
   switch (fdbman_state) {
     case FST_MASTER:
@@ -2186,6 +2233,9 @@ DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
     case FMC_VIFSTG_GET_REPLY:
       fdbman_handle_msg_vifstg_get_reply(msg, len);
       break;
+    case FMC_VIF_LS:
+      fdbman_handle_msg_vif_ls(msg, len);
+      break;
     }
 
 DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
@@ -2345,6 +2395,10 @@ fdb_thread (void *_)
   acmd_sock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (acmd_sock);
   rc = zsocket_connect (acmd_sock, STACK_CMD_SOCK_EP);
+
+  evt_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  assert (evt_sock);
+  rc = zsocket_connect (evt_sock, NOTIFY_QUEUE_EP);
 
   prctl(PR_SET_NAME, "fdb", 0, 0, 0);
 

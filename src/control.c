@@ -60,6 +60,7 @@ static void *arpd_sock;
 static void *sec_sock;
 static void *fdb_sock;
 static void *stack_cmd_sock;
+static void *evtntf_sock;
 
 
 static void *
@@ -155,6 +156,10 @@ control_init (void)
   fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
   assert (fdb_sock);
   zsocket_connect (sec_sock, FDB_PUBSUB_EP);
+
+  evtntf_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  assert (evtntf_sock);
+  rc = zsocket_connect (evtntf_sock, NOTIFY_QUEUE_EP);
 
   return 0;
 }
@@ -3389,7 +3394,7 @@ DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
     frame = NEXT_ARG;
   }
 
-  result = trunk_set_members (id, n, mem);
+  result = trunk_set_members (id, n, mem, evtntf_sock);
 
  out:
   report_status (result);
