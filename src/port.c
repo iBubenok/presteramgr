@@ -3166,6 +3166,7 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_ge (struct port *port)
 {
+  int i;
   GT_U16 val;
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
@@ -3287,7 +3288,6 @@ port_setup_ge (struct port *port)
       2. Register 0x10 on page 0 sometimes randomly get value 0x1777 when we do
         not write it to it (I do not know why).
         But correct value of this register is 0x3060.*/
-    int i;
     for (i = 0; i < 2; i++) {
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
