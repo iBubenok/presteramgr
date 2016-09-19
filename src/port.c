@@ -361,12 +361,18 @@ phy_unlock (void)
 void *not_sock;
 
 static void
-notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  struct port_link_state ps;
+  data_encode_port_state (&ps, attrs);
+
   zmsg_t *msg = zmsg_new ();
   assert (msg);
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
-  zmsg_addmem (msg, attrs, sizeof (*attrs));
+  zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
+
+  vif_set_link_status(vifid, &ps, not_sock);
 }
 
 /* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling
@@ -439,7 +445,13 @@ phy_handle_link_change (struct port *port, int link_up, int fiber_used)
   if (rc != ST_OK) {
     return rc;
   }
-  notify_port_state (port->id, &attrs);
+
+  /* since we are getting local vif there are no need in locking */
+  struct vif *vif = vif_by_hw(phys_dev(port->ldev), port->lport);
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+
+  notify_port_state (vif->id, port->id, &attrs);
 
   port_lock ();
 
@@ -1012,12 +1024,19 @@ port_exists (GT_U8 dev, GT_U8 port)
 }
 
 enum status
-port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTRIBUTES_STC *attrs)
+port_handle_link_change (GT_U8 ldev, GT_U8 lport, vif_id_t *vifid, port_id_t *pid, CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   struct port *port;
   GT_STATUS rc;
 
   *pid = port_id (phys_dev (ldev), lport);
+
+/* since we are getting local vif there are no need in locking */
+  struct vif *vif = vif_by_hw(phys_dev(ldev), lport);
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+  *vifid = vif->id;
+
   port = port_ptr (*pid);
   if (!port)
     return ST_DOES_NOT_EXIST;
@@ -1032,6 +1051,8 @@ port_handle_link_change (GT_U8 ldev, GT_U8 lport, port_id_t *pid, CPSS_PORT_ATTR
       attrs->portSpeed     != port->state.attrs.portSpeed  ||
       attrs->portDuplexity != port->state.attrs.portDuplexity) {
     port->state.attrs = *attrs;
+
+    data_encode_port_state (&vif->state, attrs);
 
 //#define DEBUG_STATE //TODO remove
 #ifdef DEBUG_STATE

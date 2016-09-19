@@ -10,6 +10,7 @@
 #include <control-proto.h>
 #include <ptipcif.h>
 #include <log.h>
+#include <utils.h>
 
 zctx_t *zctx;
 void *ntf_sock;
@@ -19,10 +20,11 @@ int tfd;
 struct link {
   uint8_t dev;
   uint8_t iid;
+  uint32_t vifid;
   uint8_t link;
   uint8_t speed;
   uint8_t duplex;
-};
+} __attribute__ ((packed));
 
 static void
 ntf_init (void)
@@ -83,10 +85,12 @@ link_handler (zloop_t *loop, zmq_pollitem_t *pi, void *_)
     struct link link = {
       .dev    = msg->dev,
       .iid    = msg->link[i].iid,
+      .vifid  = msg->link[i].vifid,
       .link   = msg->link[i].state.link,
       .speed  = msg->link[i].state.speed,
       .duplex = msg->link[i].state.duplex,
     };
+
     zmsg_t *ntf = zmsg_new ();
     zmsg_addmem (ntf, &link, sizeof (link));
     zmsg_send (&ntf, ntf_sock);

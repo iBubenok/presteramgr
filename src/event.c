@@ -20,10 +20,12 @@
 #include <pthread.h>
 #include <sys/prctl.h>
 
+#include <control-proto.h>
 #include <presteramgr.h>
 #include <debug.h>
 #include <log.h>
 #include <utils.h>
+#include <vif.h>
 #include <port.h>
 #include <data.h>
 #include <tipc.h>
@@ -64,7 +66,7 @@ put_port_id (zmsg_t *msg, port_id_t pid)
   zmsg_addmem (msg, &pid, sizeof (pid));
 }
 
-static void
+static void __attribute__ ((unused))
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   struct port_link_state state;
@@ -74,33 +76,42 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 }
 
 static void
-thr_notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+thr_notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps)
 {
+  tipc_notify_link (vifid, pid, ps);
+
+  if (!pid)
+    return;
+
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_id (msg, pid);
-  put_port_state (msg, attrs);
+  zmsg_addmem(msg, ps, sizeof(*ps));
   notify_send (&msg);
-
-  tipc_notify_link (pid, attrs);
 
   struct port *port = port_ptr (pid);
   if (is_stack_port (port)) {
     zmsg_t *msg = make_notify_message (CN_STACK_PORT_STATE);
     port_stack_role_t role = port->stack_role;
     zmsg_addmem (msg, &role, sizeof (role));
-    uint8_t link = attrs->portLinkUp;
+    uint8_t link = ps->link;
     zmsg_addmem (msg, &link, sizeof (link));
     notify_send (&msg);
   }
 }
 
 static void
-notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  struct port_link_state ps;
+  data_encode_port_state (&ps, attrs);
+
   zmsg_t *msg = zmsg_new ();
   assert (msg);
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
-  zmsg_addmem (msg, attrs, sizeof (*attrs));
+  zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
+
+  vif_set_link_status(vifid, &ps, not_sock);
 }
 
 DECLSHOW (CPSS_PORT_SPEED_ENT);
@@ -174,10 +185,11 @@ event_handle_link_change (void)
   while ((rc = cpssEventRecv (event_handle,
                               CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
                               &edata, &dev)) == GT_OK) {
+    vif_id_t vifid;
     port_id_t pid;
     CPSS_PORT_ATTRIBUTES_STC attrs;
-    if (port_handle_link_change (dev, (GT_U8) edata, &pid, &attrs) == ST_OK)
-      notify_port_state (pid, &attrs);
+    if (port_handle_link_change (dev, (GT_U8) edata, &vifid, &pid, &attrs) == ST_OK)
+      notify_port_state (vifid, pid, &attrs);
   }
 
   if (rc == GT_NO_MORE)
@@ -278,15 +290,19 @@ notify_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
   zmsg_t *msg = zmsg_recv (not_sock);
 
   zframe_t *frame = zmsg_first (msg);
+  vif_id_t vifid = *((vif_id_t *) zframe_data (frame));
+  assert(zframe_size(frame) == sizeof(vifid));
+
+  frame = zmsg_next(msg);
   port_id_t pid = *((port_id_t *) zframe_data (frame));
   assert(zframe_size(frame) == sizeof(pid));
 
   frame = zmsg_next(msg);
   assert(frame);
-  CPSS_PORT_ATTRIBUTES_STC *attrs = (CPSS_PORT_ATTRIBUTES_STC *) zframe_data(frame);
-  assert(zframe_size(frame) == sizeof(CPSS_PORT_ATTRIBUTES_STC));
+  struct port_link_state *ps = (struct port_link_state *) zframe_data(frame);
+  assert(zframe_size(frame) == sizeof(struct port_link_state));
 
-  thr_notify_port_state (pid, attrs);
+  thr_notify_port_state (vifid, pid, ps);
 
   zmsg_destroy (&msg);
 
