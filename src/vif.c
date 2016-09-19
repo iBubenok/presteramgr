@@ -500,9 +500,11 @@ DEBUG("====vif_process_ls_pkt() vifid= %x SKIPPED\n", vif_lsh->data[i].vifid);
 }
 
 struct vif_link_state_header *
-vif_form_ls_sync_pkt(void) {
+vif_form_ls_sync_pkt(void *buf, size_t buflen) {
 DEBUG(">>>>vif_form_ls_sync_pkt(void)\n");
-  uint8_t *buf[sizeof(struct vif_link_state_header) + NPORTS * sizeof(struct vif_link_state)];
+  if (sizeof(struct vif_link_state_header) + NPORTS * sizeof(struct vif_link_state) > buflen)
+    return NULL;
+
   struct vif_link_state_header *vif_lsh = (struct vif_link_state_header*) buf;
 
   vif_rlock();

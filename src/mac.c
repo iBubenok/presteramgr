@@ -1583,6 +1583,16 @@ DEBUG(">>>fdbman_send_vif_ls(vif=%x)\n", arg->data[0].vifid);
 }
 
 static void
+fdbman_send_vif_allls(void) {
+DEBUG(">>>fdbman_send_vif_allls(void)\n");
+#define MAX_VIF_LS_SIZE sizeof(struct vif_link_state_header) + NPORTS * sizeof(struct vif_link_state)
+  uint8_t buf[MAX_VIF_LS_SIZE];
+  struct vif_link_state_header *vif_lsh = vif_form_ls_sync_pkt(buf , MAX_VIF_LS_SIZE);
+  assert(vif_lsh);
+  fdbman_send_vif_ls(vif_lsh);
+}
+
+static void
 fdbman_send_master_announce_pkt(serial_t serial, devsbmp_t bmp) {
 DEBUG(">>>fdbman_send_master_announce_pkt(%llu, %hx)\n", serial, bmp);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
@@ -1949,7 +1959,7 @@ DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_n
     return ST_OK;
 
   if (fdbman_devsbmp != dbmp)
-    fdbman_send_vif_ls(vif_form_ls_sync_pkt());
+    fdbman_send_vif_allls();
 
   switch (fdbman_state) {
     case FST_MASTER:
