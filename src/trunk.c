@@ -74,8 +74,7 @@ trunk_init (void)
 }
 
 enum status
-trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
-{
+trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
   CPSS_TRUNK_MEMBER_STC e[TRUNK_MAX_MEMBERS], d[TRUNK_MAX_MEMBERS];
   int ne, nd, i, dev;
 
@@ -114,7 +113,7 @@ trunk_set_members (trunk_id_t trunk, int nmem, struct trunk_member *mem)
     }
   }
 
-  vif_set_trunk_members (trunk, nmem, mem);
+  vif_set_trunk_members (trunk, nmem, mem, socket);
 
   for_each_dev (dev)
     CRP (cpssDxChTrunkMembersSet (dev, trunk, ne, e, nd, d));

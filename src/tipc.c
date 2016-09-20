@@ -93,7 +93,7 @@ tipc_notify_bpdu (vif_id_t vif_id, port_id_t pid, size_t len, void *data)
 }
 
 void
-tipc_notify_link (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+tipc_notify_link (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps)
 {
   static uint8_t buf[PTI_LINK_MSG_SIZE (1)];
   struct pti_link_msg *msg = (struct pti_link_msg *) buf;
@@ -102,7 +102,7 @@ tipc_notify_link (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC 
   msg->nlinks = 1;
   msg->link[0].iid = pid;
   msg->link[0].vifid = vifid;
-  data_encode_port_state (&msg->link[0].state, attrs);
+  memcpy(&msg->link[0].state, ps, sizeof(*ps));
 
   if (TEMP_FAILURE_RETRY
       (sendto (ntf_sock, buf, sizeof (buf), 0,

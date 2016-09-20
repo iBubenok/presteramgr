@@ -59,6 +59,18 @@ struct vif_stgblk_header {
   uint8_t data[];
 };
 
+struct vif_link_state {
+  vif_id_t vifid;
+  struct port_link_state state;
+} __attribute__ ((packed));
+
+struct vif_link_state_header {
+  uint16_t n;
+  uint8_t stack_id;
+  serial_t serial;
+  struct vif_link_state data[];
+} __attribute__ ((packed));
+
 typedef struct vif *vifp_single_dev_t[CPSS_MAX_PORTS_NUM_CNS];
 
 extern vifp_single_dev_t vifp_by_hw[];
@@ -105,7 +117,10 @@ extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
 extern enum status vif_stg_get (void *);
 extern enum status vif_stg_set (void *);
 extern enum status vif_stg_get_single (struct vif*, uint8_t *, int);
-extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *);
+extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *, void *);
+extern enum status vif_set_link_status(vif_id_t, struct port_link_state *, void *);
+extern enum status vif_process_ls_pkt(struct vif_link_state_header *, void *);
+extern struct vif_link_state_header *vif_form_ls_sync_pkt(void *, size_t);
 extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, uint16_t, const void *);
 
 /*

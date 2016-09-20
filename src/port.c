@@ -362,12 +362,17 @@ void *not_sock;
 
 static void
 notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  struct port_link_state ps;
+  data_encode_port_state (&ps, attrs);
+
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
-  zmsg_addmem (msg, attrs, sizeof (*attrs));
+  zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
+
+  vif_set_link_status(vifid, &ps, not_sock);
 }
 
 /* CPSS cpssDxChPortAttributesOnPortGet functionemulation for sofware polling
@@ -3182,6 +3187,7 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_ge (struct port *port)
 {
+  int i;
   GT_U16 val;
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
@@ -3290,26 +3296,44 @@ port_setup_ge (struct port *port)
     break;
 
   case PTYPE_COPPER:
+
+    /*FIXME
+      Next for-cycle is needed, because
+      1. Register 0x11 on page 3 of ports 23 and 24 in 25% of cases initializes
+        incorrect (could have values: 0xac08, 0x4448, 0xac48, 0x4408 - instead of
+        correct value 0x8800) and don't get value 0x8845.
+        This for-cycle is the shortest workaround I know (Actually it is enough
+        to use this cycle only for ports 23 and 24 to fix this pair of ports, but
+        who knows if there is this problem on other ports).
+
+      2. Register 0x10 on page 0 sometimes randomly get value 0x1777 when we do
+        not write it to it (I do not know why).
+        But correct value of this register is 0x3060.*/
+    for (i = 0; i < 2; i++) {
+
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x09, 0x0800)); /* workaround to enable autonegotiation */
+    CRP (cpssDxChPortInbandAutoNegEnableSet
+         (port->ldev, port->lport, GT_TRUE));
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x3));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x11, 0x8845));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x10, 0x1777));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x11, 0x8845));
 
     /* DEBUG ("port %d is copper\n", port->id); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0));
-
-    CRP (cpssDxChPortInbandAutoNegEnableSet
-         (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x10, 0x3060));
+    }
     break;
 
   case PTYPE_COMBO:
