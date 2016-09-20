@@ -76,6 +76,7 @@ extern enum status vlan_set_xlate_tunnel (int);
 extern void vlan_stack_setup (void);
 extern enum status vlan_igmp_snoop (vid_t, int);
 extern enum status vlan_mc_route (vid_t, bool_t);
+extern enum status vlan_get_stp_id (vid_t, stp_id_t *);
 
 
 #endif /* __VLAN_H__ */

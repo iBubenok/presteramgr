@@ -1103,7 +1103,7 @@ port_get_type (port_id_t pid, port_type_t *ptype)
   return ST_OK;
 }
 
-static char*
+static char __attribute__ ((unused)) *
 stp_state_to_string (enum port_stp_state state)
 {
   switch (state) {
@@ -1138,7 +1138,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   assert (vif);
 
   if (all) {
-    DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
+    // DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
@@ -1151,7 +1151,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   } else {
       stg_state[pid - 1][stp_id] = state;
       vif->stg_state[stp_id] = state;
-      DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
+      // DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
       CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   }
 
@@ -3189,6 +3189,7 @@ port_setup_ge (struct port *port)
 static enum status
 port_setup_ge (struct port *port)
 {
+  int i;
   GT_U16 val;
   CRP (cpssDxChPortTxBindPortToDpSet
        (port->ldev, port->lport, CPSS_PORT_TX_DROP_PROFILE_2_E));
@@ -3297,26 +3298,44 @@ port_setup_ge (struct port *port)
     break;
 
   case PTYPE_COPPER:
+
+    /*FIXME
+      Next for-cycle is needed, because
+      1. Register 0x11 on page 3 of ports 23 and 24 in 25% of cases initializes
+        incorrect (could have values: 0xac08, 0x4448, 0xac48, 0x4408 - instead of
+        correct value 0x8800) and don't get value 0x8845.
+        This for-cycle is the shortest workaround I know (Actually it is enough
+        to use this cycle only for ports 23 and 24 to fix this pair of ports, but
+        who knows if there is this problem on other ports).
+
+      2. Register 0x10 on page 0 sometimes randomly get value 0x1777 when we do
+        not write it to it (I do not know why).
+        But correct value of this register is 0x3060.*/
+    for (i = 0; i < 2; i++) {
+
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x09, 0x0800)); /* workaround to enable autonegotiation */
+    CRP (cpssDxChPortInbandAutoNegEnableSet
+         (port->ldev, port->lport, GT_TRUE));
 
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x3));
     CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x11, 0x8845));
-    CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x10, 0x1777));
+
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x11, 0x8845));
 
     /* DEBUG ("port %d is copper\n", port->id); */
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 6));
     CRP (cpssDxChPhyPortSmiRegisterWrite
          (port->ldev, port->lport, 0x16, 0x0));
-
-    CRP (cpssDxChPortInbandAutoNegEnableSet
-         (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChPhyPortSmiRegisterWrite
+         (port->ldev, port->lport, 0x10, 0x3060));
+    }
     break;
 
   case PTYPE_COMBO:

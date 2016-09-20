@@ -772,3 +772,14 @@ vlan_mc_route (vid_t vid, bool_t enable)
 
   return ST_OK;
 }
+
+enum status
+vlan_get_stp_id (vid_t vid, stp_id_t *stp_id)
+{
+  stp_id = NULL;
+  if (!vlan_valid(vid)) return ST_BAD_VALUE;
+
+  stp_id = &vlans[vid - 1].stp_id;
+
+  return ST_OK;
+}
