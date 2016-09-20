@@ -2,6 +2,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <presteramgr.h>
 #include <gif.h>
 #include <vif.h>
 #include <port.h>
@@ -371,6 +372,8 @@ static void
 notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps, void *sock) {
   zmsg_t *msg = zmsg_new ();
   assert (msg);
+  enum event_notification en = EN_LS;
+  zmsg_addmem (msg, &en, sizeof (en));
   zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, ps, sizeof (*ps));

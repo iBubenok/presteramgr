@@ -106,6 +106,8 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC
 
   zmsg_t *msg = zmsg_new ();
   assert (msg);
+  enum event_notification en = EN_LS;
+  zmsg_addmem (msg, &en, sizeof (en));
   zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, &ps, sizeof (ps));
@@ -290,20 +292,29 @@ notify_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
   zmsg_t *msg = zmsg_recv (not_sock);
 
   zframe_t *frame = zmsg_first (msg);
-  vif_id_t vifid = *((vif_id_t *) zframe_data (frame));
-  assert(zframe_size(frame) == sizeof(vifid));
+  enum event_notification en = *((enum event_notification *) zframe_data (frame));
+  assert(zframe_size(frame) == sizeof(en));
+  switch (en) {
+    case EN_LS:
+      frame = zmsg_next(msg);
+      vif_id_t vifid = *((vif_id_t *) zframe_data (frame));
+      assert(zframe_size(frame) == sizeof(vifid));
 
-  frame = zmsg_next(msg);
-  port_id_t pid = *((port_id_t *) zframe_data (frame));
-  assert(zframe_size(frame) == sizeof(pid));
+      frame = zmsg_next(msg);
+      port_id_t pid = *((port_id_t *) zframe_data (frame));
+      assert(zframe_size(frame) == sizeof(pid));
 
-  frame = zmsg_next(msg);
-  assert(frame);
-  struct port_link_state *ps = (struct port_link_state *) zframe_data(frame);
-  assert(zframe_size(frame) == sizeof(struct port_link_state));
+      frame = zmsg_next(msg);
+      assert(frame);
+      struct port_link_state *ps = (struct port_link_state *) zframe_data(frame);
+      assert(zframe_size(frame) == sizeof(struct port_link_state));
 
-  thr_notify_port_state (vifid, pid, ps);
-
+      thr_notify_port_state (vifid, pid, ps);
+      break;
+    case EN_BC_LS:
+      tipc_bc_link_state();
+      break;
+  }
   zmsg_destroy (&msg);
 
   return 0;

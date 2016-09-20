@@ -367,6 +367,8 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC
 
   zmsg_t *msg = zmsg_new ();
   assert (msg);
+  enum event_notification en = EN_LS;
+  zmsg_addmem (msg, &en, sizeof (en));
   zmsg_addmem (msg, &vifid, sizeof (vifid));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, &ps, sizeof (ps));

@@ -62,7 +62,7 @@ tipc_init (void)
 static int
 link_handler (zloop_t *loop, zmq_pollitem_t *pi, void *_)
 {
-  static uint8_t buf[PTI_LINK_MSG_SIZE (64)];
+  static uint8_t buf[PTI_LINK_MSG_SIZE (64 + 64)];
   struct pti_link_msg *msg = (struct pti_link_msg *) buf;
   ssize_t len;
   int i;
@@ -75,7 +75,7 @@ link_handler (zloop_t *loop, zmq_pollitem_t *pi, void *_)
 
   if (len < PTI_LINK_MSG_SIZE (1)
       || msg->dev > 31
-      || msg->nlinks > 64
+      || msg->nlinks > 64 + 64
       || len != PTI_LINK_MSG_SIZE (msg->nlinks)) {
     ERR ("malformed link message");
     return 0;

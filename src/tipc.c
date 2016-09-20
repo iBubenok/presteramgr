@@ -5,6 +5,8 @@
 #include <linux/tipc.h>
 
 #include <ptipcif.h>
+#include <vif.h>
+#include <trunk.h>
 #include <tipc.h>
 #include <stack.h>
 #include <log.h>
@@ -113,17 +115,30 @@ tipc_notify_link (vif_id_t vifid, port_id_t pid, const struct port_link_state *p
 void
 tipc_bc_link_state (void)
 {
-  static uint8_t buf[PTI_LINK_MSG_SIZE (NPORTS)];
+  static uint8_t buf[PTI_LINK_MSG_SIZE (NPORTS + TRUNK_ID_MAX)];
   struct pti_link_msg *msg = (struct pti_link_msg *) buf;
   int i;
 
+  vif_rlock();
+
   msg->dev = stack_id;
-  msg->nlinks = NPORTS;
+  msg->nlinks = NPORTS + TRUNK_ID_MAX;
   for (i = 0; i < NPORTS; i++) {
     msg->link[i].iid = ports[i].id;
     msg->link[i].vifid = ports[i].vif.id;
-    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
+    memcpy(&msg->link[i].state, &ports[i].vif.state, sizeof(msg->link[i].state));
+//    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
   }
+
+  for (i = 1; i < TRUNK_ID_MAX; i++) {
+    msg->link[i].iid = 0;
+    struct vif *vif = vif_by_trunkid(i);
+    msg->link[i].vifid = vif->id;
+    memcpy(&msg->link[i].state, &vif->state, sizeof(msg->link[i].state));
+//    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
+  }
+
+  vif_unlock();
 
   if (TEMP_FAILURE_RETRY
       (sendto (ntf_sock, buf, sizeof (buf), 0,

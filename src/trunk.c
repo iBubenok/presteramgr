@@ -14,7 +14,7 @@
 #include <utils.h>
 #include <debug.h>
 
-struct trunk trunks[TRUNK_MAX + 1];
+struct trunk trunks[TRUNK_ID_MAX + 1];
 
 static void set_balance_mode_ip ();
 static void set_balance_mode_ip_port ();
@@ -47,7 +47,7 @@ trunk_init (void)
 
   memset (trunks, 0, sizeof (trunks));
 
-  for (i = 1; i <= TRUNK_MAX; i++) {
+  for (i = 1; i <= TRUNK_ID_MAX; i++) {
     trunks[i].vif.vifid.type = VIFT_PC;
     trunks[i].vif.vifid.dev = 0;
     trunks[i].vif.vifid.num = i;
@@ -70,6 +70,9 @@ trunk_init (void)
       trunks[i].vif_port[j] = NULL;
       trunks[i].port_enabled[j] = 0;
     }
+    trunks[i].vif.state.link = 0;
+    trunks[i].vif.state.speed = PORT_SPEED_10;
+    trunks[i].vif.state.duplex = 0;
   }
 }
 
