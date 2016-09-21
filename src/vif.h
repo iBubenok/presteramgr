@@ -49,6 +49,7 @@ struct vif {
   enum status (*set_stp_state) (struct vif *, stp_id_t, int, enum port_stp_state);
   enum status (*set_mdix_auto) (struct vif *, int);
   enum status (*vlan_translate) (struct vif *, vid_t, vid_t, int);
+  enum status (*dgasp_op) (struct vif *, int add);
 };
 
 struct vif_stgblk_header {
@@ -135,5 +136,6 @@ VIF_DEF_PROC(set_trunk_vlans, const uint8_t *bmp);
 VIF_DEF_PROC(vlan_translate, vid_t from, vid_t to, int add);
 VIF_DEF_PROC(set_stp_state, stp_id_t stp_id,
   int all, enum port_stp_state state);
+VIF_DEF_PROC(dgasp_op, int add);
 
 #endif /* __VIF_H__ */

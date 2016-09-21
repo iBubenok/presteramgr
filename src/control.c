@@ -387,6 +387,7 @@ DECLARE_HANDLER (CC_DGASP_ENABLE);
 DECLARE_HANDLER (CC_DGASP_ADD_PACKET);
 DECLARE_HANDLER (CC_DGASP_CLEAR_PACKETS);
 DECLARE_HANDLER (CC_DGASP_PORT_OP);
+DECLARE_HANDLER (CC_DGASP_VIF_OP);
 DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
@@ -562,6 +563,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_ADD_PACKET),
   HANDLER (CC_DGASP_CLEAR_PACKETS),
   HANDLER (CC_DGASP_PORT_OP),
+  HANDLER (CC_DGASP_VIF_OP),
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
@@ -3151,6 +3153,26 @@ DEFINE_HANDLER (CC_DGASP_PORT_OP)
     goto out;
 
   result = dgasp_port_op (pid, add);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_VIF_OP)
+{
+  enum status result;
+  vif_id_t vif;
+  bool_t add;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&add);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_dgasp_op (vif, add);
 
  out:
   report_status (result);
