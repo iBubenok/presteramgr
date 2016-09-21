@@ -89,7 +89,8 @@ enum fdbman_cmd {
   FMC_MASTER_CLEAR_ROUTING,
   FMC_VIFSTG_GET,
   FMC_VIFSTG_GET_REPLY,
-  FMC_VIF_LS
+  FMC_VIF_LS,
+  FMC_VIFLS_GET
 };
 
 enum fdbman_state {
@@ -1566,6 +1567,23 @@ fdbman_send_vifstg_get_reply (void *p) {
 }
 
 static void
+fdbman_send_vifls_get (devsbmp_t bmp) {
+DEBUG(">>>fdbman_send_vifls_get(%x)\n", bmp);
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_VIFLS_GET;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = bmp;
+  fdb_msg->serial = fdbman_serial;
+  size_t msglen = sizeof(struct pti_fdbr_msg);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_vif_ls(const struct vif_link_state_header *arg) {
 DEBUG(">>>fdbman_send_vif_ls(vif=%x)\n", arg->data[0].vifid);
 
@@ -1578,7 +1596,7 @@ DEBUG(">>>fdbman_send_vif_ls(vif=%x)\n", arg->data[0].vifid);
   fdb_msg->nfdb = 0;
   fdb_msg->devsbmp = ALL_DEVS;
   fdb_msg->serial = fdbman_serial;
-  memcpy(fdb_msg->data, arg, arg->n * sizeof(struct vif_link_state));
+  memcpy(fdb_msg->data, arg, sizeof(*arg) + arg->n * sizeof(struct vif_link_state));
   size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg) + arg->n * sizeof(struct vif_link_state);
 
   fdbman_send_pkt(buf, msglen);
@@ -1898,8 +1916,17 @@ DEBUG(">>>fdbman_handle_msg_vif_ls() %x\n", msg->devsbmp);
 }
 
 static void
+fdbman_handle_msg_vifls_get(struct pti_fdbr_msg *msg, uint32_t len) {
+DEBUG(">>>fdbman_handle_msg_vifls_get() %x\n", msg->devsbmp);
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
+
+  fdbman_send_vif_allls();
+}
+
+static void
 fdbman_sync_routing(devsbmp_t nbmp) {
-// DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
+DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   if (!nbmp) return;
 
   fdbman_send_clear_routing (nbmp);
@@ -1927,15 +1954,23 @@ fdbman_sync_routing(devsbmp_t nbmp) {
   }
   free(p);
 
-// DEBUG("<<<<fdbman_sync_routing");
+DEBUG("<<<<fdbman_sync_routing");
 }
 
 static void
 fdbman_sync_stg(devsbmp_t nbmp) {
-// DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
+DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
   if (!nbmp)
     return;
   fdbman_send_vifstg_get(nbmp);
+}
+
+static void
+fdbman_sync_ls(devsbmp_t nbmp) {
+DEBUG (">>>>fdbman_sync_ls(%hx) %hx\n", nbmp, nbmp);
+  if (!nbmp)
+    return;
+  fdbman_send_vifls_get(nbmp);
 }
 
 static enum status
@@ -1956,8 +1991,8 @@ fdbman_set_master(const void *arg) {
   if (serial <= fdbman_newserial)
     return ST_OK;
 
-  if (fdbman_devsbmp != dbmp)
-    fdbman_send_vif_allls();
+//  if (fdbman_devsbmp != dbmp)
+//    fdbman_send_vif_allls();
 
   switch (fdbman_state) {
     case FST_MASTER:
@@ -1971,6 +2006,7 @@ fdbman_set_master(const void *arg) {
         fdbman_master = fdbman_newmaster = newmaster;
         fdbman_send_master_announce_pkt(serial, dbmp);
         fdbman_sync_stg(newdevs_bmp);
+        fdbman_sync_ls(newdevs_bmp);
         fdbman_sync_routing(newdevs_bmp);
       }
       break;
@@ -1983,6 +2019,7 @@ fdbman_set_master(const void *arg) {
         fdbman_serial = serial;
         fdbman_send_master_announce_pkt(serial, dbmp);
         fdbman_sync_stg(dbmp);
+        fdbman_sync_ls(dbmp);
         fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
         fdbman_send_clear_routing(dbmp);
         fdbman_state = FST_MASTER;
@@ -1996,6 +2033,7 @@ fdbman_set_master(const void *arg) {
         fdbman_serial = serial;
         fdbman_send_master_announce_pkt(serial, dbmp);
         fdbman_sync_stg(dbmp);
+        fdbman_sync_ls(dbmp);
         fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
         fdbman_send_clear_routing(dbmp);
         fdbman_state = FST_MASTER;
@@ -2243,6 +2281,9 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       break;
     case FMC_VIF_LS:
       fdbman_handle_msg_vif_ls(msg, len);
+      break;
+    case FMC_VIFLS_GET:
+      fdbman_handle_msg_vifls_get(msg, len);
       break;
     }
 
