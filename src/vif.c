@@ -175,6 +175,7 @@ vif_remote_proc_init(struct vif* v) {
   v->vlan_translate = vif_vlan_translate_remote;
   v->set_stp_state = vif_set_stp_state_remote;
   v->dgasp_op = vif_dgasp_op_remote;
+  v->set_flow_control = vif_set_flow_control_remote;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -195,6 +196,7 @@ vif_port_proc_init(struct vif* v) {
   v->vlan_translate = vif_vlan_translate_port;
   v->set_stp_state = vif_set_stp_state_port;
   v->dgasp_op = vif_dgasp_op_port;
+  v->set_flow_control = vif_set_flow_control_port;
   v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
@@ -215,6 +217,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->vlan_translate = vif_vlan_translate_trunk;
   v->set_stp_state = vif_set_stp_state_trunk;
   v->dgasp_op = vif_dgasp_op_trunk;
+  v->set_flow_control = vif_set_flow_control_trunk;
   v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
@@ -1178,4 +1181,21 @@ VIF_PROC_TRUNK_BODY(dgasp_op, add)
 VIF_PROC_ROOT_HEAD(dgasp_op,  int add)
 {
 VIF_PROC_ROOT_BODY(dgasp_op, add)
+}
+
+VIF_PROC_REMOTE(set_flow_control, flow_control_t fc)
+
+VIF_PROC_PORT_HEAD(set_flow_control, flow_control_t fc)
+{
+VIF_PROC_PORT_BODY(set_flow_control, fc)
+}
+
+VIF_PROC_TRUNK_HEAD(set_flow_control, flow_control_t fc)
+{
+VIF_PROC_TRUNK_BODY(set_flow_control, fc)
+}
+
+VIF_PROC_ROOT_HEAD(set_flow_control, flow_control_t fc)
+{
+VIF_PROC_ROOT_BODY(set_flow_control, fc)
 }

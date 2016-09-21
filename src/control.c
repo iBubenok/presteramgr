@@ -317,6 +317,7 @@ DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_VIF_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
+DECLARE_HANDLER (CC_VIF_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
@@ -493,6 +494,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VIF_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
+  HANDLER (CC_VIF_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
@@ -1955,6 +1957,26 @@ DEFINE_HANDLER (CC_PORT_SET_FLOW_CONTROL)
     goto out;
 
   result = port_set_flow_control (pid, fc);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_FLOW_CONTROL)
+{
+  enum status result;
+  vif_id_t vif;
+  flow_control_t fc;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&fc);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_flow_control (vif, fc);
 
  out:
   report_status (result);
