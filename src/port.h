@@ -145,6 +145,7 @@ extern enum status port_fdb_new_addr_notify (port_id_t, bool_t);
 extern enum status port_fdb_addr_op_notify (port_id_t, bool_t);
 extern enum status port_get_serdes_cfg (port_id_t, struct port_serdes_cfg *);
 extern enum status port_set_serdes_cfg (port_id_t, const struct port_serdes_cfg *);
+extern enum status port_dgasp_op (port_id_t pid, int add);
 
 /* Port Security. */
 
