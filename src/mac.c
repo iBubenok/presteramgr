@@ -625,11 +625,11 @@ fdb_flush_vif (const struct fdb_flush_arg_vif *arg)
 
     vif_rlock();
     struct vif *v = vif_getn (arg->aav.vifid);
-    v->fill_cpss_if(v, &iface);
     if (!v) {
       vif_unlock();
       return ST_BAD_VALUE;
     }
+    v->fill_cpss_if(v, &iface);
     vif_unlock();
 
     if (iface.type == CPSS_INTERFACE_PORT_E) {
@@ -975,8 +975,10 @@ fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
       vif_rlock();
 
       struct vif* vif = vif_getn(arg->vifid);
-      if (!vif)
+      if (!vif) {
+        vif_unlock();
         return ST_BAD_VALUE;
+      }
       vif->fill_cpss_if(vif, &me.dstInterface);
 
       vif_unlock();
