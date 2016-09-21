@@ -1048,9 +1048,6 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
     break;
   }
 
-  if (result == ST_OK)
-    control_notify_stp_state (vif, stp_id, state);
-
  out:
   report_status (result);
 }
