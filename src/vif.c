@@ -117,7 +117,7 @@ DEBUG("====vif_init(), ports= %p\n", ports);
     dp->port[i].vif.c_shutdown = 0;
 
     dp->port[i].vif.state.link = 0;
-    dp->port[i].vif.state.speed = 0;
+    dp->port[i].vif.state.speed = PORT_SPEED_10;
     dp->port[i].vif.state.duplex = 0;
 
     vif_port_proc_init(&dp->port[i].vif);

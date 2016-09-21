@@ -3544,7 +3544,12 @@ DEFINE_HANDLER (CC_DIAG_DESC_READ)
 
 DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
-  tipc_bc_link_state ();
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+  enum event_notification en = EN_BC_LS;
+  zmsg_addmem (msg, &en, sizeof (en));
+  zmsg_send (&msg, evtntf_sock);
+
   report_status (ST_OK);
 }
 

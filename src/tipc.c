@@ -128,15 +128,13 @@ tipc_bc_link_state (void)
     msg->link[i].iid = ports[i].id;
     msg->link[i].vifid = ports[i].vif.id;
     memcpy(&msg->link[i].state, &ports[i].vif.state, sizeof(msg->link[i].state));
-//    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
   }
 
-  for (i = 1; i < TRUNK_ID_MAX; i++) {
-    msg->link[i].iid = 0;
+  for (i = TRUNK_ID_MIN; i <= TRUNK_ID_MAX; i++) {
+    msg->link[NPORTS + i - TRUNK_ID_MIN].iid = 0;
     struct vif *vif = vif_by_trunkid(i);
-    msg->link[i].vifid = vif->id;
-    memcpy(&msg->link[i].state, &vif->state, sizeof(msg->link[i].state));
-//    data_encode_port_state (&msg->link[i].state, &ports[i].state.attrs);
+    msg->link[NPORTS + i - TRUNK_ID_MIN].vifid = vif->id;
+    memcpy(&msg->link[NPORTS + i - TRUNK_ID_MIN].state, &vif->state, sizeof(msg->link[i].state));
   }
 
   vif_unlock();
@@ -144,7 +142,7 @@ tipc_bc_link_state (void)
   if (TEMP_FAILURE_RETRY
       (sendto (ntf_sock, buf, sizeof (buf), 0,
                (struct sockaddr *) &link_dst, sizeof (link_dst)))
-      != PTI_LINK_MSG_SIZE (NPORTS))
+      != PTI_LINK_MSG_SIZE (NPORTS + TRUNK_ID_MAX))
     err ("sendmsg() failed");
 }
 
