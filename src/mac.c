@@ -975,8 +975,10 @@ fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
       vif_rlock();
 
       struct vif* vif = vif_getn(arg->vifid);
-      if (!vif)
+      if (!vif) {
+        vif_unlock();
         return ST_BAD_VALUE;
+      }
       vif->fill_cpss_if(vif, &me.dstInterface);
 
       vif_unlock();

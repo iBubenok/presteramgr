@@ -662,6 +662,8 @@ vif_tx (const struct vif_id *id,
   if ((opts->send_to != VIFD_VLAN && opts->send_to != VIFD_VIDX) || opts->exclude_src_port) {
     if (opts->find_iface_by_portid) {
       vifp = vif = vif_get_by_pid (id->dev, id->num);
+      if (vif == NULL)
+        return ST_DOES_NOT_EXIST;
     } else {
       vifp = vif = vif_get(id->type, id->dev, id->num);
 //DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
