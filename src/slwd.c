@@ -96,11 +96,11 @@ link_handler (zloop_t *loop, zmq_pollitem_t *pi, void *_)
     zmsg_send (&ntf, ntf_sock);
 
     if (msg->link[i].state.link) {
-      DEBUG ("port %d:%d link up at speed %d, %s duplex",
-             msg->dev, msg->link[i].iid, msg->link[i].state.speed,
+      DEBUG ("port %d:%d:%x link up at speed %d, %s duplex",
+             msg->dev, msg->link[i].iid, msg->link[i].vifid, msg->link[i].state.speed,
              msg->link[i].state.duplex ? "full" : "half");
     } else
-      DEBUG ("port %d:%d link down", msg->dev, msg->link[i].iid);
+      DEBUG ("port %d:%d:%x link down", msg->dev, msg->link[i].iid, msg->link[i].vifid);
   }
 
   return 0;
