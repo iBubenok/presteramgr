@@ -118,31 +118,32 @@ tipc_bc_link_state (void)
 {
   static uint8_t buf[PTI_LINK_MSG_SIZE (NPORTS + TRUNK_ID_MAX)];
   struct pti_link_msg *msg = (struct pti_link_msg *) buf;
-  int i;
+  int i, c = NPORTS + ((stack_id == master_id)? TRUNK_ID_MAX : 0);
 
   vif_rlock();
 
   msg->dev = stack_id;
-  msg->nlinks = NPORTS + TRUNK_ID_MAX;
+  msg->nlinks = c;
   for (i = 0; i < NPORTS; i++) {
     msg->link[i].iid = ports[i].id;
     msg->link[i].vifid = ports[i].vif.id;
     memcpy(&msg->link[i].state, &ports[i].vif.state, sizeof(msg->link[i].state));
   }
 
-  for (i = TRUNK_ID_MIN; i <= TRUNK_ID_MAX; i++) {
-    msg->link[NPORTS + i - TRUNK_ID_MIN].iid = 0;
-    struct vif *vif = vif_by_trunkid(i);
-    msg->link[NPORTS + i - TRUNK_ID_MIN].vifid = vif->id;
-    memcpy(&msg->link[NPORTS + i - TRUNK_ID_MIN].state, &vif->state, sizeof(msg->link[i].state));
-  }
+  if (stack_id == master_id)
+    for (i = TRUNK_ID_MIN; i <= TRUNK_ID_MAX; i++) {
+      msg->link[NPORTS + i - TRUNK_ID_MIN].iid = 0;
+      struct vif *vif = vif_by_trunkid(i);
+      msg->link[NPORTS + i - TRUNK_ID_MIN].vifid = vif->id;
+      memcpy(&msg->link[NPORTS + i - TRUNK_ID_MIN].state, &vif->state, sizeof(msg->link[i].state));
+    }
 
   vif_unlock();
 
   if (TEMP_FAILURE_RETRY
-      (sendto (ntf_sock, buf, sizeof (buf), 0,
+      (sendto (ntf_sock, buf, PTI_LINK_MSG_SIZE (c), 0,
                (struct sockaddr *) &link_dst, sizeof (link_dst)))
-      != PTI_LINK_MSG_SIZE (NPORTS + TRUNK_ID_MAX))
+      != PTI_LINK_MSG_SIZE (c))
     err ("sendmsg() failed");
 }
 
