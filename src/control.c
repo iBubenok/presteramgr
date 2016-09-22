@@ -338,6 +338,7 @@ DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
+DECLARE_HANDLER (CC_VLAN_SET_STP_ID);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
@@ -515,6 +516,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
+  HANDLER (CC_VLAN_SET_STP_ID),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
@@ -1243,6 +1245,26 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
     goto out;
 
   result = vlan_set_fdb_map ((stp_id_t *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_STP_ID)
+{
+  enum status result;
+  vid_t    vid;
+  stp_id_t stp_id;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&stp_id);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_stp_id (vid, stp_id);
 
  out:
   report_status (result);
