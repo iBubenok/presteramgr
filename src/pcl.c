@@ -3228,49 +3228,52 @@ pcl_test_stop ()
 }
 
 enum status
-pcl_cpss_lib_init ()
+pcl_cpss_lib_pre_init ()
 {
-  CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
-  int d;
-
   /* Initialize indexes and etc. */
   initialize_vars();
-
-  for_each_dev(d) {
-    CRP (cpssDxChPclInit (d));
-
-    /* Enable ingress PCL. */
-    CRP (cpssDxChPclIngressPolicyEnable (d, GT_TRUE));
-
-    /* Enable egress PCL. */
-    CRP (cpssDxCh2PclEgressPolicyEnable (d, GT_TRUE));
-
-    /* Configure access modes. */
-    memset (&am, 0, sizeof (am));
-    am.ipclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
-    am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
-    CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
-
-    /* Initialize CNC */
-    pcl_init_cnc_counters(d);
-
-    /* Initialize TCP/UDP port comparators */
-    pcl_init_port_comparators(d);
-
-    if (stack_active() && d == stack_pri_port->ldev)
-      pcl_setup_stackmail_trap (stack_pri_port->id);
-    if (stack_active() && d == stack_sec_port->ldev)
-      pcl_setup_stackmail_trap (stack_sec_port->id);
-
-    pcl_setup_ospf(d);
-    pcl_setup_rip(d);
-  }
 
   /* Initialize stack of VT rules */
   pcl_init_rules();
 
   /* Initialize User ACL */
   pcl_init_user_acl();
+
+  return ST_OK;
+}
+
+enum status
+pcl_cpss_lib_init (int d)
+{
+  CPSS_DXCH_PCL_CFG_TBL_ACCESS_MODE_STC am;
+
+  CRP (cpssDxChPclInit (d));
+
+  /* Enable ingress PCL. */
+  CRP (cpssDxChPclIngressPolicyEnable (d, GT_TRUE));
+
+  /* Enable egress PCL. */
+  CRP (cpssDxCh2PclEgressPolicyEnable (d, GT_TRUE));
+
+  /* Configure access modes. */
+  memset (&am, 0, sizeof (am));
+  am.ipclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
+  am.epclAccMode = CPSS_DXCH_PCL_CFG_TBL_ACCESS_LOCAL_PORT_E;
+  CRP (cpssDxChPclCfgTblAccessModeSet (d, &am));
+
+  /* Initialize CNC */
+  pcl_init_cnc_counters(d);
+
+  /* Initialize TCP/UDP port comparators */
+  pcl_init_port_comparators(d);
+
+  if (stack_active() && d == stack_pri_port->ldev)
+    pcl_setup_stackmail_trap (stack_pri_port->id);
+  if (stack_active() && d == stack_sec_port->ldev)
+    pcl_setup_stackmail_trap (stack_sec_port->id);
+
+  pcl_setup_ospf(d);
+  pcl_setup_rip(d);
 
   return ST_OK;
 }
