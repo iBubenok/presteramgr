@@ -322,6 +322,7 @@ DECLARE_HANDLER (CC_PORT_SET_DUPLEX);
 DECLARE_HANDLER (CC_VIF_SET_DUPLEX);
 DECLARE_HANDLER (CC_PORT_SET_MDIX_AUTO);
 DECLARE_HANDLER (CC_PORT_SET_FLOW_CONTROL);
+DECLARE_HANDLER (CC_VIF_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
@@ -337,6 +338,7 @@ DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
+DECLARE_HANDLER (CC_VLAN_SET_STP_ID);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
@@ -392,6 +394,7 @@ DECLARE_HANDLER (CC_DGASP_ENABLE);
 DECLARE_HANDLER (CC_DGASP_ADD_PACKET);
 DECLARE_HANDLER (CC_DGASP_CLEAR_PACKETS);
 DECLARE_HANDLER (CC_DGASP_PORT_OP);
+DECLARE_HANDLER (CC_DGASP_VIF_OP);
 DECLARE_HANDLER (CC_DGASP_SEND);
 DECLARE_HANDLER (CC_802_3_SP_RX_ENABLE);
 DECLARE_HANDLER (CC_PORT_VLAN_TRANSLATE);
@@ -497,6 +500,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VIF_SET_DUPLEX),
   HANDLER (CC_PORT_SET_MDIX_AUTO),
   HANDLER (CC_PORT_SET_FLOW_CONTROL),
+  HANDLER (CC_VIF_SET_FLOW_CONTROL),
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
@@ -512,6 +516,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_DUMP_PHY_REG),
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
+  HANDLER (CC_VLAN_SET_STP_ID),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
@@ -567,6 +572,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DGASP_ADD_PACKET),
   HANDLER (CC_DGASP_CLEAR_PACKETS),
   HANDLER (CC_DGASP_PORT_OP),
+  HANDLER (CC_DGASP_VIF_OP),
   HANDLER (CC_DGASP_SEND),
   HANDLER (CC_802_3_SP_RX_ENABLE),
   HANDLER (CC_PORT_VLAN_TRANSLATE),
@@ -1049,9 +1055,6 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
     break;
   }
 
-  if (result == ST_OK)
-    control_notify_stp_state (vif, stp_id, state);
-
  out:
   report_status (result);
 }
@@ -1242,6 +1245,26 @@ DEFINE_HANDLER (CC_SET_FDB_MAP)
     goto out;
 
   result = vlan_set_fdb_map ((stp_id_t *) zframe_data (frame));
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_STP_ID)
+{
+  enum status result;
+  vid_t    vid;
+  stp_id_t stp_id;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&stp_id);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_stp_id (vid, stp_id);
 
  out:
   report_status (result);
@@ -1974,6 +1997,26 @@ DEFINE_HANDLER (CC_PORT_SET_FLOW_CONTROL)
     goto out;
 
   result = port_set_flow_control (pid, fc);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_SET_FLOW_CONTROL)
+{
+  enum status result;
+  vif_id_t vif;
+  flow_control_t fc;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&fc);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_set_flow_control (vif, fc);
 
  out:
   report_status (result);
@@ -3172,6 +3215,26 @@ DEFINE_HANDLER (CC_DGASP_PORT_OP)
     goto out;
 
   result = dgasp_port_op (pid, add);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DGASP_VIF_OP)
+{
+  enum status result;
+  vif_id_t vif;
+  bool_t add;
+
+  result = POP_ARG (&vif);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&add);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_dgasp_op (vif, add);
 
  out:
   report_status (result);

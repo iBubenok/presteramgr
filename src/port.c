@@ -19,6 +19,7 @@
 #include <mac.h>
 #include <sec.h>
 #include <zcontext.h>
+#include <dgasp.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -4626,4 +4627,10 @@ port_set_serdes_cfg (port_id_t pid, const struct port_serdes_cfg *cfg)
   case GT_OK: return ST_OK;
   default:    return ST_HEX;
   }
+}
+
+enum status
+port_dgasp_op (port_id_t pid, int add)
+{
+  return dgasp_port_op (pid, add);
 }

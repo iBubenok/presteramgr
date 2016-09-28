@@ -630,6 +630,29 @@ vlan_set_fdb_map (const stp_id_t *ids)
 }
 
 enum status
+vlan_set_stp_id (vid_t vid, stp_id_t id)
+{
+  if (id > 255) return ST_BAD_VALUE;
+
+  vlans[vid-1].stp_id = id;
+  stg_set_active(id);
+  if (vlans[vid-1].state == VS_ACTIVE) {
+    int d;
+    for_each_dev (d) {
+      int p;
+
+      CRP (cpssDxChBrgVlanToStpIdBind (d, vid, id));
+      DEBUG("%s: Bind VLAN %d to STP id %d", __func__, vid, id);
+      for (p = 0; p < dev_info[d].n_ic_ports; p++)
+        CRP (cpssDxChBrgStpStateSet
+             (d, dev_info[d].ic_ports[p], id, CPSS_STP_FRWRD_E));
+    }
+  }
+
+  return ST_OK;
+}
+
+enum status
 vlan_get_mac_addr (vid_t vid, mac_addr_t addr)
 {
   if (!vlan_valid (vid))
