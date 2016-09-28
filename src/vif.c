@@ -535,7 +535,7 @@ DEBUG(">>>>>vif_process_ls_pkt(%p) vif_lsh->n== %d, ->stack_id== %d, ->serial== 
 DEBUG("====vif_process_ls_pkt() vifid= %x SKIPPED\n", vif_lsh->data[i].vifid);
       continue;
     }
-    memcpy(&vif->state, &vif_lsh->data[0].state, sizeof(vif->state));
+    memcpy(&vif->state, &vif_lsh->data[i].state, sizeof(vif->state));
     if (vif->trunk)
       vif_update_trunk_link_status((struct trunk*)vif->trunk, socket);
   }
