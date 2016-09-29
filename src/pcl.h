@@ -10,7 +10,8 @@ extern void pcl_test_stop ();
 
 
 /* PCL inits */
-extern enum status pcl_cpss_lib_init ();
+extern enum status pcl_cpss_lib_pre_init ();
+extern enum status pcl_cpss_lib_init (int);
 extern enum status pcl_port_setup (port_id_t);
 extern enum status pcl_enable_port (port_id_t, int);
 

@@ -772,11 +772,19 @@ init_cpss (void)
     rc = lib_init (i);
     RCC (rc, lib_init);
     DEBUG ("library init done\n");
-  }
 
-  DEBUG ("doing pcl library init\n");
-  pcl_cpss_lib_init ();
-  DEBUG ("pcl library init done\n");
+    if (!i) {
+      DEBUG ("doing pcl library pre-init\n");
+      rc = pcl_cpss_lib_pre_init ();
+      RCC (rc, pcl_cpss_lib_pre_init);
+      DEBUG ("pcl library pre-init done\n");
+    }
+
+    DEBUG ("doing pcl library init\n");
+    rc = pcl_cpss_lib_init (i);
+    RCC (rc, pcl_cpss_lib_init);
+    DEBUG ("pcl library init done\n");
+  }
 
   trunk_init ();
   sysd_setup_ic ();
