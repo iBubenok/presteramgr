@@ -425,6 +425,7 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *
 /* should be vif_wlock() protected in callink function */
 static enum status
 vif_update_trunk_link_status(struct trunk* trunk, void *socket) {
+DEBUG(">>>>vif_update_trunk_link_status(%p - %x, void *socket)\n", trunk, trunk->vif.id);
 
   int i;
   struct port_link_state pls = {.link = 0, .speed = PORT_SPEED_10, .duplex = 0};
@@ -444,7 +445,8 @@ vif_update_trunk_link_status(struct trunk* trunk, void *socket) {
       || pls.speed != trunk->vif.state.speed
       || pls.duplex != trunk->vif.state.duplex) {
 
-    notify_port_state(trunk->vif.id, 0, &pls, socket);
+    if (stack_id == master_id)
+      notify_port_state(trunk->vif.id, 0, &pls, socket);
 
     trunk->vif.state.link = pls.link;
     trunk->vif.state.speed = pls.speed;
@@ -455,6 +457,7 @@ vif_update_trunk_link_status(struct trunk* trunk, void *socket) {
 
 enum status
 vif_set_link_status(vif_id_t vifid, struct port_link_state *state, void *socket) {
+DEBUG(">>>>vif_set_link_status(%x, %d:%d:%d, void *socket)\n", vifid, state->link, state->speed, state->duplex);
 
   static uint8_t buf[sizeof(struct vif_link_state_header) + sizeof(struct vif_link_state)];
   struct vif_link_state_header *vif_lsh = (struct vif_link_state_header*) buf;
@@ -482,33 +485,6 @@ vif_set_link_status(vif_id_t vifid, struct port_link_state *state, void *socket)
     vif_unlock();
     return ST_OK;
   }
-
-#if 0
-  int i;
-  struct port_link_state pls = {0,0,0};
-  for (i = 0; i < ((struct trunk*) vif->trunk)->nports; i++) {
-    if (((struct trunk*) vif->trunk)->port_enabled[i]) {
-      if (((struct trunk*) vif->trunk)->vif_port[i]->state.link) {
-        pls.link = 1;
-        if (((struct trunk*) vif->trunk)->vif_port[i]->state.speed > pls.speed)
-          pls.speed = ((struct trunk*) vif->trunk)->vif_port[i]->state.speed;
-        if (((struct trunk*) vif->trunk)->vif_port[i]->state.duplex > pls.duplex)
-          pls.duplex = ((struct trunk*) vif->trunk)->vif_port[i]->state.duplex;
-      }
-    }
-  }
-
-  if (pls.link != vif->trunk->state.link
-      || pls.speed != vif->trunk->state.speed
-      || pls.duplex != vif->trunk->state.duplex) {
-
-    notify_port_state(vif->trunk->id, 0, pls, socket);
-
-    vif->trunk->state.link = pls.link;
-    vif->trunk->state.speed = pls.speed;
-    vif->trunk->state.duplex = pls.duplex;
-  }
-#endif //0
 
   vif_update_trunk_link_status((struct trunk*)vif->trunk, socket);
 
@@ -916,7 +892,7 @@ vif_stg_get (void *b) {
 
 enum status
 vif_stg_set (void *b) {
-DEBUG(">>>>vif_stg_set (%p)\n", b);
+//DEBUG(">>>>vif_stg_set (%p)\n", b);
 //PRINTHexDump(b, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*) b) ->n);
 
   struct vif_stgblk_header *hd = (struct vif_stgblk_header*) b;
