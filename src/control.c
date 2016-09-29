@@ -921,7 +921,7 @@ DEBUG("===SC_INT_CLEAR_RT_CMD\n");
 }
 
 DEFINE_HANDLER (SC_INT_VIFSTG_SET) { /* to be called from one thread only*/
-DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
+//DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
   zframe_t *frame = FIRST_ARG;
   if (!frame)
     return;

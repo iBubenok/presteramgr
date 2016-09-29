@@ -390,7 +390,7 @@ enum status
 mac_op_send_vif_ls(struct vif_link_state_header *s) {
   return fdb_actl (FCC_FDBMAN_SEND_VIF_LS, s,
 //      sizeof (struct vif_link_state_header) + sizeof(struct vif_link_state) * ((struct vif_stgblk_header*)buf)->n);
-      sizeof(*s));
+      sizeof(*s) + s->n * sizeof(struct vif_link_state));
 }
 
 enum status
