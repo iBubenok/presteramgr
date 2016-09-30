@@ -13,6 +13,7 @@
 #include <utils.h>
 #include <debug.h>
 #include <log.h>
+#include <dev.h>
 
 static void *pub_sock;
 static void *sec_sock;
@@ -134,7 +135,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
   CRP (cpssDxChSecurBreachMsgGet (dev, &sbmsg));
 
   uint64_t ts = time_monotonic();
-  port_id_t pid = port_id(dev, sbmsg.port);
+  port_id_t pid = port_id(phys_dev(dev), sbmsg.port);
   uint8_t sb_type = 0;
 
   switch (sbmsg.code) {
@@ -192,7 +193,7 @@ sect_thread (void *_)
 {
   void *sect_sock;
   zloop_t *loop;
-  
+
   DEBUG ("starting up security event handler thread\r\n");
 
   loop = zloop_new ();
@@ -249,7 +250,7 @@ sec_start(void) {
     usleep (10000);
   }
   DEBUG ("security event handler startup finished after %u iteractions\r\n", n);
-  
+
   sec_sock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (sec_sock);
   zsocket_connect (sec_sock, SEC_EVENT_NOTIFY_EP);
