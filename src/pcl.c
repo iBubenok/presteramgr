@@ -2739,10 +2739,15 @@ pcl_setup_stackmail_trap (port_id_t pid) {
                           CPSS_NET_FIRST_USER_DEFINED_E + 7:
                           CPSS_NET_FIRST_USER_DEFINED_E + 8;
 
+  uint16_t rule_ix =
+    (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)?
+         port_stackmail_trap_primary_index :
+         port_stackmail_trap_secondary_index;
+
   CRP (cpssDxChPclRuleSet
        (port->ldev,
         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-        (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)? 1 : 2,
+        rule_ix,
         0,
         &mask,
         &rule,
