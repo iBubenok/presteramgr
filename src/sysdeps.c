@@ -11,6 +11,7 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
+#include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 
 #include <pthread.h>
 #include <string.h>
