@@ -11,6 +11,7 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSrcId.h>
+#include <cpss/dxCh/dxChxGen/cos/cpssDxChCos.h>
 
 #include <pthread.h>
 #include <string.h>
@@ -386,10 +387,18 @@ sysd_setup_ic (void)
       CRP (cpssDxChIpPortRoutingEnable
            (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
             GT_FALSE));
+
       CRP (cpssDxChPortTxBindPortToDpSet
            (d, dp[d][p], CPSS_PORT_TX_DROP_PROFILE_2_E));
       CRP (cpssDxChPortTxBindPortToSchedulerProfileSet
            (d, dp[d][p], CPSS_PORT_TX_SCHEDULER_PROFILE_2_E));
+
+      CRP (cpssDxChCscdRemapQosModeSet
+           (d, dp[d][p], CPSS_DXCH_CSCD_QOS_REMAP_ALL_E));
+      CRP (cpssDxChCscdQosPortTcRemapEnableSet
+           (d, dp[d][p], GT_TRUE));
+      CRP (cpssDxChCosTrustDsaTagQosModeSet
+           (d, dp[d][p], GT_TRUE));
 
       CRP (cpssDxChBrgSrcIdPortUcastEgressFilterSet
                    (d, dp[d][p], GT_FALSE));
