@@ -3074,22 +3074,6 @@ pcl_enable_vlan (vid_t vid, uint16_t pcl_id) {
   }
 }
 
-// void
-// pcl_clear_counter (int d, struct pcl_interface interface, uint16_t rule_ix) {
-//   CPSS_DXCH_CNC_COUNTER_STC counter;
-//   memset(&counter, 0, sizeof(counter));
-
-//   uint8_t  block = (interface.type == PCL_INTERFACE_TYPE_VLAN) ? 1 : 0;
-//   uint16_t index = rule_ix;
-
-//   CRP (cpssDxChCncCounterSet
-//        (d,
-//         block,
-//         index,
-//         CPSS_DXCH_CNC_COUNTER_FORMAT_MODE_0_E,
-//         &counter));
-// }
-
 static void
 pcl_init_cnc_counters (int d) {
   CRP (cpssDxChCncBlockClientEnableSet
