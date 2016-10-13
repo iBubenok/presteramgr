@@ -310,7 +310,6 @@ DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
 DECLARE_HANDLER (CC_VIF_SET_STP_STATE);
-DECLARE_HANDLER (CC_PORT_SEND_FRAME);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_VIF_SHUTDOWN);
 DECLARE_HANDLER (CC_PORT_BLOCK);
@@ -375,7 +374,6 @@ DECLARE_HANDLER (CC_MGMT_IP_DEL);
 DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
 DECLARE_HANDLER (CC_INT_ROUTE_DEL_PREFIX);
 DECLARE_HANDLER (CC_INT_SPEC_FRAME_FORWARD);
-DECLARE_HANDLER (CC_SEND_FRAME);
 DECLARE_HANDLER (CC_VLAN_SET_IP_ADDR);
 DECLARE_HANDLER (CC_VLAN_DEL_IP_ADDR);
 DECLARE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR);
@@ -410,7 +408,6 @@ DECLARE_HANDLER (CC_PORT_CLEAR_TRANSLATION);
 DECLARE_HANDLER (CC_VLAN_SET_XLATE_TUNNEL);
 DECLARE_HANDLER (CC_PORT_SET_TRUNK_VLANS);
 DECLARE_HANDLER (CC_VIF_SET_TRUNK_VLANS);
-DECLARE_HANDLER (CC_MAIL_TO_NEIGHBOR);
 DECLARE_HANDLER (CC_STACK_PORT_GET_STATE);
 DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 DECLARE_HANDLER (CC_DIAG_REG_READ);
@@ -428,8 +425,6 @@ DECLARE_HANDLER (CC_SET_HW_PORTS);
 DECLARE_HANDLER (CC_GET_VIF_PORTS);
 DECLARE_HANDLER (CC_SET_VIF_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
-DECLARE_HANDLER (CC_GIF_TX);
-DECLARE_HANDLER (CC_VIF_TX);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
@@ -463,7 +458,6 @@ DECLARE_HANDLER (CC_PCL_TEST_START);
 DECLARE_HANDLER (CC_PCL_TEST_ITER);
 DECLARE_HANDLER (CC_PCL_TEST_STOP);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
-DECLARE_HANDLER (CC_INJECT_FRAME);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
@@ -488,7 +482,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
   HANDLER (CC_VIF_SET_STP_STATE),
-  HANDLER (CC_PORT_SEND_FRAME),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_VIF_SHUTDOWN),
   HANDLER (CC_PORT_BLOCK),
@@ -553,7 +546,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
   HANDLER (CC_INT_ROUTE_DEL_PREFIX),
   HANDLER (CC_INT_SPEC_FRAME_FORWARD),
-  HANDLER (CC_SEND_FRAME),
   HANDLER (CC_VLAN_SET_IP_ADDR),
   HANDLER (CC_VLAN_DEL_IP_ADDR),
   HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR),
@@ -588,7 +580,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_VLAN_SET_XLATE_TUNNEL),
   HANDLER (CC_PORT_SET_TRUNK_VLANS),
   HANDLER (CC_VIF_SET_TRUNK_VLANS),
-  HANDLER (CC_MAIL_TO_NEIGHBOR),
   HANDLER (CC_STACK_PORT_GET_STATE),
   HANDLER (CC_STACK_SET_DEV_MAP),
   HANDLER (CC_DIAG_REG_READ),
@@ -606,8 +597,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_GET_VIF_PORTS),
   HANDLER (CC_SET_VIF_PORTS),
   HANDLER (CC_TRUNK_SET_MEMBERS),
-  HANDLER (CC_GIF_TX),
-  HANDLER (CC_VIF_TX),
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_EAPOL),
@@ -642,7 +631,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PCL_TEST_ITER),
   HANDLER (CC_PCL_TEST_STOP),
   HANDLER (CC_ARP_TRAP_ENABLE),
-  HANDLER (CC_INJECT_FRAME),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
   HANDLER (CC_ARPD_SOCK_CONNECT),
@@ -1509,46 +1497,6 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
     break;
   }
 
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_PORT_SEND_FRAME)
-{
-  port_id_t pid;
-  struct port *port;
-  size_t len;
-  zframe_t *frame;
-  enum status result = ST_BAD_FORMAT;
-
-  result = POP_ARG (&pid);
-  if (result != ST_OK)
-    goto out;
-
-  if (!(port = port_ptr (pid))) {
-    result = ST_BAD_VALUE;
-    goto out;
-  }
-
-  if (is_stack_port (port)) {
-    result = ST_BAD_STATE;
-    goto out;
-  }
-
-  if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
-    goto out;
-  }
-
-  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
-  if ((len = zframe_size (frame)) < 1)
-    goto destroy_frame;
-
-  mgmt_send_frame (port->ldev, port->lport, zframe_data (frame), len);
-  result = ST_OK;
-
- destroy_frame:
-  zframe_destroy (&frame);
  out:
   report_status (result);
 }
@@ -2925,64 +2873,6 @@ DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_SEND_FRAME)
-{
-  vid_t vid;
-  size_t len;
-  zframe_t *frame;
-  enum status result = ST_BAD_FORMAT;
-
-  result = POP_ARG (&vid);
-  if (result != ST_OK)
-    goto out;
-
-  if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
-    goto out;
-  }
-
-  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
-  if ((len = zframe_size (frame)) < 1)
-    goto destroy_frame;
-
-  mgmt_send_regular_frame (vid, zframe_data (frame), len);
-  result = ST_OK;
-
- destroy_frame:
-  zframe_destroy (&frame);
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_INJECT_FRAME)
-{
-  vid_t vid;
-  size_t len;
-  zframe_t *frame;
-  enum status result = ST_BAD_FORMAT;
-
-  result = POP_ARG (&vid);
-  if (result != ST_OK)
-    goto out;
-
-  if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
-    goto out;
-  }
-
-  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
-  if ((len = zframe_size (frame)) < 1)
-    goto destroy_frame;
-
-  mgmt_inject_frame (vid, zframe_data (frame), len);
-  result = ST_OK;
-
- destroy_frame:
-  zframe_destroy (&frame);
- out:
-  report_status (result);
-}
-
 DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
@@ -3773,34 +3663,6 @@ DEFINE_HANDLER (CC_VIF_VLAN_TRANSLATE)
   report_status (result);
 }
 
-DEFINE_HANDLER (CC_MAIL_TO_NEIGHBOR)
-{
-  port_stack_role_t role;
-  size_t len;
-  zframe_t *frame;
-  enum status result = ST_BAD_FORMAT;
-
-  result = POP_ARG (&role);
-  if (result != ST_OK)
-    goto out;
-
-  if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
-    goto out;
-  }
-
-  frame = zmsg_pop (__args); /* TODO: maybe add a macro for this. */
-  if ((len = zframe_size (frame)) < 1)
-    goto destroy_frame;
-
-  result = stack_mail (role, zframe_data (frame), len);
-
- destroy_frame:
-  zframe_destroy (&frame);
- out:
-  report_status (result);
-}
-
 DEFINE_HANDLER (CC_PORT_CLEAR_TRANSLATION)
 {
   enum status result;
@@ -4251,54 +4113,6 @@ DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
   }
 
   result = trunk_set_members (id, n, mem, evtntf_sock);
-
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_GIF_TX)
-{
-  zframe_t *frame;
-  struct gif_id *id;
-  struct gif_tx_opts *opts;
-  enum status result = ST_BAD_FORMAT;
-
-  frame = FIRST_ARG;
-  if (zframe_size (frame) != sizeof (*id))
-    goto out;
-  id = (struct gif_id *) zframe_data (frame);
-
-  frame = NEXT_ARG;
-  if (zframe_size (frame) != sizeof (*opts))
-    goto out;
-  opts = (struct gif_tx_opts *) zframe_data (frame);
-
-  frame = NEXT_ARG;
-  result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
-
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_VIF_TX)
-{
-  zframe_t *frame;
-  struct vif_id *id;
-  struct vif_tx_opts *opts;
-  enum status result = ST_BAD_FORMAT;
-
-  frame = FIRST_ARG;
-  if (zframe_size (frame) != sizeof (*id))
-    goto out;
-  id = (struct vif_id *) zframe_data (frame);
-
-  frame = NEXT_ARG;
-  if (zframe_size (frame) != sizeof (*opts))
-    goto out;
-  opts = (struct vif_tx_opts *) zframe_data (frame);
-
-  frame = NEXT_ARG;
-  result = vif_tx (id, opts, zframe_size (frame), zframe_data (frame));
 
  out:
   report_status (result);
