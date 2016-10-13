@@ -2,6 +2,7 @@
 #define __CONTROL_H__
 
 #include <cpss/generic/port/cpssPortCtrl.h>
+#include <linux/pdsa-mgmt.h>
 #include <control-proto.h>
 
 #define INP_SOCK_EP "inproc://command"
@@ -38,5 +39,6 @@ enum control_int_notification {
 
 extern void cn_port_vid_set (port_id_t, vid_t);
 extern void cn_mail (port_stack_role_t, uint8_t *, size_t);
+extern enum status control_spec_frame (struct pdsa_spec_frame *);
 
 #endif /* __CONTROL_H__ */
