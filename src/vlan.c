@@ -444,13 +444,13 @@ vlan_init (void)
     CRP (cpssDxChBrgMcEntryWrite (d, 4092, &pbm));
   }
 
-  vlan_add (1);
-  __vlan_add (SVC_VID);
-
   static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
   memset (stg_state, STP_STATE_DISABLED, sizeof(stg_state));
+
+  vlan_add (1);
+  __vlan_add (SVC_VID);
 
   return ST_OK;
 }
@@ -603,7 +603,7 @@ vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
 enum status
 vlan_set_fdb_map (const stp_id_t *ids)
 {
-  int i, d;
+  int i;
 
   for (i = 0; i < NVLANS; i++)
     if (ids[i] > 255)
@@ -611,19 +611,7 @@ vlan_set_fdb_map (const stp_id_t *ids)
 
   stgs_clear ();
   for (i = 0; i < NVLANS; i++) {
-    vlans[i].stp_id = ids[i];
-    stg_set_active (ids[i]);
-    if (vlans[i].state == VS_ACTIVE) {
-      for_each_dev (d) {
-        int p;
-
-        CRP (cpssDxChBrgVlanToStpIdBind (d, i + 1, ids[i]));
-        DEBUG("%s: Bind VLAN %d to STP id %d", __func__, i + 1, ids[i]);
-        // for (p = 0; p < dev_info[d].n_ic_ports; p++)
-        //   CRP (cpssDxChBrgStpStateSet
-        //        (d, dev_info[d].ic_ports[p], ids[i], CPSS_STP_FRWRD_E));
-      }
-    }
+    vlan_set_stp_id(i + 1, ids[i]);
   }
 
   return ST_OK;
@@ -636,17 +624,27 @@ vlan_set_stp_id (vid_t vid, stp_id_t id)
 
   vlans[vid-1].stp_id = id;
   stg_set_active(id);
-  if (vlans[vid-1].state == VS_ACTIVE) {
-    int d;
-    for_each_dev (d) {
-      int p;
 
-      CRP (cpssDxChBrgVlanToStpIdBind (d, vid, id));
-      DEBUG("%s: Bind VLAN %d to STP id %d", __func__, vid, id);
-      for (p = 0; p < dev_info[d].n_ic_ports; p++)
-        CRP (cpssDxChBrgStpStateSet
-             (d, dev_info[d].ic_ports[p], id, CPSS_STP_FRWRD_E));
+  int d;
+  for_each_dev (d) {
+    int p;
+    CRP (cpssDxChBrgVlanToStpIdBind (d, vid, id));
+    for (p = 0; p < dev_info[d].n_ic_ports; p++) {
+      CRP (cpssDxChBrgStpStateSet
+           (d, dev_info[d].ic_ports[p], id, CPSS_STP_FRWRD_E));
     }
+  }
+
+  int pid;
+  struct port *port;
+  struct port_link_state state;
+  for (pid = 1; pid != nports; pid++) {
+    port = port_ptr(pid);
+    if (!port) continue;
+    if (port_get_state(pid, &state) != ST_OK) continue;
+    if (!is_stack_port(port))
+      port_set_stp_state (pid, id, 0, state.link ? STP_STATE_DISCARDING :
+                                                   STP_STATE_DISABLED);
   }
 
   return ST_OK;
