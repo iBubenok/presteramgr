@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <linux/pdsa-mgmt.h>
+#include <control-proto.h>
 #include <pthread.h>
 #include <sys/prctl.h>
 #include <mgmt.h>
@@ -90,15 +91,24 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
     return;
   }
 
-  zmsg_t *msg = zmsg_new ();
+  switch (frame->code) {
+  case CPU_CODE_USER_DEFINED (7):
+  case CPU_CODE_USER_DEFINED (8):
+    control_spec_frame(frame);
+    return;
+  default: {
+    zmsg_t *msg = zmsg_new ();
 
-  command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
-  zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
-  zmsg_send (&msg, inp_sock);
+    command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
+    zmsg_addmem (msg, &cmd, sizeof (cmd));
+    zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
+    zmsg_send (&msg, inp_sock);
 
-  msg = zmsg_recv (inp_sock);
-  zmsg_destroy (&msg);
+    msg = zmsg_recv (inp_sock);
+    zmsg_destroy (&msg);
+    break;
+    }
+  }
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {

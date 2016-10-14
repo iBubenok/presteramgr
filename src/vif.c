@@ -641,16 +641,24 @@ vif_tx (const struct vif_id *id,
 
 // DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
 
+
   if ((opts->send_to != VIFD_VLAN && opts->send_to != VIFD_VIDX) || opts->exclude_src_port) {
+
+    vif_rlock();
+
     if (opts->find_iface_by_portid) {
       vifp = vif = vif_get_by_pid (id->dev, id->num);
-      if (vif == NULL)
+      if (vif == NULL) {
+        vif_unlock();
         return ST_DOES_NOT_EXIST;
+      }
     } else {
       vifp = vif = vif_get(id->type, id->dev, id->num);
 //DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
-      if (vif == NULL)
+      if (vif == NULL) {
+        vif_unlock();
         return ST_DOES_NOT_EXIST;
+      }
       if (vif->vifid.type == VIFT_PC) {
         vifp = ((struct trunk*)vif)->designated;
         trunk = ((struct trunk*)vif)->id;
@@ -659,6 +667,7 @@ vif_tx (const struct vif_id *id,
     }
 
     result = vif_get_hw(&hp, vifp);
+    vif_unlock();
     if (result != ST_OK)
       return result;
   }
