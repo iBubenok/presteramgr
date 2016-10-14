@@ -1217,9 +1217,9 @@ DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
   if (POP_ARG(&stp_id) == ST_OK) {
     vid_t vid;
     for (vid = 1; vid <= NVLANS; vid++) {
-      stp_id_t *vlan_stp_id = NULL;
-      vlan_get_stp_id(vid, vlan_stp_id);
-      if (vlan_stp_id && stp_id == *vlan_stp_id) {
+      stp_id_t vlan_stp_id;
+      if ((vlan_get_stp_id(vid, &vlan_stp_id) == ST_OK) &&
+          (stp_id == vlan_stp_id)) {
         arg.vid = vid;
         result = mac_flush_vif (&arg, GT_FALSE);
       }

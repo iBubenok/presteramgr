@@ -619,9 +619,9 @@ vlan_set_fdb_map (const stp_id_t *ids)
 
         CRP (cpssDxChBrgVlanToStpIdBind (d, i + 1, ids[i]));
         DEBUG("%s: Bind VLAN %d to STP id %d", __func__, i + 1, ids[i]);
-        for (p = 0; p < dev_info[d].n_ic_ports; p++)
-          CRP (cpssDxChBrgStpStateSet
-               (d, dev_info[d].ic_ports[p], ids[i], CPSS_STP_FRWRD_E));
+        // for (p = 0; p < dev_info[d].n_ic_ports; p++)
+        //   CRP (cpssDxChBrgStpStateSet
+        //        (d, dev_info[d].ic_ports[p], ids[i], CPSS_STP_FRWRD_E));
       }
     }
   }
@@ -799,10 +799,9 @@ vlan_mc_route (vid_t vid, bool_t enable)
 enum status
 vlan_get_stp_id (vid_t vid, stp_id_t *stp_id)
 {
-  stp_id = NULL;
   if (!vlan_valid(vid)) return ST_BAD_VALUE;
 
-  stp_id = &vlans[vid - 1].stp_id;
+  memcpy(stp_id, &vlans[vid - 1].stp_id, sizeof(stp_id_t));
 
   return ST_OK;
 }
