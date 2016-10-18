@@ -2989,6 +2989,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_IPv4_IGMP_TM:
     type = CN_IPv4_IGMP_PDU;
+    put_vif = 1;
     put_vid = 1;
     conform2stp_state = 1;
     break;
