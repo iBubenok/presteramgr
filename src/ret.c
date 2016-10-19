@@ -298,8 +298,9 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
           vid_t src_vid)
 {
   struct mcre *re;
-  int idx, mll_idx;
+  int idx, mll_idx, d;
   CPSS_DXCH_IP_MC_ROUTE_ENTRY_STC c;
+  GT_STATUS rc;
 
   DEBUG ("Popping new idx...\n");
 
@@ -339,7 +340,9 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
   c.internalMLLPointer = mll_idx;
   c.externalMLLPointer = 0;
 
-  ON_GT_ERROR (CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c)))
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpMcRouteEntriesWrite (d, idx, &c));
+  ON_GT_ERROR (rc)
     goto err_mll;
 
   re = calloc (1, sizeof (*re));
@@ -471,6 +474,7 @@ int
 mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 {
   struct mcre *re, *upd_re;
+  int d;
 
   memcpy (&(mcrek.dst), &mcre_key_bp[idx].dst, sizeof (mcrek.dst));
   memcpy (&(mcrek.src), &mcre_key_bp[idx].src, sizeof (mcrek.dst));
@@ -518,7 +522,8 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 
         c.internalMLLPointer = new_head;
 
-        CRP (cpssDxChIpMcRouteEntriesWrite (0, idx, &c));
+        for_each_dev (d)
+          CRP (cpssDxChIpMcRouteEntriesWrite (d, idx, &c));
 
           upd_re = calloc (1, sizeof (*upd_re));
           *upd_re = *re;
