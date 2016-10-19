@@ -10,6 +10,7 @@
 #include <mll.h>
 #include <debug.h>
 #include <utils.h>
+#include <sysdeps.h>
 
 static int mll_sp;
 static GT_U32 mll_ts;
@@ -78,7 +79,8 @@ static int debug_pair (int idx) {
 static int create_pair (int pred, mcg_t mcg, vid_t vid)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
-  int idx;
+  int idx, d;
+  GT_STATUS rc;
 
   DEBUG ("Creating new pair.\n");
 
@@ -103,9 +105,10 @@ static int create_pair (int pred, mcg_t mcg, vid_t vid)
 
   DEBUG ("Mll = %d\n", idx);
 
-  ON_GT_ERROR
-    (CRP (cpssDxChIpMLLPairWrite
-          (0, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p))) {
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpMLLPairWrite
+                (d, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
+  ON_GT_ERROR (rc) {
     mll_put (idx);
     return -1;
   }
@@ -136,6 +139,7 @@ static int find_last_pair (int head)
 static int pair_set_next_pair (int pred, int succ)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
+  int d;
 
   DEBUG ("Linking pair %d to %d\n", pred, succ);
 
@@ -149,8 +153,9 @@ static int pair_set_next_pair (int pred, int succ)
 
   mll_pt[pred].succ = succ;
 
-  CRP (cpssDxChIpMLLPairWrite
-          (0, pred, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
+  for_each_dev (d)
+    CRP (cpssDxChIpMLLPairWrite
+            (d, pred, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
 
   DEBUG ("New chain is \n");
   debug_pair (pred);
@@ -162,6 +167,7 @@ static int pair_set_next_pair (int pred, int succ)
 static int insert_second_node (int pair, mcg_t mcg, vid_t vid)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p;
+  int d;
 
   DEBUG ("Inserting second node to pair %d\n", pair);
   debug_pair (pair);
@@ -178,8 +184,9 @@ static int insert_second_node (int pair, mcg_t mcg, vid_t vid)
   p.secondMllNode.nextHopVlanId = vid;
   p.secondMllNode.last = GT_TRUE;
 
-  CRP (cpssDxChIpMLLPairWrite
-        (0, pair, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
+  for_each_dev (d)
+    CRP (cpssDxChIpMLLPairWrite
+          (d, pair, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
 
   mll_pt[pair].svid = vid;
   mll_pt[pair].smcg = mcg;
@@ -270,6 +277,7 @@ pair_modify_chain (int idx,
                    int last_idx_cmd)
 {
   CPSS_DXCH_IP_MLL_PAIR_STC p, last_p;
+  int d;
 
   memset (&p, 0, sizeof (p));
 
@@ -301,8 +309,9 @@ pair_modify_chain (int idx,
     last_p.firstMllNode.last = GT_FALSE;
     last_p.secondMllNode.last = GT_TRUE;
 
-    CRP (cpssDxChIpMLLPairWrite
-          (0, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
+    for_each_dev (d)
+      CRP (cpssDxChIpMLLPairWrite
+            (d, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
 
     return 0;
 
@@ -315,8 +324,9 @@ pair_modify_chain (int idx,
     last_p.firstMllNode.last = GT_FALSE;
     last_p.secondMllNode.last = GT_TRUE;
 
-    CRP (cpssDxChIpMLLPairWrite
-          (0, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
+    for_each_dev (d)
+      CRP (cpssDxChIpMLLPairWrite
+            (d, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
 
     return 0;
 
@@ -327,17 +337,20 @@ pair_modify_chain (int idx,
     last_p.nextPointer = idx;
     last_p.secondMllNode.last = GT_FALSE;
 
-    CRP (cpssDxChIpMLLPairWrite
-          (0, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
+    for_each_dev (d)
+      CRP (cpssDxChIpMLLPairWrite
+            (d, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
 
-    CRP (cpssDxChIpMLLPairWrite
-          (0, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
+    for_each_dev (d)
+      CRP (cpssDxChIpMLLPairWrite
+            (d, last_idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &last_p));
 
     return 0;
   }
 
-  CRP (cpssDxChIpMLLPairWrite
-          (0, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
+  for_each_dev (d)
+    CRP (cpssDxChIpMLLPairWrite
+            (d, idx, CPSS_DXCH_IP_MLL_PAIR_READ_WRITE_WHOLE_E, &p));
 
   return 0;
 }

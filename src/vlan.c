@@ -751,11 +751,13 @@ enum status
 vlan_igmp_snoop (vid_t vid, int enable)
 {
   GT_STATUS rc;
+  int d;
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (0, vid, gt_bool (enable)));
+  for_each_dev (d)
+    rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (d, vid, gt_bool (enable)));
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;
