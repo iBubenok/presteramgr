@@ -165,6 +165,12 @@ stg_set_active (stp_id_t stg)
   stgs[STG_IDX (stg)] |= STG_BIT (stg);
 }
 
+static inline void
+stg_set_inactive (stp_id_t stg)
+{
+  stgs[STG_IDX (stg)] &= ~(STG_BIT (stg));
+}
+
 int vlan_dot1q_tag_native = 0;
 int vlan_xlate_tunnel = 0;
 
@@ -622,6 +628,17 @@ vlan_set_stp_id (vid_t vid, stp_id_t id)
 {
   if (id > 255) return ST_BAD_VALUE;
 
+  int i, deactive = 1;
+  for (i = 0; i < NVLANS; i++)
+    if ((i != (vid-1))                           &&
+        (vlans[i].stp_id == vlans[vid-1].stp_id) &&
+        stg_is_active(vlans[i].stp_id)) {
+      deactive = 0;
+      break;
+    }
+
+  if (deactive) stg_set_inactive(vlans[vid-1].stp_id);
+
   vlans[vid-1].stp_id = id;
   stg_set_active(id);
 
@@ -635,6 +652,10 @@ vlan_set_stp_id (vid_t vid, stp_id_t id)
     }
   }
 
+  // @todo: ports_all_set_stp_state_default(id);
+  //
+  // instead of:
+  //
   // int pid;
   // struct port *port;
   // struct port_link_state state;
