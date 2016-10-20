@@ -57,7 +57,7 @@ mgmt_tx (pid_t to, __u16 type, const void *data, size_t len)
   msg.msg_iov = iov;
   msg.msg_iovlen = 2;
 
-  return sendmsg (sock, &msg, 0);
+  return TEMP_FAILURE_RETRY (sendmsg (sock, &msg, 0));
 }
 
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
@@ -158,7 +158,7 @@ mgmt_thread (void *unused)
 
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {
-    if (recvmsg (sock, &msg, 0) < 0) {
+    if (TEMP_FAILURE_RETRY (recvmsg (sock, &msg, 0) < 0)) {
       ERR ("recvmsg(): %s\r\n", strerror (errno));
       break;
     }
