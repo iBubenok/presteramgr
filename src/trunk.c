@@ -16,11 +16,11 @@
 
 struct trunk trunks[TRUNK_ID_MAX + 1];
 
-static void set_balance_mode_ip ();
-static void set_balance_mode_ip_port ();
-static void set_balance_mode_mac ();
-static void set_balance_mode_mac_ip ();
-static void set_balance_mode_mac_ip_port ();
+static void set_balance_mode_ip (void);
+static void set_balance_mode_ip_port (void);
+static void set_balance_mode_mac (void);
+static void set_balance_mode_mac_ip (void);
+static void set_balance_mode_mac_ip_port (void);
 
 static void
 trunk_lib_init (void)
@@ -128,11 +128,11 @@ enum status
 trunk_set_balance_mode(traffic_balance_mode_t mode)
 {
   switch (mode) {
-    case TBM_IP:          set_balance_mode_ip (mode); break;
-    case TBM_IP_PORT:     set_balance_mode_ip_port (mode); break;
-    case TBM_MAC:         set_balance_mode_mac (mode); break;
-    case TBM_MAC_IP:      set_balance_mode_mac_ip (mode); break;
-    case TBM_MAC_IP_PORT: set_balance_mode_mac_ip_port (mode); break;
+    case TBM_IP:          set_balance_mode_ip (); break;
+    case TBM_IP_PORT:     set_balance_mode_ip_port (); break;
+    case TBM_MAC:         set_balance_mode_mac (); break;
+    case TBM_MAC_IP:      set_balance_mode_mac_ip (); break;
+    case TBM_MAC_IP_PORT: set_balance_mode_mac_ip_port (); break;
     default:              return ST_BAD_VALUE;
   }
 
@@ -142,7 +142,7 @@ trunk_set_balance_mode(traffic_balance_mode_t mode)
 /*** internal functions ***/
 
 static void
-set_balance_mode_ip ()
+set_balance_mode_ip (void)
 {
   int dev;
 
@@ -154,7 +154,7 @@ set_balance_mode_ip ()
 }
 
 static void
-set_balance_mode_ip_port ()
+set_balance_mode_ip_port (void)
 {
   int dev;
 
@@ -167,7 +167,7 @@ set_balance_mode_ip_port ()
 }
 
 static void
-set_balance_mode_mac ()
+set_balance_mode_mac (void)
 {
   int dev;
 
@@ -178,7 +178,7 @@ set_balance_mode_mac ()
 }
 
 static void
-set_balance_mode_mac_ip ()
+set_balance_mode_mac_ip (void)
 {
   int dev;
 
@@ -191,7 +191,7 @@ set_balance_mode_mac_ip ()
 }
 
 static void
-set_balance_mode_mac_ip_port ()
+set_balance_mode_mac_ip_port (void)
 {
   int dev;
 
