@@ -289,7 +289,7 @@ __vlan_add (vid_t vid)
   vlan_info.ipv6UcastRouteEn      = GT_FALSE;
   vlan_info.ipv6McastRouteEn      = GT_FALSE;
   vlan_info.stgId                 = vlans[vid - 1].stp_id;
-  vlan_info.autoLearnDisable      = GT_FALSE;
+  vlan_info.autoLearnDisable      = GT_TRUE;
   vlan_info.naMsgToCpuEn          = GT_TRUE;
   vlan_info.mruIdx                = 0;
   vlan_info.bcastUdpTrapMirrEn    = GT_FALSE;

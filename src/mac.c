@@ -772,8 +772,9 @@ me_key_eq (const CPSS_MAC_ENTRY_EXT_KEY_STC *a,
 
 #define INVALID_IDX 0xFFFFFFFF
 static enum status
-fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure)
-{
+fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure) {
+//DEBUG(">>>>fdb_insert(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
+//         e->dstInterface.type, e->dstInterface.devPort.devNum, e->dstInterface.devPort.portNum, e->dstInterface.trunkId, MAC_ARG(e->key.key.macVlan.macAddr.arEther));
   GT_U32 idx, best_idx = INVALID_IDX;
   int i, d, best_pri = e->userDefined;
 
@@ -1172,8 +1173,8 @@ fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa, uint8_t sid) {
 static enum status
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-// DEBUG("fdb_new_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
-//         u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
+//DEBUG(">>>>fdb_new_addr(): type==%hhu, sp= %d, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
+//         u->macEntry.dstInterface.type, u->macEntry.spUnknown, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
 
   port_id_t lport;
   struct port *port;
@@ -1218,7 +1219,7 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 static enum status
 fdb_old_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)
 {
-// DEBUG("fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO remove
+//DEBUG(">>>>fdb_old_addr(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT  " \n", // TODO remove
 //   u->macEntry.dstInterface.type, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
   /* DEBUG ("AA msg: " MAC_FMT ", VLAN %d\r\n", */
   /*        MAC_ARG (u->macEntry.key.key.macVlan.macAddr.arEther), */
@@ -2546,7 +2547,7 @@ mac_start (void)
   fdb_flush (&fa);
 
   for_each_dev (d) {
-    CRP (cpssDxChBrgFdbAuMsgRateLimitSet (d, 4000, GT_TRUE));
+    CRP (cpssDxChBrgFdbAuMsgRateLimitSet (d, 400, GT_TRUE));
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_TRUE));
     CRP (cpssDxChBrgFdbSpAaMsgToCpuSet (d, GT_TRUE));
   }
