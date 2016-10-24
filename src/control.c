@@ -1607,7 +1607,7 @@ DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
 {
   struct mac_age_arg_vif arg;
   vif_id_t vif;
-  stp_id_t stp_id;
+  // stp_id_t stp_id;
 
   enum status result;
 
