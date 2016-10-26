@@ -792,7 +792,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
         if (e->userDefined == FEP_DYN && fdb[idx].ts_addr_change + ANTIFLAPING_INTERVAL >= ts)
           ++fdb[idx].addr_flaps;
         if (e->userDefined <= FEP_DYN && fdb[idx].addr_flaps >= MAX_FLAPS) {
-          fdb[idx].ts_addr_change = ts;
+//          fdb[idx].ts_addr_change = ts; // ?????
           DEBUG ("FDB: address flapping detected\r\n");
           return ST_NOT_READY;
         }
