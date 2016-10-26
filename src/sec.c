@@ -134,7 +134,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
 
   CRP (cpssDxChSecurBreachMsgGet (dev, &sbmsg));
 
-  uint64_t ts = time_monotonic();
+  monotimemsec_t ts = time_monotonic();
   port_id_t pid = port_id(phys_dev(dev), sbmsg.port);
   uint8_t sb_type = 0;
 
@@ -174,7 +174,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
 static int
 sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
 
-  uint64_t ts = time_monotonic();
+  monotimemsec_t ts = time_monotonic();
   unsigned pid;
   for (pid = 1; pid <= NPORTS; pid++) {
     if (sb_delay[pid].port_na_enabled && sb_delay[pid].port_na_blocked
@@ -230,7 +230,7 @@ sec_start(void) {
   pthread_t sec_tid;
   unsigned n;
 
-  uint64_t ts = time_monotonic();
+  monotimemsec_t ts = time_monotonic();
   unsigned i;
   for (i = 1 ; i <= NPORTS; i++) {
     sec_port_na_delay_set (i, 30);

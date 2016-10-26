@@ -38,7 +38,9 @@ gt_bool (int val)
   return val ? GT_TRUE : GT_FALSE;
 }
 
-static inline unsigned long long
+typedef unsigned long long monotimemsec_t;
+
+static inline monotimemsec_t
 time_monotonic (void) {
   struct timespec ts;
   int rc = clock_gettime(CLOCK_MONOTONIC, &ts);
