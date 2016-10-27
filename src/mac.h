@@ -11,6 +11,7 @@
 #include <sysdeps.h>
 #include <tipc.h>
 #include <vif.h>
+#include <utils.h>
 
 #define FDB_NOTIFY_EP  "inproc://fdb-notify"
 #define FDB_CONTROL_EP "inproc://fdb-control"
@@ -21,6 +22,8 @@ struct fdb_entry {
   int valid;
   int secure;
   uint16_t pc_aging_status;
+  monotimemsec_t ts_addr_change;
+  uint16_t addr_flaps;
   CPSS_MAC_ENTRY_EXT_STC me;
 };
 extern struct fdb_entry fdb[];
