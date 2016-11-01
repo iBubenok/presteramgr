@@ -427,6 +427,7 @@ route_cpss_lib_init (void)
 
 
 static void
+__attribute__ ((unused))
 route_prefix_set_drop (uint32_t ip, int len)
 {
   if (len) {
@@ -477,7 +478,7 @@ DEBUG(">>>>route_prefix_set_trap (%x, %d)\n", ip, len);
 }
 
 static void
-route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
+route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen, struct gw *ret_key)
 {
   struct gw gw;
   GT_IPADDR gwaddr;
@@ -485,7 +486,7 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 
   gwaddr.u32Ip = htonl (gwip);
   route_fill_gw (&gw, &gwaddr, vid);
-  ix = ret_add (&gw, alen == 0);
+  ix = ret_add (&gw, alen == 0, ret_key);
   DEBUG ("route entry index %d\r\n", ix);
   if ((ix >= 0) && (alen != 0)) {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
@@ -505,7 +506,7 @@ route_handle_udaddr (uint32_t daddr) {
 DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
   uint32_t rt;
   int alen;
-  const struct fib_entry *e;
+  struct fib_entry *e;
 
   e = fib_route (daddr);
   if (!e) {
@@ -522,9 +523,9 @@ DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
     rt = daddr;
     alen = 32;
   }
-  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
+//  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
   route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e), daddr);
-  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen);
+  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen, fib_entry_get_retkey_ptr(e));
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
          (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,

@@ -17,6 +17,7 @@ struct fib_entry {
   vid_t vid;
   int len;
   struct fib_entry *children;
+  struct gw ret_key;
   UT_hash_handle hh;
 };
 
@@ -42,6 +43,11 @@ uint32_t
 fib_entry_get_pfx (const struct fib_entry *e)
 {
   return e->pfx;
+}
+
+struct gw*
+fib_entry_get_retkey_ptr (struct fib_entry *e) {
+  return &e->ret_key;
 }
 
 static struct fib_entry *
@@ -178,7 +184,7 @@ fib_unhash_child (uint32_t addr, uint8_t len) { /* you should free child yoursel
   return NULL;
 }
 
-const struct fib_entry *
+struct fib_entry *
 fib_route (uint32_t addr)
 {
   int i;
@@ -285,13 +291,13 @@ fib_dump(void){
       if (k)
         DEBUG("==== %d\n", i);
       k = 0;
-      DEBUG("%16p,   %08X:%08X - %08X:%02d, %02d,  %16p\n",
-          s, s->addr, s->pfx, s->gw, s->vid, s->len, s->children);
+      DEBUG("%16p,   %08X:%08X - %08X:%02d, %02d,  %16p, %d:%x\n",
+          s, s->addr, s->pfx, s->gw, s->vid, s->len, s->children, s->ret_key.vid, s->ret_key.addr.u32Ip);
       if (s->children) {
         struct fib_entry *s1, *t1;
         HASH_ITER (hh, s->children, s1, t1) {
-          DEBUG("c       %16p,   %08X:%08X - %08X:%02d, %02d,  %16p\n",
-              s->children, s1->addr, s1->pfx, s1->gw, s1->vid, s1->len, s1->children);
+          DEBUG("c       %16p,   %08X:%08X - %08X:%02d, %02d,  %16p, %d:%x\n",
+              s->children, s1->addr, s1->pfx, s1->gw, s1->vid, s1->len, s1->children, s1->ret_key.vid, s1->ret_key.addr.u32Ip);
         }
       }
     }
