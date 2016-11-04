@@ -35,11 +35,13 @@ static uint16_t __attribute__((unused)) rule_ix_max = 1535;
 static uint16_t port_stackmail_trap_primary_index;
 static uint16_t port_stackmail_trap_secondary_index;
 
-static uint16_t user_acl_stack_entries = 700;
+static uint16_t user_acl_stack_entries = 600; // TODO: calc it
 static uint16_t user_acl_start_ix[NDEVS] = {};
 static uint16_t user_acl_max[NDEVS] = {};
 
 static uint16_t port_lbd_rule_ix[NPORTS + 1] = {};
+
+static uint16_t port_lldp_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_dhcptrap67_rule_ix[NPORTS + 1] = {};
 static uint16_t port_dhcptrap68_rule_ix[NPORTS + 1] = {};
@@ -102,6 +104,7 @@ initialize_vars (void)
   for_each_port(pid) {
     struct port *port = port_ptr(pid);
     port_lbd_rule_ix[pid]                  = idx[port->ldev]++;
+    port_lldp_rule_ix[pid]                 = idx[port->ldev]++;
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
     port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
@@ -2852,6 +2855,56 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
 
   return ST_OK;
 }
+
+static char LLDP_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x0e };
+
+enum status
+pcl_enable_lldp_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.etherType = 0x88CC;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, LLDP_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 4;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_lldp_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lldp_rule_ix[pid]));
+
+  return ST_OK;
+}
+
 
 enum status
 pcl_enable_dhcp_trap (int enable)

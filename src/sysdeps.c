@@ -91,6 +91,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CISCO_MULTICAST_MAC_RANGE_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 4, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
 /* allowing ARP Requests & Replies bursts within 1 sec
@@ -148,7 +150,7 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, 4, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 4, 4000, 100));
-     CRP (cpssDxChNetIfCpuCodeTableSet
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
