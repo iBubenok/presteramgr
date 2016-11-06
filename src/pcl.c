@@ -2886,8 +2886,18 @@ pcl_enable_lldp_trap (port_id_t pid, int enable)
     memcpy(rule.ruleExtNotIpv6.macDa.arEther, LLDP_MAC, 6);
 
     memset (&act, 0, sizeof (act));
+
     act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+
     act.actionStop = GT_TRUE;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
     act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 4;
 
     CRP (cpssDxChPclRuleSet
