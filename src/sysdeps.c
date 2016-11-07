@@ -79,11 +79,11 @@ sysd_setup_cpu_codes (void)
 http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%BE%D1%80%D0%B8%D1%82%D0%B5%D1%82%D1%8B  */
 
 /* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP+Cisco) within 1 sec
-   but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
+   but with sustained rate 200 pkts/sec. target: no more 25% CPU load */
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 1, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
-         (d, 1, 4000, 600));
+         (d, 1, 4000, 200));
     cce_rlim.cpuCodeRateLimiterIndex = 1;
     cce_rlim.tc = 6;
     cce_rlim.designatedDevNumIndex = 2;
