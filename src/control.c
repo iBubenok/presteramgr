@@ -1014,7 +1014,6 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     break;
 
   case CPU_CODE_USER_DEFINED (4):
-    DEBUG("Got LLDP via PCL pid: %d vid: %d!\n", pid, frame->vid);
     type = CN_LLDP_MCAST;
     break;
 
@@ -3057,7 +3056,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_USER_DEFINED (4):
-    DEBUG("Got LLDP via PCL pid: %d vid: %d!\n", pid, frame->vid);
     type = CN_LLDP_MCAST;
     break;
 
