@@ -869,10 +869,13 @@ DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 
 enum status
 //vif_stg_get (serial_t *ser, struct vif_stg *st) {
-vif_stg_get (void *b) {
+vif_stg_get (void *b, int inc_serial) {
   struct vif_dev_ports *dp;
   int i;
   struct vif_stgblk_header *hd = (struct vif_stgblk_header*) b;
+
+  if (inc_serial)
+    vif_stp_data_serial[stack_id]++;
 
   uint16_t msk0 = 1;
   msk0 <<= STP_STATE_BITS_WIDTH;

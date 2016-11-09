@@ -652,21 +652,7 @@ vlan_set_stp_id (vid_t vid, stp_id_t id)
     }
   }
 
-  // @todo: ports_all_set_stp_state_default(id);
-  //
-  // instead of:
-  //
-  // int pid;
-  // struct port *port;
-  // struct port_link_state state;
-  // for (pid = 1; pid != nports; pid++) {
-  //   port = port_ptr(pid);
-  //   if (!port) continue;
-  //   if (port_get_state(pid, &state) != ST_OK) continue;
-  //   if (!is_stack_port(port))
-  //     port_set_stp_state (pid, id, 0, state.link ? STP_STATE_DISCARDING :
-  //                                                  STP_STATE_DISABLED);
-  // }
+  ports_all_set_stp_state_default(id);
 
   return ST_OK;
 }
