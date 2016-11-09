@@ -1139,6 +1139,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   assert (vif);
 
   if (all) {
+    // DEBUG ("%s: Port #%d: all stp_id set %s", __func__, pid, stp_state_to_string(state));
     stp_id_t stg;
     /* FIXME: suboptimal code. */
     for (stg = 0; stg < 256; stg++)
@@ -1151,6 +1152,7 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   } else {
       stg_state[pid - 1][stp_id] = state;
       vif->stg_state[stp_id] = state;
+      // DEBUG ("%s: Port #%d: stp_id %d set %s", __func__, pid, stp_id, stp_state_to_string(state));
       CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   }
 
@@ -1162,52 +1164,6 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   return ST_OK;
 }
 
-enum status
-ports_all_set_stp_state_default (stp_id_t stp_id)
-{
-  CPSS_STP_STATE_ENT cs;
-  enum port_stp_state state;
-  enum status result;
-  struct port *port;
-  struct port_link_state link;
-
-  if (stp_id > 255)
-    return ST_BAD_VALUE;
-
-
-  int pid;
-  for (pid = 1; pid <= nports; ++pid) {
-    if (!(port = port_ptr (pid)) || is_stack_port(port))
-      continue;
-
-    struct vif *vif = vif_get_by_pid (stack_id, pid);
-    assert (vif);
-
-    port_get_state(pid, &link);
-
-    if (link.link) {
-      state = STP_STATE_DISCARDING;
-    } else {
-      state = STP_STATE_DISABLED;
-    }
-
-    result = data_decode_stp_state (&cs, state);
-    if (result != ST_OK)
-      continue;
-
-    stg_state[pid - 1][stp_id] = state;
-    vif->stg_state[stp_id] = state;
-
-    CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
-  }
-
-  static uint8_t buf[sizeof(struct vif_stgblk_header) +
-                     sizeof(struct vif_stg)*NPORTS + 20];
-  vif_stg_get(buf, 1);
-  mac_op_send_stg(buf);
-
-  return ST_OK;
-}
 
 enum status
 port_set_access_vid (port_id_t pid, vid_t vid)

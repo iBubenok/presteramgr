@@ -5048,7 +5048,7 @@ DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
   if (result != ST_OK)
     goto out;
 
-  result = vif_stg_get(buf, 0);
+  result = vif_stg_get(buf);
 
  out:
   reply = make_reply (result);
