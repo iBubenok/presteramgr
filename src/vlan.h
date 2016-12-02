@@ -65,6 +65,7 @@ extern enum status vlan_set_dot1q_tag_native (int);
 extern void vlan_set_mac_addr (GT_U16, const unsigned char *);
 extern enum status vlan_set_cpu (vid_t, bool_t);
 extern enum status vlan_set_cpu_range (uint16_t, vid_t*, bool_t);
+extern enum status vlan_set_remote_span (vid_t, int);
 extern enum status vlan_set_fdb_map (const stp_id_t *);
 extern enum status vlan_set_stp_id (vid_t, stp_id_t);
 extern enum status vlan_get_mac_addr (vid_t, mac_addr_t);

@@ -436,6 +436,7 @@ DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
 DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
+DECLARE_HANDLER (CC_VLAN_SET_RSPAN);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
@@ -610,6 +611,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
   HANDLER (CC_VLAN_IGMP_SNOOP),
+  HANDLER (CC_VLAN_SET_RSPAN),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
@@ -4392,6 +4394,26 @@ DEFINE_HANDLER (CC_VLAN_IGMP_SNOOP)
     goto out;
 
   result = vlan_igmp_snoop (vid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_RSPAN)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_remote_span (vid, enable);
 
  out:
   report_status (result);
