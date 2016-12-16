@@ -336,7 +336,7 @@ notify_thread(void *_) {
   assert (tnot_sock);
   zsocket_bind (tnot_sock, NOTIFY_QUEUE_EP);
 
-  zmq_pollitem_t tnot_pi = { not_sock, 0, ZMQ_POLLIN };
+  zmq_pollitem_t tnot_pi = { tnot_sock, 0, ZMQ_POLLIN };
   zloop_poller (loop, &tnot_pi, notify_evt_handler, tnot_sock);
 
   prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
