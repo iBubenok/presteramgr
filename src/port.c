@@ -4387,6 +4387,22 @@ __psec_limit_left (struct port *port)
   }
 }
 
+static void
+__psec_addr_del (struct port *op)
+{
+  if (op) {
+    psec_lock (op);
+
+    if (op->psec_naddrs-- == op->psec_max_addrs)
+      __psec_limit_left (op);
+
+    if (op->psec_naddrs < 0)
+      op->psec_naddrs = 0;
+
+    psec_unlock (op);
+  }
+}
+
 enum psec_addr_status
 psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
 {
@@ -4431,15 +4447,7 @@ psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
 
  upd_old:
   if (op) {
-    psec_lock (op);
-
-    if (op->psec_naddrs-- == op->psec_max_addrs)
-      __psec_limit_left (op);
-
-    if (op->psec_naddrs < 0)
-      op->psec_naddrs = 0;
-
-    psec_unlock (op);
+    __psec_addr_del (op);
   }
 
  out_unlock_np:
@@ -4459,7 +4467,7 @@ psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *o)
     op = port_ptr (port_id (o->dstInterface.devPort.devNum,
                             o->dstInterface.devPort.portNum));
     if (op) {
-      op->psec_naddrs -= 1;
+      __psec_addr_del (op);
     }
   }
 }
