@@ -56,7 +56,7 @@ wnct_start (void)
   memset (protos, 0, sizeof (protos));
 
   wnct_enable_proto (WNCT_STP, 1);
-  wnct_enable_proto (WNCT_802_3_SP, 1);
+  wnct_enable_proto (WNCT_802_3_SP, 0);
 
   return ST_OK;
 }
