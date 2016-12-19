@@ -428,6 +428,7 @@ DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
+DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
@@ -602,6 +603,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_LLDP),
+  HANDLER (CC_PORT_ENABLE_LACP),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
@@ -909,21 +911,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       }
       break;
     case WNCT_802_3_SP:
-      switch (frame->data[14]) {
-      case WNCT_802_3_SP_LACP:
-        type = CN_LACPDU;
-        conform2stp_state = 1;
-        break;
-      case WNCT_802_3_SP_OAM:
-        type = CN_OAMPDU;
-        conform2stp_state = 1;
-        break;
-      default:
-        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[14]);
-        goto out;
-      }
-      break;
+      DEBUG("Slow Protocols shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
 
     case WNCT_802_3_SP_OAM:
       etype = (uint16_t *) &frame->data[12];
@@ -1017,6 +1007,24 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (4):
     type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (9):
+    switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        conform2stp_state = 1;
+        break;
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        conform2stp_state = 1;
+        break;
+
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[14]);
+        goto out;
+      }
     break;
 
   case CPU_CODE_USER_DEFINED (6):
@@ -2951,21 +2959,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       }
       break;
     case WNCT_802_3_SP:
-      switch (frame->data[14]) {
-      case WNCT_802_3_SP_LACP:
-        type = CN_LACPDU;
-        conform2stp_state = 1;
-        break;
-      case WNCT_802_3_SP_OAM:
-        type = CN_OAMPDU;
-        conform2stp_state = 1;
-        break;
-      default:
-        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[14]);
-        goto out;
-      }
-      break;
+      DEBUG("Slow Protocols shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
 
     case WNCT_802_3_SP_OAM:
       etype = (uint16_t *) &frame->data[12];
@@ -3059,6 +3055,25 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (4):
     type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (9):
+    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, frame->vid);
+    switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        conform2stp_state = 1;
+        break;
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        conform2stp_state = 1;
+        break;
+
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[14]);
+        goto out;
+      }
     break;
 
   case CPU_CODE_USER_DEFINED (6):
@@ -4201,6 +4216,26 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LLDP)
     goto out;
 
   result = pcl_enable_lldp_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_lacp_trap (pid, enable);
 
  out:
   report_status (result);
