@@ -2507,7 +2507,7 @@ mac_start (void)
     CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
 
 //    CRP (cpssDxChBrgFdbDeviceTableSet (d, bmp));
-    CRP (cpssDxChBrgFdbDeviceTableSet (d, 0x1F));
+    CRP (cpssDxChBrgFdbDeviceTableSet (d, 0xFFFFFFFF));
 
     /* Disable AA/TA messages. */
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_FALSE));
