@@ -1634,7 +1634,7 @@ DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
   if (result != ST_OK)
     goto out;
 
-  arg.vifid = ALL_VIFS;
+  arg.vifid = vif;
   arg.vid = ALL_VLANS;
   result = mac_flush_vif (&arg, GT_FALSE);
 
