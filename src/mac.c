@@ -834,6 +834,9 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
     return ST_BAD_STATE;
   /* END: Port Security. */
 
+  if (fake) /* used in member units to check if macaddr+vid is liable to add to fdb before sending it to master unit */
+    return ST_OK;
+
   memcpy (&fdb[best_idx].me, e, sizeof (*e));
   if (!fdb[best_idx].valid)
     fdb[best_idx].addr_flaps = 0;
