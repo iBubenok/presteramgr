@@ -48,6 +48,7 @@ configure: configure.ac
 
 config.status: configure
 	dh_testdir
+	CFLAGS="-O2 -fno-omit-frame-pointer -mapcs-frame -rdynamic" \
 	./configure \
 		--build=$(DEB_BUILD_GNU_TYPE) \
 		--host=$(CROSS_GNU_TARGET) \

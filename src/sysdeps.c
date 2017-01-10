@@ -75,15 +75,15 @@ sysd_setup_cpu_codes (void)
          (d, &wr));
     DEBUG ("cpssDxChNetIfCpuCodeRateLimiterWindowResolutionGet(d, %d)\n", wr);
 
-/* Achtung! Upon changing rate limits or designated traffic classes refer and update 
+/* Achtung! Upon changing rate limits or designated traffic classes refer and update
 http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%BE%D1%80%D0%B8%D1%82%D0%B5%D1%82%D1%8B  */
 
 /* allowing IEEE Reserved Multicasts bursts (BPDU+LACP+GVRP+LLDP+Cisco) within 1 sec
-   but with sustained rate 600 pkts/sec. target: no more 25% CPU load */
+   but with sustained rate 200 pkts/sec. target: no more 25% CPU load */
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 1, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
-         (d, 1, 4000, 600));
+         (d, 1, 4000, 200));
     cce_rlim.cpuCodeRateLimiterIndex = 1;
     cce_rlim.tc = 6;
     cce_rlim.designatedDevNumIndex = 2;
@@ -91,6 +91,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_IEEE_RSRVD_MULTICAST_ADDR_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CISCO_MULTICAST_MAC_RANGE_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 4, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
 /* allowing ARP Requests & Replies bursts within 1 sec
@@ -136,8 +138,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce_rlim));
-    CRP (cpssDxChNetIfCpuCodeTableSet
-         (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
+    // CRP (cpssDxChNetIfCpuCodeTableSet
+    //      (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
 
 /* allowing trapping DHCP packets bursts within 1 sec
    but with sustained rate 100 pkts/sec. target: no more 25% CPU load  */
@@ -148,7 +150,7 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, 4, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
          (d, 4, 4000, 100));
-     CRP (cpssDxChNetIfCpuCodeTableSet
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
@@ -182,6 +184,17 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 5, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 6, &cce_rlim));
+
+    cce_rlim.cpuCodeRateLimiterIndex = 8;
+    cce_rlim.tc = 6;
+    cce_rlim.designatedDevNumIndex = 2;
+    CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
+         (d, 8, 0xFFFFFFFF));
+    CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
+         (d, 8, 4000, 100));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E, &cce_rlim));
+    cce_rlim.designatedDevNumIndex = 1;
 
     cce.tc = 7;
     cce_rlim.cpuCodeRateLimiterIndex = 0;

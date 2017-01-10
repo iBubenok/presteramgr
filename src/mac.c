@@ -768,7 +768,7 @@ me_key_eq (const CPSS_MAC_ENTRY_EXT_KEY_STC *a,
 #define MAX_FLAPS 5
 static enum status
 fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
-//DEBUG(">>>>fdb_insert(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
+// DEBUG(">>>>fdb_insert(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
 //         e->dstInterface.type, e->dstInterface.devPort.devNum, e->dstInterface.devPort.portNum, e->dstInterface.trunkId, MAC_ARG(e->key.key.macVlan.macAddr.arEther));
   GT_U32 idx, best_idx = INVALID_IDX;
   int i, d, best_pri = e->userDefined;
@@ -2507,7 +2507,7 @@ mac_start (void)
     CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
 
 //    CRP (cpssDxChBrgFdbDeviceTableSet (d, bmp));
-    CRP (cpssDxChBrgFdbDeviceTableSet (d, 0x1F));
+    CRP (cpssDxChBrgFdbDeviceTableSet (d, 0xFFFFFFFF));
 
     /* Disable AA/TA messages. */
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_FALSE));

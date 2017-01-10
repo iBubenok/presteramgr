@@ -68,13 +68,16 @@ static struct re *ret = NULL;
 static int re_cnt = 0;
 
 int
-ret_add (const struct gw *gw, int def)
+ret_add (const struct gw *gw, int def, struct gw *ret_key)
 {
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);
   if (re) {
-    ++re->refc;
+    if (!ret_key->addr.u32Ip || !ret_key->vid) {
+      ++re->refc;
+      memcpy(ret_key, gw, sizeof(struct gw));
+    }
     if (def) {
       re->def = 1;
       if (re->valid) {
@@ -110,6 +113,7 @@ ret_add (const struct gw *gw, int def)
   re->refc = 1;
   re->def = def;
   HASH_ADD_GW (ret, gw, re);
+  memcpy(ret_key, gw, sizeof(struct gw));
   ++re_cnt;
 
   arpc_request_addr (gw);

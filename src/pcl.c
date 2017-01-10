@@ -35,11 +35,15 @@ static uint16_t __attribute__((unused)) rule_ix_max = 1535;
 static uint16_t port_stackmail_trap_primary_index;
 static uint16_t port_stackmail_trap_secondary_index;
 
-static uint16_t user_acl_stack_entries = 700;
+static uint16_t user_acl_stack_entries = 500; // TODO: calc it
 static uint16_t user_acl_start_ix[NDEVS] = {};
 static uint16_t user_acl_max[NDEVS] = {};
 
 static uint16_t port_lbd_rule_ix[NPORTS + 1] = {};
+
+static uint16_t port_lldp_rule_ix[NPORTS + 1] = {};
+
+static uint16_t port_lacp_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_dhcptrap67_rule_ix[NPORTS + 1] = {};
 static uint16_t port_dhcptrap68_rule_ix[NPORTS + 1] = {};
@@ -102,6 +106,8 @@ initialize_vars (void)
   for_each_port(pid) {
     struct port *port = port_ptr(pid);
     port_lbd_rule_ix[pid]                  = idx[port->ldev]++;
+    port_lldp_rule_ix[pid]                 = idx[port->ldev]++;
+    port_lacp_rule_ix[pid]                 = idx[port->ldev]++;
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
     port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
@@ -1625,7 +1631,7 @@ get_port_ptr (uint16_t pid, struct port** port)
   DEBUG("\n<act>:\n");                                                        \
   PRINTHexDump(act, sizeof(*act));                                            \*/
 
-#define set_ip_rule(dev, rule, mask, format, type, pcl_id, act, ip_rule, rule_ix, src_cmp_ix, dst_cmp_ix, cmp_bitmap_field) { \
+#define set_ip_rule(dev, rule, mask, format, type, pcl_id, act, override_vid, vid, ip_rule, rule_ix, src_cmp_ix, dst_cmp_ix, cmp_bitmap_field) { \
   set_pcl_id(rule, mask, format, pcl_id);                                                                                     \
   set_packet_type_ip(rule, mask, format);                                                                                     \
   set_ip_protocol(rule, mask, format, ip_rule->proto);                                                                        \
@@ -1652,6 +1658,7 @@ get_port_ptr (uint16_t pid, struct port** port)
   } else if (ip_rule->proto == 0x06 /* TCP */) {                                                                              \
     set_tcp_flags(rule, mask, format, ip_rule->tcp_flags, ip_rule->tcp_flags_mask);                                           \
   }                                                                                                                           \
+  if (override_vid) set_vid(rule, mask, format, vid, 0xfff);                                                                  \
   activate_rule(dev, type, rule_ix, 0, &mask, &rule, &act);                                                                   \
 }
 
@@ -1720,13 +1727,14 @@ get_port_ptr (uint16_t pid, struct port** port)
         mask.format.common.up);                      \
 }
 
-#define set_mac_rule(dev, rule, mask, format, type, pcl_id, act, mac_rule, rule_ix) { \
+#define set_mac_rule(dev, rule, mask, format, type, pcl_id, act, override_vid, o_vid, mac_rule, rule_ix) { \
   set_pcl_id(rule, mask, format, pcl_id);                                             \
   set_packet_type_mac(rule, mask, format);                                            \
   set_src_mac(rule, mask, format, mac_rule->src_mac, mac_rule->src_mac_mask);         \
   set_dst_mac(rule, mask, format, mac_rule->dst_mac, mac_rule->dst_mac_mask);         \
   set_eth_type(rule,mask,format,mac_rule->eth_type,mac_rule->eth_type_mask);          \
-  set_vid(rule, mask, format, mac_rule->vid, mac_rule->vid_mask);                     \
+  if (override_vid) set_vid(rule, mask, format, o_vid, 0xfff)                         \
+  else              set_vid(rule, mask, format, mac_rule->vid, mac_rule->vid_mask);   \
   set_cos(rule, mask, format, mac_rule->cos, mac_rule->cos_mask);                     \
   activate_rule(dev, type, rule_ix, 0, &mask, &rule, &act);                           \
 }
@@ -1757,7 +1765,7 @@ get_port_ptr (uint16_t pid, struct port** port)
         ipv6_addr_to_printf_arg(mask.format.dip));                  \
 }
 
-#define set_ipv6_rule(dev, rule, mask, format, type, pcl_id, act, ipv6_rule, rule_ix, src_cmp_ix, dst_cmp_ix, cmp_bitmap_field) { \
+#define set_ipv6_rule(dev, rule, mask, format, type, pcl_id, act, override_vid, vid, ipv6_rule, rule_ix, src_cmp_ix, dst_cmp_ix, cmp_bitmap_field) { \
   set_pcl_id(rule, mask, format, pcl_id);                                                                                         \
   set_packet_type_ipv6(rule, mask, format);                                                                                       \
   set_src_ipv6(rule, mask, format, ipv6_rule->src, ipv6_rule->src_mask);                                                          \
@@ -1781,6 +1789,7 @@ get_port_ptr (uint16_t pid, struct port** port)
   } else if(ipv6_rule->proto == 0x06 /* TCP */) {                                                                                 \
     set_tcp_flags(rule, mask, format, ipv6_rule->tcp_flags, ipv6_rule->tcp_flags_mask);                                           \
   }                                                                                                                               \
+  if (override_vid) set_vid(rule, mask, format, vid, 0xfff);                                                                      \
   activate_rule(dev, type, rule_ix, 0, &mask, &rule, &act);                                                            \
 }
 
@@ -1997,6 +2006,13 @@ pcl_ip_rule_set (char                 *name,
       memset(&rule, 0, sizeof(rule));
       memset(&mask, 0, sizeof(mask));
 
+      int override_vid = 0;
+
+      if (interface.type == PCL_INTERFACE_TYPE_VLAN) {
+        /* put vid in Rule and Mask */
+        override_vid = 1;
+      }
+
       switch (dest) {
         case PCL_DEST_INGRESS:
           set_ip_rule(devs[d],
@@ -2006,6 +2022,8 @@ pcl_ip_rule_set (char                 *name,
                       CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
                       pcl_id,
                       act,
+                      override_vid,
+                      interface.num,
                       rule_params,
                       rule_ix,
                       src_cmp_ix,
@@ -2020,6 +2038,8 @@ pcl_ip_rule_set (char                 *name,
                       CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
                       pcl_id,
                       act,
+                      override_vid,
+                      interface.num,
                       rule_params,
                       rule_ix,
                       src_cmp_ix,
@@ -2131,6 +2151,13 @@ pcl_mac_rule_set (char                 *name,
       memset(&rule, 0, sizeof(rule));
       memset(&mask, 0, sizeof(mask));
 
+      int override_vid = 0;
+
+      if (interface.type == PCL_INTERFACE_TYPE_VLAN) {
+        /* put vid in Rule and Mask */
+        override_vid = 1;
+      }
+
       switch (dest) {
         case PCL_DEST_INGRESS:
           set_mac_rule(devs[d],
@@ -2140,6 +2167,8 @@ pcl_mac_rule_set (char                 *name,
                        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
                        pcl_id,
                        act,
+                       override_vid,
+                       interface.num,
                        rule_params,
                        rule_ix);
           break;
@@ -2151,6 +2180,8 @@ pcl_mac_rule_set (char                 *name,
                        CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_NOT_IPV6_E,
                        pcl_id,
                        act,
+                       override_vid,
+                       interface.num,
                        rule_params,
                        rule_ix);
           break;
@@ -2297,6 +2328,13 @@ pcl_ipv6_rule_set (char                 *name,
       memset(&rule, 0, sizeof(rule));
       memset(&mask, 0, sizeof(mask));
 
+      int override_vid = 0;
+
+      if (interface.type == PCL_INTERFACE_TYPE_VLAN) {
+        /* put vid in Rule and Mask */
+        override_vid = 1;
+      }
+
       switch (dest) {
         case PCL_DEST_INGRESS:
           set_ipv6_rule(devs[d],
@@ -2306,6 +2344,8 @@ pcl_ipv6_rule_set (char                 *name,
                         CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
                         pcl_id,
                         act,
+                        override_vid,
+                        interface.num,
                         rule_params,
                         rule_ix,
                         src_cmp_ix,
@@ -2320,6 +2360,8 @@ pcl_ipv6_rule_set (char                 *name,
                         CPSS_DXCH_PCL_RULE_FORMAT_EGRESS_EXT_IPV6_L4_E,
                         pcl_id,
                         act,
+                        override_vid,
+                        interface.num,
                         rule_params,
                         rule_ix,
                         src_cmp_ix,
@@ -2849,6 +2891,121 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
   } else
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lbd_rule_ix[pid]));
+
+  return ST_OK;
+}
+
+static char LLDP_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x0e };
+
+enum status
+pcl_enable_lldp_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.etherType = 0x88CC;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, LLDP_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 4;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_lldp_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lldp_rule_ix[pid]));
+
+  return ST_OK;
+}
+
+static char LACP_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x02 };
+
+enum status
+pcl_enable_lacp_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.etherType = 0x8809;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, LACP_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 9;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_lacp_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lacp_rule_ix[pid]));
 
   return ST_OK;
 }

@@ -427,6 +427,8 @@ DECLARE_HANDLER (CC_SET_VIF_PORTS);
 DECLARE_HANDLER (CC_TRUNK_SET_MEMBERS);
 DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
+DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
+DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
@@ -435,6 +437,7 @@ DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
 DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
+DECLARE_HANDLER (CC_VLAN_SET_RSPAN);
 DECLARE_HANDLER (CC_VLAN_MC_ROUTE);
 DECLARE_HANDLER (CC_PSEC_SET_MODE);
 DECLARE_HANDLER (CC_PSEC_SET_MAX_ADDRS);
@@ -599,6 +602,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_TRUNK_SET_MEMBERS),
   HANDLER (CC_PORT_ENABLE_QUEUE),
   HANDLER (CC_PORT_ENABLE_LBD),
+  HANDLER (CC_PORT_ENABLE_LLDP),
+  HANDLER (CC_PORT_ENABLE_LACP),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
@@ -608,6 +613,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
   HANDLER (CC_VLAN_IGMP_SNOOP),
+  HANDLER (CC_VLAN_SET_RSPAN),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_PSEC_SET_MODE),
   HANDLER (CC_PSEC_SET_MAX_ADDRS),
@@ -895,8 +901,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       etype = (uint16_t *) &frame->data[12];
       switch (ntohs (*etype)) {
       case 0x88CC:
-        type = CN_LLDP_MCAST;
-        break;
+        DEBUG("LLDP shouldnt go there!!!!\n");
+        result = ST_OK;
+        goto out;
       default:
         tipc_notify_bpdu (vifid, pid, frame->len, frame->data);
         result = ST_OK;
@@ -904,21 +911,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       }
       break;
     case WNCT_802_3_SP:
-      switch (frame->data[14]) {
-      case WNCT_802_3_SP_LACP:
-        type = CN_LACPDU;
-        conform2stp_state = 1;
-        break;
-      case WNCT_802_3_SP_OAM:
-        type = CN_OAMPDU;
-        conform2stp_state = 1;
-        break;
-      default:
-        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[14]);
-        goto out;
-      }
-      break;
+      DEBUG("Slow Protocols shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
 
     case WNCT_802_3_SP_OAM:
       etype = (uint16_t *) &frame->data[12];
@@ -928,8 +923,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
         conform2stp_state = 1;
         break;
       case 0x88CC:
-        type = CN_LLDP_MCAST;
-        break;
+        DEBUG("LLDP shouldnt go there!!!!\n");
+        result = ST_OK;
+        goto out;
       default:
         DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
         goto out;
@@ -937,8 +933,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       break;
 
     case WNCT_LLDP:
-      type = CN_LLDP_MCAST;
-      break;
+      DEBUG("LLDP shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
       conform2stp_state = 1;
@@ -1006,6 +1003,28 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     conform2stp_state = 1;
     put_vif = 1;
     put_vid = 1;
+    break;
+
+  case CPU_CODE_USER_DEFINED (4):
+    type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (9):
+    switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        conform2stp_state = 1;
+        break;
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        conform2stp_state = 1;
+        break;
+
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[14]);
+        goto out;
+      }
     break;
 
   case CPU_CODE_USER_DEFINED (6):
@@ -2930,8 +2949,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       etype = (uint16_t *) &frame->data[12];
       switch (ntohs (*etype)) {
       case 0x88CC:
-        type = CN_LLDP_MCAST;
-        break;
+        DEBUG("LLDP shouldnt go there!!!!\n");
+        result = ST_OK;
+        goto out;
       default:
         tipc_notify_bpdu (vif->id, pid, frame->len, frame->data);
         result = ST_OK;
@@ -2939,21 +2959,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       }
       break;
     case WNCT_802_3_SP:
-      switch (frame->data[14]) {
-      case WNCT_802_3_SP_LACP:
-        type = CN_LACPDU;
-        conform2stp_state = 1;
-        break;
-      case WNCT_802_3_SP_OAM:
-        type = CN_OAMPDU;
-        conform2stp_state = 1;
-        break;
-      default:
-        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[14]);
-        goto out;
-      }
-      break;
+      DEBUG("Slow Protocols shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
 
     case WNCT_802_3_SP_OAM:
       etype = (uint16_t *) &frame->data[12];
@@ -2963,8 +2971,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
         conform2stp_state = 1;
         break;
       case 0x88CC:
-        type = CN_LLDP_MCAST;
-        break;
+        DEBUG("LLDP shouldnt go there!!!!\n");
+        result = ST_OK;
+        goto out;
       default:
         DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
         goto out;
@@ -2972,8 +2981,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       break;
 
     case WNCT_LLDP:
-      type = CN_LLDP_MCAST;
-      break;
+      DEBUG("LLDP shouldnt go there!!!!\n");
+      result = ST_OK;
+      goto out;
     case WNCT_GVRP:
       type = CN_GVRP_PDU;
       conform2stp_state = 1;
@@ -3041,6 +3051,29 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     conform2stp_state = 1;
     put_vif = 1;
     put_vid = 1;
+    break;
+
+  case CPU_CODE_USER_DEFINED (4):
+    type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (9):
+    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, frame->vid);
+    switch (frame->data[14]) {
+      case WNCT_802_3_SP_LACP:
+        type = CN_LACPDU;
+        conform2stp_state = 1;
+        break;
+      case WNCT_802_3_SP_OAM:
+        type = CN_OAMPDU;
+        conform2stp_state = 1;
+        break;
+
+      default:
+        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+               frame->data[14]);
+        goto out;
+      }
     break;
 
   case CPU_CODE_USER_DEFINED (6):
@@ -4168,6 +4201,46 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LBD)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_ENABLE_LLDP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_lldp_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_lacp_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
 {
   enum status result;
@@ -4356,6 +4429,26 @@ DEFINE_HANDLER (CC_VLAN_IGMP_SNOOP)
     goto out;
 
   result = vlan_igmp_snoop (vid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_SET_RSPAN)
+{
+  enum status result;
+  vid_t vid;
+  bool_t enable;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_set_remote_span (vid, enable);
 
  out:
   report_status (result);

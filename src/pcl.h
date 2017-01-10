@@ -18,6 +18,12 @@ extern enum status pcl_enable_port (port_id_t, int);
 /* LBD */
 extern enum status pcl_enable_lbd_trap (port_id_t, int);
 
+/* LLDP */
+extern enum status pcl_enable_lldp_trap (port_id_t, int);
+
+/* SP */
+extern enum status pcl_enable_lacp_trap (port_id_t, int);
+
 /* DHCP */
 extern enum status pcl_enable_dhcp_trap (int);
 
@@ -170,26 +176,5 @@ pcl_clear_counter (struct pcl_interface interface,
 
 extern void
 pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest);
-
-// extern void pcl_clear_counter (uint16_t, uint16_t);
-
-/*
-#ifndef bool_to_str
-#define bool_to_str(value) ((value) ? "true" : "false")
-#endif
-
-#ifndef pcl_dest_to_str
-#define pcl_dest_to_str(value)                         \
-  ((value == PCL_DEST_INGRESS) ? "ingress" :           \
-   ((value == PCL_DEST_EGRESS) ? "egress" : "unknown"))
-#endif
-
-#define IP_PROTO_TCP 0x6
-#define IP_PROTO_UDP 0x11
-
-#ifndef is_tcp_or_udp
-#define is_tcp_or_udp(proto) (((proto) == IP_PROTO_TCP) || ((proto) == IP_PROTO_UDP))
-#endif
-*/
 
 #endif /* __PCL_H__ */

@@ -786,6 +786,24 @@ vlan_igmp_snoop (vid_t vid, int enable)
   }
 }
 
+enum status
+vlan_set_remote_span (vid_t vid, int enable)
+{
+  GT_STATUS rc;
+  int d;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  for_each_dev (d)
+    rc = CRP (cpssDxChBrgVlanNaToCpuEnable (d, vid, gt_bool (!enable)));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
 void
 vlan_stack_setup (void)
 {
