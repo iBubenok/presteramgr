@@ -988,6 +988,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
@@ -3036,6 +3037,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
     conform2stp_state = 1;
+    put_vif = 1;
     put_vid = 1;
     break;
 
