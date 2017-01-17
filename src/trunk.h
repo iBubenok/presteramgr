@@ -16,6 +16,12 @@ struct trunk_port {
   uint8_t hport;
 };
 
+struct mcg_in_trunk {
+  int mcg_key;
+  vif_id_t designated_vifid;
+  UT_hash_handle hh;
+};
+
 struct trunk {
   struct vif vif;
   trunk_id_t id;
@@ -23,6 +29,7 @@ struct trunk {
   struct vif *designated;
   struct vif *vif_port[TRUNK_MAX_MEMBERS];
   uint8_t port_enabled[TRUNK_MAX_MEMBERS];
+  struct mcg_in_trunk *mcg_head;
 };
 
 extern struct trunk trunks[];

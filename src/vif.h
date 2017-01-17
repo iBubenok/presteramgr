@@ -34,6 +34,8 @@ struct vif {
   int c_shutdown;
 
   void (*fill_cpss_if) (struct vif *, CPSS_INTERFACE_INFO_STC *);
+  enum status (*mcg_add_vif) (struct vif *, mcg_t mcg);
+  enum status (*mcg_del_vif) (struct vif *, mcg_t mcg);
   enum status (*set_speed) (struct vif *, const struct port_speed_arg *);
   enum status (*set_duplex) (struct vif *, enum port_duplex);
   enum status (*update_sd) (struct vif *);
@@ -138,6 +140,8 @@ extern enum status vif_##proc##_remote (struct vif *, ##arg); \
 extern enum status vif_##proc##_port (struct vif *, ##arg); \
 extern enum status vif_##proc##_trunk (struct vif *, ##arg)
 
+VIF_DEF_PROC(mcg_add_vif, mcg_t mcg);
+VIF_DEF_PROC(mcg_del_vif, mcg_t mcg);
 VIF_DEF_PROC(set_speed, const struct port_speed_arg *);
 VIF_DEF_PROC(set_duplex, enum port_duplex);
 VIF_DEF_PROC(shutdown, int shutdown);

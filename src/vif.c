@@ -8,6 +8,7 @@
 #include <port.h>
 #include <trunk.h>
 #include <stack.h>
+#include <mcg.h>
 #include <utils.h>
 #include <dev.h>
 #include <mgmt.h>
@@ -166,6 +167,9 @@ vif_post_port_init (void)
 
 void
 vif_remote_proc_init(struct vif* v) {
+  v->fill_cpss_if = vif_fill_cpss_if_port;
+  v->mcg_add_vif = vif_mcg_add_vif_remote;
+  v->mcg_del_vif = vif_mcg_del_vif_remote;
   v->set_speed = vif_set_speed_remote;
   v->set_duplex = vif_set_duplex_remote;
   v->shutdown = vif_shutdown_remote;
@@ -182,11 +186,13 @@ vif_remote_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_remote;
   v->dgasp_op = vif_dgasp_op_remote;
   v->set_flow_control = vif_set_flow_control_remote;
-  v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
 void
 vif_port_proc_init(struct vif* v) {
+  v->fill_cpss_if = vif_fill_cpss_if_port;
+  v->mcg_add_vif = vif_mcg_add_vif_port;
+  v->mcg_del_vif = vif_mcg_del_vif_port;
   v->set_speed = vif_set_speed_port;
   v->set_duplex = vif_set_duplex_port;
   v->shutdown = vif_shutdown_port;
@@ -203,11 +209,13 @@ vif_port_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_port;
   v->dgasp_op = vif_dgasp_op_port;
   v->set_flow_control = vif_set_flow_control_port;
-  v->fill_cpss_if = vif_fill_cpss_if_port;
 }
 
 void
 vif_trunk_proc_init(struct vif* v) {
+  v->fill_cpss_if = vif_fill_cpss_if_trunk;
+  v->mcg_add_vif = vif_mcg_add_vif_trunk;
+  v->mcg_del_vif = vif_mcg_del_vif_trunk;
   v->set_speed = vif_set_speed_trunk;
   v->set_duplex = vif_set_duplex_trunk;
   v->shutdown = vif_shutdown_trunk;
@@ -224,7 +232,6 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_trunk;
   v->dgasp_op = vif_dgasp_op_trunk;
   v->set_flow_control = vif_set_flow_control_trunk;
-  v->fill_cpss_if = vif_fill_cpss_if_trunk;
 }
 
 struct vif*
@@ -547,6 +554,8 @@ DEBUG(">>>>vif_form_ls_sync_pkt(void)\n");
   return vif_lsh;
 }
 
+static enum status vif_update_mcgs_ports_in_trunk(struct trunk* trunk);
+
 void
 vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
 DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
@@ -615,6 +624,7 @@ for (k = 0; k < ctrunk->nports; k++)
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
 
+  vif_update_mcgs_ports_in_trunk(ctrunk);
   vif_update_trunk_link_status(ctrunk, socket);
 
   vif_unlock();
@@ -1060,6 +1070,91 @@ vif_##proc (vif_id_t nvif, ##arg)
   if (!vif) \
     return ST_DOES_NOT_EXIST; \
   return vif->proc (vif, ##arg);
+
+VIF_PROC_REMOTE(mcg_add_vif, mcg_t mcg)
+
+VIF_PROC_PORT_HEAD(mcg_add_vif, mcg_t mcg)
+{
+  struct port *port = (struct port*) vif;
+  return mcg_add_port (mcg, port->id);
+}
+
+static enum status
+vif_update_mcgs_ports_in_trunk(struct trunk* trunk) {
+  struct mcg_in_trunk *mcgp, *mcgpt;
+
+  HASH_ITER(hh, trunk->mcg_head, mcgp, mcgpt) {
+    if (!trunk->designated) {
+      if (mcgp->designated_vifid) {
+        vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
+        mcgp->designated_vifid = 0;
+      }
+    } else {
+      if (mcgp->designated_vifid != trunk->designated->id) {
+        if (mcgp->designated_vifid)
+          vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
+        vif_mcg_add_vif(trunk->designated->id, mcgp->mcg_key);
+        mcgp->designated_vifid = trunk->designated->id;
+      }
+    }
+  }
+  return ST_OK;
+}
+
+VIF_PROC_TRUNK_HEAD(mcg_add_vif, mcg_t mcg)
+{
+  struct trunk *trunk = (struct trunk*) vif;
+  int mcgkey = mcg;
+  struct mcg_in_trunk *mcgp;
+
+  HASH_FIND_INT(trunk->mcg_head, &mcgkey, mcgp);
+  if (mcgp)
+    return ST_ALREADY_EXISTS;
+
+  mcgp = calloc (1, sizeof (struct mcg_in_trunk));
+  if (!mcgp)
+    return ST_HEX;
+  mcgp->mcg_key = mcgkey;
+  mcgp->designated_vifid = 0;
+  HASH_ADD_INT(trunk->mcg_head, mcg_key, mcgp);
+
+  return vif_update_mcgs_ports_in_trunk(trunk);
+}
+
+VIF_PROC_ROOT_HEAD(mcg_add_vif, mcg_t mcg)
+{
+VIF_PROC_ROOT_BODY(mcg_add_vif, mcg)
+}
+
+VIF_PROC_REMOTE(mcg_del_vif, mcg_t mcg)
+
+VIF_PROC_PORT_HEAD(mcg_del_vif, mcg_t mcg)
+{
+  struct port *port = (struct port*) vif;
+  return mcg_del_port (mcg, port->id);
+}
+
+VIF_PROC_TRUNK_HEAD(mcg_del_vif, mcg_t mcg)
+{
+  struct trunk *trunk = (struct trunk*) vif;
+  int mcgkey = mcg;
+  struct mcg_in_trunk *mcgp;
+
+  HASH_FIND_INT(trunk->mcg_head, &mcgkey, mcgp);
+  if (!mcgp)
+    return ST_DOES_NOT_EXIST;
+
+  HASH_DEL(trunk->mcg_head, mcgp);
+
+  enum status status = vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
+  free(mcgp);
+  return status;
+}
+
+VIF_PROC_ROOT_HEAD(mcg_del_vif, mcg_t mcg)
+{
+VIF_PROC_ROOT_BODY(mcg_del_vif, mcg)
+}
 
 VIF_PROC_REMOTE(set_speed, const struct port_speed_arg *psa)
 
