@@ -369,6 +369,8 @@ DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
 DECLARE_HANDLER (CC_MCG_ADD_PORT);
 DECLARE_HANDLER (CC_MCG_DEL_PORT);
+DECLARE_HANDLER (CC_MCG_ADD_VIF);
+DECLARE_HANDLER (CC_MCG_DEL_VIF);
 DECLARE_HANDLER (CC_MGMT_IP_ADD);
 DECLARE_HANDLER (CC_MGMT_IP_DEL);
 DECLARE_HANDLER (CC_INT_ROUTE_ADD_PREFIX);
@@ -544,6 +546,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MCG_DELETE),
   HANDLER (CC_MCG_ADD_PORT),
   HANDLER (CC_MCG_DEL_PORT),
+  HANDLER (CC_MCG_ADD_VIF),
+  HANDLER (CC_MCG_DEL_VIF),
   HANDLER (CC_MGMT_IP_ADD),
   HANDLER (CC_MGMT_IP_DEL),
   HANDLER (CC_INT_ROUTE_ADD_PREFIX),
@@ -2822,6 +2826,46 @@ DEFINE_HANDLER (CC_MCG_DEL_PORT)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_MCG_ADD_VIF)
+{
+  enum status result;
+  mcg_t mcg;
+  vif_id_t vifid;
+
+  result = POP_ARG (&mcg);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vifid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_mcg_add_vif (vifid, mcg);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MCG_DEL_VIF)
+{
+  enum status result;
+  mcg_t mcg;
+  vif_id_t vifid;
+
+  result = POP_ARG (&mcg);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vifid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_mcg_del_vif (vifid, mcg);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_MAC_MC_IP_OP)
 {
   enum status result;
@@ -3060,7 +3104,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_USER_DEFINED (9):
-    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, frame->vid);
+//    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, frame->vid);
     switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
         type = CN_LACPDU;

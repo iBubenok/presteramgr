@@ -6,6 +6,7 @@
 
 #include <cpss/dxCh/dxChxGen/trunk/cpssDxChTrunk.h>
 
+#include <uthash.h>
 #include <trunk.h>
 #include <gif.h>
 #include <port.h>
@@ -56,6 +57,7 @@ trunk_init (void)
       trunks[i].vif.stg_state[j] = STP_STATE_DISABLED;
     trunks[i].id = i;
     trunks[i].designated = NULL;
+    trunks[i].mcg_head = NULL;
 
     trunks[i].vif.c_speed = PORT_SPEED_AUTO;
     trunks[i].vif.c_speed_auto = 1;
