@@ -26,6 +26,7 @@ struct vif {
   uint8_t stg_state[256];
 
   enum port_mode mode;
+  vid_t native_vid;
   int trust_cos;
   int trust_dscp;
   enum port_speed c_speed;
