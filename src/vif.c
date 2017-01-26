@@ -646,11 +646,14 @@ vif_tx (const struct vif_id *id,
   uint8_t tag[8];
   enum status result;
   struct hw_port hp;
-  struct vif *vif, *vifp;
+  struct vif *vif, *vifp = NULL;
   trunk_id_t trunk = 0;
+  enum port_mode mode = 0;
+  vid_t native_vid = 0;
 
-// DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
-
+//int deb = (*(uint8_t*)data != 1);
+//if (deb)
+//DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
 
   if ((opts->send_to != VIFD_VLAN && opts->send_to != VIFD_VIDX) || opts->exclude_src_port) {
 
@@ -664,6 +667,7 @@ vif_tx (const struct vif_id *id,
       }
     } else {
       vifp = vif = vif_get(id->type, id->dev, id->num);
+//if (deb)
 //DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
       if (vif == NULL) {
         vif_unlock();
@@ -672,15 +676,20 @@ vif_tx (const struct vif_id *id,
       if (vif->vifid.type == VIFT_PC) {
         vifp = ((struct trunk*)vif)->designated;
         trunk = ((struct trunk*)vif)->id;
+//if (deb)
 //DEBUG("====2vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
       }
     }
 
     result = vif_get_hw(&hp, vifp);
+    mode = vifp->mode;
+    native_vid = vifp->native_vid;
+
     vif_unlock();
     if (result != ST_OK)
       return result;
   }
+//if (deb)
 //DEBUG("====vif_tx, hp.hw_dev== %x, hp.hw_port== %d\n", hp.hw_dev, hp.hw_port);
   memset (&tp, 0, sizeof (tp));
 
@@ -700,12 +709,13 @@ vif_tx (const struct vif_id *id,
       tp.dsaInfo.fromCpu.srcDev = stack_id;
       tp.dsaInfo.fromCpu.srcId = stack_id;
 
-      struct port *port = port_ptr (id->num);
-
-      if ((port->mode == PM_TRUNK) &&
-          (port->native_vid != opts->vid) &&
+//if (deb)
+//DEBUG("====vif_tx, mode: %d, native_vid: %d, opts->vid %d\n", mode, native_vid, opts->vid);
+      if ((mode == PM_TRUNK) &&
+          (native_vid != opts->vid) &&
           (opts->vid)) {
-
+//if (deb)
+//DEBUG("====vif_tx, TAGGED\n");
         tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
       }
 
@@ -1030,6 +1040,10 @@ DEBUG("====vif_set_speed (...) vif== %p\n, vif->n == %d\n", vif, vif->vifid.num)
 }
 #endif
 
+#define VIF_PROC_REMOTE_HEAD(proc, arg...) \
+enum status \
+vif_##proc##_remote (struct vif *vif, ##arg)
+
 #define VIF_PROC_REMOTE(proc, arg...) \
 enum status \
 vif_##proc##_remote (struct vif *vif, ##arg) { \
@@ -1282,10 +1296,14 @@ VIF_PROC_ROOT_BODY(set_customer_vid, vid)
 }
 
 
-VIF_PROC_REMOTE(set_mode, enum port_mode mode)
+VIF_PROC_REMOTE_HEAD(set_mode, enum port_mode mode) {
+  vif->mode = mode;
+  return ST_REMOTE;
+}
 
 VIF_PROC_PORT_HEAD(set_mode, enum port_mode mode)
 {
+  vif->mode = mode;
 VIF_PROC_PORT_BODY(set_mode, mode)
 }
 
@@ -1336,10 +1354,14 @@ VIF_PROC_ROOT_BODY(set_protected, protected)
 }
 
 
-VIF_PROC_REMOTE(set_native_vid, vid_t vid)
+VIF_PROC_REMOTE_HEAD(set_native_vid, vid_t vid) {
+  vif->native_vid = vid;
+  return ST_REMOTE;
+}
 
 VIF_PROC_PORT_HEAD(set_native_vid, vid_t vid)
 {
+  vif->native_vid = vid;
 VIF_PROC_PORT_BODY(set_native_vid, vid)
 }
 
