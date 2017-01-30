@@ -909,7 +909,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
         result = ST_OK;
         goto out;
       default:
-        tipc_notify_bpdu (vifid, pid, frame->len, frame->data);
+        tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       }
@@ -952,7 +952,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     break;
 
   case CPU_CODE_CISCO_MC_TM:
-    tipc_notify_bpdu (vifid, pid, frame->len, frame->data);
+    tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
     result = ST_OK;
     goto out;
     break;
@@ -2998,7 +2998,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
         result = ST_OK;
         goto out;
       default:
-        tipc_notify_bpdu (vif->id, pid, frame->len, frame->data);
+        tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       }
@@ -3041,7 +3041,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_CISCO_MC_TM:
-    tipc_notify_bpdu (vif->id, pid, frame->len, frame->data);
+    tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
     result = ST_OK;
     goto out;
     break;

@@ -81,10 +81,12 @@ tipc_notify_init (void)
 }
 
 void
-tipc_notify_bpdu (vif_id_t vif_id, port_id_t pid, size_t len, void *data)
+tipc_notify_bpdu (vif_id_t vif_id, port_id_t pid, vid_t vid, bool_t tagged, size_t len, void *data)
 {
   bpdu_hdr.iid = pid;
   bpdu_hdr.vif_id = vif_id;
+  bpdu_hdr.vid = vid;
+  bpdu_hdr.tagged = tagged;
   bpdu_hdr.len = len;
 
   bpdu_iov[BPDU_IOV_DATA].iov_base = data;
