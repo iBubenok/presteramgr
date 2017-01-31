@@ -14,6 +14,8 @@
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
 
+#include <i2c.h>
+
 static void
 badargs (void)
 {
@@ -25,13 +27,7 @@ int
 main (int argc, char **argv)
 {
   int fd;
-  struct i2c_msg msgs[2];
-  struct i2c_rdwr_ioctl_data data = {
-    .msgs  = msgs,
-    .nmsgs = 2
-  };
-  __u8 buf[] = {3, 0};
-  __u8 mask = 0;
+  __u8 mask = 0, crv = 0, orv = 0;
   int on = 0;
 
   if (argc != 3)
@@ -60,38 +56,18 @@ main (int argc, char **argv)
   }
 
   int addr = 0x26;
-  if (ioctl (fd, I2C_SLAVE, addr) < 0) {
-    perror ("I2C_SLAVE");
-    exit(1);
-  }
+  i2c_slave (fd, addr);
 
-  msgs[0].addr  = 0x26;
-  msgs[0].flags = 0;
-  msgs[0].len   = 1;
-  msgs[0].buf   = buf;
-  msgs[1].addr  = 0x26;
-  msgs[1].flags = I2C_M_RD;
-  msgs[1].len   = 1;
-  msgs[1].buf   = buf + 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    perror ("I2C_RDWR");
-    exit (1);
-  }
+  i2c_read (fd, addr, 7, &crv);
+  crv &= ~((1 << 6) | (1 << 7));
+  i2c_write (fd, addr, 7, crv);
 
+  i2c_read (fd, addr, 3, &orv);
   if (on)
-    buf[1] |= mask;
+    orv |= mask;
   else
-    buf[1] &= ~mask;
-
-  msgs[0].addr  = 0x26;
-  msgs[0].flags = 0;
-  msgs[0].len   = 2;
-  msgs[0].buf   = buf;
-  data.nmsgs = 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    perror ("I2C_RDWR");
-    exit (1);
-  }
+    orv &= ~mask;
+  i2c_write (fd, addr, 3, orv);
 
   close (fd);
 
