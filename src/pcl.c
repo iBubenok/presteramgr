@@ -2866,12 +2866,14 @@ pcl_enable_lbd_trap (port_id_t pid, int enable)
     memset (&mask, 0, sizeof (mask));
     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
     mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
     mask.ruleExtNotIpv6.etherType = 0xFFFF;
     mask.ruleExtNotIpv6.l2Encap = 0xFF;
 
     memset (&rule, 0, sizeof (rule));
     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
     rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isTagged = 0;
     rule.ruleExtNotIpv6.etherType = 0x88B7;
     rule.ruleExtNotIpv6.l2Encap = 1;
 
@@ -2913,13 +2915,16 @@ pcl_enable_lldp_trap (port_id_t pid, int enable)
     memset (&mask, 0, sizeof (mask));
     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
     mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
     mask.ruleExtNotIpv6.etherType = 0xFFFF;
     mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
     memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
 
     memset (&rule, 0, sizeof (rule));
     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
     rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isTagged = 0;
     rule.ruleExtNotIpv6.etherType = 0x88CC;
     rule.ruleExtNotIpv6.l2Encap = 1;
     memcpy(rule.ruleExtNotIpv6.macDa.arEther, LLDP_MAC, 6);
@@ -2972,6 +2977,7 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
     memset (&mask, 0, sizeof (mask));
     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
     mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
     mask.ruleExtNotIpv6.etherType = 0xFFFF;
     mask.ruleExtNotIpv6.l2Encap = 0xFF;
     memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
@@ -2979,6 +2985,7 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
     memset (&rule, 0, sizeof (rule));
     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
     rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    mask.ruleExtNotIpv6.common.isTagged = 0;
     rule.ruleExtNotIpv6.etherType = 0x8809;
     rule.ruleExtNotIpv6.l2Encap = 1;
     memcpy(rule.ruleExtNotIpv6.macDa.arEther, LACP_MAC, 6);
