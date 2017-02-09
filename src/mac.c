@@ -834,6 +834,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
     return ST_BAD_STATE;
   /* END: Port Security. */
 
+//DEBUG("====fdb_insert(): ST_OK\n");  // TODO remove
   if (fake) /* used in member units to check if macaddr+vid is liable to add to fdb before sending it to master unit */
     return ST_OK;
 
@@ -1192,8 +1193,45 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u, int fake)
 //DEBUG(">>>>fdb_new_addr(): type==%hhu, sp= %d, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
 //         u->macEntry.dstInterface.type, u->macEntry.spUnknown, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
 
-  port_id_t lport;
-  struct port *port;
+  if (u->macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    vif_rlock();
+    struct vif *vif = vif_by_hw (u->macEntry.dstInterface.devPort.devNum,
+                      u->macEntry.dstInterface.devPort.portNum);
+    assert(vif); /* MUST be local port other way some HEX SHIT happened */
+    if (vif->trunk) {
+      vif_unlock();
+      return ST_BAD_STATE;
+    }
+    vif_unlock();
+  }
+
+//DEBUG("fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)\n");
+//PRINTHexDump(&u->macEntry, sizeof(u->macEntry));
+
+  if (u->macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) {
+    port_id_t lport = (port_id_t)port_id(u->macEntry.dstInterface.devPort.devNum,
+                                         u->macEntry.dstInterface.devPort.portNum);
+    struct port *port = port_ptr(lport);
+
+    if (port) {
+      if (port->fdb_new_addr_notify_enabled)
+        fdb_new_addr_notification_send(
+          port->id,
+          u->macEntry.key.key.macVlan.macAddr.arEther,
+          u->macEntry.key.key.macVlan.vlanId
+        );
+    }
+
+    if (!port || !port->fdb_insertion_enabled)
+      return ST_BAD_STATE;
+
+    if (port->fdb_addr_op_notify_enabled)
+      fdb_mac_op_notification_send(
+        MAC_LEARN,
+        port->id,
+        u->macEntry.key.key.macVlan.macAddr.arEther,
+        u->macEntry.key.key.macVlan.vlanId);
+  }
 
   u->macEntry.appSpecificCpuCode = GT_FALSE;
   u->macEntry.isStatic           = GT_FALSE;
@@ -1202,32 +1240,6 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u, int fake)
   u->macEntry.daRoute            = GT_FALSE;
   u->macEntry.userDefined        = FEP_DYN;
   u->macEntry.spUnknown          = GT_FALSE;
-
-//DEBUG("fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u)\n");
-//PRINTHexDump(&u->macEntry, sizeof(u->macEntry));
-
-  lport = (port_id_t)port_id(u->macEntry.dstInterface.devPort.devNum,
-                             u->macEntry.dstInterface.devPort.portNum);
-  port = port_ptr(lport);
-
-  if (port) {
-    if (port->fdb_new_addr_notify_enabled)
-      fdb_new_addr_notification_send(
-        port->id,
-        u->macEntry.key.key.macVlan.macAddr.arEther,
-        u->macEntry.key.key.macVlan.vlanId
-      );
-  }
-
-  if (!port || !port->fdb_insertion_enabled)
-    return ST_BAD_STATE;
-
-  if (port->fdb_addr_op_notify_enabled)
-    fdb_mac_op_notification_send(
-      MAC_LEARN,
-      port->id,
-      u->macEntry.key.key.macVlan.macAddr.arEther,
-      u->macEntry.key.key.macVlan.vlanId);
 
   return fdb_insert (&u->macEntry, 0, 0, fake);
 }
