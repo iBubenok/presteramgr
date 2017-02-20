@@ -4500,6 +4500,7 @@ static void
 __psec_enable (struct port *port)
 {
   if (port->psec_enabled) {
+    CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_FALSE));
     switch (port->psec_mode) {
     case PSECM_LOCK:
       __psec_disable_learning (port);
@@ -4511,6 +4512,7 @@ __psec_enable (struct port *port)
         __psec_enable_learning (port);
     }
   } else {
+    CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
     __psec_enable_learning (port);
   }
 }
