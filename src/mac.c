@@ -771,7 +771,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
 // DEBUG(">>>>fdb_insert(): type==%hhu, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
 //         e->dstInterface.type, e->dstInterface.devPort.devNum, e->dstInterface.devPort.portNum, e->dstInterface.trunkId, MAC_ARG(e->key.key.macVlan.macAddr.arEther));
   GT_U32 idx, best_idx = INVALID_IDX;
-  int i, d, best_pri = e->userDefined;
+  int i, d, me_exists = 0, best_pri = e->userDefined;
   monotimemsec_t ts = time_monotonic();
 
   ON_GT_ERROR (CRP (cpssDxChBrgFdbHashCalc (CPU_DEV, &e->key, &idx)))
@@ -784,6 +784,11 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
         best_idx = idx;
         break;
       }
+      if (e->dstInterface.type == CPSS_INTERFACE_PORT_E
+          && fdb[idx].me.dstInterface.type == CPSS_INTERFACE_PORT_E
+          && e->dstInterface.devPort.devNum == fdb[idx].me.dstInterface.devPort.devNum
+          && e->dstInterface.devPort.portNum == fdb[idx].me.dstInterface.devPort.portNum)
+        me_exists = 1;
 
       if (fdb[idx].addr_flaps && fdb[idx].ts_addr_change + FLAP_BLOCKING_TIMEOUT < ts)
         fdb[idx].addr_flaps = 0;
@@ -830,7 +835,7 @@ fdb_insert (CPSS_MAC_ENTRY_EXT_STC *e, int own, int secure, int fake) {
   }
 
   /* Port Security. */
-  if (psec_addr_check (&fdb[best_idx], e) != PAS_OK)
+  if (psec_addr_check (&fdb[best_idx], e, fake || me_exists) != PAS_OK)
     return ST_BAD_STATE;
   /* END: Port Security. */
 
@@ -1171,18 +1176,26 @@ fdb_mac_foreign_del(const struct pti_fdbr *fr, uint8_t sid) {
 
 static enum status
 fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa, uint8_t sid) {
-  unsigned i;
+  unsigned i, idx = 0;
   status_t status = ST_OK, s = ST_BAD_REQUEST;
   for (i = 0; i < n; i++) {
     switch (fa[i].operation) {
       case PTI_FDB_OP_ADD:
         s = fdb_mac_foreign_add(&fa[i]);
+        if (s == ST_BAD_STATE) {
+          memcpy(&fdbr[idx], &fa[i], sizeof(struct pti_fdbr));
+          fdbr[idx].operation = PTI_FDB_OP_DEL;
+          idx++;
+        }
         break;
       case PTI_FDB_OP_DEL:
         s = fdb_mac_foreign_del(&fa[i], sid);
     }
     if (s != GT_OK)
       status = s;
+  }
+  if (idx) {
+    fdbman_send_msg_uni_update(fdbr, idx, 0);
   }
   return status;
 }

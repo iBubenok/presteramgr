@@ -4404,7 +4404,7 @@ __psec_addr_del (struct port *op)
 }
 
 enum psec_addr_status
-psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
+psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n, int fake)
 {
   struct port *op = NULL, *np = NULL;
   enum psec_addr_status st;
@@ -4432,21 +4432,24 @@ psec_addr_check (struct fdb_entry *o, CPSS_MAC_ENTRY_EXT_STC *n)
 
     st = PAS_OK;
     if (!np->psec_enabled) {
-      np->psec_naddrs += 1;
+      if (!fake)
+        np->psec_naddrs += 1;
       goto upd_old;
     } else {
       if (np->psec_naddrs >= np->psec_max_addrs) {
         st = PAS_LIMIT;
         goto out_unlock_np;
       }
-      np->psec_naddrs += 1;
-      if (np->psec_naddrs == np->psec_max_addrs)
-        __psec_limit_reached (np);
+      if (!fake) {
+        np->psec_naddrs += 1;
+        if (np->psec_naddrs == np->psec_max_addrs)
+          __psec_limit_reached (np);
+      }
     }
   }
 
  upd_old:
-  if (op) {
+  if (!fake && op) {
     __psec_addr_del (op);
   }
 
