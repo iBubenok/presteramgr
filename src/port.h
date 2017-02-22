@@ -159,7 +159,7 @@ enum psec_addr_status {
 extern enum status psec_set_mode (port_id_t, psec_mode_t);
 extern enum status psec_set_max_addrs (port_id_t, psec_max_addrs_t);
 extern enum status psec_enable (port_id_t, int, psec_action_t, uint32_t);
-extern enum psec_addr_status psec_addr_check (struct fdb_entry *, CPSS_MAC_ENTRY_EXT_STC *);
+extern enum psec_addr_status psec_addr_check (struct fdb_entry *, CPSS_MAC_ENTRY_EXT_STC *, int);
 extern void psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *);
 extern void psec_after_flush (void);
 extern enum status psec_enable_na_sb (port_id_t, int);
