@@ -4344,9 +4344,6 @@ psec_set_max_addrs (port_id_t pid, psec_max_addrs_t max)
 static void
 __psec_disable_learning (struct port *port)
 {
-  CRP (cpssDxChBrgFdbNaToCpuPerPortSet
-       (port->ldev, port->lport, GT_FALSE));
-
   switch (port->psec_action) {
   case PSECA_FORWARD:
     CRP (cpssDxChBrgFdbPortLearnStatusSet
@@ -4358,6 +4355,8 @@ __psec_disable_learning (struct port *port)
     CRP (cpssDxChBrgSecurBreachNaPerPortSet
          (port->ldev, port->lport, GT_TRUE));
   }
+  CRP (cpssDxChBrgFdbNaToCpuPerPortSet
+       (port->ldev, port->lport, GT_FALSE));
 }
 
 static void
