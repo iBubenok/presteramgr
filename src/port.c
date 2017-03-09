@@ -4514,8 +4514,8 @@ __psec_enable (struct port *port)
         __psec_enable_learning (port);
     }
   } else {
-    CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
     __psec_enable_learning (port);
+    CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
   }
 }
 
