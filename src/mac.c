@@ -45,6 +45,7 @@ enum fdb_ctl_cmd {
   FCC_MAC_OP_FOREIGN_BLCK,
   FCC_FLUSH,
   FCC_FLUSH_VIF,
+  FCC_QUERY,
   FCC_SET_MASTER,
   FCC_FDBMAN_HANDLE_PKT,
   FCC_FDBMAN_SEND_RT,
@@ -157,6 +158,7 @@ static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int mast
 static void *fdbcomm_ctl_sock;
 static void *gctl_sock;
 static void *gctl_asock;
+static void *gctl2_sock;
 static void *scmd_sock; /* control sync cmd to be used in fdbman thread only */
 static void *acmd_sock; /* control async cmd to be used in fdbman thread only */
 static void *evt_sock; /* vif link notification */
@@ -218,6 +220,21 @@ fdb_ctl (int cmd, const void *arg, int size)
   zmsg_send (&msg, gctl_sock);
 
   msg = zmsg_recv (gctl_sock);
+  status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
+  zmsg_destroy (&msg);
+
+  return status;
+}
+
+static enum status __attribute__ ((unused))
+fdb2_ctl (int cmd, const void *arg, int size)
+{
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, arg, size);
+  zmsg_send (&msg, gctl2_sock);
+
+  msg = zmsg_recv (gctl2_sock);
   status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
   zmsg_destroy (&msg);
 
@@ -416,6 +433,12 @@ mac_flush_vif (const struct mac_age_arg_vif *arg, GT_BOOL del_static)
   fa.ds = del_static;
 
   return fdb_actl (FCC_FLUSH_VIF, &fa, sizeof (fa));
+}
+
+enum status
+mac2_query (struct fdb_entry *arg)
+{
+  return fdb2_ctl (FCC_QUERY, &arg, sizeof (arg));
 }
 
 enum status
@@ -904,6 +927,23 @@ fdb_remove (CPSS_MAC_ENTRY_EXT_KEY_STC *k, int is_foreign, uint8_t sid)
   }
 
   DEBUG ("Aged entry not found! %04x-" MAC_FMT "\r\n", idx, MAC_ARG(k->key.macVlan.macAddr.arEther));
+  return ST_DOES_NOT_EXIST;
+}
+
+static enum status
+fdb_query (struct fdb_entry **fe) {
+  GT_U32 idx;
+  int i;
+
+  ON_GT_ERROR (CRP (cpssDxChBrgFdbHashCalc (CPU_DEV, &(*fe)->me.key, &idx)))
+    return ST_HEX;
+
+  for (i = 0; i < 4; i++, idx++) {
+    if (fdb[idx].valid && me_key_eq (&(*fe)->me.key, &fdb[idx].me.key)) {
+      memcpy(*fe, &fdb[idx], sizeof(**fe));
+      return ST_OK;
+    }
+  }
   return ST_DOES_NOT_EXIST;
 }
 
@@ -1410,6 +1450,13 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
       fdbman_send_msg_uni_flush_vif(arg, 0);
     }
     break;
+  case FCC_QUERY:
+    if (zframe_size(frame) != sizeof(struct fdb_entry*)) {
+      status = ST_BAD_FORMAT;
+      break;
+    }
+    status = fdb_query((struct fdb_entry**)arg);
+    break;
   case FCC_SET_MASTER:
     // DEBUG("FCC_SET_MASTER\n"); // TODO remove
     status = fdbman_set_master(arg);
@@ -1445,7 +1492,7 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
   }
   zmsg_destroy (&msg);
 
-  return 0;
+  return status;
 }
 
 static int
@@ -2569,6 +2616,10 @@ mac_start (void)
   gctl_asock = zsocket_new (zcontext, ZMQ_PUSH);
   assert (gctl_asock);
   zsocket_connect (gctl_asock, FDB_ACONTROL_EP);
+
+  gctl2_sock = zsocket_new (zcontext, ZMQ_REQ);
+  assert (gctl2_sock);
+  zsocket_connect (gctl2_sock, FDB_CONTROL_EP);
 
   fdbcomm_ctl_sock = zsocket_new (zcontext, ZMQ_PUB);
   assert (fdbcomm_ctl_sock);
