@@ -95,6 +95,23 @@ static enum status port_shutdown_xg (struct port *, int);
 static enum status port_set_mdix_auto_xg (struct port *, int);
 static enum status port_setup_xg (struct port *);
 
+static pthread_rwlock_t port_psec_status_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+void
+port_psec_status_rlock (void) {
+  pthread_rwlock_rdlock (&port_psec_status_lock);
+}
+
+void
+port_psec_status_wlock (void) {
+  pthread_rwlock_wrlock (&port_psec_status_lock);
+}
+
+void
+port_psec_status_unlock (void) {
+  pthread_rwlock_unlock (&port_psec_status_lock);
+}
+
 static inline void
 port_lock (void)
 {
@@ -4536,6 +4553,7 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
   if (!in_range (trap_interval, 1, 1000000))
     return ST_BAD_VALUE;
 
+  port_psec_status_wlock ();
   psec_lock (port);
 
   do_enable = port->psec_enabled != enable;
@@ -4551,6 +4569,7 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
     __psec_enable (port);
 
   psec_unlock (port);
+  port_psec_status_unlock ();
 
   return ST_OK;
 }
@@ -4578,6 +4597,33 @@ psec_enable_na_sb (port_id_t pid, int enable)
   }
 
   psec_unlock (port);
+
+  return ST_OK;
+}
+
+enum status
+psec_enable_na_sb_all (int enable)
+{
+  int p;
+
+  for (p = 0; p < nports; p++) {
+    struct port *port = &ports[p];
+
+    psec_lock (port);
+
+    if (enable) {
+      if (port->psec_action == PSECA_RESTRICT
+          && (port->psec_mode == PSECM_LOCK
+              || (port->psec_mode == PSECM_MAX_ADDRS
+                  && port->psec_naddrs >= port->psec_max_addrs))) {
+        sec_port_na_enable (port, GT_TRUE);
+      }
+    } else {
+      sec_port_na_enable (port, GT_FALSE);
+    }
+
+    psec_unlock (port);
+  }
 
   return ST_OK;
 }

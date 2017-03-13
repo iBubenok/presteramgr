@@ -93,6 +93,9 @@ is_stack_port (const struct port *port)
   return stack_active () && (port->stack_role != PSR_NONE);
 }
 
+extern void port_psec_status_rlock(void);
+extern void port_psec_status_wlock(void);
+extern void port_psec_status_unlock(void);
 extern int port_init (void);
 extern void port_disable_all (void);
 extern enum status port_start (void);
@@ -163,6 +166,7 @@ extern enum psec_addr_status psec_addr_check (struct fdb_entry *, CPSS_MAC_ENTRY
 extern void psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *);
 extern void psec_after_flush (void);
 extern enum status psec_enable_na_sb (port_id_t, int);
+extern enum status psec_enable_na_sb_all (int);
 
 /* END: Port Security. */
 
