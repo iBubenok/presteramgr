@@ -65,8 +65,7 @@ sec_port_na_enable (const struct port *port, GT_BOOL enable) {
   sb_delay[port->id].port_na_enabled = enable;
   sb_delay[port->id].port_na_blocked = 0;
   GT_STATUS rc;
-  // rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
-  rc = GT_OK;
+  rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
 
   switch (rc) {
   case GT_OK:                     return ST_OK;

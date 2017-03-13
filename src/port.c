@@ -865,8 +865,7 @@ port_start (void)
 
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
-    CRP (cpssDxChBrgSecurBreachNaPerPortSet
-         (port->ldev, port->lport, GT_FALSE));
+    sec_port_na_enable (port, GT_FALSE);
     CRP (cpssDxChBrgFdbNaStormPreventSet (port->ldev, port->lport, GT_TRUE));
     CRP (cpssDxChBrgFdbNaToCpuPerPortSet (port->ldev, port->lport, GT_TRUE));
 
@@ -4352,8 +4351,7 @@ __psec_disable_learning (struct port *port)
   case PSECA_RESTRICT:
     CRP (cpssDxChBrgFdbPortLearnStatusSet
          (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_DROP_E));
-    CRP (cpssDxChBrgSecurBreachNaPerPortSet
-         (port->ldev, port->lport, GT_TRUE));
+    sec_port_na_enable (port, GT_TRUE);
   }
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet
        (port->ldev, port->lport, GT_FALSE));
@@ -4362,8 +4360,7 @@ __psec_disable_learning (struct port *port)
 static void
 __psec_enable_learning (struct port *port)
 {
-  CRP (cpssDxChBrgSecurBreachNaPerPortSet
-       (port->ldev, port->lport, GT_FALSE));
+  sec_port_na_enable (port, GT_FALSE);
   CRP (cpssDxChBrgFdbNaToCpuPerPortSet
        (port->ldev, port->lport, GT_TRUE));
   CRP (cpssDxChBrgFdbPortLearnStatusSet
@@ -4549,7 +4546,6 @@ psec_enable (port_id_t pid, int enable, psec_action_t act, uint32_t trap_interva
 
   sec_port_na_delay_set (pid, trap_interval);
   sec_moved_static_delay_set (pid, trap_interval);
-  sec_port_na_enable (port, gt_bool (enable && act == PSECA_RESTRICT));
 
   if (do_enable)
     __psec_enable (port);
@@ -4575,12 +4571,10 @@ psec_enable_na_sb (port_id_t pid, int enable)
         && (port->psec_mode == PSECM_LOCK
             || (port->psec_mode == PSECM_MAX_ADDRS
                 && port->psec_naddrs >= port->psec_max_addrs))) {
-      CRP (cpssDxChBrgSecurBreachNaPerPortSet
-           (port->ldev, port->lport, GT_TRUE));
+      sec_port_na_enable (port, GT_TRUE);
     }
   } else {
-    CRP (cpssDxChBrgSecurBreachNaPerPortSet
-         (port->ldev, port->lport, GT_FALSE));
+    sec_port_na_enable (port, GT_FALSE);
   }
 
   psec_unlock (port);
