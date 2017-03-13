@@ -10,6 +10,7 @@
 #include <sec.h>
 #include <port.h>
 #include <sysdeps.h>
+#include <mac.h>
 #include <utils.h>
 #include <debug.h>
 #include <log.h>
@@ -64,7 +65,8 @@ sec_port_na_enable (const struct port *port, GT_BOOL enable) {
   sb_delay[port->id].port_na_enabled = enable;
   sb_delay[port->id].port_na_blocked = 0;
   GT_STATUS rc;
-  rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
+  // rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
+  rc = GT_OK;
 
   switch (rc) {
   case GT_OK:                     return ST_OK;
@@ -130,6 +132,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
   GT_U32 edata = *((GT_U32 *) zframe_data (frame));
   zmsg_destroy (&msg);
 
+  struct fdb_entry fe;
   CPSS_BRG_SECUR_BREACH_MSG_STC sbmsg;
 
   CRP (cpssDxChSecurBreachMsgGet (dev, &sbmsg));
@@ -146,6 +149,12 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
       sb_delay[pid].port_na_blocked = 1;
       sb_type = SB_PORT_NA;
       psec_enable_na_sb(pid, 0);
+      fe.me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+      fe.me.key.key.macVlan.vlanId = sbmsg.vlan;
+      memcpy(fe.me.key.key.macVlan.macAddr.arEther, sbmsg.macSa.arEther, 6);
+      if (mac2_query(&fe) == ST_OK)
+        sb_type = 0;
+
 /*      DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
             MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
       break;
