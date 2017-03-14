@@ -15,7 +15,8 @@
   || defined (VARIANT_ARLAN_3226PGE)            \
   || defined (VARIANT_ARLAN_3226GE)             \
   || defined (VARIANT_ARLAN_3050PGE)            \
-  || defined (VARIANT_ARLAN_3050GE)
+  || defined (VARIANT_ARLAN_3050GE)             \
+  || defined (VARIANT_ARLAN_3212GE)
 #define VARIANT_GE
 #else
 #error Undefined or unsupported variant.

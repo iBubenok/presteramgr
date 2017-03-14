@@ -75,6 +75,7 @@ case "$variant" in
      arlan-3226ge)  AC_DEFINE([VARIANT_ARLAN_3226GE], [1], [Arlan-3226GE variant]) ;;
      arlan-3050pge) AC_DEFINE([VARIANT_ARLAN_3050PGE], [1], [Arlan-3050PGE variant]) ;;
      arlan-3050ge)  AC_DEFINE([VARIANT_ARLAN_3050GE], [1], [Arlan-3050GE variant]) ;;
+     arlan-3212ge)  AC_DEFINE([VARIANT_ARLAN_3212GE], [1], [Arlan-3212GE variant]) ;;
      *)             AC_MSG_ERROR([unsupported variant]) ;;
 esac
 
