@@ -151,8 +151,11 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
       fe.me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
       fe.me.key.key.macVlan.vlanId = sbmsg.vlan;
       memcpy(fe.me.key.key.macVlan.macAddr.arEther, sbmsg.macSa.arEther, 6);
-      if (mac2_query(&fe) == ST_OK)
+      if (mac2_query(&fe) == ST_OK) {
+/*      DEBUG("SECBREACH (IGNORE) : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
         sb_type = 0;
+      }
 
 /*      DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
             MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
