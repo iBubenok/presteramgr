@@ -63,10 +63,8 @@ enum status
 sec_port_na_enable (const struct port *port, GT_BOOL enable) {
 
   sb_delay[port->id].port_na_enabled = enable;
-  sb_delay[port->id].port_na_blocked = 0;
   GT_STATUS rc;
-  // rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
-  rc = GT_OK;
+  rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
 
   switch (rc) {
   case GT_OK:                     return ST_OK;
@@ -145,18 +143,23 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NOT_IN_VLAN_E:
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NA_E:
-      sb_delay[pid].tst_port_na = ts;
-      sb_delay[pid].port_na_blocked = 1;
-      sb_type = SB_PORT_NA;
-      psec_enable_na_sb(pid, 0);
-      fe.me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-      fe.me.key.key.macVlan.vlanId = sbmsg.vlan;
-      memcpy(fe.me.key.key.macVlan.macAddr.arEther, sbmsg.macSa.arEther, 6);
-      if (mac2_query(&fe) == ST_OK)
-        sb_type = 0;
+      if (ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
+        sb_delay[pid].tst_port_na = ts;
+        sb_delay[pid].port_na_blocked = 1;
+        sb_type = SB_PORT_NA;
+        psec_enable_na_sb(pid, 0);
+        fe.me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+        fe.me.key.key.macVlan.vlanId = sbmsg.vlan;
+        memcpy(fe.me.key.key.macVlan.macAddr.arEther, sbmsg.macSa.arEther, 6);
+        if (mac2_query(&fe) == ST_OK) {
+/*        DEBUG("SECBREACH (IGNORE) : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+              MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+          sb_type = 0;
+        }
 
-/*      DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
-            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+/*        DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+              MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+      }
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_MOVED_STATIC_E:
       if (ts > sb_delay[pid].tst_moved_static + sb_delay[pid].tdelay_sb_moved_static) {
@@ -188,7 +191,7 @@ sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
   monotimemsec_t ts = time_monotonic();
   unsigned pid;
   for (pid = 1; pid <= NPORTS; pid++) {
-    if (sb_delay[pid].port_na_enabled && sb_delay[pid].port_na_blocked
+    if (sb_delay[pid].port_na_blocked
          && ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
       sb_delay[pid].port_na_blocked = 0;
       psec_enable_na_sb(pid, 1);

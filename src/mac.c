@@ -535,6 +535,9 @@ fdb_flush (const struct fdb_flush_arg *arg)
     port_mask = 0x0000007F;
   }
 
+  port_psec_status_rlock ();
+  psec_enable_na_sb_all (0);
+
   for_each_dev (d) {
     CRP (cpssDxChBrgFdbAAandTAToCpuSet (d, GT_FALSE));
 
@@ -599,6 +602,9 @@ fdb_flush (const struct fdb_flush_arg *arg)
     }
     usleep (100);
   } while (!all_done);
+
+  psec_enable_na_sb_all (1);
+  port_psec_status_unlock ();
 
   for_each_dev (d) {
     CRP (cpssDxChBrgFdbActionActiveInterfaceSet
