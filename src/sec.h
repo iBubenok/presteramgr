@@ -15,5 +15,6 @@ extern enum status sec_port_na_enable (const struct port *, GT_BOOL);
 extern enum status sec_moved_static_enable (uint8_t, GT_BOOL);
 extern enum status sec_init(void);
 extern enum status sec_start(void);
+extern int sec_port_enable (port_id_t pid, int);
 
 #endif /* __SEC_H__ */

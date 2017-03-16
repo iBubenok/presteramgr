@@ -20,6 +20,7 @@ static void *pub_sock;
 static void *sec_sock;
 
 struct sb_delay {
+  uint8_t port_enabled;
   uint8_t port_na_enabled;
   uint8_t port_na_blocked;
   uint32_t tdelay_sb_port_na;
@@ -57,6 +58,12 @@ sec_moved_static_enable (uint8_t dev, GT_BOOL enable) {
   case GT_NOT_APPLICABLE_DEVICE:  return ST_NOT_SUPPORTED;
   default:                        return ST_HEX;
   }
+}
+
+int
+sec_port_enable (port_id_t pid, int enable) {
+  sb_delay[pid].port_enabled = enable;
+  return 0;
 }
 
 enum status
@@ -143,7 +150,8 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NOT_IN_VLAN_E:
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NA_E:
-      if (ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
+      if (sb_delay[pid].port_enabled &&
+          ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
         sb_delay[pid].tst_port_na = ts;
         sb_delay[pid].port_na_blocked = 1;
         sb_type = SB_PORT_NA;
@@ -191,7 +199,7 @@ sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
   monotimemsec_t ts = time_monotonic();
   unsigned pid;
   for (pid = 1; pid <= NPORTS; pid++) {
-    if (sb_delay[pid].port_na_blocked
+    if (sb_delay[pid].port_enabled && sb_delay[pid].port_na_blocked
          && ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
       sb_delay[pid].port_na_blocked = 0;
       psec_enable_na_sb(pid, 1);
@@ -251,6 +259,7 @@ sec_start(void) {
     sec_moved_static_delay_set (i, 30);
     sb_delay[i].tst_port_na = ts;
     sb_delay[i].tst_moved_static = ts;
+    sb_delay[i].port_enabled = 0;
     sb_delay[i].port_na_enabled = 0;
     sb_delay[i].port_na_blocked = 0;
   }
