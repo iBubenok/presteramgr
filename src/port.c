@@ -4610,6 +4610,9 @@ psec_enable_na_sb_all (int enable)
   for (p = 0; p < nports; p++) {
     struct port *port = &ports[p];
 
+    if (!(port->psec_enabled))
+      continue;
+
     psec_lock (port);
 
     if (enable) {
