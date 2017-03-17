@@ -150,8 +150,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NOT_IN_VLAN_E:
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NA_E:
-      if (sb_delay[pid].port_enabled &&
-          ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
+      if (ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
         sb_delay[pid].tst_port_na = ts;
         sb_delay[pid].port_na_blocked = 1;
         sb_type = SB_PORT_NA;
