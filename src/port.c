@@ -227,10 +227,10 @@ DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
 #elif defined (VARIANT_ARLAN_3212GE)
-    if (ports[i].id < 23) {
+    if (ports[i].id < 11) {
       ports[i].type = PTYPE_COPPER;
     }
-    else if (ports[i].id == 23 || ports[i].id == 24) {
+    else if (ports[i].id == 11 || ports[i].id == 12) {
       ports[i].type = PTYPE_COMBO;
     }
     else {
