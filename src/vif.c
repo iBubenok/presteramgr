@@ -19,6 +19,7 @@
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 
 struct vif_dev_ports {
   int local;
@@ -994,6 +995,75 @@ vif_stg_get_single (struct vif *vif, uint8_t *buf, int inc_serial) {
       (st[0].stgs[j / STP_STATES_PER_BYTE] & ~(msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH))
         | (vif->stg_state[j] << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
   return ST_OK;
+}
+
+static enum status
+__vif_enable_eapol (struct vif *vif, bool_t enable)
+{
+  struct port *port = (struct port *) vif;
+  if (enable) {
+    struct mac_age_arg_vif aa = {
+      .vid  = 0,
+      .vifid = vif->id
+    };
+
+    port->fdb_insertion_enabled = 0;
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_SOFT_DROP_E));
+
+    mac_flush_vif (&aa, GT_FALSE);
+  } else {
+    port->fdb_insertion_enabled = 1;
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_FALSE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+  }
+
+  return ST_OK;
+}
+
+enum status
+vif_enable_eapol (vif_id_t id, bool_t enable)
+{
+  struct vif *vif = vif_getn (id);
+
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+
+  if (!vif->islocal)
+    return ST_REMOTE;
+  else
+    return __vif_enable_eapol (vif, enable);
+}
+
+enum status
+vif_eapol_auth (vif_id_t id, vid_t vid, mac_addr_t mac, bool_t auth)
+{
+  static const mac_addr_t zm = {0, 0, 0, 0, 0, 0};
+  struct mac_op_arg_vif op;
+  struct vif *vif = vif_getn (id);
+
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+
+  if (!vif->islocal)
+    return ST_REMOTE;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  if (!memcmp (mac, zm, sizeof (zm)))
+    return __vif_enable_eapol (vif, !auth);
+
+  op.vid = vid;
+  op.vifid = id;
+  op.drop = 0;
+  op.delete = !auth;
+  op.type = MET_STATIC;
+  memcpy (op.mac, mac, sizeof (op.mac));
+
+  return mac_op_vif (&op);
 }
 
 #if 0

@@ -432,7 +432,9 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
 DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
+DECLARE_HANDLER (CC_VIF_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
+DECLARE_HANDLER (CC_VIF_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
@@ -609,7 +611,9 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LLDP),
   HANDLER (CC_PORT_ENABLE_LACP),
   HANDLER (CC_PORT_ENABLE_EAPOL),
+  HANDLER (CC_VIF_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
+  HANDLER (CC_VIF_EAPOL_AUTH),
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
   HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
@@ -4337,6 +4341,26 @@ DEFINE_HANDLER (CC_PORT_EAPOL_AUTH)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_VIF_ENABLE_EAPOL)
+{
+  enum status result;
+  vif_id_t id;
+  bool_t enable;
+
+  result = POP_ARG (&id);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_enable_eapol (id, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE)
 {
   enum status result;
@@ -4352,6 +4376,36 @@ DEFINE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE)
     goto out;
 
   result = port_fdb_new_addr_notify (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VIF_EAPOL_AUTH)
+{
+  enum status result;
+  vif_id_t id;
+  vid_t vid;
+  mac_addr_t mac;
+  bool_t auth;
+
+  result = POP_ARG (&id);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mac);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&auth);
+  if (result != ST_OK)
+    goto out;
+
+  result = vif_eapol_auth (id, vid, mac, auth);
 
  out:
   report_status (result);
