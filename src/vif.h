@@ -127,6 +127,8 @@ extern enum status vif_set_link_status(vif_id_t, struct port_link_state *, void 
 extern enum status vif_process_ls_pkt(struct vif_link_state_header *, void *);
 extern struct vif_link_state_header *vif_form_ls_sync_pkt(void *, size_t);
 extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, uint16_t, const void *);
+extern enum status vif_enable_eapol (vif_id_t, bool_t);
+extern enum status vif_eapol_auth (vif_id_t, vid_t, mac_addr_t, bool_t);
 
 /*
 extern enum status vif_set_speed (vif_id_t, const struct port_speed_arg *);
