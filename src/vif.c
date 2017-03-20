@@ -555,8 +555,6 @@ DEBUG(">>>>vif_form_ls_sync_pkt(void)\n");
   return vif_lsh;
 }
 
-static enum status vif_update_mcgs_ports_in_trunk(struct trunk* trunk);
-
 void
 vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
 DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
@@ -581,6 +579,10 @@ for (k = 0; k < ctrunk->nports; k++)
     }
     if (j == nmem) {
       ctrunk->vif_port[i]->trunk = NULL;
+      struct mcg_in_trunk *mcgp, *mcgpt;
+      HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+        vif_mcg_del_vif(ctrunk->vif_port[i]->id, mcgp->mcg_key);
+      }
       for (j = i; j < ctrunk->nports-1; j++) {
         ctrunk->vif_port[j] = ctrunk->vif_port[j+1];
         ctrunk->port_enabled[j] = ctrunk->port_enabled[j+1];
@@ -601,6 +603,18 @@ for (k = 0; k < ctrunk->nports; k++)
     int j;
     for (j = 0; j < ctrunk->nports; j++) {
       if (ctrunk->vif_port[j]->id == v->id) {
+        if (mem[i].enabled && !ctrunk->port_enabled[j]) {
+          struct mcg_in_trunk *mcgp, *mcgpt;
+          HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+            vif_mcg_add_vif(ctrunk->vif_port[j]->id, mcgp->mcg_key);
+          }
+        }
+        if (!mem[i].enabled && ctrunk->port_enabled[j]) {
+          struct mcg_in_trunk *mcgp, *mcgpt;
+          HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+            vif_mcg_del_vif(ctrunk->vif_port[j]->id, mcgp->mcg_key);
+          }
+        }
         ctrunk->port_enabled[j] = mem[i].enabled;
         ctrunk->vif_port[j]->trunk = NULL;
         ctrunk->vif_port[j] = v;
@@ -610,6 +624,12 @@ for (k = 0; k < ctrunk->nports; k++)
     }
     if (j == ctrunk->nports) {
       assert(ctrunk->vif_port[ctrunk->nports] == NULL);
+      if (mem[i].enabled) {
+        struct mcg_in_trunk *mcgp, *mcgpt;
+        HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+          vif_mcg_del_vif(ctrunk->vif_port[ctrunk->nports]->id, mcgp->mcg_key);
+        }
+      }
       ctrunk->vif_port[ctrunk->nports] = v;
       ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
       ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
@@ -625,7 +645,6 @@ for (k = 0; k < ctrunk->nports; k++)
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
 
-  vif_update_mcgs_ports_in_trunk(ctrunk);
   vif_update_trunk_link_status(ctrunk, socket);
 
   vif_unlock();
@@ -1163,28 +1182,6 @@ VIF_PROC_PORT_HEAD(mcg_add_vif, mcg_t mcg)
   return mcg_add_port (mcg, port->id);
 }
 
-static enum status
-vif_update_mcgs_ports_in_trunk(struct trunk* trunk) {
-  struct mcg_in_trunk *mcgp, *mcgpt;
-
-  HASH_ITER(hh, trunk->mcg_head, mcgp, mcgpt) {
-    if (!trunk->designated) {
-      if (mcgp->designated_vifid) {
-        vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
-        mcgp->designated_vifid = 0;
-      }
-    } else {
-      if (mcgp->designated_vifid != trunk->designated->id) {
-        if (mcgp->designated_vifid)
-          vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
-        vif_mcg_add_vif(trunk->designated->id, mcgp->mcg_key);
-        mcgp->designated_vifid = trunk->designated->id;
-      }
-    }
-  }
-  return ST_OK;
-}
-
 VIF_PROC_TRUNK_HEAD(mcg_add_vif, mcg_t mcg)
 {
   struct trunk *trunk = (struct trunk*) vif;
@@ -1202,7 +1199,14 @@ VIF_PROC_TRUNK_HEAD(mcg_add_vif, mcg_t mcg)
   mcgp->designated_vifid = 0;
   HASH_ADD_INT(trunk->mcg_head, mcg_key, mcgp);
 
-  return vif_update_mcgs_ports_in_trunk(trunk);
+  int i;
+  for (i = 0; i < trunk->nports; i++) {
+    if (trunk->port_enabled[i]) {
+      assert(trunk->vif_port[i]);
+      vif_mcg_add_vif(trunk->vif_port[i]->id, mcg);
+    }
+  }
+  return ST_OK;
 }
 
 VIF_PROC_ROOT_HEAD(mcg_add_vif, mcg_t mcg)
@@ -1230,9 +1234,15 @@ VIF_PROC_TRUNK_HEAD(mcg_del_vif, mcg_t mcg)
 
   HASH_DEL(trunk->mcg_head, mcgp);
 
-  enum status status = vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
+  int i;
+  for (i = 0; i < trunk->nports; i++) {
+    if (trunk->port_enabled[i]) {
+      assert(trunk->vif_port[i]);
+      vif_mcg_del_vif(trunk->vif_port[i]->id, mcg);
+    }
+  }
   free(mcgp);
-  return status;
+  return ST_OK;
 }
 
 VIF_PROC_ROOT_HEAD(mcg_del_vif, mcg_t mcg)
