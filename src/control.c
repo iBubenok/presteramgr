@@ -876,6 +876,11 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
   }
+  if (!vif->valid) {
+    vif_unlock();
+    result = ST_OK;
+    goto out;
+  }
 
   if (vif && vif->trunk)
     vif = vif->trunk;
@@ -2967,6 +2972,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   vif = vif_by_hw(frame->dev, frame->port);
   if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
 DEBUG("!vif %d:%d\n", frame->dev, frame->port);
+    result = ST_OK;
+    goto out;
+  }
+  if (!vif->valid) {
     result = ST_OK;
     goto out;
   }

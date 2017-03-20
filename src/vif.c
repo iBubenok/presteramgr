@@ -24,6 +24,7 @@
 struct vif_dev_ports {
   int local;
   int n_total;
+  int is_active;
   serial_t vif_link_state_serial;
   int n_by_type[VIFT_PORT_TYPES];
   struct port port[CPSS_MAX_PORTS_NUM_CNS];
@@ -82,17 +83,18 @@ vif_init (void)
 
   memset (vifs, 0, sizeof (vifs));
 
+  for (i = 0; i < 16; i++) {
+    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
+      vif_remote_proc_init(&vifs[i].port[j].vif);
+    }
+  }
+
   dp = &vifs[stack_id];
 DEBUG("====vif_init(), dp= %p\n", dp);
 DEBUG("====vif_init(), sizeof(str port)= %x\n", sizeof(struct port));
 
-  for (i = 0; i < 16; i++) {
-    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
-      vifs[i].port[j].vif.set_speed = vif_set_speed_remote;
-    }
-  }
-
   ports = dp->port;
+  dp-> is_active = 1;
 DEBUG("====vif_init(), ports= %p\n", ports);
 
   for (i = 0; i < NPORTS; i++) {
@@ -259,7 +261,7 @@ vif_get (vif_type_t type, uint8_t dev, uint8_t num) {
     return (struct vif*) &trunks[num];
   }
 
-  if (num > vifs[dev].n_by_type[type])
+  if (num > vifs[dev].n_by_type[type] || num == 0)
     return NULL;
 
   for (i = 0; i < type; i++)
@@ -570,12 +572,17 @@ for (k = 0; k < ctrunk->nports; k++)
 
   while (i < ctrunk->nports) {
     int j;
-    for (j = 0; j < nmem; j++) {
-      struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
-      if (v == NULL)
-        continue;
-      if (v->id == ctrunk->vif_port[i]->id)
-        break;
+    if (!ctrunk->vif_port[i]->valid)
+      j = nmem;
+    else {
+      for (j = 0; j < nmem; j++) {
+        struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
+        if (v == NULL) {
+          continue;
+        }
+        if (v->id == ctrunk->vif_port[i]->id)
+          break;
+      }
     }
     if (j == nmem) {
       ctrunk->vif_port[i]->trunk = NULL;
@@ -681,7 +688,7 @@ vif_tx (const struct vif_id *id,
 
     if (opts->find_iface_by_portid) {
       vifp = vif = vif_get_by_pid (id->dev, id->num);
-      if (vif == NULL) {
+      if (vif == NULL || !vif->valid) {
         vif_unlock();
         return ST_DOES_NOT_EXIST;
       }
@@ -689,12 +696,16 @@ vif_tx (const struct vif_id *id,
       vifp = vif = vif_get(id->type, id->dev, id->num);
 //if (deb)
 //DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
-      if (vif == NULL) {
+      if (vif == NULL || !vif->valid) {
         vif_unlock();
         return ST_DOES_NOT_EXIST;
       }
       if (vif->vifid.type == VIFT_PC) {
         vifp = ((struct trunk*)vif)->designated;
+        if (!vifp->valid) {
+          vif_unlock();
+          return ST_DOES_NOT_EXIST;
+        }
         trunk = ((struct trunk*)vif)->id;
 //if (deb)
 //DEBUG("====2vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
@@ -883,10 +894,20 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
   vif_wlock();
 
   dp = &vifs[dev];
-  memset (dp, 0, sizeof (*dp));
 
-  memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
-  memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
+  dp->local = 0;
+  dp->is_active = 0;
+  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; i++)
+    dp->port[i].vif.valid = 0;
+  if (n > 0) {
+    dp->n_total = 0;
+    for (i = 0; i < VIFT_PORT_TYPES; i++)
+      dp->n_by_type[i] = 0;
+  }
+//  memset (dp, 0, sizeof (*dp));
+
+//  memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
+//  memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
 
   for (i = 0; i < n; i++) {
     assert(pd[i].hp.hw_dev == dev || pd[i].hp.hw_dev == dev + NEXTDEV_INC);
