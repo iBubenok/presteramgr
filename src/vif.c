@@ -563,6 +563,9 @@ DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
 
   struct trunk *ctrunk = trunks + trunk;
   int k;
+for (k = 0; k < nmem; k++) {
+  DEBUG("===00vif_set_trunk_members () k=%d, mem[k].ena= %d, mem[k].type=%d, mem[k].dev=%d, mem[k].num=%d\n", k, mem[k].enabled, mem[k].id.type, mem[k].id.dev, mem[k].id.num);
+}
 for (k = 0; k < ctrunk->nports; k++)
   DEBUG("====1vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);
 
@@ -577,9 +580,8 @@ for (k = 0; k < ctrunk->nports; k++)
     else {
       for (j = 0; j < nmem; j++) {
         struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
-        if (v == NULL) {
+        if (v == NULL)
           continue;
-        }
         if (v->id == ctrunk->vif_port[i]->id)
           break;
       }
@@ -631,19 +633,20 @@ for (k = 0; k < ctrunk->nports; k++)
     }
     if (j == ctrunk->nports) {
       assert(ctrunk->vif_port[ctrunk->nports] == NULL);
+      ctrunk->vif_port[ctrunk->nports] = v;
+      ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
+      ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
       if (mem[i].enabled) {
         struct mcg_in_trunk *mcgp, *mcgpt;
         HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
           vif_mcg_del_vif(ctrunk->vif_port[ctrunk->nports]->id, mcgp->mcg_key);
         }
       }
-      ctrunk->vif_port[ctrunk->nports] = v;
-      ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
-      ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
       ctrunk->nports++;
     }
   }
 
+  ctrunk->designated = NULL;
   for (i = 0; i < ctrunk->nports; i++)
     if (ctrunk->port_enabled[i]) {
       ctrunk->designated = ctrunk->vif_port[i];
