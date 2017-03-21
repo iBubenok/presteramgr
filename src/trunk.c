@@ -52,6 +52,7 @@ trunk_init (void)
     trunks[i].vif.vifid.type = VIFT_PC;
     trunks[i].vif.vifid.dev = 0;
     trunks[i].vif.vifid.num = i;
+    trunks[i].vif.valid = 1;
     int j;
     for (j = 0; j < 256; j++)
       trunks[i].vif.stg_state[j] = STP_STATE_DISABLED;

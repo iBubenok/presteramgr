@@ -705,7 +705,7 @@ vif_tx (const struct vif_id *id,
       }
       if (vif->vifid.type == VIFT_PC) {
         vifp = ((struct trunk*)vif)->designated;
-        if (!vifp->valid) {
+        if (vifp == NULL || !vifp->valid) {
           vif_unlock();
           return ST_DOES_NOT_EXIST;
         }
