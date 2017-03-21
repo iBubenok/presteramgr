@@ -3143,7 +3143,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
-DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
 //    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
       goto out;
     }
@@ -3170,7 +3170,7 @@ DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d,
 
   if (conform2stp_state)
     if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
-DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
