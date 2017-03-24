@@ -679,7 +679,7 @@ vif_tx (const struct vif_id *id,
   struct vif *vif, *vifp = NULL;
   trunk_id_t trunk = 0;
   enum port_mode mode = 0;
-  vid_t native_vid = 0;
+  vid_t native_vid = 0, voice_vid = 0;
 
 //int deb = (*(uint8_t*)data != 1);
 //if (deb)
@@ -718,6 +718,7 @@ vif_tx (const struct vif_id *id,
     result = vif_get_hw(&hp, vifp);
     mode = vifp->mode;
     native_vid = vifp->native_vid;
+    voice_vid = vifp->voice_vid;
 
     vif_unlock();
     if (result != ST_OK)
@@ -750,6 +751,10 @@ vif_tx (const struct vif_id *id,
           (opts->vid)) {
 //if (deb)
 //DEBUG("====vif_tx, TAGGED\n");
+        tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
+      } else if ((mode == PM_ACCESS) &&
+                 (voice_vid != 0) &&
+                 (voice_vid == opts->vid)) {
         tp.dsaInfo.fromCpu.extDestInfo.devPort.dstIsTagged = GT_TRUE;
       }
 
@@ -1570,4 +1575,26 @@ VIF_PROC_TRUNK_BODY(set_flow_control, fc)
 VIF_PROC_ROOT_HEAD(set_flow_control, flow_control_t fc)
 {
 VIF_PROC_ROOT_BODY(set_flow_control, fc)
+}
+
+
+VIF_PROC_REMOTE_HEAD(set_voice_vid, vid_t vid) {
+  vif->voice_vid = vid;
+  return ST_REMOTE;
+}
+
+VIF_PROC_PORT_HEAD(set_voice_vid, vid_t vid)
+{
+  vif->voice_vid = vid;
+VIF_PROC_PORT_BODY(set_voice_vid, vid)
+}
+
+VIF_PROC_TRUNK_HEAD(set_voice_vid, vid_t vid)
+{
+VIF_PROC_TRUNK_BODY(set_voice_vid, vid)
+}
+
+VIF_PROC_ROOT_HEAD(set_voice_vid, vid_t vid)
+{
+VIF_PROC_ROOT_BODY(set_voice_vid, vid)
 }

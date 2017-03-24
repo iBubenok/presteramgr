@@ -27,6 +27,7 @@ struct vif {
 
   enum port_mode mode;
   vid_t native_vid;
+  vid_t voice_vid;
   int trust_cos;
   int trust_dscp;
   enum port_speed c_speed;
@@ -55,6 +56,7 @@ struct vif {
   enum status (*vlan_translate) (struct vif *, vid_t, vid_t, int);
   enum status (*dgasp_op) (struct vif *, int add);
   enum status (*set_flow_control) (struct vif *, flow_control_t fc);
+  enum status (*set_voice_vid) (struct vif *, vid_t);
 };
 
 struct vif_stgblk_header {
@@ -162,5 +164,6 @@ VIF_DEF_PROC(set_stp_state, stp_id_t stp_id,
   int all, enum port_stp_state state);
 VIF_DEF_PROC(dgasp_op, int add);
 VIF_DEF_PROC(set_flow_control, flow_control_t fc);
+VIF_DEF_PROC(set_voice_vid, vid_t vid);
 
 #endif /* __VIF_H__ */
