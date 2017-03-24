@@ -189,6 +189,7 @@ vif_remote_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_remote;
   v->dgasp_op = vif_dgasp_op_remote;
   v->set_flow_control = vif_set_flow_control_remote;
+  v->set_voice_vid = vif_set_voice_vid_remote;
 }
 
 void
@@ -212,6 +213,7 @@ vif_port_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_port;
   v->dgasp_op = vif_dgasp_op_port;
   v->set_flow_control = vif_set_flow_control_port;
+  v->set_voice_vid = vif_set_voice_vid_port;
 }
 
 void
@@ -235,6 +237,7 @@ vif_trunk_proc_init(struct vif* v) {
   v->set_stp_state = vif_set_stp_state_trunk;
   v->dgasp_op = vif_dgasp_op_trunk;
   v->set_flow_control = vif_set_flow_control_trunk;
+  v->set_voice_vid = vif_set_voice_vid_trunk;
 }
 
 struct vif*
