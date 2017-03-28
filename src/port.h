@@ -93,6 +93,9 @@ is_stack_port (const struct port *port)
   return stack_active () && (port->stack_role != PSR_NONE);
 }
 
+extern void port_psec_status_rlock(void);
+extern void port_psec_status_wlock(void);
+extern void port_psec_status_unlock(void);
 extern int port_init (void);
 extern void port_disable_all (void);
 extern enum status port_start (void);
@@ -140,7 +143,9 @@ extern enum status port_set_trunk_vlans (port_id_t, const uint8_t *);
 extern void port_update_trunk_vlan_all_ports (vid_t);
 extern enum status port_enable_queue (port_id_t, uint8_t, bool_t);
 extern enum status port_enable_eapol (port_id_t, bool_t);
+extern enum status port_enable_eapol_vif (vif_id_t, bool_t);
 extern enum status port_eapol_auth (port_id_t, vid_t, mac_addr_t, bool_t);
+extern enum status port_eapol_auth_vif (vif_id_t, vid_t, mac_addr_t, bool_t);
 extern enum status port_fdb_new_addr_notify (port_id_t, bool_t);
 extern enum status port_fdb_addr_op_notify (port_id_t, bool_t);
 extern enum status port_get_serdes_cfg (port_id_t, struct port_serdes_cfg *);
@@ -163,6 +168,7 @@ extern enum psec_addr_status psec_addr_check (struct fdb_entry *, CPSS_MAC_ENTRY
 extern void psec_addr_del (CPSS_MAC_ENTRY_EXT_STC *);
 extern void psec_after_flush (void);
 extern enum status psec_enable_na_sb (port_id_t, int);
+extern enum status psec_enable_na_sb_all (int);
 
 /* END: Port Security. */
 

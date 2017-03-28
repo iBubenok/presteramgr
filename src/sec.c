@@ -10,6 +10,7 @@
 #include <sec.h>
 #include <port.h>
 #include <sysdeps.h>
+#include <mac.h>
 #include <utils.h>
 #include <debug.h>
 #include <log.h>
@@ -19,6 +20,7 @@ static void *pub_sock;
 static void *sec_sock;
 
 struct sb_delay {
+  uint8_t port_enabled;
   uint8_t port_na_enabled;
   uint8_t port_na_blocked;
   uint32_t tdelay_sb_port_na;
@@ -58,11 +60,16 @@ sec_moved_static_enable (uint8_t dev, GT_BOOL enable) {
   }
 }
 
+int
+sec_port_enable (port_id_t pid, int enable) {
+  sb_delay[pid].port_enabled = enable;
+  return 0;
+}
+
 enum status
 sec_port_na_enable (const struct port *port, GT_BOOL enable) {
 
   sb_delay[port->id].port_na_enabled = enable;
-  sb_delay[port->id].port_na_blocked = 0;
   GT_STATUS rc;
   rc = CRP(cpssDxChBrgSecurBreachNaPerPortSet(port->ldev, port->lport, enable));
 
@@ -130,6 +137,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
   GT_U32 edata = *((GT_U32 *) zframe_data (frame));
   zmsg_destroy (&msg);
 
+  struct fdb_entry fe;
   CPSS_BRG_SECUR_BREACH_MSG_STC sbmsg;
 
   CRP (cpssDxChSecurBreachMsgGet (dev, &sbmsg));
@@ -142,12 +150,23 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NOT_IN_VLAN_E:
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_PORT_NA_E:
-      sb_delay[pid].tst_port_na = ts;
-      sb_delay[pid].port_na_blocked = 1;
-      sb_type = SB_PORT_NA;
-      psec_enable_na_sb(pid, 0);
-/*      DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
-            MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+      if (ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
+        sb_delay[pid].tst_port_na = ts;
+        sb_delay[pid].port_na_blocked = 1;
+        sb_type = SB_PORT_NA;
+        psec_enable_na_sb(pid, 0);
+        fe.me.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
+        fe.me.key.key.macVlan.vlanId = sbmsg.vlan;
+        memcpy(fe.me.key.key.macVlan.macAddr.arEther, sbmsg.macSa.arEther, 6);
+        if (mac2_query(&fe) == ST_OK) {
+/*        DEBUG("SECBREACH (IGNORE) : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+              MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+          sb_type = 0;
+        }
+
+/*        DEBUG("SECBREACH  : " MAC_FMT " %03hu:%2hhu CODE: %u EDATA: %08X\n",   //TODO remove
+              MAC_ARG(sbmsg.macSa.arEther), sbmsg.vlan, sbmsg.port, sbmsg.code, (unsigned)edata);*/
+      }
       break;
     case CPSS_BRG_SECUR_BREACH_EVENTS_MOVED_STATIC_E:
       if (ts > sb_delay[pid].tst_moved_static + sb_delay[pid].tdelay_sb_moved_static) {
@@ -179,7 +198,7 @@ sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
   monotimemsec_t ts = time_monotonic();
   unsigned pid;
   for (pid = 1; pid <= NPORTS; pid++) {
-    if (sb_delay[pid].port_na_enabled && sb_delay[pid].port_na_blocked
+    if (sb_delay[pid].port_enabled && sb_delay[pid].port_na_blocked
          && ts > sb_delay[pid].tst_port_na + sb_delay[pid].tdelay_sb_port_na) {
       sb_delay[pid].port_na_blocked = 0;
       psec_enable_na_sb(pid, 1);
@@ -239,6 +258,7 @@ sec_start(void) {
     sec_moved_static_delay_set (i, 30);
     sb_delay[i].tst_port_na = ts;
     sb_delay[i].tst_moved_static = ts;
+    sb_delay[i].port_enabled = 0;
     sb_delay[i].port_na_enabled = 0;
     sb_delay[i].port_na_blocked = 0;
   }

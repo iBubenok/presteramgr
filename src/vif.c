@@ -19,10 +19,12 @@
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgEgrFlt.h>
 
 struct vif_dev_ports {
   int local;
   int n_total;
+  int is_active;
   serial_t vif_link_state_serial;
   int n_by_type[VIFT_PORT_TYPES];
   struct port port[CPSS_MAX_PORTS_NUM_CNS];
@@ -81,17 +83,18 @@ vif_init (void)
 
   memset (vifs, 0, sizeof (vifs));
 
+  for (i = 0; i < 16; i++) {
+    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
+      vif_remote_proc_init(&vifs[i].port[j].vif);
+    }
+  }
+
   dp = &vifs[stack_id];
 DEBUG("====vif_init(), dp= %p\n", dp);
 DEBUG("====vif_init(), sizeof(str port)= %x\n", sizeof(struct port));
 
-  for (i = 0; i < 16; i++) {
-    for (j = 0; j < CPSS_MAX_PORTS_NUM_CNS; j++) {
-      vifs[i].port[j].vif.set_speed = vif_set_speed_remote;
-    }
-  }
-
   ports = dp->port;
+  dp-> is_active = 1;
 DEBUG("====vif_init(), ports= %p\n", ports);
 
   for (i = 0; i < NPORTS; i++) {
@@ -258,7 +261,7 @@ vif_get (vif_type_t type, uint8_t dev, uint8_t num) {
     return (struct vif*) &trunks[num];
   }
 
-  if (num > vifs[dev].n_by_type[type])
+  if (num > vifs[dev].n_by_type[type] || num == 0)
     return NULL;
 
   for (i = 0; i < type; i++)
@@ -554,14 +557,15 @@ DEBUG(">>>>vif_form_ls_sync_pkt(void)\n");
   return vif_lsh;
 }
 
-static enum status vif_update_mcgs_ports_in_trunk(struct trunk* trunk);
-
 void
 vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
 DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
 
   struct trunk *ctrunk = trunks + trunk;
   int k;
+for (k = 0; k < nmem; k++) {
+  DEBUG("===00vif_set_trunk_members () k=%d, mem[k].ena= %d, mem[k].type=%d, mem[k].dev=%d, mem[k].num=%d\n", k, mem[k].enabled, mem[k].id.type, mem[k].id.dev, mem[k].id.num);
+}
 for (k = 0; k < ctrunk->nports; k++)
   DEBUG("====1vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);
 
@@ -571,15 +575,23 @@ for (k = 0; k < ctrunk->nports; k++)
 
   while (i < ctrunk->nports) {
     int j;
-    for (j = 0; j < nmem; j++) {
-      struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
-      if (v == NULL)
-        continue;
-      if (v->id == ctrunk->vif_port[i]->id)
-        break;
+    if (!ctrunk->vif_port[i]->valid)
+      j = nmem;
+    else {
+      for (j = 0; j < nmem; j++) {
+        struct vif* v = vif_get_by_gif (mem[j].id.type, mem[j].id.dev, mem[j].id.num);
+        if (v == NULL)
+          continue;
+        if (v->id == ctrunk->vif_port[i]->id)
+          break;
+      }
     }
     if (j == nmem) {
       ctrunk->vif_port[i]->trunk = NULL;
+      struct mcg_in_trunk *mcgp, *mcgpt;
+      HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+        vif_mcg_del_vif(ctrunk->vif_port[i]->id, mcgp->mcg_key);
+      }
       for (j = i; j < ctrunk->nports-1; j++) {
         ctrunk->vif_port[j] = ctrunk->vif_port[j+1];
         ctrunk->port_enabled[j] = ctrunk->port_enabled[j+1];
@@ -600,6 +612,18 @@ for (k = 0; k < ctrunk->nports; k++)
     int j;
     for (j = 0; j < ctrunk->nports; j++) {
       if (ctrunk->vif_port[j]->id == v->id) {
+        if (mem[i].enabled && !ctrunk->port_enabled[j]) {
+          struct mcg_in_trunk *mcgp, *mcgpt;
+          HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+            vif_mcg_add_vif(ctrunk->vif_port[j]->id, mcgp->mcg_key);
+          }
+        }
+        if (!mem[i].enabled && ctrunk->port_enabled[j]) {
+          struct mcg_in_trunk *mcgp, *mcgpt;
+          HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+            vif_mcg_del_vif(ctrunk->vif_port[j]->id, mcgp->mcg_key);
+          }
+        }
         ctrunk->port_enabled[j] = mem[i].enabled;
         ctrunk->vif_port[j]->trunk = NULL;
         ctrunk->vif_port[j] = v;
@@ -612,10 +636,17 @@ for (k = 0; k < ctrunk->nports; k++)
       ctrunk->vif_port[ctrunk->nports] = v;
       ctrunk->port_enabled[ctrunk->nports] = mem[i].enabled;
       ctrunk->vif_port[ctrunk->nports]->trunk = (struct vif*)ctrunk;
+      if (mem[i].enabled) {
+        struct mcg_in_trunk *mcgp, *mcgpt;
+        HASH_ITER (hh, ctrunk->mcg_head, mcgp, mcgpt) {
+          vif_mcg_del_vif(ctrunk->vif_port[ctrunk->nports]->id, mcgp->mcg_key);
+        }
+      }
       ctrunk->nports++;
     }
   }
 
+  ctrunk->designated = NULL;
   for (i = 0; i < ctrunk->nports; i++)
     if (ctrunk->port_enabled[i]) {
       ctrunk->designated = ctrunk->vif_port[i];
@@ -624,7 +655,6 @@ for (k = 0; k < ctrunk->nports; k++)
   if (i == ctrunk->nports)
     ctrunk->designated = NULL;
 
-  vif_update_mcgs_ports_in_trunk(ctrunk);
   vif_update_trunk_link_status(ctrunk, socket);
 
   vif_unlock();
@@ -661,7 +691,7 @@ vif_tx (const struct vif_id *id,
 
     if (opts->find_iface_by_portid) {
       vifp = vif = vif_get_by_pid (id->dev, id->num);
-      if (vif == NULL) {
+      if (vif == NULL || !vif->valid) {
         vif_unlock();
         return ST_DOES_NOT_EXIST;
       }
@@ -669,12 +699,16 @@ vif_tx (const struct vif_id *id,
       vifp = vif = vif_get(id->type, id->dev, id->num);
 //if (deb)
 //DEBUG("====1vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
-      if (vif == NULL) {
+      if (vif == NULL || !vif->valid) {
         vif_unlock();
         return ST_DOES_NOT_EXIST;
       }
       if (vif->vifid.type == VIFT_PC) {
         vifp = ((struct trunk*)vif)->designated;
+        if (vifp == NULL || !vifp->valid) {
+          vif_unlock();
+          return ST_DOES_NOT_EXIST;
+        }
         trunk = ((struct trunk*)vif)->id;
 //if (deb)
 //DEBUG("====2vif_tx, vifp->id== %x, trunkid== %d\n", vifp->id, trunk);
@@ -863,10 +897,20 @@ vif_set_hw_ports (uint8_t dev, uint8_t n, const struct vif_def *pd) {
   vif_wlock();
 
   dp = &vifs[dev];
-  memset (dp, 0, sizeof (*dp));
 
-  memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
-  memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
+  dp->local = 0;
+  dp->is_active = 0;
+  for (i = 0; i < CPSS_MAX_PORTS_NUM_CNS; i++)
+    dp->port[i].vif.valid = 0;
+  if (n > 0) {
+    dp->n_total = 0;
+    for (i = 0; i < VIFT_PORT_TYPES; i++)
+      dp->n_by_type[i] = 0;
+  }
+//  memset (dp, 0, sizeof (*dp));
+
+//  memset (vifp_by_hw[dev], 0, sizeof(vifp_single_dev_t));
+//  memset (vifp_by_hw[dev + NEXTDEV_INC], 0, sizeof(vifp_single_dev_t));
 
   for (i = 0; i < n; i++) {
     assert(pd[i].hp.hw_dev == dev || pd[i].hp.hw_dev == dev + NEXTDEV_INC);
@@ -996,6 +1040,75 @@ vif_stg_get_single (struct vif *vif, uint8_t *buf, int inc_serial) {
   return ST_OK;
 }
 
+static enum status
+__vif_enable_eapol (struct vif *vif, bool_t enable)
+{
+  struct port *port = (struct port *) vif;
+  if (enable) {
+    struct mac_age_arg_vif aa = {
+      .vid  = 0,
+      .vifid = vif->id
+    };
+
+    port->fdb_insertion_enabled = 0;
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_TRUE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_SOFT_DROP_E));
+
+    mac_flush_vif (&aa, GT_FALSE);
+  } else {
+    port->fdb_insertion_enabled = 1;
+    CRP (cpssDxChBrgPortEgrFltUnkEnable (port->ldev, port->lport, GT_FALSE));
+    CRP (cpssDxChBrgFdbPortLearnStatusSet
+         (port->ldev, port->lport, GT_FALSE, CPSS_LOCK_FRWRD_E));
+  }
+
+  return ST_OK;
+}
+
+enum status
+vif_enable_eapol (vif_id_t id, bool_t enable)
+{
+  struct vif *vif = vif_getn (id);
+
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+
+  if (!vif->islocal)
+    return ST_REMOTE;
+  else
+    return __vif_enable_eapol (vif, enable);
+}
+
+enum status
+vif_eapol_auth (vif_id_t id, vid_t vid, mac_addr_t mac, bool_t auth)
+{
+  static const mac_addr_t zm = {0, 0, 0, 0, 0, 0};
+  struct mac_op_arg_vif op;
+  struct vif *vif = vif_getn (id);
+
+  if (!vif)
+    return ST_DOES_NOT_EXIST;
+
+  if (!vif->islocal)
+    return ST_REMOTE;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  if (!memcmp (mac, zm, sizeof (zm)))
+    return __vif_enable_eapol (vif, !auth);
+
+  op.vid = vid;
+  op.vifid = id;
+  op.drop = 0;
+  op.delete = !auth;
+  op.type = MET_STATIC;
+  memcpy (op.mac, mac, sizeof (op.mac));
+
+  return mac_op_vif (&op);
+}
+
 #if 0
 enum status
 vif_set_speed_remote (struct vif *vif, const struct port_speed_arg *psa) {
@@ -1093,28 +1206,6 @@ VIF_PROC_PORT_HEAD(mcg_add_vif, mcg_t mcg)
   return mcg_add_port (mcg, port->id);
 }
 
-static enum status
-vif_update_mcgs_ports_in_trunk(struct trunk* trunk) {
-  struct mcg_in_trunk *mcgp, *mcgpt;
-
-  HASH_ITER(hh, trunk->mcg_head, mcgp, mcgpt) {
-    if (!trunk->designated) {
-      if (mcgp->designated_vifid) {
-        vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
-        mcgp->designated_vifid = 0;
-      }
-    } else {
-      if (mcgp->designated_vifid != trunk->designated->id) {
-        if (mcgp->designated_vifid)
-          vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
-        vif_mcg_add_vif(trunk->designated->id, mcgp->mcg_key);
-        mcgp->designated_vifid = trunk->designated->id;
-      }
-    }
-  }
-  return ST_OK;
-}
-
 VIF_PROC_TRUNK_HEAD(mcg_add_vif, mcg_t mcg)
 {
   struct trunk *trunk = (struct trunk*) vif;
@@ -1132,7 +1223,14 @@ VIF_PROC_TRUNK_HEAD(mcg_add_vif, mcg_t mcg)
   mcgp->designated_vifid = 0;
   HASH_ADD_INT(trunk->mcg_head, mcg_key, mcgp);
 
-  return vif_update_mcgs_ports_in_trunk(trunk);
+  int i;
+  for (i = 0; i < trunk->nports; i++) {
+    if (trunk->port_enabled[i]) {
+      assert(trunk->vif_port[i]);
+      vif_mcg_add_vif(trunk->vif_port[i]->id, mcg);
+    }
+  }
+  return ST_OK;
 }
 
 VIF_PROC_ROOT_HEAD(mcg_add_vif, mcg_t mcg)
@@ -1160,9 +1258,15 @@ VIF_PROC_TRUNK_HEAD(mcg_del_vif, mcg_t mcg)
 
   HASH_DEL(trunk->mcg_head, mcgp);
 
-  enum status status = vif_mcg_del_vif(mcgp->designated_vifid, mcgp->mcg_key);
+  int i;
+  for (i = 0; i < trunk->nports; i++) {
+    if (trunk->port_enabled[i]) {
+      assert(trunk->vif_port[i]);
+      vif_mcg_del_vif(trunk->vif_port[i]->id, mcg);
+    }
+  }
   free(mcgp);
-  return status;
+  return ST_OK;
 }
 
 VIF_PROC_ROOT_HEAD(mcg_del_vif, mcg_t mcg)
