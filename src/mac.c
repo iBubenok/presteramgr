@@ -974,7 +974,7 @@ fdb_mac_add (const struct mac_op_arg *arg, int own)
     me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
     me.daRoute = GT_TRUE;
   } else {
-    me.userDefined = FEP_STATIC;
+    me.userDefined = (me.isStatic)? FEP_STATIC:FEP_DYN;
 
     if (arg->drop) {
       me.dstInterface.type = CPSS_INTERFACE_VID_E;
@@ -1032,7 +1032,7 @@ fdb_mac_add_vif (const struct mac_op_arg_vif *arg, int own)
     me.saCommand = CPSS_MAC_TABLE_FRWRD_E;
     me.daRoute = GT_TRUE;
   } else {
-    me.userDefined = FEP_STATIC;
+    me.userDefined = (me.isStatic)? FEP_STATIC:FEP_DYN;
 
     if (arg->drop) {
       me.dstInterface.type = CPSS_INTERFACE_VID_E;
