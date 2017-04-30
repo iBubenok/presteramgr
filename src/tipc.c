@@ -175,11 +175,10 @@ tipc_fdbcomm_connect (void) {
 }
 
 void
-tipc_start (zctx_t *zcontext)
+tipc_start ()
 {
   tipc_notify_init ();
 
   DEBUG ("TIPC stared \r\n");
-
 }
 

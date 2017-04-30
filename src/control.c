@@ -18,7 +18,6 @@
 #include <mac.h>
 #include <sec.h>
 #include <qos.h>
-#include <zcontext.h>
 #include <sys/prctl.h>
 #include <debug.h>
 #include <wnct.h>
@@ -70,9 +69,9 @@ forwarder_thread (void *dummy)
 {
   void *inp_sub_sock;
 
-  inp_sub_sock = zsocket_new (zcontext, ZMQ_SUB);
+  inp_sub_sock = zsock_new (ZMQ_SUB);
   assert (inp_sub_sock);
-  zsocket_connect (inp_sub_sock, INP_PUB_SOCK_EP);
+  zsock_connect (inp_sub_sock, INP_PUB_SOCK_EP);
 
   prctl(PR_SET_NAME, "ctl-forwarder", 0, 0, 0);
 
@@ -85,17 +84,17 @@ forwarder_thread (void *dummy)
 void
 control_pre_mac_init(void) {
 
-  stack_cmd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  stack_cmd_sock = zsock_new (ZMQ_PULL);
   assert (stack_cmd_sock);
-  zsocket_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
+  zsock_bind (stack_cmd_sock, STACK_CMD_SOCK_EP);
 
-  cmd_sock = zsocket_new (zcontext, ZMQ_REP);
+  cmd_sock = zsock_new (ZMQ_REP);
   assert (cmd_sock);
-  zsocket_bind (cmd_sock, CMD_SOCK_EP);
+  zsock_bind (cmd_sock, CMD_SOCK_EP);
 
-  inp_sock = zsocket_new (zcontext, ZMQ_REP);
+  inp_sock = zsock_new (ZMQ_REP);
   assert (inp_sock);
-  zsocket_bind (inp_sock, INP_SOCK_EP);
+  zsock_bind (inp_sock, INP_SOCK_EP);
 
 }
 
@@ -105,67 +104,66 @@ control_init (void)
   int rc;
   pthread_t tid;
 
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
-  rc = zsocket_bind (pub_sock, PUB_SOCK_EP);
+  rc = zsock_bind (pub_sock, PUB_SOCK_EP);
 
-  pkt_sock = zsocket_new (zcontext, ZMQ_REP);
+  pkt_sock = zsock_new (ZMQ_REP);
   assert (pkt_sock);
-  zsocket_bind (pkt_sock, PKT_SOCK_EP);
+  zsock_bind (pkt_sock, PKT_SOCK_EP);
 
   uint64_t hwm=250;
-  pub_arp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_arp_sock = zsock_new (ZMQ_PUB);
   assert (pub_arp_sock);
-/*  rc = zmq_setsockopt(pub_arp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
-  assert(rc==0); */
-  rc = zsocket_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
+  rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
 
-  pub_dhcp_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_dhcp_sock = zsock_new (ZMQ_PUB);
   assert (pub_dhcp_sock);
-  rc = zmq_setsockopt(pub_dhcp_sock, ZMQ_HWM, &hwm, sizeof(hwm));
-  assert(rc==0);
-  rc = zsocket_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
 
-  pub_stack_sock = zsocket_new (zcontext, ZMQ_PUB);
+  zsock_set_sndhwm(pub_dhcp_sock, hwm);
+  zsock_set_rcvhwm(pub_dhcp_sock, hwm);
+
+  rc = zsock_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
+
+  pub_stack_sock = zsock_new (ZMQ_PUB);
   assert (pub_stack_sock);
-/*  rc = zmq_setsockopt(pub_stack_sock, ZMQ_HWM, &hwm, sizeof(hwm));
-  assert(rc==0); */
-  rc = zsocket_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
+
+  rc = zsock_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
   assert(rc==0);
 
-  inp_pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  inp_pub_sock = zsock_new (ZMQ_PUB);
   assert (inp_pub_sock);
-  rc = zsocket_bind (inp_pub_sock, INP_PUB_SOCK_EP);
+  rc = zsock_bind (inp_pub_sock, INP_PUB_SOCK_EP);
 
   pthread_create (&tid, NULL, forwarder_thread, NULL);
 /*
-  inp_sock = zsocket_new (zcontext, ZMQ_REP);
+  inp_sock = zsock_new (ZMQ_REP);
   assert (inp_sock);
-  rc = zsocket_bind (inp_sock, INP_SOCK_EP);
+  rc = zsock_bind (inp_sock, INP_SOCK_EP);
 */
-  evt_sock = zsocket_new (zcontext, ZMQ_SUB);
+  evt_sock = zsock_new (ZMQ_SUB);
   assert (evt_sock);
-  rc = zsocket_connect (evt_sock, EVENT_PUBSUB_EP);
+  rc = zsock_connect (evt_sock, EVENT_PUBSUB_EP);
 
-  sec_sock = zsocket_new (zcontext, ZMQ_SUB);
+  sec_sock = zsock_new (ZMQ_SUB);
   assert (sec_sock);
-  zsocket_connect (sec_sock, SEC_PUBSUB_EP);
+  zsock_connect (sec_sock, SEC_PUBSUB_EP);
 
-  rtbd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  rtbd_sock = zsock_new (ZMQ_PULL);
   assert (rtbd_sock);
-  zsocket_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
 
-  arpd_sock = zsocket_new (zcontext, ZMQ_PULL);
+  arpd_sock = zsock_new (ZMQ_PULL);
   assert (arpd_sock);
-  zsocket_bind (arpd_sock, ARPD_NOTIFY_EP);
+  zsock_bind (arpd_sock, ARPD_NOTIFY_EP);
 
-  fdb_sock = zsocket_new (zcontext, ZMQ_SUB);
+  fdb_sock = zsock_new (ZMQ_SUB);
   assert (fdb_sock);
-  zsocket_connect (sec_sock, FDB_PUBSUB_EP);
+  zsock_connect (sec_sock, FDB_PUBSUB_EP);
 
-  evtntf_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  evtntf_sock = zsock_new (ZMQ_PUSH);
   assert (evtntf_sock);
-  rc = zsocket_connect (evtntf_sock, NOTIFY_QUEUE_EP);
+  rc = zsock_connect (evtntf_sock, NOTIFY_QUEUE_EP);
 
   return 0;
 }
@@ -685,7 +683,7 @@ static cmd_handler_t packet_handlers[] = {
 };
 
 static int
-evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+evt_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (evt_sock);
   notify_send (&msg);
@@ -694,7 +692,7 @@ evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 
 __attribute__ ((unused))
 static int
-secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+secbr_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (sec_sock);
   notify_send (&msg);
@@ -703,7 +701,7 @@ secbr_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 
 __attribute__ ((unused))
 static int
-fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+fdb_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (fdb_sock);
   notify_send (&msg);
@@ -711,7 +709,7 @@ fdb_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
 }
 
 static int
-rtbd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (rtbd_sock);
 
@@ -776,7 +774,7 @@ DEBUG("RTBD DROP!!!!\n");
 }
 
 static int
-arpd_handler (zloop_t *loop, zmq_pollitem_t *pi, void *dummy)
+arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 {
   zmsg_t *msg = zmsg_recv (arpd_sock);
 
@@ -807,32 +805,24 @@ control_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
 
-  zmq_pollitem_t stack_cmd_pi = { stack_cmd_sock, 0, ZMQ_POLLIN };
   struct handler_data stack_cmd_hd = { stack_cmd_sock, stack_handlers, ARRAY_SIZE (stack_handlers) };
-  zloop_poller (loop, &stack_cmd_pi, control_handler, &stack_cmd_hd);
+  zloop_reader (loop, stack_cmd_sock, control_handler, &stack_cmd_hd);
 
-  zmq_pollitem_t cmd_pi = { cmd_sock, 0, ZMQ_POLLIN };
   struct handler_data cmd_hd = { cmd_sock, handlers, ARRAY_SIZE (handlers) };
-  zloop_poller (loop, &cmd_pi, control_handler, &cmd_hd);
+  zloop_reader (loop, cmd_sock, control_handler, &cmd_hd);
 
-  zmq_pollitem_t inp_pi = { inp_sock, 0, ZMQ_POLLIN };
   struct handler_data inp_hd = { inp_sock, handlers, ARRAY_SIZE (handlers) };
-  zloop_poller (loop, &inp_pi, control_handler, &inp_hd);
+  zloop_reader (loop, inp_sock, control_handler, &inp_hd);
 
-  zmq_pollitem_t evt_pi = { evt_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &evt_pi, evt_handler, NULL);
+  zloop_reader (loop, evt_sock, evt_handler, NULL);
 
-  zmq_pollitem_t sec_pi = { sec_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &sec_pi, secbr_handler, NULL);
+  zloop_reader (loop, sec_sock, secbr_handler, NULL);
 
-  zmq_pollitem_t rtbd_pi = { rtbd_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &rtbd_pi, rtbd_handler, NULL);
+  zloop_reader (loop, rtbd_sock, rtbd_handler, NULL);
 
-  zmq_pollitem_t arpd_pi = { arpd_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &arpd_pi, arpd_handler, NULL);
+  zloop_reader (loop, arpd_sock, arpd_handler, NULL);
 
-  zmq_pollitem_t fdb_pi = { fdb_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &fdb_pi, fdb_handler, NULL);
+  zloop_reader (loop, fdb_sock, fdb_handler, NULL);
 
   prctl(PR_SET_NAME, "ctl-loop", 0, 0, 0);
 
@@ -846,9 +836,8 @@ control_packet_loop (void *dummy)
 {
   zloop_t *loop = zloop_new ();
 
-  zmq_pollitem_t pkt_pi = { pkt_sock, 0, ZMQ_POLLIN };
   struct handler_data pkt_hd = { pkt_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
-  zloop_poller (loop, &pkt_pi, control_handler, &pkt_hd);
+  zloop_reader (loop, pkt_sock, control_handler, &pkt_hd);
 
   prctl(PR_SET_NAME, "pktctl-loop", 0, 0, 0);
 

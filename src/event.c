@@ -31,7 +31,6 @@
 #include <tipc.h>
 #include <mac.h>
 #include <sec.h>
-#include <zcontext.h>
 #include <sysdeps.h>
 #include <variant.h>
 
@@ -287,7 +286,7 @@ event_enter_loop (void)
 }
 
 static int
-notify_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
+notify_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 {
   zmsg_t *msg = zmsg_recv (not_sock);
 
@@ -328,16 +327,15 @@ notify_thread(void *_) {
   zloop_t  *loop = zloop_new ();
   assert (loop);
 
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
-  zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
+  zsock_bind (pub_sock, EVENT_PUBSUB_EP);
 
-  tnot_sock = zsocket_new (zcontext, ZMQ_PULL);
+  tnot_sock = zsock_new (ZMQ_PULL);
   assert (tnot_sock);
-  zsocket_bind (tnot_sock, NOTIFY_QUEUE_EP);
+  zsock_bind (tnot_sock, NOTIFY_QUEUE_EP);
 
-  zmq_pollitem_t tnot_pi = { tnot_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &tnot_pi, notify_evt_handler, tnot_sock);
+  zloop_reader (loop, tnot_sock, notify_evt_handler, tnot_sock);
 
   prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
   notify_thread_started = 1;
@@ -360,16 +358,15 @@ event_start_notify_thread (void) {
   }
   DEBUG ("event notify thread startup finished after %u iteractions\r\n", n);
 
-  not_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  not_sock = zsock_new (ZMQ_PUSH);
   assert (not_sock);
-  zsocket_connect (not_sock, NOTIFY_QUEUE_EP);
-
+  zsock_connect (not_sock, NOTIFY_QUEUE_EP);
 }
 
 void
 event_init (void)
 {
-  fdb_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  fdb_sock = zsock_new (ZMQ_PUSH);
   assert (fdb_sock);
-  zsocket_connect (fdb_sock, FDB_NOTIFY_EP);
+  zsock_connect (fdb_sock, FDB_NOTIFY_EP);
 }

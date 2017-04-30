@@ -6,7 +6,6 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgSecurityBreach.h>
 #include <pthread.h>
 #include <sys/prctl.h>
-#include <zcontext.h>
 #include <sec.h>
 #include <port.h>
 #include <sysdeps.h>
@@ -129,7 +128,7 @@ sec_handle_security_breach_updates (GT_U8 d, GT_U32 edata) {
 }
 
 static int
-sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
+sect_event_handler (zloop_t *loop, zsock_t *reader, void *sect_sock) {
 
   zmsg_t *msg = zmsg_recv (sect_sock);
   zframe_t *frame = zmsg_first (msg);
@@ -195,7 +194,7 @@ sect_event_handler (zloop_t *loop, zmq_pollitem_t *pi, void *sect_sock) {
 }
 
 static int
-sect_delay_timer (zloop_t *loop, zmq_pollitem_t *pi, void *p) {
+sect_delay_timer (zloop_t *loop, int timer_id, void *p) {
 
   monotimemsec_t ts = time_monotonic();
   unsigned pid;
@@ -222,12 +221,11 @@ sect_thread (void *_)
   loop = zloop_new ();
   assert (loop);
 
-  sect_sock = zsocket_new (zcontext, ZMQ_PULL);
+  sect_sock = zsock_new (ZMQ_PULL);
   assert (sect_sock);
-  zsocket_bind (sect_sock, SEC_EVENT_NOTIFY_EP);
+  zsock_bind (sect_sock, SEC_EVENT_NOTIFY_EP);
 
-  zmq_pollitem_t sect_pi = { sect_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &sect_pi, sect_event_handler, sect_sock);
+  zloop_reader (loop, sect_sock, sect_event_handler, sect_sock);
   zloop_timer (loop, 1000, 0, sect_delay_timer, NULL);
 
   prctl(PR_SET_NAME, "sec-breach", 0, 0, 0);
@@ -241,9 +239,9 @@ sect_thread (void *_)
 
 enum status
 sec_init(void) {
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
-  zsocket_bind (pub_sock, SEC_PUBSUB_EP);
+  zsock_bind (pub_sock, SEC_PUBSUB_EP);
   return ST_OK;
 }
 
@@ -275,9 +273,9 @@ sec_start(void) {
   }
   DEBUG ("security event handler startup finished after %u iteractions\r\n", n);
 
-  sec_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  sec_sock = zsock_new (ZMQ_PUSH);
   assert (sec_sock);
-  zsocket_connect (sec_sock, SEC_EVENT_NOTIFY_EP);
+  zsock_connect (sec_sock, SEC_EVENT_NOTIFY_EP);
 
   return ST_OK;
 }

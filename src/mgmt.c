@@ -16,7 +16,6 @@
 #include <control.h>
 #include <vlan.h>
 #include <stack.h>
-#include <zcontext.h>
 #include <dev.h>
 #include <debug.h>
 #include <log.h>
@@ -125,13 +124,12 @@ mgmt_thread (void *unused)
   struct msghdr msg;
   struct iovec iov;
 
-  assert (zcontext);
-  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
+  inp_sock = zsock_new (ZMQ_REQ);
   if (!inp_sock) {
     ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
     exit (1);
   }
-  zsocket_connect (inp_sock, INP_SOCK_EP);
+  zsock_connect (inp_sock, INP_SOCK_EP);
 
   iov.iov_base = buf;
   iov.iov_len = NLMSG_SPACE (MAX_PAYLOAD);

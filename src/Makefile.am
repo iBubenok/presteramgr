@@ -22,7 +22,6 @@ presteramgr_SOURCES =	\
 	pdsa.c				\
 	wnct.c				\
 	log.c				\
-	zcontext.c			\
 	mcg.c				\
 	ip.c				\
 	route.c				\

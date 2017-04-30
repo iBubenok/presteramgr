@@ -118,5 +118,6 @@ main (int argc, char **argv)
 
   close (fd);
 
+  fprintf(stderr, "%s: done\n", argv[0]);
   return 0;
 }
