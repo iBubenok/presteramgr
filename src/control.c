@@ -76,7 +76,9 @@ forwarder_thread (void *dummy)
   prctl(PR_SET_NAME, "ctl-forwarder", 0, 0, 0);
 
   DEBUG ("start forwarder device");
-  zmq_device (ZMQ_FORWARDER, inp_sub_sock, pub_sock);
+  zmq_proxy (zsock_resolve(inp_sub_sock),
+             zsock_resolve(pub_sock),
+             NULL);
 
   return NULL;
 }
