@@ -145,28 +145,36 @@ control_init (void)
 
   evt_sock = zsock_new (ZMQ_SUB);
   assert (evt_sock);
+  zsock_set_subscribe(evt_sock, "");
   rc = zsock_connect (evt_sock, EVENT_PUBSUB_EP);
   assert (rc == 0);
 
   sec_sock = zsock_new (ZMQ_SUB);
   assert (sec_sock);
-  zsock_connect (sec_sock, SEC_PUBSUB_EP);
+  zsock_set_subscribe(sec_sock, "");
+  rc = zsock_connect (sec_sock, SEC_PUBSUB_EP);
+  assert (rc == 0);
 
   rtbd_sock = zsock_new (ZMQ_PULL);
   assert (rtbd_sock);
-  zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  assert (rc == 0);
 
   arpd_sock = zsock_new (ZMQ_PULL);
   assert (arpd_sock);
-  zsock_bind (arpd_sock, ARPD_NOTIFY_EP);
+  rc = zsock_bind (arpd_sock, ARPD_NOTIFY_EP);
+  assert (rc == 0);
 
   fdb_sock = zsock_new (ZMQ_SUB);
   assert (fdb_sock);
-  zsock_connect (sec_sock, FDB_PUBSUB_EP);
+  zsock_set_subscribe(fdb_sock, "");
+  rc = zsock_connect (fdb_sock, FDB_PUBSUB_EP);
+  assert (rc == 0);
 
   evtntf_sock = zsock_new (ZMQ_PUSH);
   assert (evtntf_sock);
   rc = zsock_connect (evtntf_sock, NOTIFY_QUEUE_EP);
+  assert (rc == 0);
 
   return 0;
 }
