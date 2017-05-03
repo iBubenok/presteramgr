@@ -63,7 +63,6 @@ static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
 
-
 static void *
 forwarder_thread (void *dummy)
 {
@@ -72,6 +71,7 @@ forwarder_thread (void *dummy)
   inp_sub_sock = zsock_new (ZMQ_SUB);
   assert (inp_sub_sock);
   zsock_connect (inp_sub_sock, INP_PUB_SOCK_EP);
+  zsock_set_subscribe (inp_sub_sock, "");
 
   prctl(PR_SET_NAME, "ctl-forwarder", 0, 0, 0);
 
@@ -79,6 +79,7 @@ forwarder_thread (void *dummy)
   zmq_proxy (zsock_resolve(inp_sub_sock),
              zsock_resolve(pub_sock),
              NULL);
+
 
   return NULL;
 }
@@ -109,43 +110,43 @@ control_init (void)
   pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
   rc = zsock_bind (pub_sock, PUB_SOCK_EP);
+  assert (rc == 0);
 
   pkt_sock = zsock_new (ZMQ_REP);
   assert (pkt_sock);
   zsock_bind (pkt_sock, PKT_SOCK_EP);
+  assert (rc == 0);
 
-  uint64_t hwm=250;
+  uint64_t hwm = 250;
+
   pub_arp_sock = zsock_new (ZMQ_PUB);
   assert (pub_arp_sock);
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
+  assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
   assert (pub_dhcp_sock);
-
   zsock_set_sndhwm(pub_dhcp_sock, hwm);
   zsock_set_rcvhwm(pub_dhcp_sock, hwm);
-
   rc = zsock_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
+  assert (rc == 0);
 
   pub_stack_sock = zsock_new (ZMQ_PUB);
   assert (pub_stack_sock);
-
   rc = zsock_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
-  assert(rc==0);
+  assert (rc == 0);
 
   inp_pub_sock = zsock_new (ZMQ_PUB);
   assert (inp_pub_sock);
   rc = zsock_bind (inp_pub_sock, INP_PUB_SOCK_EP);
+  assert (rc == 0);
 
   pthread_create (&tid, NULL, forwarder_thread, NULL);
-/*
-  inp_sock = zsock_new (ZMQ_REP);
-  assert (inp_sock);
-  rc = zsock_bind (inp_sock, INP_SOCK_EP);
-*/
+
   evt_sock = zsock_new (ZMQ_SUB);
   assert (evt_sock);
   rc = zsock_connect (evt_sock, EVENT_PUBSUB_EP);
+  assert (rc == 0);
 
   sec_sock = zsock_new (ZMQ_SUB);
   assert (sec_sock);
