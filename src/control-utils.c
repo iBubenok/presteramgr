@@ -8,7 +8,7 @@
 
 
 int
-control_handler (zloop_t *loop, zmq_pollitem_t *pi, void *handler_data)
+control_handler (zloop_t *loop, zsock_t *reader, void *handler_data)
 {
   zmsg_t *msg;
   command_t cmd;

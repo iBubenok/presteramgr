@@ -18,7 +18,6 @@
 #include <dev.h>
 #include <mac.h>
 #include <sec.h>
-#include <zcontext.h>
 #include <dgasp.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
@@ -520,9 +519,9 @@ phy_polling_thread(void *numports) {
 
   prctl(PR_SET_NAME, "PHY-poller", 0, 0, 0);
 
-  not_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  not_sock = zsock_new (ZMQ_PUSH);
   assert (not_sock);
-  zsocket_connect (not_sock, NOTIFY_QUEUE_EP);
+  zsock_connect (not_sock, NOTIFY_QUEUE_EP);
 
   DEBUG ("PHY polling thread startup done\r\n");
   phy_thread_started = 1;

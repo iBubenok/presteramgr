@@ -103,7 +103,7 @@ struct handler_data {
   int nhandlers;
 };
 
-extern int control_handler (zloop_t *, zmq_pollitem_t *, void *);
+extern int control_handler (zloop_t *, zsock_t *, void *);
 
 
 #endif /* __CONTROL_UTILS_H__ */

@@ -9,7 +9,6 @@
 #include <stack.h>
 #include <stackd.h>
 #include <control.h>
-#include <zcontext.h>
 #include <vif.h>
 #include <trunk.h>
 #include <port.h>
@@ -1369,7 +1368,7 @@ fdb_upd_for_dev (int d)
 }
 
 static int
-fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
+fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 {
   zmsg_t *msg = zmsg_recv (not_sock);
   zframe_t *frame = zmsg_first (msg);
@@ -1382,7 +1381,7 @@ fdb_evt_handler (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 }
 
 static int
-fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
+fdb_upd_timer (zloop_t *loop, int timer_id, void *not_sock)
 {
   int d;
 
@@ -1394,7 +1393,7 @@ fdb_upd_timer (zloop_t *loop, zmq_pollitem_t *pi, void *not_sock)
 
 
 static enum status
-fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
+fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
 {
   zmsg_t *msg = zmsg_recv (ctl_sock);
   zframe_t *frame = zmsg_first (msg);
@@ -1502,9 +1501,9 @@ fdb_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock)
 }
 
 static int
-fdb_ctl_shandler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock) {
+fdb_ctl_shandler (zloop_t *loop, zsock_t *reader, void *ctl_sock) {
 
-  enum status status = fdb_ctl_handler (loop, pi, ctl_sock);
+  enum status status = fdb_ctl_handler (loop, reader, ctl_sock);
   zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &status, sizeof (status));
   zmsg_send (&msg, ctl_sock);
@@ -1512,9 +1511,9 @@ fdb_ctl_shandler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock) {
 }
 
 static int
-fdb_ctl_ahandler (zloop_t *loop, zmq_pollitem_t *pi, void *ctl_sock) {
+fdb_ctl_ahandler (zloop_t *loop, zsock_t *reader, void *ctl_sock) {
 
-  fdb_ctl_handler (loop, pi, ctl_sock);
+  fdb_ctl_handler (loop, reader, ctl_sock);
   return 0;
 }
 
@@ -2389,8 +2388,8 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 }
 
 static int
-fdbcomm_ctl_handler (zloop_t *loop, zmq_pollitem_t *pi, struct fdbcomm_thrd *a) {
-
+fdbcomm_ctl_handler (zloop_t *loop, zsock_t *reader, void *arg) {
+  struct fdbcomm_thrd *a = (struct fdbcomm_thrd *) arg;
   zmsg_t *msg = zmsg_recv (a->tipc_ctl_sock);
   zframe_t *aframe = zmsg_first (msg);
   if (!aframe)
@@ -2458,7 +2457,6 @@ static void *
 fdbcomm_thread (void *z)
 {
   static struct fdbcomm_thrd ft;
-  zctx_t *zcontext = (zctx_t *) z;
 
   ft.loop = zloop_new();
   assert(ft.loop);
@@ -2468,28 +2466,45 @@ fdbcomm_thread (void *z)
 
   DEBUG ("starting up FDB communicator\r\n");
 
-//  ft.fdb_ctl_sock = zsocket_new (zcontext, ZMQ_REQ);
-  ft.fdb_ctl_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  DEBUG("create FDB control PUSH socket\r\n");
+  ft.fdb_ctl_sock = zsock_new (ZMQ_PUSH);
+  DEBUG("zsock_new done\r\n");
   assert (ft.fdb_ctl_sock);
-//  rc=zsocket_connect (ft.fdb_ctl_sock, FDB_CONTROL_EP);
-  rc=zsocket_connect (ft.fdb_ctl_sock, FDB_ACONTROL_EP);
 
-  ft.tipc_ctl_sock = zsocket_new (zcontext, ZMQ_SUB);
+  DEBUG("connect to %s\r\n", FDB_ACONTROL_EP);
+  rc=zsock_connect (ft.fdb_ctl_sock, FDB_ACONTROL_EP);
+  DEBUG("connect done\r\n");
+
+  DEBUG("create FDB tipc control SUB socket\r\n");
+  ft.tipc_ctl_sock = zsock_new (ZMQ_SUB);
+  DEBUG("create done\r\n");
   assert (ft.tipc_ctl_sock);
-  rc=zmq_setsockopt (ft.tipc_ctl_sock, ZMQ_SUBSCRIBE, NULL, 0);
 
-  rc=zsocket_connect (ft.tipc_ctl_sock, TIPC_POST_EP);
+  DEBUG("set socket subscribe\r\n");
+  zsock_set_subscribe(ft.tipc_ctl_sock, "");
+  DEBUG("set socket subscribe done\r\n");
+
+  DEBUG("connect to %s\r\n", TIPC_POST_EP);
+  rc=zsock_connect (ft.tipc_ctl_sock, TIPC_POST_EP);
+  DEBUG("connect done\r\n");
 
   zmq_pollitem_t pitp = {NULL, ft.fdb_sock, ZMQ_POLLIN};
+
+  DEBUG("create poller for fdb_sock\r\n");
   zloop_poller(ft.loop, &pitp, zfn (fdbcomm_tipc_handler), &ft);
+  DEBUG("create poller for fdb_sock done\r\n");
 
-  zmq_pollitem_t pit = { ft.tipc_ctl_sock, 0, ZMQ_POLLIN };
-  rc=zloop_poller(ft.loop, &pit, zfn (fdbcomm_ctl_handler), &ft);
+  DEBUG("create poller for tipc_ctl_sock\r\n");
+  rc=zloop_reader(ft.loop, ft.tipc_ctl_sock, fdbcomm_ctl_handler, &ft);
+  DEBUG("create poller for tipc_ctl_sock done\r\n");
 
+  DEBUG("do prctl\r\n");
   prctl(PR_SET_NAME, "fdb-comm", 0, 0, 0);
+  DEBUG("prctl done");
 
   DEBUG ("FDB communicator startup done\r\n");
   fdbcomm_thread_started = 1;
+
   zloop_start(ft.loop);
 
   return NULL;
@@ -2508,43 +2523,40 @@ fdb_thread (void *_)
   loop = zloop_new ();
   assert (loop);
 
-  not_sock = zsocket_new (zcontext, ZMQ_PULL);
+  not_sock = zsock_new (ZMQ_PULL);
   assert (not_sock);
-  zsocket_bind (not_sock, FDB_NOTIFY_EP);
+  zsock_bind (not_sock, FDB_NOTIFY_EP);
 
-  zmq_pollitem_t not_pi = { not_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &not_pi, fdb_evt_handler, not_sock);
+  zloop_reader (loop, not_sock, fdb_evt_handler, not_sock);
   zloop_timer (loop, 1000, 0, fdb_upd_timer, not_sock);
 
-  tctl_sock = zsocket_new (zcontext, ZMQ_REP);
+  tctl_sock = zsock_new (ZMQ_REP);
   assert (tctl_sock);
-  zsocket_bind (tctl_sock, FDB_CONTROL_EP);
+  zsock_bind (tctl_sock, FDB_CONTROL_EP);
 
-  tctl_asock = zsocket_new (zcontext, ZMQ_PULL);
+  tctl_asock = zsock_new (ZMQ_PULL);
   assert (tctl_asock);
-  zsocket_bind (tctl_asock, FDB_ACONTROL_EP);
+  zsock_bind (tctl_asock, FDB_ACONTROL_EP);
 
-  zmq_pollitem_t ctl_pi = { tctl_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &ctl_pi, fdb_ctl_shandler, tctl_sock);
+  zloop_reader (loop, tctl_sock, fdb_ctl_shandler, tctl_sock);
 
-  zmq_pollitem_t actl_pi = { tctl_asock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &actl_pi, fdb_ctl_ahandler, tctl_asock);
+  zloop_reader (loop, tctl_asock, fdb_ctl_ahandler, tctl_asock);
 
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
+  pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
-  zsocket_bind (pub_sock, FDB_PUBSUB_EP);
+  zsock_bind (pub_sock, FDB_PUBSUB_EP);
 
-  scmd_sock = zsocket_new (zcontext, ZMQ_REQ);
+  scmd_sock = zsock_new (ZMQ_REQ);
   assert (scmd_sock);
-  int rc = zsocket_connect (scmd_sock, INP_SOCK_EP);
+  int rc = zsock_connect (scmd_sock, INP_SOCK_EP);
 
-  acmd_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  acmd_sock = zsock_new (ZMQ_PUSH);
   assert (acmd_sock);
-  rc = zsocket_connect (acmd_sock, STACK_CMD_SOCK_EP);
+  rc = zsock_connect (acmd_sock, STACK_CMD_SOCK_EP);
 
-  evt_sock = zsocket_new (zcontext, ZMQ_PUSH);
+  evt_sock = zsock_new (ZMQ_PUSH);
   assert (evt_sock);
-  rc = zsocket_connect (evt_sock, NOTIFY_QUEUE_EP);
+  rc = zsock_connect (evt_sock, NOTIFY_QUEUE_EP);
 
   prctl(PR_SET_NAME, "fdb", 0, 0, 0);
 
@@ -2615,23 +2627,23 @@ mac_start (void)
   }
   DEBUG ("FDB startup finished after %d iterations\r\n", n);
 
-  gctl_sock = zsocket_new (zcontext, ZMQ_REQ);
+  gctl_sock = zsock_new (ZMQ_REQ);
   assert (gctl_sock);
-  zsocket_connect (gctl_sock, FDB_CONTROL_EP);
+  zsock_connect (gctl_sock, FDB_CONTROL_EP);
 
-  gctl_asock = zsocket_new (zcontext, ZMQ_PUSH);
+  gctl_asock = zsock_new (ZMQ_PUSH);
   assert (gctl_asock);
-  zsocket_connect (gctl_asock, FDB_ACONTROL_EP);
+  zsock_connect (gctl_asock, FDB_ACONTROL_EP);
 
-  gctl2_sock = zsocket_new (zcontext, ZMQ_REQ);
+  gctl2_sock = zsock_new (ZMQ_REQ);
   assert (gctl2_sock);
-  zsocket_connect (gctl2_sock, FDB_CONTROL_EP);
+  zsock_connect (gctl2_sock, FDB_CONTROL_EP);
 
-  fdbcomm_ctl_sock = zsocket_new (zcontext, ZMQ_PUB);
+  fdbcomm_ctl_sock = zsock_new (ZMQ_PUB);
   assert (fdbcomm_ctl_sock);
-  zsocket_bind (fdbcomm_ctl_sock, TIPC_POST_EP);
+  zsock_bind (fdbcomm_ctl_sock, TIPC_POST_EP);
 
-  pthread_create (&tidcomm, NULL, fdbcomm_thread, zcontext);
+  pthread_create (&tidcomm, NULL, fdbcomm_thread, NULL);
   DEBUG ("waiting for FDB communicator startup\r\n");
   n = 0;
   while (!fdbcomm_thread_started) {
@@ -2640,9 +2652,9 @@ mac_start (void)
   }
   DEBUG ("FDB communicator startup finished after %d iterations\r\n", n);
 
-  gctl_sock = zsocket_new (zcontext, ZMQ_REQ);
+  gctl_sock = zsock_new (ZMQ_REQ);
   assert (gctl_sock);
-  zsocket_connect (gctl_sock, FDB_CONTROL_EP);
+  zsock_connect (gctl_sock, FDB_CONTROL_EP);
 
   fdb_flush (&fa);
 

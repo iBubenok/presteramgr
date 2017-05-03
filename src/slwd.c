@@ -12,7 +12,6 @@
 #include <log.h>
 #include <utils.h>
 
-zctx_t *zctx;
 void *ntf_sock;
 int stack_id = 0;
 int tfd;
@@ -29,10 +28,8 @@ struct link {
 static void
 ntf_init (void)
 {
-  zctx = zctx_new ();
-
-  ntf_sock = zsocket_new (zctx, ZMQ_PUSH);
-  zsocket_bind (ntf_sock, SLWD_NTF_SOCK_EP);
+  ntf_sock = zsock_new (ZMQ_PUSH);
+  zsock_bind (ntf_sock, SLWD_NTF_SOCK_EP);
 }
 
 static void

@@ -90,7 +90,6 @@
 #include <sec.h>
 #include <wnct.h>
 #include <ip.h>
-#include <zcontext.h>
 #include <route.h>
 #include <qt2025-phy.h>
 #include <monitor.h>
@@ -708,6 +707,8 @@ do_reset (void)
 
     sleep (1);
   }
+
+  DEBUG ("*** reset done\r\n");
 }
 
 static GT_STATUS
@@ -826,12 +827,14 @@ cpss_start (void)
   INFO ("init environment");
   env_init ();
 
-  INFO ("init ZMQ context\n");
-  zcontext_init ();
-
   if (osWrapperOpen (NULL) != GT_OK) {
     ALERT ("osWrapper initialization failure!\n");
     return;
+  }
+
+  if (just_reset) {
+    init_cpss ();
+    exit (EXIT_SUCCESS);
   }
 
   event_start_notify_thread();
@@ -839,9 +842,6 @@ cpss_start (void)
   control_pre_mac_init();
 
   init_cpss ();
-  if (just_reset) {
-    exit (EXIT_SUCCESS);
-  }
 
   event_init ();
 
@@ -855,7 +855,7 @@ cpss_start (void)
   mgmt_init ();
 
   INFO ("start tipc interface\n");
-  tipc_start (zcontext);
+  tipc_start ();
 
   INFO ("start control interface\n");
   control_start ();
