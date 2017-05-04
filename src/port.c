@@ -207,6 +207,23 @@ port_init (void)
   DECLARE_PORT_MAP (pmap);
   int i, d, p;
 
+#if defined (VARIANT_ARLAN_3448GE)
+  if (env_hw_subtype () == HWST_ARLAN_3250GE_FSR ||
+      env_hw_subtype () == HWST_ARLAN_3250GE_SR  ||
+      env_hw_subtype () == HWST_ARLAN_3250GE_USR) {
+    for (i = 0; i < 48; i += 2) {
+      int p1 = i, p2 = i + 1, td, tp;
+
+      td = pmap[p1].dev;
+      tp = pmap[p1].port;
+      pmap[p1].dev = pmap[p2].dev;
+      pmap[p1].port = pmap[p2].port;
+      pmap[p2].dev = td;
+      pmap[p2].port = tp;
+    }
+  }
+#endif /* VARIANT_ARLAN_3448GE */
+
   memset (dev_ports, 0, sizeof (dev_ports));
 
 //  ports = calloc (NPORTS, sizeof (struct port));
@@ -229,7 +246,30 @@ DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].id = i + 1;
 
 #if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
-    ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+    switch (env_hw_subtype ()) {
+    case HWST_ARLAN_3250GE_FSR:
+      ports[i].type = PTYPE_FIBER;
+      break;
+
+    case HWST_ARLAN_3250GE_SR:
+      if (ports[i].id == 47 || ports[i].id == 48)
+        ports[i].type = PTYPE_COMBO;
+      else if (ports[i].id > 48)
+        ports[i].type = PTYPE_FIBER;
+      else
+        ports[i].type = PTYPE_COPPER;
+      break;
+
+    case HWST_ARLAN_3250GE_USR:
+      if (ports[i].id > 24)
+        ports[i].type = PTYPE_FIBER;
+      else
+        ports[i].type = PTYPE_COPPER;
+      break;
+
+    default:
+      ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+    }
 #elif defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
     if (ports[i].id == 49 || ports[i].id == 50) {
       ports[i].type = PTYPE_FIBER;
@@ -2247,6 +2287,15 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
         return GT_BAD_PARAM;
       }
     break;
+
+    case HWST_ARLAN_3250GE_FSR:
+      if (pid > 48)
+        return GT_BAD_PARAM;
+      break;
+
+    case HWST_ARLAN_3250GE_SR:
+      return GT_BAD_PARAM;
+      break;
 
     default:
       if (pid == 23 || pid == 24) {
