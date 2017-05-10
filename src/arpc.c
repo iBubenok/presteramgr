@@ -12,7 +12,6 @@
 #include <control-proto.h>
 #include <stack.h>
 #include <mac.h>
-#include <zcontext.h>
 #include <debug.h>
 #include <utils.h>
 
@@ -35,8 +34,8 @@ arpc_start (void)
 void
 arpc_connect (void) {
 
-  arpd_sock = zsocket_new (zcontext, ZMQ_PUSH);
-  zsocket_connect (arpd_sock, ARPD_COMMAND_EP);
+  arpd_sock = zsock_new (ZMQ_PUSH);
+  zsock_connect (arpd_sock, ARPD_COMMAND_EP);
   arpc_sock_ready = 1;
 }
 

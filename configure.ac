@@ -83,7 +83,7 @@ AC_DEFINE([_GNU_SOURCE], [1], [for TEMP_FAILURE_RETRY() etc.])
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])
-AC_CHECK_LIB([czmq], [zctx_new], , [AC_MSG_ERROR([no zctx_new() in -lczmq])])
+AC_CHECK_LIB([czmq], [zsock_new], , [AC_MSG_ERROR([no zsock_new() in -lczmq])])
 AC_CHECK_LIB([nl-3], [nl_send_sync], , [AC_MSG_ERROR([no nl_send_sync() in -lnl-3])])
 AC_CHECK_LIB([nl-genl-3], [genl_connect], , [AC_MSG_ERROR([no genl_connect() in -lnl-genl-3])])
 
