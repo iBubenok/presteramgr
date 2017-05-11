@@ -206,23 +206,6 @@ port_init (void)
   DECLARE_PORT_MAP (pmap);
   int i, d, p;
 
-#if defined (VARIANT_ARLAN_3448GE)
-  if (env_hw_subtype () == HWST_ARLAN_3250GE_FSR ||
-      env_hw_subtype () == HWST_ARLAN_3250GE_SR  ||
-      env_hw_subtype () == HWST_ARLAN_3250GE_USR) {
-    for (i = 0; i < 48; i += 2) {
-      int p1 = i, p2 = i + 1, td, tp;
-
-      td = pmap[p1].dev;
-      tp = pmap[p1].port;
-      pmap[p1].dev = pmap[p2].dev;
-      pmap[p1].port = pmap[p2].port;
-      pmap[p2].dev = td;
-      pmap[p2].port = tp;
-    }
-  }
-#endif /* VARIANT_ARLAN_3448GE */
-
   memset (dev_ports, 0, sizeof (dev_ports));
 
 //  ports = calloc (NPORTS, sizeof (struct port));
