@@ -227,7 +227,7 @@ port_init (void)
 DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3250PGE_SR)
     switch (env_hw_subtype ()) {
     case HWST_ARLAN_3250GE_FSR:
       ports[i].type = PTYPE_FIBER;
