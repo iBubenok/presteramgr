@@ -1262,7 +1262,7 @@ port_set_voice_vid (port_id_t pid, vid_t vid)
                  port->lport,
                  GT_TRUE,
                  GT_FALSE,
-                 CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E));
+                 CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E));
       if (rc != GT_OK)
         goto out;
     }
@@ -1291,7 +1291,7 @@ port_update_trunk_vlan (struct port *port, vid_t vid)
 
   mem = GT_TRUE;
   tag = GT_TRUE;
-  cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+  cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
 
   if (port->vlan_conf[vid_ix].refc) {
     /* VLAN translation source port. */
