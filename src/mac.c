@@ -1155,7 +1155,7 @@ fdb_mac_foreign_add(const struct pti_fdbr *fr) {
   CPSS_MAC_ENTRY_EXT_STC me;
 
   assert (fr->vid > 0 && fr->vid < 0xFFF
-      && ((fr->type == IFTYPE_PORT && fr->port.hwdev <= 0x1f && fr->port.hwport < NPORTS)
+      && ((fr->type == IFTYPE_PORT && fr->port.hwdev <= 0x1f && fr->port.hwport < CPSS_MAX_PORTS_NUM_CNS)
         || (fr->type == IFTYPE_TRUNK && fr->trunk.trunkId <= TRUNK_MAX && fr->trunk.trunkId > 0))
     );
 /*  if (fr->vid == 0 || fr->vid >= 0xFFF
