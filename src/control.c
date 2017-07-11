@@ -38,6 +38,7 @@
 #include <gif.h>
 #include <pcl.h>
 #include <ip.h>
+#include <dev.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -483,6 +484,7 @@ DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 DECLARE_HANDLER (CC_INT_GET_RT_CMD);
 DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
 DECLARE_HANDLER (CC_INT_VIFSTG_GET);
+DECLARE_HANDLER (CC_GET_CH_REV);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -663,7 +665,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_LOAD_BALANCE_MODE),
   HANDLER (CC_INT_GET_RT_CMD),
   HANDLER (CC_INT_GET_UDADDRS_CMD),
-  HANDLER (CC_INT_VIFSTG_GET)
+  HANDLER (CC_INT_VIFSTG_GET),
+  HANDLER (CC_GET_CH_REV)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5242,4 +5245,14 @@ DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
   reply = make_reply (result);
   zmsg_addmem (reply, &p, sizeof(void*));
   send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_GET_CH_REV)
+{
+  zmsg_t *reply;
+
+  reply = make_reply(ST_OK);
+  const char *revision = get_rev_str();
+  zmsg_addmem(reply, revision, strlen(revision));
+  send_reply(reply);
 }
