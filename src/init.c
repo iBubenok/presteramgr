@@ -155,6 +155,20 @@ pci_find_dev (struct dev_info *info)
 
   diag_pci_base_addr = (uint32_t) pci_base_addr;
 
+  uint32_t r;
+  diag_reg_read(0x0000004C, &r);
+  chip_revision[0] = r;
+  DEBUG("DEVINFO: 0x0000004C == 0x%08X\n", r);
+  diag_reg_read(0x00000050, &r);
+  chip_revision[1] = r;
+  DEBUG("DEVINFO: 0x00000050 == 0x%08X\n", r);
+  diag_reg_read(0x00000054, &r);
+  chip_revision[2] = r;
+  DEBUG("DEVINFO: 0x00000054 == 0x%08X\n", r);
+  diag_reg_read(0x0C0002B0, &r);
+  chip_revision[3] = r;
+  DEBUG("DEVINFO: 0x0C0002B0 == 0x%08X\n", r);
+
  out:
   return (rc == GT_OK) ? ST_OK : ST_HEX;
 }
@@ -816,6 +830,20 @@ init_cpss (void)
     rc = after_init (i);
     RCC (rc, after_init);
     DEBUG ("after init done\n");
+  }
+
+  for_each_dev (i) {
+    CPSS_DXCH_CFG_DEV_INFO_STC devinfo;
+    CRP (cpssDxChCfgDevInfoGet(i, &devinfo));
+    DEBUG("\nDEVINFO: devtype: %08x, revision: %hhd, devFamily: %d, maxPortNum: %d, numOfVirtPorts: %d, exPortsBMP: %08x:%08x\n",
+        devinfo.genDevInfo.devType,
+        devinfo.genDevInfo.revision,
+        devinfo.genDevInfo.devFamily,
+        devinfo.genDevInfo.maxPortNum,
+        devinfo.genDevInfo.numOfVirtPorts,
+        devinfo.genDevInfo.existingPorts.ports[0],
+        devinfo.genDevInfo.existingPorts.ports[1]
+        );
   }
 
   return GT_OK;
