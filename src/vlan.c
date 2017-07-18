@@ -8,6 +8,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgMc.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 
 #include <sysdeps.h>
 #include <presteramgr.h>
@@ -311,6 +312,8 @@ __vlan_add (vid_t vid)
 
   switch (rc) {
   case GT_OK:
+    for_each_dev (d)
+      CRP (cpssDxChIpRouterVlanMacSaLsbSet (d, vid, route_mac_lsb));
     vlans[vid - 1].state = VS_ACTIVE;
     return ST_OK;
   case GT_HW_ERROR:
@@ -479,6 +482,15 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   memcpy (vlan->c_mac_addr, addr, 6);
   mac_op_own (vlan->vid, vlan->c_mac_addr, 1);
   vlan->mac_addr_set = 1;
+}
+
+void
+vlan_set_mac_lsb (void) {
+  int i, d;
+  for (i = 0; i < NVLANS; i++)
+    if (vlans[i].state != VS_DELETED)
+      for_each_dev (d)
+        CRP(cpssDxChIpRouterVlanMacSaLsbSet( d, vlans[i].vid, route_mac_lsb));
 }
 
 enum status

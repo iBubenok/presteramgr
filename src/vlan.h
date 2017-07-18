@@ -69,6 +69,7 @@ extern enum status vlan_set_remote_span (vid_t, int);
 extern enum status vlan_set_fdb_map (const stp_id_t *);
 extern enum status vlan_set_stp_id (vid_t, stp_id_t);
 extern enum status vlan_get_mac_addr (vid_t, mac_addr_t);
+extern void vlan_set_mac_lsb (void);
 extern enum status vlan_get_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_set_ip_addr (vid_t, ip_addr_t);
 extern enum status vlan_del_ip_addr (vid_t);

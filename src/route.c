@@ -50,6 +50,7 @@ struct pfxs_by_gw {
 };
 static struct pfxs_by_gw *pfxs_by_gw;
 
+uint8_t route_mac_lsb;
 
 static GT_STATUS
 cpss_lib_init (void)
@@ -172,9 +173,14 @@ route_set_router_mac_addr (mac_addr_t addr)
   GT_ETHERADDR ra;
   int d;
 
-  memcpy (ra.arEther, addr, sizeof (addr));
-  for_each_dev (d)
+  route_mac_lsb = addr[5];
+//  memcpy (ra.arEther, addr, sizeof (addr));  XXX to check other same applications
+  memcpy (ra.arEther, addr, 6);
+  for_each_dev (d) {
     CRP (cpssDxChIpRouterMacSaBaseSet (d, &ra));
+    vlan_set_mac_lsb();
+  }
+
 
   return ST_OK;
 }

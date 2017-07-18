@@ -425,9 +425,12 @@ DECLARE_HANDLER (CC_STACK_SET_DEV_MAP);
 DECLARE_HANDLER (CC_DIAG_REG_READ);
 DECLARE_HANDLER (CC_DIAG_BDC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BDC_READ);
+DECLARE_HANDLER (CC_DIAG_IPDC_SET_MODE);
+DECLARE_HANDLER (CC_DIAG_IPDC_READ);
 DECLARE_HANDLER (CC_DIAG_BIC_SET_MODE);
 DECLARE_HANDLER (CC_DIAG_BIC_READ);
 DECLARE_HANDLER (CC_DIAG_DESC_READ);
+DECLARE_HANDLER (CC_DIAG_READ_RET_CNT);
 DECLARE_HANDLER (CC_BC_LINK_STATE);
 DECLARE_HANDLER (CC_STACK_TXEN);
 DECLARE_HANDLER (CC_PORT_SET_VOICE_VLAN);
@@ -606,9 +609,12 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_REG_READ),
   HANDLER (CC_DIAG_BDC_SET_MODE),
   HANDLER (CC_DIAG_BDC_READ),
+  HANDLER (CC_DIAG_IPDC_SET_MODE),
+  HANDLER (CC_DIAG_IPDC_READ),
   HANDLER (CC_DIAG_BIC_SET_MODE),
   HANDLER (CC_DIAG_BIC_READ),
   HANDLER (CC_DIAG_DESC_READ),
+  HANDLER (CC_DIAG_READ_RET_CNT),
   HANDLER (CC_BC_LINK_STATE),
   HANDLER (CC_STACK_TXEN),
   HANDLER (CC_PORT_SET_VOICE_VLAN),
@@ -3249,7 +3255,8 @@ DEFINE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR)
   mac_addr_t addr;
   enum status result;
 
-  result = POP_ARG (&addr);
+//  result = POP_ARG (&addr);
+  result = pop_size (addr, __args, 6, 0);
   if (result != ST_OK)
     goto out;
 
@@ -3946,6 +3953,37 @@ DEFINE_HANDLER (CC_DIAG_BDC_READ)
   send_reply (reply);
 }
 
+DEFINE_HANDLER (CC_DIAG_IPDC_SET_MODE)
+{
+  uint8_t mode;
+  enum status result;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = diag_ipdc_set_mode (mode);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DIAG_IPDC_READ)
+{
+  uint32_t val;
+  enum status result;
+
+  result = diag_ipdc_read (&val);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &val, sizeof (val));
+  send_reply (reply);
+}
+
 DEFINE_HANDLER (CC_DIAG_BIC_SET_MODE)
 {
   uint8_t set, mode, port;
@@ -4020,6 +4058,30 @@ DEFINE_HANDLER (CC_DIAG_DESC_READ)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &valid, sizeof (valid));
   zmsg_addmem (reply, &data, sizeof (data));
+  send_reply (reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_READ_RET_CNT)
+{
+  uint8_t n, i;
+  uint32_t data[10];
+  enum status result;
+
+  result = POP_ARG (&n);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  result = diag_read_ret_cnt (n, data);
+  if (result != ST_OK) {
+    report_status (result);
+    return;
+  }
+
+  zmsg_t *reply = make_reply (ST_OK);
+  for (i = 0; i < 10; i++)
+    zmsg_addmem (reply, &data[i], sizeof (data[i]));
   send_reply (reply);
 }
 
