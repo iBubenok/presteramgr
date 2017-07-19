@@ -97,6 +97,7 @@ ret_add (const struct gw *gw, int def, struct gw *ret_key)
 //        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
         rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
         rt.entry.regularEntry.nextHopVlanId = gw->vid;
+        rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
         DEBUG ("write default route entry\r\n");
         for_each_dev (d)
           CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
@@ -193,6 +194,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id
 //    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
     rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
     rt.entry.regularEntry.nextHopVlanId = gw->vid;
+    rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
     DEBUG ("write route entry");
     for_each_dev (d)
       rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
@@ -230,6 +233,8 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id
 //  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
   rt.entry.regularEntry.nextHopARPPointer = nh_idx;
   rt.entry.regularEntry.nextHopVlanId = gw->vid;
+  rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
   DEBUG ("write route entry at %d\r\n", idx);
   for_each_dev (d)
     rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
