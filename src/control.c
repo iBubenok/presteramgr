@@ -488,6 +488,7 @@ DECLARE_HANDLER (CC_INT_GET_RT_CMD);
 DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
 DECLARE_HANDLER (CC_INT_VIFSTG_GET);
 DECLARE_HANDLER (CC_GET_CH_REV);
+DECLARE_HANDLER (CC_STACK_RESYNC_STG_2MASTER);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -672,7 +673,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INT_GET_RT_CMD),
   HANDLER (CC_INT_GET_UDADDRS_CMD),
   HANDLER (CC_INT_VIFSTG_GET),
-  HANDLER (CC_GET_CH_REV)
+  HANDLER (CC_GET_CH_REV),
+  HANDLER (CC_STACK_RESYNC_STG_2MASTER)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5316,5 +5318,16 @@ DEFINE_HANDLER (CC_GET_CH_REV)
   reply = make_reply(ST_OK);
   const char *revision = get_rev_str();
   zmsg_addmem(reply, revision, strlen(revision));
+  send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_STACK_RESYNC_STG_2MASTER)
+{
+  static uint8_t buf[sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * (NPORTS + 2) + 10];
+  vif_stg_get(buf);
+  mac_op_send_stg(buf);
+
+  zmsg_t *reply;
+  reply = make_reply(ST_OK);
   send_reply(reply);
 }
