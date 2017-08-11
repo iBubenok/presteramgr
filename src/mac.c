@@ -155,12 +155,13 @@ static void fdbman_send_msg_uni_macop(const struct mac_op_arg_vif *arg, int own,
 static void fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master);
 
 static void *fdbcomm_ctl_sock;
-static void *gctl_sock;
-static void *gctl_asock;
-static void *gctl2_sock;
+static void *gctl_sock;           /* sync socket for control thread  */
+static void *gctl_asock_control;  /* async socket for control thread */
+static void *gctl_asock_evt_phy;  /* async socket for event/phy thread */
+static void *gctl_sock_secbr;     /* sync socket for security breach thread */
 static void *scmd_sock; /* control sync cmd to be used in fdbman thread only */
 static void *acmd_sock; /* control async cmd to be used in fdbman thread only */
-static void *evt_sock; /* vif link notification */
+static void *evt_sock;  /* vif link notification */
 /** FDB sync records array to form sync message from fdb thread */
 static struct pti_fdbr fdbr[FDB_MAX_ADDRS];
 /** FDB sync records array to form sync message from main control thread */
@@ -211,8 +212,7 @@ static void fdb_mac_op_notification_send(mac_op_t type,
 }
 
 static enum status __attribute__ ((unused))
-fdb_ctl (int cmd, const void *arg, int size)
-{
+fdb_ctl_control (int cmd, const void *arg, int size) {
   zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, arg, size);
@@ -226,14 +226,13 @@ fdb_ctl (int cmd, const void *arg, int size)
 }
 
 static enum status __attribute__ ((unused))
-fdb2_ctl (int cmd, const void *arg, int size)
-{
+fdb_ctl_secbr (int cmd, const void *arg, int size) {
   zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, arg, size);
-  zmsg_send (&msg, gctl2_sock);
+  zmsg_send (&msg, gctl_sock_secbr);
 
-  msg = zmsg_recv (gctl2_sock);
+  msg = zmsg_recv (gctl_sock_secbr);
   status_t status = *((status_t *) zframe_data (zmsg_first (msg)));
   zmsg_destroy (&msg);
 
@@ -241,13 +240,23 @@ fdb2_ctl (int cmd, const void *arg, int size)
 }
 
 static enum status __attribute__ ((unused))
-fdb_actl (int cmd, const void *arg, int size)
-{
+fdb_actl_control (int cmd, const void *arg, int size) {
   zmsg_t *msg = zmsg_new ();
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, arg, size);
 
-  zmsg_send (&msg, gctl_asock);
+  zmsg_send (&msg, gctl_asock_control);
+
+  return ST_OK;
+}
+
+static enum status
+fdb_actl_evt_phy (int cmd, const void *arg, int size) {
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, arg, size);
+
+  zmsg_send (&msg, gctl_asock_evt_phy);
 
   return ST_OK;
 }
@@ -316,7 +325,7 @@ mac_mc_ip_op (const struct mc_ip_op_arg *arg)
   if (!arg->delete && !mcg_exists (arg->mcg))
     return ST_DOES_NOT_EXIST;
 
-  return fdb_actl (FCC_MC_IP_OP, arg, sizeof (*arg));
+  return fdb_actl_control (FCC_MC_IP_OP, arg, sizeof (*arg));
 }
 
 enum status
@@ -325,7 +334,7 @@ mac_op (const struct mac_op_arg *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  return fdb_actl (FCC_MAC_OP, arg, sizeof (*arg));
+  return fdb_actl_control (FCC_MAC_OP, arg, sizeof (*arg));
 }
 
 enum status
@@ -334,7 +343,7 @@ mac_op_vif (const struct mac_op_arg_vif *arg)
   if (!vlan_valid (arg->vid))
     return ST_BAD_VALUE;
 
-  return fdb_actl (FCC_MAC_OP_VIF, arg, sizeof (*arg));
+  return fdb_actl_control (FCC_MAC_OP_VIF, arg, sizeof (*arg));
 }
 
 enum status
@@ -350,7 +359,7 @@ mac_op_own (vid_t vid, mac_addr_t mac, int add)
   arg.delete = !add;
   /* Everything else is irrelevant for own MAC addr. */
 
-  return fdb_actl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
+  return fdb_actl_control (FCC_OWN_MAC_OP, &arg, sizeof (arg));
 }
 
 enum status
@@ -366,7 +375,7 @@ mac_op_own_vif (vid_t vid, mac_addr_t mac, int add)
   arg.delete = !add;
   /* Everything else is irrelevant for own MAC addr. */
 
-  return fdb_actl (FCC_OWN_MAC_OP, &arg, sizeof (arg));
+  return fdb_actl_control (FCC_OWN_MAC_OP, &arg, sizeof (arg));
 }
 
 enum status
@@ -374,12 +383,12 @@ mac_op_rt (rtbd_notif_t notif, void *msg, int len) {
   static uint8_t buf[sizeof(struct rtbd_route_msg) + sizeof(notif) + 16];
   memcpy (buf, &notif, sizeof (notif));
   memcpy (buf + sizeof(notif), msg, len);
-  return fdb_actl (FCC_FDBMAN_SEND_RT, buf, sizeof (notif) + len);
+  return fdb_actl_control (FCC_FDBMAN_SEND_RT, buf, sizeof (notif) + len);
 }
 
 enum status
 mac_op_na (struct arpd_ip_addr_msg *msg) {
-  return fdb_actl (FCC_FDBMAN_SEND_NA, msg, sizeof (*msg));
+  return fdb_actl_control (FCC_FDBMAN_SEND_NA, msg, sizeof (*msg));
 }
 
 enum status
@@ -387,24 +396,24 @@ mac_op_opna (const struct gw *gw, arpd_command_t cmd) {
   uint8_t buf[sizeof(cmd) + sizeof(*gw)];
   *(arpd_command_t*)buf = cmd;
   memcpy(buf + sizeof(cmd), gw, sizeof(*gw));
-  return fdb_actl (FCC_FDBMAN_SEND_OPNA, buf, sizeof(cmd) + sizeof(*gw));
+  return fdb_actl_control (FCC_FDBMAN_SEND_OPNA, buf, sizeof(cmd) + sizeof(*gw));
 }
 
 enum status
 mac_op_udt (uint32_t daddr) {
-  return fdb_actl (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
+  return fdb_actl_control (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
 }
 
 enum status
 mac_op_send_stg(void *buf) {
-  return fdb_actl (FCC_FDBMAN_SEND_STG, buf,
+  return fdb_actl_control (FCC_FDBMAN_SEND_STG, buf,
 //      sizeof (uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)buf);
       sizeof (struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)buf)->n);
 }
 
 enum status
 mac_op_send_vif_ls(struct vif_link_state_header *s) {
-  return fdb_actl (FCC_FDBMAN_SEND_VIF_LS, s,
+  return fdb_actl_evt_phy (FCC_FDBMAN_SEND_VIF_LS, s,
 //      sizeof (struct vif_link_state_header) + sizeof(struct vif_link_state) * ((struct vif_stgblk_header*)buf)->n);
       sizeof(*s) + s->n * sizeof(struct vif_link_state));
 }
@@ -421,7 +430,7 @@ mac_flush (const struct mac_age_arg *arg, GT_BOOL del_static)
   memcpy(&fa.aa, arg, sizeof(*arg));
   fa.ds = del_static;
 
-  return fdb_actl (FCC_FLUSH, &fa, sizeof (fa));
+  return fdb_actl_control (FCC_FLUSH, &fa, sizeof (fa));
 }
 
 enum status
@@ -431,13 +440,13 @@ mac_flush_vif (const struct mac_age_arg_vif *arg, GT_BOOL del_static)
   memcpy(&fa.aav, arg, sizeof(*arg));
   fa.ds = del_static;
 
-  return fdb_actl (FCC_FLUSH_VIF, &fa, sizeof (fa));
+  return fdb_actl_control (FCC_FLUSH_VIF, &fa, sizeof (fa));
 }
 
 enum status
 mac2_query (struct fdb_entry *arg)
 {
-  return fdb2_ctl (FCC_QUERY, &arg, sizeof (arg));
+  return fdb_ctl_secbr (FCC_QUERY, &arg, sizeof (arg));
 }
 
 enum status
@@ -466,7 +475,7 @@ mac_set_master (uint8_t stid, serial_t serial, devsbmp_t dbmp) {
   *((typeof(serial)*)(&buf[sizeof(stid)])) = serial;
   *((typeof(dbmp)*)(&buf[sizeof(stid) + sizeof(serial)])) = dbmp;
 
-  return fdb_actl (FCC_SET_MASTER, buf, sizeof (stid) + sizeof(serial) + sizeof(dbmp));
+  return fdb_actl_control (FCC_SET_MASTER, buf, sizeof (stid) + sizeof(serial) + sizeof(dbmp));
 }
 
 
@@ -2631,13 +2640,17 @@ mac_start (void)
   assert (gctl_sock);
   zsock_connect (gctl_sock, FDB_CONTROL_EP);
 
-  gctl_asock = zsock_new (ZMQ_PUSH);
-  assert (gctl_asock);
-  zsock_connect (gctl_asock, FDB_ACONTROL_EP);
+  gctl_asock_control = zsock_new (ZMQ_PUSH);
+  assert (gctl_asock_control);
+  zsock_connect (gctl_asock_control, FDB_ACONTROL_EP);
 
-  gctl2_sock = zsock_new (ZMQ_REQ);
-  assert (gctl2_sock);
-  zsock_connect (gctl2_sock, FDB_CONTROL_EP);
+  gctl_asock_evt_phy = zsock_new (ZMQ_PUSH);
+  assert (gctl_asock_evt_phy);
+  zsock_connect (gctl_asock_evt_phy, FDB_ACONTROL_EP);
+
+  gctl_sock_secbr = zsock_new (ZMQ_REQ);
+  assert (gctl_sock_secbr);
+  zsock_connect (gctl_sock_secbr, FDB_CONTROL_EP);
 
   fdbcomm_ctl_sock = zsock_new (ZMQ_PUB);
   assert (fdbcomm_ctl_sock);
@@ -2671,10 +2684,10 @@ mac_start (void)
     mo.port = stack_pri_port->id;
     mo.type = MET_STATIC;
     memcpy(mo.mac, mac_pri, 6);
-    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+    fdb_ctl_control (FCC_MAC_OP, &mo, sizeof (mo));
     mo.port = stack_sec_port->id;
     memcpy(mo.mac, mac_sec, 6);
-    fdb_ctl (FCC_MAC_OP, &mo, sizeof (mo));
+    fdb_ctl_control (FCC_MAC_OP, &mo, sizeof (mo));
   }
   return ST_OK;
 }
