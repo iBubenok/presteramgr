@@ -5252,7 +5252,16 @@ DEFINE_HANDLER (CC_GET_CH_REV)
   zmsg_t *reply;
 
   reply = make_reply(ST_OK);
-  const char *revision = get_rev_str();
-  zmsg_addmem(reply, revision, strlen(revision));
+
+  int d;
+  uint8_t ndevs = NDEVS;
+
+  zmsg_addmem(reply, &ndevs, sizeof(uint8_t));
+
+  for_each_dev(d) {
+    const char *revision = get_rev_str(d);
+    zmsg_addmem(reply, revision, strlen(revision));
+  }
+
   send_reply(reply);
 }

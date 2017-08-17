@@ -446,3 +446,23 @@ sysd_hw_dev_num (int ldev)
 #endif /* VARIANT_* */
 
 struct dev_info *dev_info = __dev_info;
+
+const char* get_rev_str(int d)
+{
+  int val_0x4c = dev_info[d].chip_revision[0] & 0xf;
+  int val_0x54 = (dev_info[d].chip_revision[2] & 0xc) >> 2;
+
+  if (val_0x4c == 0x2) {
+    /* A1 */
+    return "A1";
+  } else if (val_0x4c == 0x3 && val_0x54 == 0x3) {
+    /* B0 */
+    return "B0";
+  } else if (val_0x4c == 0x3) {
+    /* A2 */
+    return "A2";
+  } else {
+    /* Unknown */
+    return "UNKNOWN";
+  }
+}
