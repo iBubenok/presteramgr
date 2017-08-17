@@ -974,9 +974,79 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     break;
 
   case CPU_CODE_CISCO_MC_TM:
-    tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
-    result = ST_OK;
-    goto out;
+    /* frame des MAC is 01:00:0C:xx:xx:xx */
+    if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCC) {
+      /* frame des MAC is 01:00:0C:CC:CC:CC */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x04) {
+        /* frame SNAP proto is 0x0104: Port Aggregation Protocol */
+        DEBUG("Cisco Port Aggregation Protocol not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x01 && frame->data[21] == 0x11) {
+        /* frame SNAP proto is 0x0111: Unidirectional Link Detection */
+        type = CN_UDLD;
+        put_vif = 1;
+        conform2stp_state = 0;
+        break;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x00) {
+        /* frame SNAP proto is 0x2000: Cisco Discovery Protocol */
+        DEBUG("Cisco Discovery Protocol not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x04) {
+        /* frame SNAP proto is 0x2004: Dynamic Trunking */
+        DEBUG("Cisco Dynamic Trunking not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x03) {
+        /* frame SNAP proto is 0x2003: VLAN Trunking */
+        DEBUG("Cisco VLAN Trunking not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CC SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCD) {
+      /* frame des MAC is 01:00:0C:CC:CC:CD */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
+        /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
+        tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        result = ST_OK;
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CD SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCE) {
+      /* frame des MAC is 01:00:0C:CC:CC:CE */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x0C) {
+        /* frame SNAP proto is 0x010C: VLAN Bridge */
+        DEBUG("Cisco VLAN Bridge not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CE SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCD && frame->data[4] == 0xCD && frame->data[5] == 0xCD) {
+      /* frame des MAC is 01:00:0C:CD:CD:CD */
+      if (frame->data[20] == 0x20 && frame->data[21] == 0x0A) {
+        /* frame SNAP proto is 0x200A: STP Uplink Fast */
+        DEBUG("Cisco STP Uplink Fast not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CD:CD:CD SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0x00 && frame->data[4] == 0x00 && frame->data[5] == 0x00) {
+      DEBUG("Cisco Inter Switch Link not supported\n");
+      goto out;
+    } else {
+      DEBUG("Cisco Multicast %02X:%02X:%02X:%02X:%02X:%02X not supported\n",
+            frame->data[0], frame->data[1], frame->data[2],
+            frame->data[3], frame->data[4], frame->data[5]);
+      goto out;
+    }
     break;
 
   case CPU_CODE_IPv4_IGMP_TM:
@@ -3067,9 +3137,79 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_CISCO_MC_TM:
-    tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
-    result = ST_OK;
-    goto out;
+    /* frame des MAC is 01:00:0C:xx:xx:xx */
+    if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCC) {
+      /* frame des MAC is 01:00:0C:CC:CC:CC */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x04) {
+        /* frame SNAP proto is 0x0104: Port Aggregation Protocol */
+        DEBUG("Cisco Port Aggregation Protocol not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x01 && frame->data[21] == 0x11) {
+        /* frame SNAP proto is 0x0111: Unidirectional Link Detection */
+        type = CN_UDLD;
+        put_vif = 1;
+        conform2stp_state = 0;
+        break;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x00) {
+        /* frame SNAP proto is 0x2000: Cisco Discovery Protocol */
+        DEBUG("Cisco Discovery Protocol not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x04) {
+        /* frame SNAP proto is 0x2004: Dynamic Trunking */
+        DEBUG("Cisco Dynamic Trunking not supported\n");
+        goto out;
+      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x03) {
+        /* frame SNAP proto is 0x2003: VLAN Trunking */
+        DEBUG("Cisco VLAN Trunking not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CC SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCD) {
+      /* frame des MAC is 01:00:0C:CC:CC:CD */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
+        /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
+        tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        result = ST_OK;
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CD SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCE) {
+      /* frame des MAC is 01:00:0C:CC:CC:CE */
+      if (frame->data[20] == 0x01 && frame->data[21] == 0x0C) {
+        /* frame SNAP proto is 0x010C: VLAN Bridge */
+        DEBUG("Cisco VLAN Bridge not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CC:CC:CE SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0xCD && frame->data[4] == 0xCD && frame->data[5] == 0xCD) {
+      /* frame des MAC is 01:00:0C:CD:CD:CD */
+      if (frame->data[20] == 0x20 && frame->data[21] == 0x0A) {
+        /* frame SNAP proto is 0x200A: STP Uplink Fast */
+        DEBUG("Cisco STP Uplink Fast not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco 01:00:0C:CD:CD:CD SNAP protocol 0x%02X%02X not supported\n",
+              frame->data[20], frame->data[21]);
+        goto out;
+      }
+    } else if (frame->data[3] == 0x00 && frame->data[4] == 0x00 && frame->data[5] == 0x00) {
+      DEBUG("Cisco Inter Switch Link not supported\n");
+      goto out;
+    } else {
+      DEBUG("Cisco Multicast %02X:%02X:%02X:%02X:%02X:%02X not supported\n",
+            frame->data[0], frame->data[1], frame->data[2],
+            frame->data[3], frame->data[4], frame->data[5]);
+      goto out;
+    }
     break;
 
   case CPU_CODE_IPv4_IGMP_TM:
