@@ -157,16 +157,16 @@ pci_find_dev (struct dev_info *info)
 
   uint32_t r;
   diag_reg_read(0x0000004C, &r);
-  chip_revision[0] = r;
+  info->chip_revision[0] = r;
   DEBUG("DEVINFO: 0x0000004C == 0x%08X\n", r);
   diag_reg_read(0x00000050, &r);
-  chip_revision[1] = r;
+  info->chip_revision[1] = r;
   DEBUG("DEVINFO: 0x00000050 == 0x%08X\n", r);
   diag_reg_read(0x00000054, &r);
-  chip_revision[2] = r;
+  info->chip_revision[2] = r;
   DEBUG("DEVINFO: 0x00000054 == 0x%08X\n", r);
   diag_reg_read(0x0C0002B0, &r);
-  chip_revision[3] = r;
+  info->chip_revision[3] = r;
   DEBUG("DEVINFO: 0x0C0002B0 == 0x%08X\n", r);
 
  out:
