@@ -31,6 +31,7 @@ extern struct fdb_entry fdb[];
 extern CPSS_MAC_UPDATE_MSG_EXT_STC fdb_addrs[FDB_MAX_ADDRS];
 extern GT_U32 fdb_naddrs;
 
+/* this funcs are designrd to be called from control thread only */
 extern enum status mac_op (const struct mac_op_arg *);
 extern enum status mac_op_vif (const struct mac_op_arg_vif *);
 extern enum status mac_op_own (vid_t, mac_addr_t, int);
@@ -39,14 +40,19 @@ extern enum status mac_op_na (struct arpd_ip_addr_msg *);
 extern enum status mac_op_opna (const struct gw *, arpd_command_t);
 extern enum status mac_op_udt (uint32_t);
 extern enum status mac_op_send_stg(void *);
-extern enum status mac_op_send_vif_ls(struct vif_link_state_header *);
 extern enum status mac_set_aging_time (aging_time_t);
 extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_flush_vif (const struct mac_age_arg_vif *, GT_BOOL);
-extern enum status mac2_query (struct fdb_entry *);
-extern enum status mac_start (void);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
 extern enum status mac_set_master (uint8_t, serial_t, devsbmp_t);
+
+/* this funcs are designrd to be called from either event either phy sensing threads only */
+extern enum status mac_op_send_vif_ls(struct vif_link_state_header *);
+
+/* this funcs are designrd to be called from security breach thread only */
+extern enum status mac2_query (struct fdb_entry *);
+
+extern enum status mac_start (void);
 
 #endif /* __MAC_H__ */
