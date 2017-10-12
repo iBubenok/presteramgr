@@ -81,9 +81,47 @@ forwarder_thread (void *dummy)
              zsock_resolve(pub_sock),
              NULL);
 
+  return NULL;
+}
+
+static void *
+event_forwarder_thread (void *dummy)
+{
+  void *event_pull_sock;
+  int rc;
+
+  event_pull_sock = zsock_new (ZMQ_PULL);
+  assert (event_pull_sock);
+  rc = zsock_bind (event_pull_sock, EVENT_SOCK_EP);
+  assert (rc == 0);
+
+  prctl(PR_SET_NAME, "event-forwarder", 0, 0, 0);
+
+  DEBUG ("start event forwarder device");
+
+  zloop_t *loop = zloop_new();
+
+  zloop_reader (loop, event_pull_sock, event_forward, NULL);
+
+  zloop_start(loop);
 
   return NULL;
 }
+
+int
+event_forward (zloop_t *loop, zsock_t *event_pull_sock, void *arg)
+{
+  int rc;
+  zmsg_t *msg = zmsg_recv (event_pull_sock);
+
+  rc = zmsg_send(&msg, pub_sock);
+  assert (rc == 0);
+
+  zmsg_destroy (&msg);
+
+  return 0;
+}
+
 
 void
 control_pre_mac_init(void) {
@@ -106,7 +144,7 @@ int
 control_init (void)
 {
   int rc;
-  pthread_t tid;
+  pthread_t tid, event_forwarder_tid;
 
   pub_sock = zsock_new (ZMQ_PUB);
   assert (pub_sock);
@@ -143,6 +181,7 @@ control_init (void)
   assert (rc == 0);
 
   pthread_create (&tid, NULL, forwarder_thread, NULL);
+  pthread_create (&event_forwarder_tid, NULL, event_forwarder_thread, NULL);
 
   evt_sock = zsock_new (ZMQ_SUB);
   assert (evt_sock);
@@ -342,6 +381,7 @@ DECLARE_HANDLER (CC_VIF_SET_FLOW_CONTROL);
 DECLARE_HANDLER (CC_PORT_GET_STATS);
 DECLARE_HANDLER (CC_PORT_CLEAR_STATS);
 DECLARE_HANDLER (CC_PORT_SET_RATE_LIMIT);
+DECLARE_HANDLER (CC_PORT_RATE_LIMIT_DROP_ENABLE);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE);
 DECLARE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE);
 DECLARE_HANDLER (CC_PORT_SET_PROTECTED);
@@ -527,6 +567,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATS),
   HANDLER (CC_PORT_CLEAR_STATS),
   HANDLER (CC_PORT_SET_RATE_LIMIT),
+  HANDLER (CC_PORT_RATE_LIMIT_DROP_ENABLE),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE),
   HANDLER (CC_PORT_SET_TRAFFIC_SHAPE_QUEUE),
   HANDLER (CC_PORT_SET_PROTECTED),
@@ -2607,6 +2648,29 @@ DEFINE_HANDLER (CC_PORT_SET_RATE_LIMIT)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PORT_RATE_LIMIT_DROP_ENABLE)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_rate_limit_drop_enable (pid, enable);
+  if (result != ST_OK)
+    goto out;
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_PORT_SET_TRAFFIC_SHAPE)
 {

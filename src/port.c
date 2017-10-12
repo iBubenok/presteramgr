@@ -3007,6 +3007,63 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
 }
 
 enum status
+port_rate_limit_drop_enable (port_id_t pid, int enable)
+{
+  struct port *port = port_ptr (pid);
+  GT_STATUS rc;
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
+  rc = CRP (cpssDxChBrgGenPortRateLimitDropCntrEnableSet
+           (port->ldev, port->lport, gt_bool(enable)));
+  switch (rc) {
+  case GT_OK:                   return ST_OK;
+  case GT_HW_ERROR:             return ST_HW_ERROR;
+  case GT_BAD_PARAM:            return ST_BAD_VALUE;
+  default:                      return ST_HEX;
+  }
+}
+
+
+enum status
+get_rate_limit_drop_counter (int dev, uint64_t *value_ptr)
+{
+  GT_STATUS rc;
+  //DEBUG ("Get Device: %i", dev);
+
+  rc = CRP (cpssDxChBrgGenRateLimitDropCntrGet
+            (dev, (GT_U64*) value_ptr));
+  switch (rc) {
+    case GT_OK:                   return ST_OK;
+    case GT_HW_ERROR:             return ST_HW_ERROR;
+    case GT_BAD_PARAM:            return ST_BAD_VALUE;
+    default:                      return ST_HEX;
+    }
+}
+
+enum status
+set_rate_limit_drop_counter (int dev, uint64_t value)
+{
+  GT_STATUS rc;
+  //DEBUG ("Set Device: %i", dev);
+
+  rc = CRP (cpssDxChBrgGenRateLimitDropCntrSet
+            (dev, * (GT_U64*) &value));
+
+  switch (rc) {
+    case GT_OK:                   return ST_OK;
+    case GT_HW_ERROR:             return ST_HW_ERROR;
+    case GT_BAD_PARAM:            return ST_BAD_VALUE;
+    default:                      return ST_HEX;
+    }
+}
+
+
+enum status
 port_set_traffic_shape (port_id_t pid, bool_t enable, bps_t rate, burst_t burst)
 {
   struct port *port = port_ptr (pid);
