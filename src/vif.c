@@ -1010,7 +1010,7 @@ vif_stg_set (void *b) {
     int j;
     for (j = 0; j < 256; j++) {
       vif->stg_state[j] =
-        st[i].stgs[j / STP_STATES_PER_BYTE] & (msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
+        (st[i].stgs[j / STP_STATES_PER_BYTE] & (msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH)) >> j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH;
     }
   }
 

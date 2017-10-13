@@ -22,6 +22,8 @@ struct route {
   vid_t vid;
 };
 
+extern uint8_t route_mac_lsb;
+
 extern enum status route_cpss_lib_init (void);
 extern enum status route_start (void);
 extern enum status route_add (const struct route *);

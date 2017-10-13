@@ -21,9 +21,12 @@ struct dev_info {
   int *ic_ports;
   int n_xg_phys;
   unsigned *xg_phys;
+  uint32_t chip_revision[4];
   CPSS_DXCH_PP_PHASE1_INIT_INFO_STC ph1_info;
 };
 extern struct dev_info *dev_info;
+
+extern const char* get_rev_str(int d);
 
 struct pm {
   uint8_t dev;

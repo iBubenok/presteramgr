@@ -8,6 +8,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgMc.h>
 #include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 
 #include <sysdeps.h>
 #include <presteramgr.h>
@@ -311,6 +312,8 @@ __vlan_add (vid_t vid)
 
   switch (rc) {
   case GT_OK:
+    for_each_dev (d)
+      CRP (cpssDxChIpRouterVlanMacSaLsbSet (d, vid, route_mac_lsb));
     vlans[vid - 1].state = VS_ACTIVE;
     return ST_OK;
   case GT_HW_ERROR:
@@ -372,6 +375,9 @@ vlan_delete (vid_t vid)
     rc = CRP (cpssDxChBrgVlanEntryInvalidate (d, vid));
     ON_GT_ERROR (rc) break;
   }
+
+  struct mac_age_arg_vif aa = { .vid = vid, .vifid = ALL_VIFS };
+  mac_flush_vif(&aa, GT_TRUE);
 
   switch (rc) {
   case GT_OK:
@@ -481,6 +487,15 @@ vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
   vlan->mac_addr_set = 1;
 }
 
+void
+vlan_set_mac_lsb (void) {
+  int i, d;
+  for (i = 0; i < NVLANS; i++)
+    if (vlans[i].state != VS_DELETED)
+      for_each_dev (d)
+        CRP(cpssDxChIpRouterVlanMacSaLsbSet( d, vlans[i].vid, route_mac_lsb));
+}
+
 enum status
 vlan_set_dot1q_tag_native (int value)
 {
@@ -540,6 +555,7 @@ vlan_reconf_cpu (vid_t vid, bool_t cpu)
   for_each_dev (d) {
     CRP (cpssDxChBrgVlanEntryRead
          (d, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+
     if (cpu) {
       vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
       vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
@@ -549,6 +565,10 @@ vlan_reconf_cpu (vid_t vid, bool_t cpu)
     }
     CRP (cpssDxChBrgVlanEntryWrite
          (d, vid, &members, &tagging, &vlan_info, &tagging_cmd));
+
+    if (!valid) {
+      CRP(cpssDxChBrgVlanEntryInvalidate(d, vid));
+    }
   }
 }
 
@@ -564,13 +584,16 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
 
   cpu = !!cpu;
   vlan_reconf_cpu (vid, cpu);
-  if (vlan->c_cpu == cpu)
+
+  if (vlan->c_cpu == cpu) {
     return ST_OK;
+  }
 
   vlan->c_cpu = cpu;
 
-  if (!cpu)
+  if (!cpu) {
     vlan_clear_mac_addr (vlan);
+  }
 
   return pdsa_vlan_if_op (vid, cpu);
 }

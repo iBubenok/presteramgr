@@ -6,6 +6,7 @@
 #include <cpss/dxCh/dxChxGen/diag/cpssDxChDiag.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgCount.h>
 #include <cpss/dxCh/dxChxGen/diag/cpssDxChDiagDescriptor.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 
 #include <diag.h>
 #include <debug.h>
@@ -37,6 +38,36 @@ diag_bdc_set_mode (uint8_t mode)
     return ST_BAD_VALUE;
 
   rc = CRP (cpssDxChBrgCntDropCntrModeSet (0, mode));
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  case GT_NOT_SUPPORTED: return ST_NOT_SUPPORTED;
+  default:               return ST_HEX;
+  }
+}
+
+enum status
+diag_ipdc_read (uint32_t *val) {
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChIpDropCntGet (0, val));
+  switch (rc) {
+  case GT_OK:            return ST_OK;
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  default:               return ST_HEX;
+  }
+}
+
+enum status
+diag_ipdc_set_mode (uint8_t mode) {
+  GT_STATUS rc;
+
+  if (mode > 14)
+    return ST_BAD_VALUE;
+
+  rc = CRP (cpssDxChIpSetDropCntMode (0, mode));
   switch (rc) {
   case GT_OK:            return ST_OK;
   case GT_HW_ERROR:      return ST_HW_ERROR;
@@ -113,5 +144,31 @@ diag_desc_read (uint8_t subj, uint8_t *v, uint32_t *p)
   switch (rc) {
   case GT_BAD_PARAM: return ST_BAD_VALUE;
   default:           return ST_HEX;
+  }
+}
+
+enum status
+diag_read_ret_cnt (uint8_t set, uint32_t *dptr) {
+  CPSS_DXCH_IP_COUNTER_SET_STC data;
+  GT_STATUS rc;
+
+  rc = CRP (cpssDxChIpCntGet (0, set, &data));
+  switch (rc) {
+  case GT_OK:
+    *dptr++ = data.inUcPkts;
+    *dptr++ = data.inMcPkts;
+    *dptr++ = data.inUcNonRoutedExcpPkts;
+    *dptr++ = data.inUcNonRoutedNonExcpPkts;
+    *dptr++ = data.inMcNonRoutedExcpPkts;
+    *dptr++ = data.inMcNonRoutedNonExcpPkts;
+    *dptr++ = data.inUcTrappedMirrorPkts;
+    *dptr++ = data.inMcTrappedMirrorPkts;
+    *dptr++ = data.mcRfpFailPkts;
+    *dptr++ = data.outUcRoutedPkts;
+    return ST_OK;
+
+  case GT_HW_ERROR:      return ST_HW_ERROR;
+  case GT_BAD_PARAM:     return ST_BAD_VALUE;
+  default:               return ST_HEX;
   }
 }
