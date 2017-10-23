@@ -279,12 +279,17 @@ diag_dump_xg_port_qt2025_start (port_id_t pid, const char *filename)
 
   port = port_ptr(pid);
 
-  if (!port || !IS_XG_PORT(pid - 1)) {
+  if (!port) {
     DEBUG("ERROR: port not valid or is not 10G");
     result = ST_BAD_VALUE;
     goto out;
   }
 
+  if (!IS_XG_PORT(pid - 1)) {
+    DEBUG("ERROR: port not valid or is not 10G");
+    result = ST_NOT_SUPPORTED;
+    goto out;
+  }
 
   if (!diag_dump_xg_port_qt2025_mutex_initialized) {
     DEBUG("qt2025 mutex need initialization");
@@ -409,8 +414,14 @@ diag_dump_xg_port_qt2025 (port_id_t pid, uint32_t phy, uint32_t reg, uint16_t *v
 
   port = port_ptr(pid);
 
-  if (!port || !IS_XG_PORT(pid - 1)) {
+  if (!port) {
+    DEBUG("ERROR: port not valid or is not 10G");
     return ST_BAD_VALUE;
+  }
+
+  if (!IS_XG_PORT(pid - 1)) {
+    DEBUG("ERROR: port not valid or is not 10G");
+    return ST_NOT_SUPPORTED;
   }
 
   rc = cpssXsmiRegisterRead(port->ldev,
