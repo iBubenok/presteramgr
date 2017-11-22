@@ -489,6 +489,9 @@ DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
 DECLARE_HANDLER (CC_INT_VIFSTG_GET);
 DECLARE_HANDLER (CC_GET_CH_REV);
 DECLARE_HANDLER (CC_STACK_RESYNC_STG_2MASTER);
+DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
+DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
+DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -674,7 +677,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_INT_GET_UDADDRS_CMD),
   HANDLER (CC_INT_VIFSTG_GET),
   HANDLER (CC_GET_CH_REV),
-  HANDLER (CC_STACK_RESYNC_STG_2MASTER)
+  HANDLER (CC_STACK_RESYNC_STG_2MASTER),
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5478,5 +5484,99 @@ DEFINE_HANDLER (CC_STACK_RESYNC_STG_2MASTER)
 
   zmsg_t *reply;
   reply = make_reply(ST_OK);
+  send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START)
+{
+  zmsg_t *reply;
+  enum status result;
+  port_id_t pid;
+  uint8_t strlen;
+  char *filename = NULL;
+
+  result = POP_ARG(&pid);
+
+  if (result != ST_OK) {
+    goto out;
+  }
+
+  result = POP_ARG(&strlen);
+
+  if (result != ST_OK) {
+    goto out;
+  }
+
+  filename = malloc(strlen + 1);
+
+  if (filename == NULL) {
+    result = ST_MALLOC_ERROR;
+    goto out;
+  }
+
+  memset(filename, 0, strlen + 1);
+
+  result = POP_ARG_SZ(filename, strlen);
+
+  if (result != ST_OK) {
+    goto free;
+  }
+
+  result = diag_dump_xg_port_qt2025_start(pid, filename);
+
+free:
+  if (filename) {
+    free(filename);
+  }
+
+out:
+  reply = make_reply(result);
+  send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK)
+{
+  zmsg_t *reply;
+  enum status result;
+  bool_t in_progress;
+
+  result = diag_dump_xg_port_qt2025_check(&in_progress);
+  reply = make_reply(result);
+  zmsg_addmem(reply, &in_progress, sizeof(in_progress));
+  send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
+{
+  zmsg_t *reply;
+  enum status result;
+  port_id_t pid;
+  uint32_t phy;
+  uint32_t reg;
+  uint16_t val;
+
+  result = POP_ARG(&pid);
+
+  if (result != ST_OK) {
+    goto out;
+  }
+
+  result = POP_ARG(&phy);
+
+  if (result != ST_OK) {
+    goto out;
+  }
+
+  result = POP_ARG(&reg);
+
+  if (result != ST_OK) {
+    goto out;
+  }
+
+  result = diag_dump_xg_port_qt2025(pid, phy, reg, &val);
+
+out:
+  reply = make_reply(result);
+  zmsg_addmem(reply, &val, sizeof(val));
   send_reply(reply);
 }
