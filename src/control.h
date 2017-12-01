@@ -12,6 +12,9 @@ extern void control_pre_mac_init(void);
 extern int control_init (void);
 extern int control_start (void);
 
+int event_forward (zloop_t *loop, zsock_t *event_pull_sock, void *arg);
+int event_forward_sub (zloop_t *loop, zsock_t *sub_sock, void *arg);
+
 enum control_int_command {
   CC_INT_ROUTE_ADD_PREFIX = CC_MAX,
   CC_INT_ROUTE_DEL_PREFIX,
