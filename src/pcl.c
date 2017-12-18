@@ -35,10 +35,6 @@ static uint16_t __attribute__((unused)) rule_ix_max = 1535;
 static uint16_t port_stackmail_trap_primary_index;
 static uint16_t port_stackmail_trap_secondary_index;
 
-static uint16_t user_acl_stack_entries = 500; // TODO: calc it
-static uint16_t user_acl_start_ix[NDEVS] = {};
-static uint16_t user_acl_max[NDEVS] = {};
-
 static uint16_t port_lbd_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_lldp_rule_ix[NPORTS + 1] = {};
@@ -63,6 +59,10 @@ static uint16_t vt_stack_first_entry[NDEVS] = {};
 static uint16_t vt_stack_max[NDEVS] = {};
 static uint16_t vt_port_ipcl_def_rule_ix[NPORTS + 1] = {};
 static uint16_t __attribute__((unused)) vt_port_epcl_def_rule_ix[NPORTS + 1] = {};
+
+static uint16_t user_acl_stack_entries = 500; // TODO: calc it
+static uint16_t user_acl_start_ix[NDEVS] = {};
+static uint16_t user_acl_max[NDEVS] = {};
 
 #define for_each_port(p) for (p = 1; p <= nports; p++)
 
@@ -97,12 +97,6 @@ initialize_vars (void)
     port_stackmail_trap_secondary_index = 0;
   }
 
-  for_each_dev(dev) {
-    user_acl_start_ix[dev] = idx[dev];
-    idx[dev] += user_acl_stack_entries;
-    user_acl_max[dev] = idx[dev];
-  }
-
   for_each_port(pid) {
     struct port *port = port_ptr(pid);
     port_lbd_rule_ix[pid]                  = idx[port->ldev]++;
@@ -128,6 +122,12 @@ initialize_vars (void)
     struct port *port = port_ptr(pid);
     vt_port_ipcl_def_rule_ix[pid] = idx[port->ldev]++;
     vt_port_epcl_def_rule_ix[pid] = idx[port->ldev]++;
+  }
+
+  for_each_dev(dev) {
+    user_acl_start_ix[dev] = idx[dev];
+    idx[dev] += user_acl_stack_entries;
+    user_acl_max[dev] = idx[dev];
   }
 }
 
