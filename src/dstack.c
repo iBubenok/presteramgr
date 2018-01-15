@@ -1,4 +1,5 @@
 #include "dstack.h"
+#include <debug.h>
 
 struct dstack_item {
   struct dstack_item *next;
@@ -106,7 +107,7 @@ dstack_push_back (struct dstack *s, const void *data, size_t data_sz) {
   s->count++;
 }
 
-void
+int
 dstack_pop (struct dstack *s, void *data, size_t *data_sz) {
   if (s->count) {
     if (data) {
@@ -120,7 +121,10 @@ dstack_pop (struct dstack *s, void *data, size_t *data_sz) {
     s->count--;
     dstack_item_free(&(s->sp));
     s->sp = tmp;
+    return 0;
   }
+  else
+    return 1;
 }
 
 void

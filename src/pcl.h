@@ -40,9 +40,10 @@ extern void pcl_source_guard_trap_enable (port_id_t);
 extern void pcl_source_guard_trap_disable (port_id_t);
 extern void pcl_source_guard_drop_enable (port_id_t);
 extern void pcl_source_guard_drop_disable (port_id_t);
-extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t, uint16_t, uint8_t);
+extern void pcl_source_guard_rule_set (port_id_t, mac_addr_t, vid_t, ip_addr_t, bool_t, uint16_t*);
 extern void pcl_source_guard_rule_unset (port_id_t, uint16_t);
 extern int pcl_source_guard_trap_enabled (port_id_t);
+extern bool_t is_free_rule_ix (port_id_t);
 
 /* ARP */
 extern enum status pcl_enable_arp_trap (int);

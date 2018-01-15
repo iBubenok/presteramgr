@@ -39,6 +39,7 @@
 #include <pcl.h>
 #include <ip.h>
 #include <dev.h>
+#include <ipsg.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -299,6 +300,7 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
 static void
 control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
 {
+  DEBUG ("%s",__FUNCTION__);
   if (pcl_source_guard_trap_enabled (pid)) {
     zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
     put_vlan_id (sg_msg, frame->vid);
@@ -320,7 +322,7 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     memcpy (src_ip, (frame->data) + src_ip_offset, 4);
     zmsg_addmem (sg_msg, src_ip, 4);
 
-    pcl_source_guard_drop_enable(pid);
+    notify_trap_enabled (pid, frame->vid, src_mac, src_ip);
 
     notify_send (&sg_msg);
   }
@@ -508,8 +510,11 @@ DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
+DECLARE_HANDLER (CC_SOURCE_GUARD_VIF_ENABLE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_SET_VIF_VERIFY_MAC);
 DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
 DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
+DECLARE_HANDLER (CC_SOURCE_GUARD_SHOW_TABS);
 DECLARE_HANDLER (CC_USER_ACL_SET);
 DECLARE_HANDLER (CC_USER_ACL_RESET);
 DECLARE_HANDLER (CC_USER_ACL_FAKE_MODE);
@@ -698,8 +703,11 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
   HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
   HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
+  HANDLER (CC_SOURCE_GUARD_VIF_ENABLE),
+  HANDLER (CC_SOURCE_GUARD_SET_VIF_VERIFY_MAC),
   HANDLER (CC_SOURCE_GUARD_ADD),
   HANDLER (CC_SOURCE_GUARD_DELETE),
+  HANDLER (CC_SOURCE_GUARD_SHOW_TABS),
   HANDLER (CC_USER_ACL_SET),
   HANDLER (CC_USER_ACL_RESET),
   HANDLER (CC_USER_ACL_FAKE_MODE),
@@ -4487,6 +4495,7 @@ DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
 
 DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
 {
+  DEBUG ("Trunk set members!!! \n");
   struct trunk_member mem[8];
   trunk_id_t id;
   enum status result;
@@ -5079,17 +5088,51 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_SOURCE_GUARD_VIF_ENABLE)
+{
+  enum status result;
+  vif_id_t vifid;
+  bool_t enable;
+
+  if ((result = POP_ARG (&vifid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&enable)) != ST_OK)
+    goto out;
+
+  // enable_vif (vifid, enable);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_SET_VIF_VERIFY_MAC)
+{
+  enum status result;
+  vif_id_t vifid;
+  bool_t verify_mac;
+
+  if ((result = POP_ARG (&vifid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&verify_mac)) != ST_OK)
+    goto out;
+
+  // set_vif_verify_mac (vifid, verify_mac);
+  result = ST_OK;
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
 {
   enum status result;
-  port_id_t pid;
+  vif_id_t vifid;
   mac_addr_t mac;
   vid_t vid;
   ip_addr_t ip;
-  uint16_t rule_ix;
-  uint8_t verify_mac;
+  uint8_t type;
+  // bool verify_mac;
 
-  if ((result = POP_ARG (&pid)) != ST_OK)
+  if ((result = POP_ARG (&vifid)) != ST_OK)
     goto out;
   if ((result = POP_ARG (&mac)) != ST_OK)
     goto out;
@@ -5097,12 +5140,13 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
     goto out;
   if ((result = POP_ARG (&ip)) != ST_OK)
     goto out;
-  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+  if ((result = POP_ARG (&type)) != ST_OK)
     goto out;
-  if ((result = POP_ARG (&verify_mac)) != ST_OK)
-    goto out;
+  // if ((result = POP_ARG (&verify_mac)) != ST_OK)
+  //   goto out;
 
-  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
+  // add_bind (vifid, mac, vid, ip, type);
+
   result = ST_OK;
  out:
   report_status (result);
@@ -5110,20 +5154,37 @@ DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
 
 DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
 {
+  DEBUG ("cc source guard delete");
   enum status result;
-  port_id_t pid;
-  uint16_t rule_ix;
+  vif_id_t vifid;
+  mac_addr_t mac;
+  vid_t vid;
+  ip_addr_t ip;
+  uint8_t type;
 
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
+  if ((result = POP_ARG (&vifid)) != ST_OK)
     goto out;
-  if ((result = POP_ARG (&rule_ix)) != ST_OK)
+  if ((result = POP_ARG (&mac)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&vid)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&ip)) != ST_OK)
+    goto out;
+  if ((result = POP_ARG (&type)) != ST_OK)
     goto out;
 
-  pcl_source_guard_rule_unset (pid, rule_ix);
+  // delete_bind (vifid, mac, vid, ip, type);
   result = ST_OK;
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_SOURCE_GUARD_SHOW_TABS)
+{
+  // show_binds_tab ();
+  DEBUG ("\n");
+
+  report_status (ST_OK);
 }
 
 #define INIT_VAR(var) do {                          \
