@@ -145,7 +145,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
    but with sustained rate 100 pkts/sec. target: no more 25% CPU load  */
     cce_rlim.cpuCodeRateLimiterIndex = 4;
     cce_rlim.tc = 1;
-    cce_rlim.designatedDevNumIndex = 2;
+//    cce_rlim.designatedDevNumIndex = 2;
+    cce_rlim.designatedDevNumIndex = 1;
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 4, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
