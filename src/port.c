@@ -357,7 +357,7 @@ DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].psec_action = PSECA_RESTRICT;
     ports[i].psec_trap_interval = 30;
     ports[i].psec_mode = PSECM_LOCK;
-    ports[i].psec_max_addrs = 0;
+    ports[i].psec_max_addrs = 1;
     ports[i].psec_naddrs = 0;
     /* END: Port Security. */
 
