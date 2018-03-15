@@ -281,7 +281,7 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3424GE) || defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
+#elif defined (VARIANT_ARLAN_3424GE) || defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE) || defined (VARIANT_ARLAN_3226GE_SR) || defined (VARIANT_ARLAN_3226PGE_SR)
 
 static unsigned xg_phys[] = {0x18, 0x19, 0x1A, 0x1B};
 
@@ -322,7 +322,7 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
+#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE) || defined (VARIANT_ARLAN_3250PGE_SR)
 
 static int ic_ports_0[] = {26, 27};
 static unsigned xg_phys_0[] = {0x18, 0x19};

@@ -173,7 +173,7 @@ PORT_STACK_ROLE (int n)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
+#elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3250PGE_SR)
 
 #define NDEVS 2
 #define NPORTS 52
@@ -277,7 +277,7 @@ PORT_STACK_ROLE (int n)
   }
 }
 
-#elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
+#elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE) || defined (VARIANT_ARLAN_3226PGE_SR) || defined (VARIANT_ARLAN_3226GE_SR)
 
 #define NDEVS 1
 #define NPORTS 28
@@ -298,6 +298,7 @@ static inline int IS_FE_PORT (int n)
   return 0;
 }
 
+#if defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
 static inline int IS_GE_PORT (int n)
 {
   return n >= 0 && n < 26;
@@ -312,6 +313,24 @@ static inline int
 IS_PORT_PHYLESS (int n) {
   return n >=24 && n < 28;
 }
+#elif defined (VARIANT_ARLAN_3226PGE_SR) || defined (VARIANT_ARLAN_3226GE_SR)
+static inline int IS_GE_PORT (int n)
+{
+  return n >= 0 && n < 24;
+}
+
+static inline int IS_XG_PORT (int n)
+{
+  return n >= 24 && n < 28;
+}
+
+static inline int
+IS_PORT_PHYLESS (int n) {
+  return 0;
+}
+#else
+#error Undefined or unsupported variant.
+#endif
 
 static inline enum port_stack_role
 PORT_STACK_ROLE (int n)

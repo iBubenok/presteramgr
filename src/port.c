@@ -227,8 +227,31 @@ port_init (void)
 DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].id = i + 1;
 
-#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE)
-    ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+#if defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3250PGE_SR)
+    switch (env_hw_subtype ()) {
+    case HWST_ARLAN_3250GE_FSR:
+      ports[i].type = PTYPE_FIBER;
+      break;
+
+    case HWST_ARLAN_3250GE_SR:
+      if (ports[i].id == 47 || ports[i].id == 48)
+        ports[i].type = PTYPE_COMBO;
+      else if (ports[i].id > 48)
+        ports[i].type = PTYPE_FIBER;
+      else
+        ports[i].type = PTYPE_COPPER;
+      break;
+
+    case HWST_ARLAN_3250GE_USR:
+      if (ports[i].id > 24)
+        ports[i].type = PTYPE_FIBER;
+      else
+        ports[i].type = PTYPE_COPPER;
+      break;
+
+    default:
+      ports[i].type = (ports[i].id > 48) ? PTYPE_FIBER : PTYPE_COPPER;
+    }
 #elif defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE)
     if (ports[i].id == 49 || ports[i].id == 50) {
       ports[i].type = PTYPE_FIBER;
@@ -239,6 +262,9 @@ DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
     ports[i].type = (ports[i].id < 25) ? PTYPE_COPPER : PTYPE_COMBO;
 #elif defined (VARIANT_SM_12F)
     ports[i].type = (ports[i].id < 15) ? PTYPE_COPPER : PTYPE_COMBO;
+#elif defined (VARIANT_ARLAN_3226GE_SR) || defined(VARIANT_ARLAN_3226PGE_SR)
+    ports[i].type = ((ports[i].id >= 25) && ((ports[i].id <= 28)))
+                    ? PTYPE_FIBER : PTYPE_COPPER;
 #elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
@@ -2250,6 +2276,15 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
         return GT_BAD_PARAM;
       }
     break;
+
+    case HWST_ARLAN_3250GE_FSR:
+      if (pid > 48)
+        return GT_BAD_PARAM;
+      break;
+
+    case HWST_ARLAN_3250GE_SR:
+      return GT_BAD_PARAM;
+      break;
 
     default:
       if (pid == 23 || pid == 24) {
