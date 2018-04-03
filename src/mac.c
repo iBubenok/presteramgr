@@ -2087,6 +2087,9 @@ fdbman_set_master(const void *arg) {
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
   devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
+  vif_stg_clear_serial(newdevs_bmp);
+  vif_ls_clear_serial(newdevs_bmp);
+
 // DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
 // DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   if (serial < fdbman_serial) {

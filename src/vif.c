@@ -1048,6 +1048,33 @@ vif_stg_get_single (struct vif *vif, uint8_t *buf, int inc_serial) {
   return ST_OK;
 }
 
+void
+vif_stg_clear_serial (devsbmp_t newdevs_bmp)
+{
+
+  int i;
+  for (i = 1; i <= 15; i++) {
+    if (1 & newdevs_bmp >> i) {
+      vif_wlock();
+      vif_stp_data_serial[i] = 0;
+      vif_unlock();
+    }
+  }
+}
+
+void
+vif_ls_clear_serial (devsbmp_t newdevs_bmp)
+{
+  int i;
+  for (i = 1; i <= 15; i++) {
+    if (1 & newdevs_bmp >> i) {
+      vif_wlock();
+      vifs[i].vif_link_state_serial = 0;
+      vif_unlock();
+    }
+  }
+}
+
 static enum status
 __vif_enable_eapol (struct vif *vif, bool_t enable)
 {

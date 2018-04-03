@@ -74,9 +74,13 @@ DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
     return ST_BAD_VALUE;
 
   master_id = master;
-  if (stack_serial > serial)
+
+  if (stack_serial > serial) {
     DEBUG ("Stacking error, old stack configuration serial %llu is bigger or equal to new stack conf %llu\n",
-        stack_serial, serial);
+           stack_serial, serial);
+    return ST_OK;
+  }
+
   stack_serial = serial;
   memcpy (master_mac, mac, 6);
 

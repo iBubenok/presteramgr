@@ -132,6 +132,10 @@ extern enum status vif_tx (const struct vif_id *, const struct vif_tx_opts *, ui
 extern enum status vif_enable_eapol (vif_id_t, bool_t);
 extern enum status vif_eapol_auth (vif_id_t, vid_t, mac_addr_t, bool_t);
 
+
+extern void vif_stg_clear_serial (devsbmp_t newdevs_bmp);
+extern void vif_ls_clear_serial (devsbmp_t newdevs_bmp);
+
 /*
 extern enum status vif_set_speed (vif_id_t, const struct port_speed_arg *);
 extern enum status vif_set_speed_remote (struct vif *, const struct port_speed_arg *);
