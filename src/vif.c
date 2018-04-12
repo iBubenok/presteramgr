@@ -31,8 +31,6 @@ struct vif_dev_ports {
 };
 
 static struct vif_dev_ports vifs[16];
-static serial_t vif_stp_data_serial[16];
-
 vifp_single_dev_t vifp_by_hw[32];
 
 static pthread_rwlock_t vif_lock = PTHREAD_RWLOCK_INITIALIZER;
@@ -77,9 +75,6 @@ vif_init (void)
 {
   struct vif_dev_ports *dp;
   int i, j;
-
-  memset (vif_stp_data_serial, 0, sizeof(vif_stp_data_serial));
-  vif_stp_data_serial[stack_id] = 1;
 
   memset (vifs, 0, sizeof (vifs));
 
@@ -937,129 +932,6 @@ for (i = 0; i<= VIFT_PC; i++)
 DEBUG("====set_vif_(), dp->n_by_type[%d]== %d\n", i, dp->n_by_type[i]);
 
   return ST_OK;
-}
-
-enum status
-//vif_stg_get (serial_t *ser, struct vif_stg *st) {
-vif_stg_get (void *b) {
-  struct vif_dev_ports *dp;
-  int i;
-  struct vif_stgblk_header *hd = (struct vif_stgblk_header*) b;
-
-  uint16_t msk0 = 1;
-  msk0 <<= STP_STATE_BITS_WIDTH;
-  msk0--;
-  uint8_t msk = msk0;
-  dp = &vifs[stack_id];
-//  *(uint8_t*)b = dp->n_total;
-  hd->n = dp->n_total;
-//  *((uint8_t*)b + 1) = stack_id;
-  hd->st_id = stack_id;
-//  *(serial_t*)((uint8_t*)b + 2) = vif_stp_data_serial[stack_id];
-  hd->serial = vif_stp_data_serial[stack_id];
-//  struct vif_stg *st = (struct vif_stg *)((serial_t*)((uint8_t*)b + 2) + 1);
-  struct vif_stg *st = (struct vif_stg *) hd->data;
-
-  for (i = 0; i < dp->n_total; i++) {
-    *(vif_id_t*)&st[i].id = dp->port[i].vif.id;
-    int j;
-    for (j = 0; j < 256; j++)
-      st[i].stgs[j / STP_STATES_PER_BYTE] =
-        (st[i].stgs[j / STP_STATES_PER_BYTE] & ~(msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH))
-          | (dp->port[i].vif.stg_state[j] << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
-  }
-  return ST_OK;
-}
-
-enum status
-vif_stg_set (void *b) {
-//DEBUG(">>>>vif_stg_set (%p)\n", b);
-//PRINTHexDump(b, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*) b) ->n);
-
-  struct vif_stgblk_header *hd = (struct vif_stgblk_header*) b;
-//  int i, n = *(uint8_t*)b;
-  int i, n = hd->n;
-//  uint8_t dev = *((uint8_t*)b + 1);
-  uint8_t dev = hd->st_id;
-
-  if (!stack_active ()
-      || !in_range (dev, 1, 15)
-      || dev == stack_id
-      || !in_range (n, 0, 60))
-    return ST_BAD_VALUE;
-
-//  if (vif_stp_data_serial[dev] > *(serial_t*)((uint8_t*)b + 2))
-  if (vif_stp_data_serial[dev] > hd->serial)
-    return ST_OK;
-
-  uint16_t msk0 = 1;
-  msk0 <<= STP_STATE_BITS_WIDTH;
-  msk0--;
-  uint8_t msk = msk0;
-//  struct vif_stg *st = (struct vif_stg *)((serial_t*)((uint8_t*)b + 2) + 1);
-  struct vif_stg *st = (struct vif_stg *) hd->data;
-
-  vif_wlock();
-//  vif_stp_data_serial[dev] = *(serial_t*)((uint8_t*)b + 2);
-  vif_stp_data_serial[dev] = hd->serial;
-
-  for (i = 0; i < n; i++) {
-    struct vif *vif = vif_getn(*(vif_id_t*)&st[i].id);
-    if (!vif)
-      continue;
-    int j;
-    for (j = 0; j < 256; j++) {
-      vif->stg_state[j] =
-        (st[i].stgs[j / STP_STATES_PER_BYTE] & (msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH)) >> j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH;
-    }
-  }
-
-  vif_unlock();
-
-  return ST_OK;
-}
-
-enum status
-vif_stg_get_single (struct vif *vif, uint8_t *buf, int inc_serial) {
-  struct vif_stgblk_header *hd = (struct vif_stgblk_header*) buf;
-  if (inc_serial)
-    vif_stp_data_serial[stack_id]++;
-
-  uint16_t msk0 = 1;
-  msk0 <<= STP_STATE_BITS_WIDTH;
-  msk0--;
-  uint8_t msk = msk0;
-
-//  *buf = 1;
-  hd->n  = 1;
-//  *(buf + 1) = stack_id;
-  hd->st_id = stack_id;
-//  *(serial_t*)(buf + 2) = vif_stp_data_serial[stack_id];
-  hd->serial = vif_stp_data_serial[stack_id];
-
-//  struct vif_stg *st = (struct vif_stg *)((serial_t*)(buf + 2) + 1);
-  struct vif_stg *st = (struct vif_stg*)hd->data;
-  *(vif_id_t*)&st[0].id = vif->id;
-  int j;
-  for (j = 0; j < 256; j++)
-    st[0].stgs[j / STP_STATES_PER_BYTE] =
-      (st[0].stgs[j / STP_STATES_PER_BYTE] & ~(msk << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH))
-        | (vif->stg_state[j] << j % STP_STATES_PER_BYTE * STP_STATE_BITS_WIDTH);
-  return ST_OK;
-}
-
-void
-vif_stg_clear_serial (devsbmp_t newdevs_bmp)
-{
-
-  int i;
-  for (i = 1; i <= 15; i++) {
-    if (1 & newdevs_bmp >> i) {
-      vif_wlock();
-      vif_stp_data_serial[i] = 0;
-      vif_unlock();
-    }
-  }
 }
 
 void

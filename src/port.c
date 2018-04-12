@@ -1201,11 +1201,6 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
       CRP (cpssDxChBrgStpStateSet (port->ldev, port->lport, stp_id, cs));
   }
 
-//  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) + 10];
-  static uint8_t buf[sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) + 10];
-  vif_stg_get_single(vif, buf, 1);
-  mac_op_send_stg(buf);
-
   return ST_OK;
 }
 

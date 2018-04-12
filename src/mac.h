@@ -39,7 +39,6 @@ extern enum status mac_op_rt (rtbd_notif_t, void *, int);
 extern enum status mac_op_na (struct arpd_ip_addr_msg *);
 extern enum status mac_op_opna (const struct gw *, arpd_command_t);
 extern enum status mac_op_udt (uint32_t);
-extern enum status mac_op_send_stg(void *);
 extern enum status mac_set_aging_time (aging_time_t);
 extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);

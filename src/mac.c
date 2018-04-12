@@ -51,7 +51,6 @@ enum fdb_ctl_cmd {
   FCC_FDBMAN_SEND_NA,
   FCC_FDBMAN_SEND_OPNA,
   FCC_FDBMAN_SEND_UDT,
-  FCC_FDBMAN_SEND_STG,
   FCC_FDBMAN_SEND_VIF_LS
 };
 
@@ -87,8 +86,6 @@ enum fdbman_cmd {
   FMC_OPNA,
   FMC_MASTER_UDT,
   FMC_MASTER_CLEAR_ROUTING,
-  FMC_VIFSTG_GET,
-  FMC_VIFSTG_GET_REPLY,
   FMC_VIF_LS,
   FMC_VIFLS_GET
 };
@@ -145,7 +142,6 @@ static void fdbman_send_na(const struct arpd_ip_addr_msg *arg);
 static void fdbman_send_opna(void *arg);
 static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
-static void fdbman_send_vifstg_get_reply (void *p);
 static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
@@ -402,13 +398,6 @@ mac_op_opna (const struct gw *gw, arpd_command_t cmd) {
 enum status
 mac_op_udt (uint32_t daddr) {
   return fdb_actl_control (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
-}
-
-enum status
-mac_op_send_stg(void *buf) {
-  return fdb_actl_control (FCC_FDBMAN_SEND_STG, buf,
-//      sizeof (uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)buf);
-      sizeof (struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)buf)->n);
 }
 
 enum status
@@ -1495,9 +1484,6 @@ fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
   case FCC_FDBMAN_SEND_UDT:
     fdbman_send_udt(*(uint32_t*)arg, ALL_DEVS);
     break;
-  case FCC_FDBMAN_SEND_STG:
-    fdbman_send_vifstg_get_reply(arg);
-    break;
   case FCC_FDBMAN_SEND_VIF_LS:
     fdbman_send_vif_ls((struct vif_link_state_header *) arg);
     break;
@@ -1624,49 +1610,6 @@ fdbman_send_clear_routing (devsbmp_t newdevs_bmp) {
   fdb_msg->devsbmp = newdevs_bmp;
   fdb_msg->serial = fdbman_serial;
   size_t msglen = sizeof(struct pti_fdbr_msg);
-
-  fdbman_send_pkt(buf, msglen);
-}
-
-static void
-fdbman_send_vifstg_get (devsbmp_t bmp) {
-// DEBUG(">>>fdbman_send_vifstg_get(%x)\n", bmp);
-  static uint8_t buf[TIPC_MSG_MAX_LEN];
-  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
-
-  fdb_msg->version = PTI_FDB_VERSION;
-  fdb_msg->stack_id = stack_id;
-  fdb_msg->command = FMC_VIFSTG_GET;
-  fdb_msg->nfdb = 0;
-  fdb_msg->devsbmp = bmp;
-  fdb_msg->serial = fdbman_serial;
-  size_t msglen = sizeof(struct pti_fdbr_msg);
-
-  fdbman_send_pkt(buf, msglen);
-}
-
-static void
-fdbman_send_vifstg_get_reply (void *p) {
-  static uint8_t buf[TIPC_MSG_MAX_LEN];
-  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
-// DEBUG(">>>fdbman_send_vifstg_get_reply() n== %d\n", *(uint8_t*)p);
-
-  fdb_msg->version = PTI_FDB_VERSION;
-  fdb_msg->stack_id = stack_id;
-  fdb_msg->command = FMC_VIFSTG_GET_REPLY;
-  fdb_msg->nfdb = 0;
-  fdb_msg->devsbmp = ALL_DEVS;
-  fdb_msg->serial = fdbman_serial;
-//  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(uint8_t)
-//    + sizeof(uint8_t)+ sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p;
-  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(struct vif_stgblk_header)
-    + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n;
-  assert(msglen < TIPC_MSG_MAX_LEN);
-//  memcpy(fdb_msg->data, p, sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)p);
-  memcpy(fdb_msg->data, p, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
-
-//DEBUG("===fdbman_send_vifstg_get_reply() len==%d\n", sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
-//PRINTHexDump(fdb_msg->data, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * ((struct vif_stgblk_header*)p)->n);
 
   fdbman_send_pkt(buf, msglen);
 }
@@ -1985,32 +1928,6 @@ fdbman_handle_msg_clear_routing(struct pti_fdbr_msg *msg, uint32_t len) {
 }
 
 static void
-fdbman_handle_msg_vifstg_get(struct pti_fdbr_msg *msg, uint32_t len) {
-  int dummy;
-// DEBUG(">>>fdbman_handle_msg_vifstg_get() %x\n", msg->devsbmp);
-  if (! (msg->devsbmp & (1 << stack_id)))
-    return;
-  void *p = fdbman_execute_control_cmd(CC_INT_VIFSTG_GET, &dummy, sizeof(dummy));
-
-  fdbman_send_vifstg_get_reply(p);
-}
-
-static void
-fdbman_handle_msg_vifstg_get_reply(struct pti_fdbr_msg *msg, uint32_t len) {
-//  void *arg = msg->data;
-  struct vif_stgblk_header *arg = (struct vif_stgblk_header*) msg->data;
-// DEBUG(">>>fdbman_handle_msg_vifstg_get_reply() %x\n", msg->devsbmp);
-  if (! (msg->devsbmp & (1 << stack_id)))
-    return;
-
-//DEBUG("===fdbman_handle_msg_vifstg_get_reply() len==%d\n", sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
-//PRINTHexDump(msg->data, sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
-  fdbman_send_control_cmd(SC_INT_VIFSTG_SET, arg,
-//      sizeof(uint8_t) * 2 + sizeof(serial_t) + sizeof(struct vif_stg) * *(uint8_t*)arg);
-      sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * arg->n);
-}
-
-static void
 fdbman_handle_msg_vif_ls(struct pti_fdbr_msg *msg, uint32_t len) {
   struct vif_link_state_header *arg = (struct vif_link_state_header*) msg->data;
 DEBUG(">>>fdbman_handle_msg_vif_ls() %x\n", msg->devsbmp);
@@ -2063,14 +1980,6 @@ DEBUG("<<<<fdbman_sync_routing");
 }
 
 static void
-fdbman_sync_stg(devsbmp_t nbmp) {
-DEBUG (">>>>fdbman_sync_stg(%hx) %hx\n", nbmp, nbmp);
-  if (!nbmp)
-    return;
-  fdbman_send_vifstg_get(nbmp);
-}
-
-static void
 fdbman_sync_ls(devsbmp_t nbmp) {
 DEBUG (">>>>fdbman_sync_ls(%hx) %hx\n", nbmp, nbmp);
   if (!nbmp)
@@ -2087,7 +1996,6 @@ fdbman_set_master(const void *arg) {
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
   devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
-  vif_stg_clear_serial(newdevs_bmp);
   vif_ls_clear_serial(newdevs_bmp);
 
 // DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
@@ -2113,7 +2021,6 @@ fdbman_set_master(const void *arg) {
         fdbman_serial = fdbman_newserial = serial;
         fdbman_master = fdbman_newmaster = newmaster;
         fdbman_send_master_announce_pkt(serial, dbmp);
-        fdbman_sync_stg(newdevs_bmp);
         fdbman_sync_ls(newdevs_bmp);
         fdbman_sync_routing(newdevs_bmp);
       }
@@ -2126,7 +2033,6 @@ fdbman_set_master(const void *arg) {
         fdbman_master = newmaster;
         fdbman_serial = serial;
         fdbman_send_master_announce_pkt(serial, dbmp);
-        fdbman_sync_stg(dbmp);
         fdbman_sync_ls(dbmp);
         fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
         fdbman_send_clear_routing(dbmp);
@@ -2140,7 +2046,6 @@ fdbman_set_master(const void *arg) {
         fdbman_master = newmaster;
         fdbman_serial = serial;
         fdbman_send_master_announce_pkt(serial, dbmp);
-        fdbman_sync_stg(dbmp);
         fdbman_sync_ls(dbmp);
         fdbman_send_control_cmd(SC_INT_CLEAR_RT_CMD, &dummy, sizeof(dummy));
         fdbman_send_clear_routing(dbmp);
@@ -2380,12 +2285,6 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       break;
     case FMC_MASTER_CLEAR_ROUTING:
       fdbman_handle_msg_clear_routing(msg, len);
-      break;
-    case FMC_VIFSTG_GET:
-      fdbman_handle_msg_vifstg_get(msg, len);
-      break;
-    case FMC_VIFSTG_GET_REPLY:
-      fdbman_handle_msg_vifstg_get_reply(msg, len);
       break;
     case FMC_VIF_LS:
       fdbman_handle_msg_vif_ls(msg, len);

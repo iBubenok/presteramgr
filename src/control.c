@@ -526,9 +526,7 @@ DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
 DECLARE_HANDLER (CC_INT_GET_RT_CMD);
 DECLARE_HANDLER (CC_INT_GET_UDADDRS_CMD);
-DECLARE_HANDLER (CC_INT_VIFSTG_GET);
 DECLARE_HANDLER (CC_GET_CH_REV);
-DECLARE_HANDLER (CC_STACK_RESYNC_STG_2MASTER);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
@@ -539,7 +537,6 @@ DECLARE_HANDLER (SC_INT_NA_CMD);
 DECLARE_HANDLER (SC_INT_OPNA_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
-DECLARE_HANDLER (SC_INT_VIFSTG_SET);
 DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
 
 
@@ -716,9 +713,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_LOAD_BALANCE_MODE),
   HANDLER (CC_INT_GET_RT_CMD),
   HANDLER (CC_INT_GET_UDADDRS_CMD),
-  HANDLER (CC_INT_VIFSTG_GET),
   HANDLER (CC_GET_CH_REV),
-  HANDLER (CC_STACK_RESYNC_STG_2MASTER),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
@@ -731,7 +726,6 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_OPNA_CMD),
   HANDLER (SC_INT_UDT_CMD),
   HANDLER (SC_INT_CLEAR_RT_CMD),
-  HANDLER (SC_INT_VIFSTG_SET),
   HANDLER (SC_INT_CLEAR_RE_CMD)
 };
 
@@ -1524,15 +1518,6 @@ DEBUG("===SC_INT_CLEAR_RT_CMD\n");
     return;
 
   fib_clear_routing();
-}
-
-DEFINE_HANDLER (SC_INT_VIFSTG_SET) { /* to be called from one thread only*/
-//DEBUG(">>>>DEFINE_HANDLER (SC_INT_VIFSTG_SET)\n");
-  zframe_t *frame = FIRST_ARG;
-  if (!frame)
-    return;
-
-  vif_stg_set(zframe_data(frame));
 }
 
 DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD) {
@@ -5499,28 +5484,6 @@ DEBUG("====DEFINE_HANDLER (CC_INT_GET_UDADDRS_CMD) == %p\n", r);
   send_reply (reply);
 }
 
-DEFINE_HANDLER (CC_INT_VIFSTG_GET) { /* to be called from one thread only*/
-DEBUG(">>>>DEFINE_HANDLER (CC_INT_VIFSTG_GET)\n");
-//  static uint8_t buf[sizeof(uint8_t) * 2 + sizeof(serial_t) +
-  static uint8_t buf[sizeof(struct vif_stgblk_header)
-    + sizeof(struct vif_stg) * NPORTS + 20];
-  uint32_t dummy;
-  enum status result;
-  zmsg_t *reply;
-  void *p = buf;
-
-  result = POP_ARG (&dummy);
-  if (result != ST_OK)
-    goto out;
-
-  result = vif_stg_get(buf);
-
- out:
-  reply = make_reply (result);
-  zmsg_addmem (reply, &p, sizeof(void*));
-  send_reply (reply);
-}
-
 DEFINE_HANDLER (CC_GET_CH_REV)
 {
   zmsg_t *reply;
@@ -5537,17 +5500,6 @@ DEFINE_HANDLER (CC_GET_CH_REV)
     zmsg_addmem(reply, revision, strlen(revision));
   }
 
-  send_reply(reply);
-}
-
-DEFINE_HANDLER (CC_STACK_RESYNC_STG_2MASTER)
-{
-  static uint8_t buf[sizeof(struct vif_stgblk_header) + sizeof(struct vif_stg) * (NPORTS + 2) + 10];
-  vif_stg_get(buf);
-  mac_op_send_stg(buf);
-
-  zmsg_t *reply;
-  reply = make_reply(ST_OK);
   send_reply(reply);
 }
 

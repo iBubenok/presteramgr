@@ -121,9 +121,6 @@ extern struct vif* vif_get_by_gif(uint8_t, uint8_t, uint8_t);
 extern enum status vif_get_hw_port_by_index (struct hw_port *, uint8_t, uint8_t);
 extern enum status vif_get_hw_ports (struct vif_def *);
 extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
-extern enum status vif_stg_get (void *);
-extern enum status vif_stg_set (void *);
-extern enum status vif_stg_get_single (struct vif*, uint8_t *, int);
 extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *, void *);
 extern enum status vif_set_link_status(vif_id_t, struct port_link_state *, void *);
 extern enum status vif_process_ls_pkt(struct vif_link_state_header *, void *);
@@ -133,7 +130,6 @@ extern enum status vif_enable_eapol (vif_id_t, bool_t);
 extern enum status vif_eapol_auth (vif_id_t, vid_t, mac_addr_t, bool_t);
 
 
-extern void vif_stg_clear_serial (devsbmp_t newdevs_bmp);
 extern void vif_ls_clear_serial (devsbmp_t newdevs_bmp);
 
 /*
