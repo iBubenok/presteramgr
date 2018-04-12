@@ -28,6 +28,7 @@ enum control_int_command {
   CC_INT_GET_RT_CMD,
   CC_INT_GET_UDADDRS_CMD,
   SC_INT_CLEAR_RE_CMD,
+  SC_INT_VIF_SET_STP_STATE,
   CC_INT_MAX
 };
 

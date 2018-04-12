@@ -51,7 +51,8 @@ enum fdb_ctl_cmd {
   FCC_FDBMAN_SEND_NA,
   FCC_FDBMAN_SEND_OPNA,
   FCC_FDBMAN_SEND_UDT,
-  FCC_FDBMAN_SEND_VIF_LS
+  FCC_FDBMAN_SEND_VIF_LS,
+  FCC_VIF_SET_STP_STATE
 };
 
 #define PTI_FDB_VERSION (1)
@@ -87,7 +88,8 @@ enum fdbman_cmd {
   FMC_MASTER_UDT,
   FMC_MASTER_CLEAR_ROUTING,
   FMC_VIF_LS,
-  FMC_VIFLS_GET
+  FMC_VIFLS_GET,
+  FMC_VIF_SET_STP_STATE
 };
 
 enum fdbman_state {
@@ -143,6 +145,7 @@ static void fdbman_send_opna(void *arg);
 static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
+static void fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg);
 static enum status fdbman_set_master(const void *arg);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
@@ -372,6 +375,19 @@ mac_op_own_vif (vid_t vid, mac_addr_t mac, int add)
   /* Everything else is irrelevant for own MAC addr. */
 
   return fdb_actl_control (FCC_OWN_MAC_OP, &arg, sizeof (arg));
+}
+
+enum status mac_vif_set_stp_state (struct vif *vif,
+                                   stp_id_t stp_id,
+                                   int all,
+                                   enum port_stp_state state)
+{
+  struct mac_vif_set_stp_state_args arg = { .vifid  = vif->id,
+                                            .stp_id = stp_id,
+                                            .all    = all,
+                                            .state  = state };
+
+  return fdb_actl_control (FCC_VIF_SET_STP_STATE, &arg, sizeof (arg));
 }
 
 enum status
@@ -1487,6 +1503,9 @@ fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
   case FCC_FDBMAN_SEND_VIF_LS:
     fdbman_send_vif_ls((struct vif_link_state_header *) arg);
     break;
+  case FCC_VIF_SET_STP_STATE:
+    fdbman_vif_set_stp_state((struct mac_vif_set_stp_state_args *) arg);
+    break;
   default:
     status = ST_BAD_REQUEST;
   }
@@ -1766,6 +1785,23 @@ fdbman_send_msg_uni_update(struct pti_fdbr *pf, uint32_t n, int master) {
 }
 
 static void
+fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg) {
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_VIF_SET_STP_STATE;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = ALL_DEVS;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, arg, sizeof(*arg));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_handle_msg_master_update(const struct pti_fdbr_msg *msg, uint32_t len) {
 
   fdb_mac_foreign_blck(msg->nfdb, msg->data, msg->stack_id);
@@ -1944,6 +1980,18 @@ DEBUG(">>>fdbman_handle_msg_vifls_get() %x\n", msg->devsbmp);
     return;
 
   fdbman_send_vif_allls();
+}
+
+static void
+fdbman_handle_msg_vif_set_stp_state(struct pti_fdbr_msg *msg, uint32_t len) {
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
+
+  assert(len == sizeof(struct pti_fdbr_msg) + sizeof(struct mac_vif_set_stp_state_args));
+
+  fdbman_send_control_cmd(SC_INT_VIF_SET_STP_STATE,
+                          (struct mac_vif_set_stp_state_args*) msg->data,
+                          sizeof(struct mac_vif_set_stp_state_args));
 }
 
 static void
@@ -2291,6 +2339,16 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       break;
     case FMC_VIFLS_GET:
       fdbman_handle_msg_vifls_get(msg, len);
+      break;
+    case FMC_VIF_SET_STP_STATE:
+      switch (fdbman_state) {
+        case FST_MASTER:
+        case FST_PRE_MEMBER:
+          break;
+        case FST_MEMBER:
+          fdbman_handle_msg_vif_set_stp_state(msg, len);
+          break;
+      };
       break;
     }
 

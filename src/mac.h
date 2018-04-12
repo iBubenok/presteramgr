@@ -46,6 +46,19 @@ extern enum status mac_flush_vif (const struct mac_age_arg_vif *, GT_BOOL);
 extern enum status mac_mc_ip_op (const struct mc_ip_op_arg *);
 extern enum status mac_set_master (uint8_t, serial_t, devsbmp_t);
 
+/* vif stp state */
+struct mac_vif_set_stp_state_args {
+  vif_id_t vifid;
+  stp_id_t stp_id;
+  int all;
+  enum port_stp_state state;
+};
+
+extern enum status mac_vif_set_stp_state (struct vif *vif,
+                                          stp_id_t stp_id,
+                                          int all,
+                                          enum port_stp_state state);
+
 /* this funcs are designrd to be called from either event either phy sensing threads only */
 extern enum status mac_op_send_vif_ls(struct vif_link_state_header *);
 

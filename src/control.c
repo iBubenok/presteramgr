@@ -538,6 +538,7 @@ DECLARE_HANDLER (SC_INT_OPNA_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
+DECLARE_HANDLER (SC_INT_VIF_SET_STP_STATE);
 
 
 static cmd_handler_t handlers[] = {
@@ -726,7 +727,8 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_OPNA_CMD),
   HANDLER (SC_INT_UDT_CMD),
   HANDLER (SC_INT_CLEAR_RT_CMD),
-  HANDLER (SC_INT_CLEAR_RE_CMD)
+  HANDLER (SC_INT_CLEAR_RE_CMD),
+  HANDLER (SC_INT_VIF_SET_STP_STATE)
 };
 
 DECLARE_HANDLER (PC_PORT_SEND_FRAME);
@@ -1648,6 +1650,24 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (SC_INT_VIF_SET_STP_STATE)
+{
+  zframe_t *frame = FIRST_ARG;
+
+  if (!frame)
+    return;
+
+  struct mac_vif_set_stp_state_args *arg =
+    (struct mac_vif_set_stp_state_args *) zframe_data (frame);
+
+  vif_id_t vif      = arg->vifid;
+  stp_id_t stp_id   = arg->stp_id;
+  int all           = arg->all;
+  stp_state_t state = arg->state;
+
+  vif_set_stp_state (vif, stp_id, all, state);
 }
 
 DEFINE_HANDLER (CC_PORT_SHUTDOWN)

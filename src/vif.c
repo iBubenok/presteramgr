@@ -1422,9 +1422,13 @@ VIF_PROC_ROOT_HEAD(vlan_translate, vid_t from, vid_t to, int add)
 VIF_PROC_ROOT_BODY(vlan_translate, from, to, add)
 }
 
-
-VIF_PROC_REMOTE(set_stp_state, stp_id_t stp_id,
-  int all, enum port_stp_state state)
+enum status
+vif_set_stp_state_remote (struct vif *vif,
+                          stp_id_t stp_id,
+                          int all,
+                          enum port_stp_state state) {
+  return mac_vif_set_stp_state(vif, stp_id, all, state);
+}
 
 VIF_PROC_PORT_HEAD(set_stp_state, stp_id_t stp_id,
   int all, enum port_stp_state state)
