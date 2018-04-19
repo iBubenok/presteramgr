@@ -322,6 +322,47 @@ sysd_hw_dev_num (int ldev)
   }
 }
 
+#elif defined (VARIANT_ARLAN_3212GE)
+
+static unsigned xg_phys[] = {0x18, 0x19};
+
+static struct dev_info __dev_info[] = {
+  {
+    .dev_id     = CPSS_98DX4122_CNS,
+    .int_num    = GT_PCI_INT_B,
+    .n_ic_ports = 0,
+    .n_xg_phys  = 2,
+    .xg_phys    = xg_phys,
+    .ph1_info   = {
+      .devNum                 = 0,
+      .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
+      .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
+      .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .initSerdesDefaults     = GT_TRUE,
+      .isExternalCpuConnected = GT_FALSE
+    }
+  }
+};
+
+void
+sysd_setup_ic (void)
+{
+  sysd_setup_cpu_codes ();
+}
+
+int
+sysd_hw_dev_num (int ldev)
+{
+  switch (ldev) {
+  case 0:
+    return stack_id;
+  default:
+    EMERG ("invalid logical device number %d\r\n", ldev);
+    abort ();
+  }
+}
+
 #elif defined (VARIANT_ARLAN_3448PGE) || defined (VARIANT_ARLAN_3448GE) || defined (VARIANT_ARLAN_3050PGE) || defined (VARIANT_ARLAN_3050GE) || defined (VARIANT_ARLAN_3250PGE_SR)
 
 static int ic_ports_0[] = {26, 27};

@@ -268,6 +268,16 @@ DEBUG("====port_init, &ports[i]== %p\n", &ports[i]);
 #elif defined (VARIANT_ARLAN_3226PGE) || defined (VARIANT_ARLAN_3226GE)
     ports[i].type = ((ports[i].id > 24) && ((ports[i].id < 27)))
                     ? PTYPE_FIBER : PTYPE_COPPER;
+#elif defined (VARIANT_ARLAN_3212GE)
+    if (ports[i].id < 11) {
+      ports[i].type = PTYPE_COPPER;
+    }
+    else if (ports[i].id == 11 || ports[i].id == 12) {
+      ports[i].type = PTYPE_COMBO;
+    }
+    else {
+      ports[i].type = PTYPE_FIBER;
+    }
 #else /* GE-C[-S], GE-U, GE-F[-S] */
     switch (env_hw_subtype()) {
       case HWST_ARLAN_3424GE_F :
