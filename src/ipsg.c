@@ -267,9 +267,9 @@ notify_trap_enabled (port_id_t pi,
   msg = make_notification (TRAP_ENABLED);
 
   zmsg_addmem (msg, &pi, sizeof (port_id_t));
-  zmsg_addmem (msg, &mac, sizeof (mac_addr_t));
+  zmsg_addmem (msg, mac, sizeof (mac_addr_t));
   zmsg_addmem (msg, &vid, sizeof (vid_t));
-  zmsg_addmem (msg, &ip, sizeof (ip_addr_t));
+  zmsg_addmem (msg, ip, sizeof (ip_addr_t));
   send_notification (&msg);
 }
 

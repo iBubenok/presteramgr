@@ -322,6 +322,9 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     memcpy (src_ip, (frame->data) + src_ip_offset, 4);
     zmsg_addmem (sg_msg, src_ip, 4);
 
+    DEBUG ("Trapped packet mac-address: %d:%d:%d:%d:%d:%d",
+            src_mac[0],src_mac[1],src_mac[2],src_mac[3],src_mac[4],src_mac[5]);
+
     notify_trap_enabled (pid, frame->vid, src_mac, src_ip);
 
     notify_send (&sg_msg);
