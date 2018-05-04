@@ -16,6 +16,7 @@
 #include <sysdeps.h>
 #include <pthread.h>
 #include <assert.h>
+#include <ipsg.h>
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
@@ -559,10 +560,14 @@ void
 vif_set_trunk_members (trunk_id_t trunk, int nmem, struct trunk_member *mem, void *socket) {
 DEBUG(">>>>vif_set_trunk_members (%d, %d, )\n", trunk, nmem);
 
+  struct vif *vif = vif_get (VIFT_PC, 0, trunk);
+  notify_ch_gr_reset (vif->id);
+
   struct trunk *ctrunk = trunks + trunk;
   int k;
 for (k = 0; k < nmem; k++) {
   DEBUG("===00vif_set_trunk_members () k=%d, mem[k].ena= %d, mem[k].type=%d, mem[k].dev=%d, mem[k].num=%d\n", k, mem[k].enabled, mem[k].id.type, mem[k].id.dev, mem[k].id.num);
+  notify_ch_gr_set (vif->id, mem[k].id.num);
 }
 for (k = 0; k < ctrunk->nports; k++)
   DEBUG("====1vif_set_trunk_members ( ) k= %d, vp= %x, e= %d\n", k, ctrunk->vif_port[k]->id, ctrunk->port_enabled[k]);

@@ -39,6 +39,7 @@
 #include <pcl.h>
 #include <ip.h>
 #include <dev.h>
+#include <ipsg.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -299,6 +300,7 @@ control_notify_stp_state (port_id_t pid, stp_id_t stp_id,
 static void
 control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
 {
+  DEBUG ("%s",__FUNCTION__);
   if (pcl_source_guard_trap_enabled (pid)) {
     zmsg_t *sg_msg = make_notify_message (CN_SG_TRAP);
     put_vlan_id (sg_msg, frame->vid);
@@ -320,7 +322,10 @@ control_notify_ip_sg_trap (port_id_t pid, struct pdsa_spec_frame *frame)
     memcpy (src_ip, (frame->data) + src_ip_offset, 4);
     zmsg_addmem (sg_msg, src_ip, 4);
 
-    pcl_source_guard_drop_enable(pid);
+    DEBUG ("Trapped packet mac-address: %d:%d:%d:%d:%d:%d",
+            src_mac[0],src_mac[1],src_mac[2],src_mac[3],src_mac[4],src_mac[5]);
+
+    notify_trap_enabled (pid, frame->vid, src_mac, src_ip);
 
     notify_send (&sg_msg);
   }
@@ -504,12 +509,6 @@ DECLARE_HANDLER (CC_PORT_GET_SERDES_CFG);
 DECLARE_HANDLER (CC_PORT_SET_SERDES_CFG);
 DECLARE_HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX);
 DECLARE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT);
-DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP);
-DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP);
-DECLARE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP);
-DECLARE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP);
-DECLARE_HANDLER (CC_SOURCE_GUARD_ADD);
-DECLARE_HANDLER (CC_SOURCE_GUARD_DELETE);
 DECLARE_HANDLER (CC_USER_ACL_SET);
 DECLARE_HANDLER (CC_USER_ACL_RESET);
 DECLARE_HANDLER (CC_USER_ACL_FAKE_MODE);
@@ -692,12 +691,6 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_SERDES_CFG),
   HANDLER (CC_GET_PORT_IP_SOURCEGUARD_RULE_START_IX),
   HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT),
-  HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP),
-  HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP),
-  HANDLER (CC_SOURCE_GUARD_ENABLE_DROP),
-  HANDLER (CC_SOURCE_GUARD_DISABLE_DROP),
-  HANDLER (CC_SOURCE_GUARD_ADD),
-  HANDLER (CC_SOURCE_GUARD_DELETE),
   HANDLER (CC_USER_ACL_SET),
   HANDLER (CC_USER_ACL_RESET),
   HANDLER (CC_USER_ACL_FAKE_MODE),
@@ -4492,6 +4485,7 @@ DEFINE_HANDLER (CC_WNCT_ENABLE_PROTO)
 
 DEFINE_HANDLER (CC_TRUNK_SET_MEMBERS)
 {
+  DEBUG ("Trunk set members!!! \n");
   struct trunk_member mem[8];
   trunk_id_t id;
   enum status result;
@@ -5026,109 +5020,6 @@ DEFINE_HANDLER (CC_GET_PER_PORT_IP_SOURCEGUARD_RULES_COUNT)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &count, sizeof (count));
   send_reply (reply);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_TRAP)
-{
-  enum status result;
-  port_id_t pid;
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_trap_enable (pid);
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_TRAP)
-{
-  enum status result;
-  port_id_t pid;
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_trap_disable (pid);
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_ENABLE_DROP)
-{
-  enum status result;
-  port_id_t pid;
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_drop_enable (pid);
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_DISABLE_DROP)
-{
-  enum status result;
-  port_id_t pid;
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_drop_disable (pid);
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_ADD)
-{
-  enum status result;
-  port_id_t pid;
-  mac_addr_t mac;
-  vid_t vid;
-  ip_addr_t ip;
-  uint16_t rule_ix;
-  uint8_t verify_mac;
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&mac)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&vid)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&ip)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&rule_ix)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&verify_mac)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_rule_set (pid, mac, vid, ip, rule_ix, verify_mac);
-  result = ST_OK;
- out:
-  report_status (result);
-}
-
-DEFINE_HANDLER (CC_SOURCE_GUARD_DELETE)
-{
-  enum status result;
-  port_id_t pid;
-  uint16_t rule_ix;
-
-
-  if ((result = POP_ARG (&pid)) != ST_OK)
-    goto out;
-  if ((result = POP_ARG (&rule_ix)) != ST_OK)
-    goto out;
-
-  pcl_source_guard_rule_unset (pid, rule_ix);
-  result = ST_OK;
- out:
-  report_status (result);
 }
 
 #define INIT_VAR(var) do {                          \

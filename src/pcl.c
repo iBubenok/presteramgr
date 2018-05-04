@@ -19,6 +19,7 @@
 #include <zmq.h>
 #include <czmq.h>
 #include <utlist.h>
+#include <trunk.h>
 #include <dstack.h>
 
 /******************************************************************************/
@@ -498,12 +499,29 @@ pcl_setup_rip(int d)
 /******************************************************************************/
 /* IP SOURCE GUARD                                                            */
 /******************************************************************************/
-
 static int sg_trap_enabled[65 /* MAXPORTS */];
+static struct dstack *sg_rule_ixs [NPORTS+1];
+
 static void __attribute__((constructor))
 sg_init ()
 {
   memset (sg_trap_enabled, 0, 65);
+}
+
+void
+pcl_init_source_guard_rule_ixs ()
+{
+  int p, i;
+
+  for_each_port(p)
+  {
+    dstack_init(&sg_rule_ixs [p]);
+    for (i = 0; i < per_port_ip_source_guard_rules_count; i++)
+    {
+      uint16_t rule_ix = i + port_ip_sourceguard_rule_start_ix [p];
+      dstack_push_back(sg_rule_ixs [p], &rule_ix, sizeof(rule_ix));
+    }
+  }
 }
 
 uint16_t
@@ -545,6 +563,19 @@ pcl_source_guard_trap_enable (port_id_t pi)
 
   act.actionStop = GT_TRUE;
   act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 2;
+
+  DEBUG("\ncpssDxChPclRuleSet (Trap)(\n"                                    \
+      "  %d\n"                                                              \
+      "  %s\n"                                                              \
+      "  %d\n"                                                              \
+      "  %d\n"                                                              \
+      "  <mask>\n"                                                          \
+      "  <rule>\n"                                                          \
+      "  <act>)\n",                                                         \
+      port->ldev,                                                           \
+      "CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E",                     \
+      port_ip_sourceguard_drop_rule_ix[pi],                                 \
+      0);                                                        \
 
   CRP (cpssDxChPclRuleSet
        (port->ldev,                                       /* devNum         */
@@ -634,93 +665,112 @@ pcl_source_guard_rule_set (port_id_t pi,
                            mac_addr_t mac,
                            vid_t vid,
                            ip_addr_t ip,
-                           uint16_t rule_ix,
-                           uint8_t  verify_mac)
+                           uint8_t verify_mac,
+                           uint16_t *rule_ix)
 {
   struct port *port = port_ptr (pi);
+
+  DEBUG ("Rule vid = %u", vid);
+  DEBUG ("Rule Port = %u", pi);
+  DEBUG ("Rule IP = %u.%u.%u.%u \n",
+         ip[0], ip[1], ip[2], ip[3]);
+  DEBUG ("Rule Mac = %d: %d: %d: %d: %d: %d \n",
+         mac[0], mac[1], mac[2],
+         mac[3], mac[4], mac[5]);
 
   if (is_stack_port(port))
     return;
 
-  GT_ETHERADDR source_mac;
-  memcpy (&source_mac.arEther, mac, sizeof(mac_addr_t));
+  if (dstack_pop (sg_rule_ixs [pi], rule_ix, NULL) == ST_OK)
+  {
+    GT_ETHERADDR source_mac;
+    memcpy (&source_mac.arEther, mac, sizeof(mac_addr_t));
 
-  GT_U16 vlan_id;
-  memcpy (&vlan_id, &vid, sizeof(vid_t));
+    GT_U16 vlan_id;
+    memcpy (&vlan_id, &vid, sizeof(vid_t));
 
-  GT_IPADDR source_ip;
-  memcpy (&source_ip.arIP, ip, sizeof(ip_addr_t));
+    GT_IPADDR source_ip;
+    memcpy (&source_ip.arIP, ip, sizeof(ip_addr_t));
 
-  CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-  CPSS_DXCH_PCL_ACTION_STC act;
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
 
-  memset (&mask, 0, sizeof (mask));
-  memset (&rule, 0, sizeof (rule));
-  memset (&act, 0, sizeof (act));
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
 
-  mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-  mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-  mask.ruleExtNotIpv6.common.isIp = 0xFF;
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
 
-  if (verify_mac) {
-    /* Source MAC */
-    mask.ruleExtNotIpv6.macSa.arEther[5] = 0xFF;
-    mask.ruleExtNotIpv6.macSa.arEther[4] = 0xFF;
-    mask.ruleExtNotIpv6.macSa.arEther[3] = 0xFF;
-    mask.ruleExtNotIpv6.macSa.arEther[2] = 0xFF;
-    mask.ruleExtNotIpv6.macSa.arEther[1] = 0xFF;
-    mask.ruleExtNotIpv6.macSa.arEther[0] = 0xFF;
-  };
+    if (verify_mac) {
+      /* Source MAC */
+      mask.ruleExtNotIpv6.macSa.arEther[5] = 0xFF;
+      mask.ruleExtNotIpv6.macSa.arEther[4] = 0xFF;
+      mask.ruleExtNotIpv6.macSa.arEther[3] = 0xFF;
+      mask.ruleExtNotIpv6.macSa.arEther[2] = 0xFF;
+      mask.ruleExtNotIpv6.macSa.arEther[1] = 0xFF;
+      mask.ruleExtNotIpv6.macSa.arEther[0] = 0xFF;
+    };
 
-  /* VID */
-  mask.ruleExtNotIpv6.common.vid  = 0xFFFF;
-  /* Source IP */
-  mask.ruleExtNotIpv6.sip.arIP[0] = 0xFF;
-  mask.ruleExtNotIpv6.sip.arIP[1] = 0xFF;
-  mask.ruleExtNotIpv6.sip.arIP[2] = 0xFF;
-  mask.ruleExtNotIpv6.sip.arIP[3] = 0xFF;
+    /* VID */
+    mask.ruleExtNotIpv6.common.vid  = 0xFFFF;
+    /* Source IP */
+    mask.ruleExtNotIpv6.sip.arIP[0] = 0xFF;
+    mask.ruleExtNotIpv6.sip.arIP[1] = 0xFF;
+    mask.ruleExtNotIpv6.sip.arIP[2] = 0xFF;
+    mask.ruleExtNotIpv6.sip.arIP[3] = 0xFF;
 
 
-  rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
-  rule.ruleExtNotIpv6.common.isL2Valid = 1;
-  rule.ruleExtNotIpv6.common.isIp = 1;
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
 
-  if (verify_mac) {
-    /* Source MAC */
-    rule.ruleExtNotIpv6.macSa = source_mac;
+    if (verify_mac) {
+      /* Source MAC */
+      rule.ruleExtNotIpv6.macSa = source_mac;
+    }
+
+    /* VID */
+    rule.ruleExtNotIpv6.common.vid  = vlan_id;
+    /* Source IP */
+    rule.ruleExtNotIpv6.sip = source_ip;
+
+
+    act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+    act.actionStop = GT_TRUE;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          *rule_ix,                                         /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
   }
-
-  /* VID */
-  rule.ruleExtNotIpv6.common.vid  = vlan_id;
-  /* Source IP */
-  rule.ruleExtNotIpv6.sip = source_ip;
-
-
-  act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-  act.actionStop = GT_TRUE;
-
-  CRP (cpssDxChPclRuleSet
-       (port->ldev,                                       /* devNum         */
-        CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
-        rule_ix,                                          /* ruleIndex      */
-        0,                                                /* ruleOptionsBmp */
-        &mask,                                            /* maskPtr        */
-        &rule,                                            /* patternPtr     */
-        &act));                                           /* actionPtr      */
+  else
+  {
+    *rule_ix = 0;
+  }
 }
 
 void
-pcl_source_guard_rule_unset (port_id_t pi, uint16_t rule_ix)
+pcl_source_guard_rule_unset (port_id_t pi,
+                             uint16_t rule_ix)
 {
   struct port *port = port_ptr (pi);
 
   if (is_stack_port(port))
     return;
+
+  dstack_push (sg_rule_ixs [pi], &rule_ix, sizeof(rule_ix));
 
   CRP (cpssDxChPclRuleInvalidate
        (port->ldev,
         CPSS_PCL_RULE_SIZE_EXT_E,
         rule_ix));
+
 }
 
 int
@@ -736,6 +786,7 @@ pcl_source_guard_trap_enabled (port_id_t pi)
 
   return sg_trap_enabled[pi];
 }
+
 
 /******************************************************************************/
 /* USER ACLs                                                                  */
@@ -1129,6 +1180,7 @@ pcl_tcp_udp_port_cmp_set (int dev, struct port_cmp *port_cmp);
 static void
 user_acl_init (struct user_acl_t **u)
 {
+  DEBUG("user_acl_init");
   int i, d;
 
   (*u) = malloc(sizeof(struct user_acl_t));
@@ -1164,6 +1216,7 @@ user_acl_init (struct user_acl_t **u)
 static void
 pcl_init_user_acl (void)
 {
+  DEBUG("pcl_init_user_acl");
   user_acl_init(&user_acl);
   user_acl_init(&user_acl_fake);
   curr_acl = user_acl;
@@ -1190,6 +1243,8 @@ pcl_add_vlan_pcl_id (vid_t vid)
 static enum status
 pcl_add_rule_ix (int dev, struct rule_binding_key *key, uint16_t *rule_ix)
 {
+  DEBUG("pcl_add_rule_ix \n");
+
   struct rule_binding *tmp = NULL;
   HASH_FIND(hh,
             curr_acl->bindings[dev],
@@ -1223,6 +1278,7 @@ pcl_add_rule_ix (int dev, struct rule_binding_key *key, uint16_t *rule_ix)
 static enum status
 pcl_find_rule_ix (int dev, struct rule_binding_key *key, uint16_t *rule_ix)
 {
+  DEBUG("pcl_find_rule_ix");
   struct rule_binding *bind = NULL;
   HASH_FIND(hh,
             curr_acl->bindings[dev],
@@ -1249,6 +1305,7 @@ pcl_add_port_cmp_ix (int                     dev,
                      uint16_t                rule_ix,
                      uint8_t                 *cmp_ix)
 {
+  DEBUG ("pcl_add_port_cmp_ix, rule_ix = %u ",rule_ix);
   struct port_cmp_key key;
   key.destination = destination;
   key.ip_proto    = ip_proto;
@@ -3204,6 +3261,7 @@ pcl_enable_port (port_id_t pid, int enable)
         CPSS_PCL_LOOKUP_0_E,
         &lc));
 
+
   return ST_OK;
 }
 
@@ -3319,6 +3377,7 @@ pcl_test_start (uint16_t pcl_id, uint16_t rule_ix)
   rule.ruleExtNotIpv6.l2Encap = 1;
   mask.ruleExtNotIpv6.l2Encap = 0xFF;
 
+
   CPSS_DXCH_PCL_ACTION_STC act;
   memset(&act, 0, sizeof(act));
 
@@ -3339,6 +3398,7 @@ pcl_test_start (uint16_t pcl_id, uint16_t rule_ix)
         "CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E",
         rule_ix,
         0);
+
   /*DEBUG("\n<mask>:\n");
   PRINTHexDump(&mask, sizeof(mask));
   DEBUG("\n<rule>:\n");
@@ -3391,6 +3451,8 @@ pcl_cpss_lib_pre_init ()
 
   /* Initialize User ACL */
   pcl_init_user_acl();
+
+  pcl_init_source_guard_rule_ixs();
 
   return ST_OK;
 }

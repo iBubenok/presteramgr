@@ -41,7 +41,7 @@ dstack_push (struct dstack *s, const void *data, size_t data_sz);
 void
 dstack_push_back (struct dstack *s, const void *data, size_t data_sz);
 
-void
+int
 dstack_pop (struct dstack *s, void *data, size_t *data_sz);
 
 void

@@ -102,6 +102,7 @@
 #include <trunk.h>
 #include <presteramgr.h>
 #include <mll.h>
+#include <ipsg.h>
 
 int just_reset = 0;
 
@@ -879,6 +880,8 @@ cpss_start (void)
   INFO ("init control interface\n");
   control_init ();
 
+  ipsg_init ();
+
   INFO ("init mgmt interface\n");
   mgmt_init ();
 
@@ -887,6 +890,8 @@ cpss_start (void)
 
   INFO ("start control interface\n");
   control_start ();
+
+  ipsg_start ();
 
   INFO ("start security breach subsystem\n");
   sec_start ();
