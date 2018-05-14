@@ -3807,22 +3807,23 @@ DEFINE_HANDLER (CC_MON_SESSION_SET_DST)
 {
   enum status result;
   mon_session_t num;
-  port_id_t pid;
+  zframe_t *frame;
   vid_t vid;
 
   result = POP_ARG (&num);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&pid);
-  if (result != ST_OK)
-    goto out;
-
   result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
+  frame = FIRST_ARG;
+  if (!frame || (zframe_size (frame) % sizeof (struct mon_if))) {
+    result = ST_BAD_FORMAT;
+    goto out;
+  }
 
-  result = mon_session_set_dst (num, pid, vid);
+  result = mon_session_set_dst (num, (struct mon_if*) zframe_data(frame), vid);
 
  out:
   report_status (result);

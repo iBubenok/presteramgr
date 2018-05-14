@@ -7,6 +7,8 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
 #include <cpss/dxCh/dxChxGen/mirror/cpssDxChMirror.h>
 
+#include <vif.h>
+#include <stack.h>
 #include <vlan.h>
 #include <port.h>
 #include <monitor.h>
@@ -25,7 +27,7 @@ struct session {
   int enabled;
   int nsrcs;
   struct mon_if *src;
-  port_id_t dst_pid;
+  struct mon_if *dst;
   vid_t dst_vid;
   int rx;
   int tx;
@@ -36,7 +38,7 @@ static struct session *sessions = NULL;
 static struct session *en_rx = NULL, *en_tx = NULL;
 static int n_en_s = 0;
 
-static int dst_compat (const struct session *, port_id_t, vid_t);
+static int dst_compat (const struct session *, struct mon_if *, vid_t);
 static struct session *other_active_session (const struct session *);
 
 static inline int
@@ -70,32 +72,34 @@ s_del (struct session *s)
   HASH_DEL (sessions, s);
   if (s->src)
     free (s->src);
+  if (s->dst)
+    free (s->dst);
   free (s);
 }
 
 static void
 mon_configure_dst (struct session *s)
 {
-  struct port *port = port_ptr (s->dst_pid);
+  if(!s->dst)
+    return;
+  struct vif *vif = vif_get(s->dst->num, 0, s->dst->dummy);
   CPSS_DXCH_MIRROR_ANALYZER_INTERFACE_STC iface;
   int tag = vlan_valid (s->dst_vid);
   CPSS_DXCH_MIRROR_ANALYZER_VLAN_TAG_CFG_STC cfg;
   int d;
-
-  if (!port)
+  if (!vif)
     return;
 
   iface.interface.type = CPSS_INTERFACE_PORT_E;
-  iface.interface.devPort.devNum = phys_dev (port->ldev);
-  iface.interface.devPort.portNum = port->lport;
-
+  iface.interface.devPort.devNum = (s->dst->dev == stack_id? phys_dev(vif->local->ldev): s->dst->dev);
+  iface.interface.devPort.portNum = vif->local->lport;
   if (tag) {
     cfg.etherType = 0x8100;
     cfg.vpt = 0;
     cfg.cfi = 0;
     cfg.vid = s->dst_vid;
     CRP (cpssDxChMirrorAnalyzerVlanTagEnable
-         (port->ldev, port->lport, GT_TRUE));
+         (vif->local->ldev, vif->local->lport, GT_TRUE));
   };
 
   if (s->rx) {
@@ -122,12 +126,15 @@ mon_configure_dst (struct session *s)
 static void
 mon_deconfigure_dst (struct session *s)
 {
-  struct port *port = port_ptr (s->dst_pid);
+  if(!s->dst)
+    return;
+  struct vif *vif = vif_get(s->dst->num, 0, s->dst->dummy);
   int d;
 
-  if (!port)
+  if (!vif)
     /* Destination is not configured. */
     return;
+  int dev = (s->dst->dev == stack_id? vif->local->ldev: s->dst->dev);
 
   if (s->rx)
     for_each_dev (d)
@@ -141,36 +148,41 @@ mon_deconfigure_dst (struct session *s)
 
   if (vlan_valid (s->dst_vid)) {
     struct session *o = other_active_session (s);
-    if (!o || (o->dst_pid != s->dst_pid))
+    if (!o || (o->dst != s->dst))
       CRP (cpssDxChMirrorAnalyzerVlanTagEnable
-           (port->ldev, port->lport, GT_FALSE));
+           (dev, vif->local->lport, GT_FALSE));
   }
 }
 
 static void
 mon_configure_srcs (struct session *s)
 {
-  struct port *port;
+  struct vif *vif;
   int i, d;
-
   for (i = 0; i < s->nsrcs; i++) {
     switch (s->src[i].type) {
     case MI_SRC_VLAN:
       for_each_dev (d)
-        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].id, GT_TRUE));
+        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].num*32 + s->src[i].dev, GT_TRUE));
       break;
     case MI_SRC_PORT_RX:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_TRUE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!vif || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorRxPortSet (vif->local->ldev, vif->local->lport, GT_TRUE, 0));
       break;
     case MI_SRC_PORT_TX:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_TRUE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!vif || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorTxPortSet (vif->local->ldev, vif->local->lport, GT_TRUE, 0));
       break;
     case MI_SRC_PORT_BOTH:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_TRUE, 0));
-      CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_TRUE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!vif || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorRxPortSet (vif->local->ldev, vif->local->lport, GT_TRUE, 0));
+      CRP (cpssDxChMirrorTxPortSet (vif->local->ldev, vif->local->lport, GT_TRUE, 0));
     }
   }
 
@@ -183,27 +195,32 @@ mon_configure_srcs (struct session *s)
 static void
 mon_deconfigure_srcs (struct session *s)
 {
-  struct port *port;
   int i, d;
-
+  struct vif *vif;
   for (i = 0; i < s->nsrcs; i++) {
     switch (s->src[i].type) {
     case MI_SRC_VLAN:
       for_each_dev (d)
-        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].id, GT_FALSE));
+        CRP (cpssDxChBrgVlanIngressMirrorEnable (d, s->src[i].num*32 + s->src[i].dev, GT_FALSE));
       break;
     case MI_SRC_PORT_RX:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_FALSE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!(vif && s->dst) || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorRxPortSet (vif->local->ldev, vif->local->lport, GT_FALSE, 0));
       break;
     case MI_SRC_PORT_TX:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_FALSE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!(vif && s->dst) || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorTxPortSet (vif->local->ldev, vif->local->lport, GT_FALSE, 0));
       break;
     case MI_SRC_PORT_BOTH:
-      port = port_ptr (s->src[i].id);
-      CRP (cpssDxChMirrorRxPortSet (port->ldev, port->lport, GT_FALSE, 0));
-      CRP (cpssDxChMirrorTxPortSet (port->ldev, port->lport, GT_FALSE, 0));
+      vif = vif_get(s->src[i].num, 0, s->src[i].dummy);
+      if(!(vif && s->dst) || (s->src[i].dev != stack_id))
+        continue;
+      CRP (cpssDxChMirrorRxPortSet (vif->local->ldev, vif->local->lport, GT_FALSE, 0));
+      CRP (cpssDxChMirrorTxPortSet (vif->local->ldev, vif->local->lport, GT_FALSE, 0));
     }
   }
 
@@ -229,7 +246,7 @@ __mon_session_enable (struct session *s, int enable)
     if ((n_en_s > 1) ||
         (s->rx && en_rx) ||
         (s->tx && en_tx) ||
-        !dst_compat (other_active_session (s), s->dst_pid, s->dst_vid))
+        !dst_compat (other_active_session (s), s->dst, s->dst_vid))
       return ST_BUSY;
 
     mon_configure_dst (s);
@@ -284,23 +301,17 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
     for (i = 0; i < nsrcs; i++) {
       switch (src[i].type) {
       case MI_SRC_VLAN:
-        if (!vlan_valid (src[i].id))
+        if (!vlan_valid (src[i].num*32 + src[i].dev))
           return ST_BAD_VALUE;
         rx = 1;
         break;
       case MI_SRC_PORT_RX:
-        if (!port_valid (src[i].id))
-          return ST_BAD_VALUE;
         rx = 1;
         break;
       case MI_SRC_PORT_TX:
-        if (!port_valid (src[i].id))
-          return ST_BAD_VALUE;
         tx = 1;
         break;
       case MI_SRC_PORT_BOTH:
-        if (!port_valid (src[i].id))
-          return ST_BAD_VALUE;
         rx = tx = 1;
         break;
       default:
@@ -311,7 +322,7 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
     if (s->enabled) {
       if ((rx && en_rx && (en_rx != s)) ||
           (tx && en_tx && (en_tx != s)) ||
-          !dst_compat (other_active_session (s), s->dst_pid, s->dst_vid))
+          !dst_compat (other_active_session (s), s->dst, s->dst_vid))
         return ST_BUSY;
     }
   }
@@ -344,17 +355,16 @@ mon_session_set_src (mon_session_t num, int nsrcs, const struct mon_if *src)
 }
 
 static int
-dst_compat (const struct session *s, port_id_t dst_pid, vid_t dst_vid)
+dst_compat (const struct session *s, struct mon_if* dst, vid_t dst_vid)
 {
   if (!s)
     return 1;
 
-  if (!port_valid (s->dst_pid) || !port_valid (dst_pid))
+  if(!vif_get(dst->num, 0, dst->dummy) || !vif_get(s->dst->num, 0, s->dst->dummy))
     return 1;
-
   /* If two sessions share the destination port, both of them
      must use tagged or untagged output. */
-  if (s->dst_pid == dst_pid)
+  if (s->dst == dst)
     return ((vlan_valid (s->dst_vid) && vlan_valid (dst_vid)) ||
             (!vlan_valid (s->dst_vid) && !vlan_valid (dst_vid)));
 
@@ -371,27 +381,41 @@ other_active_session (const struct session *session)
 }
 
 enum status
-mon_session_set_dst (mon_session_t num, port_id_t dst_pid, vid_t dst_vid)
+mon_session_set_dst (mon_session_t num, struct mon_if* dst, vid_t dst_vid)
 {
   struct session *s = s_get (num);
 
   if (!s)
     return ST_DOES_NOT_EXIST;
 
-  if (!((dst_pid == 0 || port_valid (dst_pid)) &&
-        (dst_vid == 0 || vlan_valid (dst_vid))))
+  if (!(dst && (dst_vid == 0 || vlan_valid (dst_vid))))
     return ST_BAD_VALUE;
 
   if (s->enabled) {
-    if (!dst_compat (other_active_session (s), dst_pid, dst_vid))
+    if (!dst_compat (other_active_session (s), dst, dst_vid))
       return ST_BUSY;
-
     mon_deconfigure_dst (s);
-    s->dst_pid = dst_pid;
+
+    if(s->dst){
+      free (s->dst);
+      s->dst = NULL;
+    }
+
+    int size = sizeof (struct mon_if);
+    s->dst = malloc (size);
+    memcpy (s->dst, dst, size);
     s->dst_vid = dst_vid;
-    mon_configure_dst (s);
+    if(s->dst)
+      mon_configure_dst (s);
+
   } else {
-    s->dst_pid = dst_pid;
+    if(s->dst){
+      free (s->dst);
+      s->dst = NULL;
+    }
+    int size = sizeof (struct mon_if);
+    s->dst = malloc (size);
+    memcpy (s->dst, dst, size);
     s->dst_vid = dst_vid;
   }
 
