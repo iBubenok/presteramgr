@@ -297,7 +297,7 @@ static struct dev_info __dev_info[] = {
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
       .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
       .initSerdesDefaults     = GT_TRUE,
       .isExternalCpuConnected = GT_FALSE
     }
@@ -338,7 +338,7 @@ static struct dev_info __dev_info[] = {
       .coreClock              = CPSS_DXCH_AUTO_DETECT_CORE_CLOCK_CNS,
       .mngInterfaceType       = CPSS_CHANNEL_PEX_E,
       .ppHAState              = CPSS_SYS_HA_MODE_ACTIVE_E,
-      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_INTERNAL_125_E,
+      .serdesRefClock         = CPSS_DXCH_PP_SERDES_REF_CLOCK_EXTERNAL_125_DIFF_E,
       .initSerdesDefaults     = GT_TRUE,
       .isExternalCpuConnected = GT_FALSE
     }
