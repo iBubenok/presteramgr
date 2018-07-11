@@ -2972,6 +2972,8 @@ max_bps (enum port_speed ps)
 enum status
 port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
 {
+  DEBUG("port_set_rate_limit (pid: %d, type: %d, limit: %llu)",
+        pid, rl->type, (uint64_t)rl->limit);
   struct port *port = port_ptr (pid);
   uint32_t div;
   GT_STATUS rc;
@@ -3007,6 +3009,13 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       cfg.enableBc = GT_TRUE;
       cfg.enableMc = GT_FALSE;
       cfg.enableUcUnk = GT_FALSE;
+
+    case TT_ALL:
+      cfg.enableBc = GT_TRUE;
+      cfg.enableMc = GT_TRUE;
+      cfg.enableMcReg = GT_TRUE;
+      cfg.enableUcUnk = GT_TRUE;
+      cfg.enableUcKnown = GT_TRUE;
     }
 
     /*
