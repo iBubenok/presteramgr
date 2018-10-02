@@ -363,6 +363,7 @@ control_start (void)
 DECLARE_HANDLER (CC_PORT_GET_STATE);
 DECLARE_HANDLER (CC_PORT_GET_TYPE);
 DECLARE_HANDLER (CC_PORT_SET_STP_STATE);
+DECLARE_HANDLER (CC_PORT_GET_STP_STATE);
 DECLARE_HANDLER (CC_VIF_SET_STP_STATE);
 DECLARE_HANDLER (CC_PORT_SHUTDOWN);
 DECLARE_HANDLER (CC_VIF_SHUTDOWN);
@@ -400,6 +401,7 @@ DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
 DECLARE_HANDLER (CC_PORT_SET_PHY_REG);
 DECLARE_HANDLER (CC_SET_FDB_MAP);
 DECLARE_HANDLER (CC_VLAN_SET_STP_ID);
+DECLARE_HANDLER (CC_VLAN_GET_STP_ID);
 DECLARE_HANDLER (CC_VLAN_ADD);
 DECLARE_HANDLER (CC_VLAN_DELETE);
 DECLARE_HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE);
@@ -544,6 +546,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_GET_STATE),
   HANDLER (CC_PORT_GET_TYPE),
   HANDLER (CC_PORT_SET_STP_STATE),
+  HANDLER (CC_PORT_GET_STP_STATE),
   HANDLER (CC_VIF_SET_STP_STATE),
   HANDLER (CC_PORT_SHUTDOWN),
   HANDLER (CC_VIF_SHUTDOWN),
@@ -581,6 +584,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_PHY_REG),
   HANDLER (CC_SET_FDB_MAP),
   HANDLER (CC_VLAN_SET_STP_ID),
+  HANDLER (CC_VLAN_GET_STP_ID),
   HANDLER (CC_VLAN_ADD),
   HANDLER (CC_VLAN_DELETE),
   HANDLER (CC_VLAN_SET_DOT1Q_TAG_NATIVE),
@@ -1613,6 +1617,37 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_GET_STP_STATE)
+{
+  port_id_t pid;
+  stp_id_t stp_id;
+  enum port_stp_state port_state;
+  stp_state_t state;
+  enum status result;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_OPT_ARG (&stp_id);
+  if (result != ST_OK)
+    goto out;
+
+  result = port_get_stp_state (pid, stp_id, &port_state);
+  if (result != ST_OK)
+    goto out;
+
+  state = (stp_state_t) port_state;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &state, sizeof (state));
+  send_reply (reply);
+  return;
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
 {
   vif_id_t vif;
@@ -1832,6 +1867,29 @@ DEFINE_HANDLER (CC_VLAN_SET_STP_ID)
     goto out;
 
   result = vlan_set_stp_id (vid, stp_id);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_VLAN_GET_STP_ID)
+{
+  enum status result;
+  vid_t    vid;
+  stp_id_t stp_id;
+
+  result = POP_ARG (&vid);
+  if (result != ST_OK)
+    goto out;
+
+  result = vlan_get_stp_id (vid, &stp_id);
+  if (result != ST_OK)
+    goto out;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  zmsg_addmem (reply, &stp_id, sizeof (stp_id));
+  send_reply (reply);
+  return;
 
  out:
   report_status (result);
