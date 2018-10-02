@@ -1214,6 +1214,21 @@ port_set_stp_state (port_id_t pid, stp_id_t stp_id,
   return ST_OK;
 }
 
+enum status
+port_get_stp_state (port_id_t pid, stp_id_t stp_id, enum port_stp_state* state)
+{
+  struct port *port;
+
+  if (!(port = port_ptr (pid)) || stp_id > 255)
+    return ST_BAD_VALUE;
+
+  if (is_stack_port (port))
+    return ST_BAD_STATE;
+
+  *state = stg_state[pid - 1][stp_id];
+
+  return ST_OK;
+}
 
 enum status
 port_set_access_vid (port_id_t pid, vid_t vid)

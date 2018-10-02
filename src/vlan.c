@@ -695,6 +695,16 @@ vlan_set_stp_id (vid_t vid, stp_id_t id)
 }
 
 enum status
+vlan_get_stp_id(vid_t vid, stp_id_t *id)
+{
+  if (!vlan_valid(vid))
+    return ST_BAD_VALUE;
+
+  *id = vlans[vid-1].stp_id;
+  return ST_OK;
+}
+
+enum status
 vlan_get_mac_addr (vid_t vid, mac_addr_t addr)
 {
   if (!vlan_valid (vid))
@@ -854,16 +864,6 @@ vlan_mc_route (vid_t vid, bool_t enable)
            (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
     }
   }
-
-  return ST_OK;
-}
-
-enum status
-vlan_get_stp_id (vid_t vid, stp_id_t *stp_id)
-{
-  if (!vlan_valid(vid)) return ST_BAD_VALUE;
-
-  memcpy(stp_id, &vlans[vid - 1].stp_id, sizeof(stp_id_t));
 
   return ST_OK;
 }

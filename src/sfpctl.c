@@ -80,6 +80,7 @@ main (int argc, char **argv)
   if (hw_type == 23 || hw_type == 26) {
 //    clear_bits (fd, 0x20, 6, 2, (1 << 3) | (1 << 7));
     clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
+    set_bits (fd, 0x20, 7, 0x77);
   } else if (hw_type == 10)
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3));
   else if (hw_type == 20 || hw_type == 11) {
