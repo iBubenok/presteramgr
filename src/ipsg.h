@@ -2,8 +2,8 @@
 
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof (*a))
 
-#define IPSG_REP_EP "ipc:///var/tmp/ipsg_to_prest.rep"
-#define IPSG_REQ_EP "ipc:///var/tmp/ipsg_to_prest.req"
+#define IPSG_REP_EP "ipc://@/var/tmp/ipsg_to_prest.rep"
+#define IPSG_REQ_EP "ipc://@/var/tmp/ipsg_to_prest.req"
 
 enum pcl_frame_t {
   RULE_SET = 0,
