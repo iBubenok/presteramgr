@@ -98,6 +98,20 @@ enum fdbman_state {
   FST_MEMBER
 };
 
+static const char*
+fdbman_state_to_string(enum fdbman_state state) {
+  switch (state) {
+    case FST_MASTER:
+      return "FST_MASTER";
+    case FST_PRE_MEMBER:
+      return "FST_PRE_MEMBER";
+    case FST_MEMBER:
+      return "FST_MEMBER";
+    default:
+      return "undefined";
+  };
+}
+
 struct fdbcomm_thrd {
   void *fdb_ctl_sock;
   void *tipc_ctl_sock;
@@ -1984,8 +1998,10 @@ DEBUG(">>>fdbman_handle_msg_vifls_get() %x\n", msg->devsbmp);
 
 static void
 fdbman_handle_msg_vif_set_stp_state(struct pti_fdbr_msg *msg, uint32_t len) {
-  if (! (msg->devsbmp & (1 << stack_id)))
+  if (! (msg->devsbmp & (1 << stack_id))) {
+    DEBUG("%s: device %d not included in %d", __FUNCTION__, stack_id, msg->devsbmp);
     return;
+  }
 
   assert(len == sizeof(struct pti_fdbr_msg) + sizeof(struct mac_vif_set_stp_state_args));
 
@@ -2234,8 +2250,8 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 
     case FMC_MASTER_FLUSH:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
-        break;
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        // break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
@@ -2243,7 +2259,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
           break;
         case FST_PRE_MEMBER:
           // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
-          break;
+          // break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
           break;
@@ -2263,8 +2279,8 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 
     case FMC_MASTER_FLUSH_VIF:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
-        break;
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
+        // break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
@@ -2272,7 +2288,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
           break;
         case FST_PRE_MEMBER:
           // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
-          break;
+          // break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush_vif(msg, len);
           break;
@@ -2341,10 +2357,12 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       fdbman_handle_msg_vifls_get(msg, len);
       break;
     case FMC_VIF_SET_STP_STATE:
+      DEBUG("got FMC_VIF_SET_STP_STATE in state %s\n", fdbman_state_to_string(fdbman_state));
       switch (fdbman_state) {
         case FST_MASTER:
-        case FST_PRE_MEMBER:
           break;
+        case FST_PRE_MEMBER:
+          // break;
         case FST_MEMBER:
           fdbman_handle_msg_vif_set_stp_state(msg, len);
           break;
