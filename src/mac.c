@@ -148,6 +148,12 @@ struct pti_fdbr_msg {
 #define PTI_FDBR_MSG_SIZE(n) \
     (sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * (n))
 
+struct set_master_info {
+  uint8_t master;
+  serial_t serial;
+  devsbmp_t dbmp;
+} __attribute__ ((packed)) ;
+
 enum fdbman_state fdbman_state;
 uint8_t fdbman_master, fdbman_newmaster;
 static serial_t fdbman_serial, fdbman_newserial;
@@ -160,7 +166,7 @@ static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
 static void fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg);
-static enum status fdbman_set_master(const void *arg);
+static enum status fdbman_set_master(struct set_master_info *minfo);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
 static void fdbman_send_msg_uni_flush_vif(const struct fdb_flush_arg_vif *arg, int master);
@@ -489,12 +495,12 @@ mac_set_aging_time (aging_time_t time)
 
 enum status
 mac_set_master (uint8_t stid, serial_t serial, devsbmp_t dbmp) {
-  uint8_t buf[sizeof(stid) + sizeof(serial) + sizeof(dbmp)];
-  buf[0] = stid;
-  *((typeof(serial)*)(&buf[sizeof(stid)])) = serial;
-  *((typeof(dbmp)*)(&buf[sizeof(stid) + sizeof(serial)])) = dbmp;
+  struct set_master_info minfo;
+  minfo.master = stid;
+  minfo.serial = serial;
+  minfo.dbmp = dbmp;
 
-  return fdb_actl_control (FCC_SET_MASTER, buf, sizeof (stid) + sizeof(serial) + sizeof(dbmp));
+  return fdb_actl_control (FCC_SET_MASTER, &minfo, sizeof (minfo));
 }
 
 
@@ -1492,7 +1498,7 @@ fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
     break;
   case FCC_SET_MASTER:
     // DEBUG("FCC_SET_MASTER\n"); // TODO remove
-    status = fdbman_set_master(arg);
+    status = fdbman_set_master((struct set_master_info*) arg);
     // DEBUG("===FCC_SET_MASTER\n"); // TODO remove
     break;
   case FCC_FDBMAN_HANDLE_PKT:
@@ -2052,11 +2058,11 @@ DEBUG (">>>>fdbman_sync_ls(%hx) %hx\n", nbmp, nbmp);
 }
 
 static enum status
-fdbman_set_master(const void *arg) {
+fdbman_set_master(struct set_master_info *minfo) {
   int dummy;
-  uint8_t newmaster = *((uint8_t*) arg);
-  serial_t serial = *(serial_t*)((uint8_t*) arg) + 1;
-  devsbmp_t dbmp = *(devsbmp_t*)((uint8_t*) arg + 1 + sizeof(serial_t));
+  uint8_t newmaster = minfo->master;
+  serial_t serial = minfo->serial;
+  devsbmp_t dbmp = minfo->dbmp;
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
   devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
