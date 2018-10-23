@@ -2371,7 +2371,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
         case FST_MASTER:
           break;
         case FST_PRE_MEMBER:
-          // break;
+          break;
         case FST_MEMBER:
           fdbman_handle_msg_vif_set_stp_state(msg, len);
           break;
