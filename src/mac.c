@@ -92,8 +92,7 @@ enum fdbman_cmd {
   FMC_VIF_SET_STP_STATE
 };
 
-static const char*
-__attribute__ ((unused))
+__attribute__ ((unused)) static const char*
 fdbman_cmd_to_string(enum fdbman_cmd cmd) {
   switch (cmd) {
     case FMC_MASTER_READY:
