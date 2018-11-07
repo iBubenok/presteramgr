@@ -92,6 +92,48 @@ enum fdbman_cmd {
   FMC_VIF_SET_STP_STATE
 };
 
+__attribute__ ((unused)) static const char*
+fdbman_cmd_to_string(enum fdbman_cmd cmd) {
+  switch (cmd) {
+    case FMC_MASTER_READY:
+      return "FMC_MASTER_READY";
+    case FMC_UPDATE:
+      return "FMC_UPDATE";
+    case FMC_MASTER_UPDATE:
+      return "FMC_MASTER_UPDATE";
+    case FMC_FLUSH:
+      return "FMC_FLUSH";
+    case FMC_MASTER_FLUSH:
+      return "FMC_MASTER_FLUSH";
+    case FMC_FLUSH_VIF:
+      return "FMC_FLUSH_VIF";
+    case FMC_MASTER_FLUSH_VIF:
+      return "FMC_MASTER_FLUSH_VIF";
+    case FMC_MACOP:
+      return "FMC_MACOP";
+    case FMC_MASTER_MACOP:
+      return "FMC_MASTER_MACOP";
+    case FMC_MASTER_RT:
+      return "FMC_MASTER_RT";
+    case FMC_MASTER_NA:
+      return "FMC_MASTER_NA";
+    case FMC_OPNA:
+      return "FMC_OPNA";
+    case FMC_MASTER_UDT:
+      return "FMC_MASTER_UDT";
+    case FMC_MASTER_CLEAR_ROUTING:
+      return "FMC_MASTER_CLEAR_ROUTING";
+    case FMC_VIF_LS:
+      return "FMC_VIF_LS";
+    case FMC_VIFLS_GET:
+      return "FMC_VIFLS_GET";
+    case FMC_VIF_SET_STP_STATE:
+      return "FMC_VIF_SET_STP_STATE";
+    default:
+      return "undefined";
+  };
+};
+
 enum fdbman_state {
   FST_MASTER,
   FST_PRE_MEMBER,
@@ -148,6 +190,12 @@ struct pti_fdbr_msg {
 #define PTI_FDBR_MSG_SIZE(n) \
     (sizeof (struct pti_fdbr_msg) + sizeof (struct pti_fdbr) * (n))
 
+struct set_master_info {
+  uint8_t master;
+  serial_t serial;
+  devsbmp_t dbmp;
+} __attribute__ ((packed)) ;
+
 enum fdbman_state fdbman_state;
 uint8_t fdbman_master, fdbman_newmaster;
 static serial_t fdbman_serial, fdbman_newserial;
@@ -160,7 +208,7 @@ static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
 static void fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg);
-static enum status fdbman_set_master(const void *arg);
+static enum status fdbman_set_master(struct set_master_info *minfo);
 static enum status fdbman_handle_pkt (const void *pkt, uint32_t len);
 static void fdbman_send_msg_uni_flush(const struct fdb_flush_arg *arg, int master);
 static void fdbman_send_msg_uni_flush_vif(const struct fdb_flush_arg_vif *arg, int master);
@@ -489,12 +537,12 @@ mac_set_aging_time (aging_time_t time)
 
 enum status
 mac_set_master (uint8_t stid, serial_t serial, devsbmp_t dbmp) {
-  uint8_t buf[sizeof(stid) + sizeof(serial) + sizeof(dbmp)];
-  buf[0] = stid;
-  *((typeof(serial)*)(&buf[sizeof(stid)])) = serial;
-  *((typeof(dbmp)*)(&buf[sizeof(stid) + sizeof(serial)])) = dbmp;
+  struct set_master_info minfo;
+  minfo.master = stid;
+  minfo.serial = serial;
+  minfo.dbmp = dbmp;
 
-  return fdb_actl_control (FCC_SET_MASTER, buf, sizeof (stid) + sizeof(serial) + sizeof(dbmp));
+  return fdb_actl_control (FCC_SET_MASTER, &minfo, sizeof (minfo));
 }
 
 
@@ -1492,7 +1540,7 @@ fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
     break;
   case FCC_SET_MASTER:
     // DEBUG("FCC_SET_MASTER\n"); // TODO remove
-    status = fdbman_set_master(arg);
+    status = fdbman_set_master((struct set_master_info*) arg);
     // DEBUG("===FCC_SET_MASTER\n"); // TODO remove
     break;
   case FCC_FDBMAN_HANDLE_PKT:
@@ -2052,23 +2100,23 @@ DEBUG (">>>>fdbman_sync_ls(%hx) %hx\n", nbmp, nbmp);
 }
 
 static enum status
-fdbman_set_master(const void *arg) {
+fdbman_set_master(struct set_master_info *minfo) {
   int dummy;
-  uint8_t newmaster = *((uint8_t*) arg);
-  serial_t serial = *(serial_t*)((uint8_t*) arg) + 1;
-  devsbmp_t dbmp = *(devsbmp_t*)((uint8_t*) arg + 1 + sizeof(serial_t));
+  uint8_t newmaster = minfo->master;
+  serial_t serial = minfo->serial;
+  devsbmp_t dbmp = minfo->dbmp;
   devsbmp_t newdevs_bmp = ~(fdbman_devsbmp | ~dbmp);
   devsbmp_t deldevs_bmp = ~(~fdbman_devsbmp | dbmp);
 
+  DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
   vif_ls_clear_serial(newdevs_bmp);
 
-// DEBUG(">>>fdbman_set_master(%hhu, %llu, %hx)\n", newmaster, serial, dbmp);
-// DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+    DEBUG("FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   if (serial < fdbman_serial) {
-    // DEBUG("====fdbman_set_master() serial %llu < than the current fdbman_serial %llu", serial, fdbman_serial);
+    DEBUG("====fdbman_set_master() serial %llu < than the current fdbman_serial %llu", serial, fdbman_serial);
     return ST_OK;
   }
-  if (serial <= fdbman_newserial)
+  if (serial <= fdbman_newserial && fdbman_devsbmp == dbmp)
     return ST_OK;
 
 //  if (fdbman_devsbmp != dbmp)
@@ -2119,7 +2167,7 @@ fdbman_set_master(const void *arg) {
   }
   fdbman_send_control_cmd(SC_INT_CLEAR_RE_CMD, &deldevs_bmp, sizeof(deldevs_bmp));
   fdbman_devsbmp = dbmp;
-// DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
+  DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
   return ST_OK;
 }
 
@@ -2134,7 +2182,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
     // fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial);
 
   if (msg->command != FMC_MASTER_READY && msg->serial < fdbman_serial) {
-// DEBUG("<<<<fdbman_handle_pkt() DROP;\n");
+    DEBUG("<<<<fdbman_handle_pkt() DROP;\n");
     return ST_OK;
   }
 
@@ -2147,18 +2195,21 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 
   switch (msg->command) {
     case FMC_MASTER_READY:
+      DEBUG("FMC_MASTER_READY recieved:  FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu, curr_dbmp: 0x%02X, msg_master: %d, msg_serial: %llu msg_dbmp: 0x%02X\n",
+          fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial, fdbman_devsbmp, msg->stack_id, msg->serial, msg->devsbmp);
       if (!(msg->devsbmp & (1 << stack_id))) {
-// DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
+        DEBUG("<<<<fdbman_handle_pkt(): DROP\n");
         return ST_OK;
       }
       if (msg->serial < fdbman_serial) {
-        // DEBUG("ERROR: fdbman: with serial: %llu recieved outdated FMS_MASTER_READY with serial %llu ",
-        //     fdbman_serial, msg->serial);
+        DEBUG("ERROR: fdbman: with serial: %llu recieved outdated FMS_MASTER_READY with serial %llu ",
+            fdbman_serial, msg->serial);
         break;
       }
       if (msg->serial < fdbman_newserial) {
         fdbman_master = msg->stack_id;
         fdbman_serial = msg->serial;
+        fdbman_devsbmp = msg->devsbmp;
         break;
       }
       switch (fdbman_state) {
@@ -2180,8 +2231,8 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
             fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
-            // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
-            //     msg->stack_id, fdbman_newmaster);
+            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+                msg->stack_id, fdbman_newmaster);
           }
           break;
         case FST_MEMBER:
@@ -2196,11 +2247,12 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
             fdbman_newserial = fdbman_serial = msg->serial;
             fdbman_devsbmp = msg->devsbmp;
             fdbman_state = FST_MEMBER;
-            // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
-            //       msg->stack_id, fdbman_newmaster);
+            DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_READY from unit %hhu actually waiting it from unit %hhu\n",
+                msg->stack_id, fdbman_newmaster);
           }
           break;
       }
+      DEBUG("2FDBMAN state: %d master: %d, newmaster: %d, fdbman_serial: %llu, fdbman_newserial: %llu, curr_dbmp: 0x%02X\n", fdbman_state, fdbman_master, fdbman_newmaster, fdbman_serial, fdbman_newserial, fdbman_devsbmp);
       break;
 
     case FMC_UPDATE:
@@ -2216,19 +2268,19 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 
     case FMC_MASTER_UPDATE:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_UPDATE\n");
           break;
         case FST_PRE_MEMBER:
           if (msg->stack_id == fdbman_newmaster) {
             fdbman_handle_msg_master_update(msg, len);
           }
           else {
-            // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_UPDATE data block\n");
           }
           break;
         case FST_MEMBER:
@@ -2251,15 +2303,15 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
     case FMC_MASTER_FLUSH:
       if (msg->stack_id != fdbman_master) {
         DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UPDATE data block\n", msg->stack_id);
-        // break;
+        break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH\n");
           break;
         case FST_PRE_MEMBER:
-          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
-          // break;
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH data block\n");
+          break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush(msg, len);
           break;
@@ -2280,15 +2332,15 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
     case FMC_MASTER_FLUSH_VIF:
       if (msg->stack_id != fdbman_master) {
         DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_FLUSH_VIF data block\n", msg->stack_id);
-        // break;
+        break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH_VIF\n");
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_FLUSH_VIF\n");
           break;
         case FST_PRE_MEMBER:
-          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
-          // break;
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved FMC_MASTER_FLUSH_VIF data block\n");
+          break;
         case FST_MEMBER:
           fdbman_handle_msg_master_flush_vif(msg, len);
           break;
@@ -2308,15 +2360,15 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
 
     case FMC_MASTER_MACOP:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_MACOP data block\n", msg->stack_id);
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_MACOP data block\n", msg->stack_id);
         break;
       }
       switch (fdbman_state) {
         case FST_MASTER:
-          // DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
+          DEBUG("ERROR: fdbman: FMS_MASTER recieved FMC_MASTER_MACOP\n");
           break;
         case FST_PRE_MEMBER:
-          // DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
+          DEBUG("ERROR: fdbman: FMS_PRE_MEMBER recieved alien FMC_MASTER_MACOP data block\n");
           break;
         case FST_MEMBER:
           fdbman_handle_msg_master_macop(msg, len);
@@ -2332,7 +2384,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       break;
     case FMC_MASTER_NA:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_NA data block\n", msg->stack_id);
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_NA data block\n", msg->stack_id);
         break;
       }
       fdbman_handle_msg_na(msg, len);
@@ -2342,7 +2394,7 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       break;
     case FMC_MASTER_UDT:
       if (msg->stack_id != fdbman_master) {
-        // DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UDT data block\n", msg->stack_id);
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UDT data block\n", msg->stack_id);
         break;
       }
       fdbman_handle_msg_udt(msg, len);
@@ -2360,9 +2412,9 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       DEBUG("got FMC_VIF_SET_STP_STATE in state %s\n", fdbman_state_to_string(fdbman_state));
       switch (fdbman_state) {
         case FST_MASTER:
-          break;
         case FST_PRE_MEMBER:
-          // break;
+          DEBUG("FMC_VIF_SET_STP_STATE: DROP\n");
+          break;
         case FST_MEMBER:
           fdbman_handle_msg_vif_set_stp_state(msg, len);
           break;
