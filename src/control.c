@@ -916,6 +916,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
+  int check_source_mac = 0;
   struct vif *vif;
   vif_id_t vifid;
   int is_vif_forwarding_on_vlan;
@@ -1099,6 +1100,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -1106,6 +1108,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -1123,6 +1126,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+    check_source_mac = 1;
     conform2stp_state = 1;
     put_vif = 1;
     put_vid = 1;
@@ -1138,6 +1142,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -1204,6 +1209,18 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       result = ST_OK;
       goto out;
     }
+
+  if (check_source_mac) {
+    if (frame->len >= 12) {
+      char *frame_source_mac = ((char*)frame->data) + 6;
+      if (!memcmp(frame_source_mac, master_mac, 6)) {
+        DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
+              frame->code, frame->vid, vifid);
+        result = ST_OK;
+        goto out;
+      }
+    }
+  }
 
   zmsg_t *msg = make_notify_message (type);
   if (put_vif)
@@ -3168,6 +3185,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   int put_vid = 0, put_vif = 0;
   uint16_t *etype;
   register int conform2stp_state = 0;
+  int check_source_mac = 0;
   struct vif *vif;
 
 
@@ -3348,6 +3366,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -3355,6 +3374,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_ARP_REPLY_TO_ME:
     type = CN_ARP_REPLY_TO_ME;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -3373,6 +3393,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -3387,6 +3408,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (3):
     type = CN_ARP;
     conform2stp_state = 1;
+    check_source_mac = 1;
     put_vif = 1;
     put_vid = 1;
     break;
@@ -3453,6 +3475,18 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
+
+  if (check_source_mac) {
+    if (frame->len >= 12) {
+      char *frame_source_mac = ((char*)frame->data) + 6;
+      if (!memcmp(frame_source_mac, master_mac, 6)) {
+        DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
+              frame->code, frame->vid, vif->id);
+        result = ST_OK;
+        goto out;
+      }
+    }
+  }
 
   zmsg_t *msg = make_notify_message (type);
   if (put_vif)
