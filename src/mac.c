@@ -1855,7 +1855,8 @@ fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg) {
   fdb_msg->stack_id = stack_id;
   fdb_msg->command = FMC_VIF_SET_STP_STATE;
   fdb_msg->nfdb = 0;
-  fdb_msg->devsbmp = ALL_DEVS;
+  struct vif_id *v = (struct vif_id*)&arg->vifid;
+  fdb_msg->devsbmp = (v->type == VIFT_PC)? ALL_DEVS : 1 << v->dev;
   fdb_msg->serial = fdbman_serial;
   memcpy(fdb_msg->data, arg, sizeof(*arg));
   size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg);
