@@ -1,9 +1,8 @@
 /files
 /install
-/*.debhelper.log
+/*.debhelper*
 /*.substvars
 /presteramgr
 /presteractl
 /fanctl
 /sfpctl
-

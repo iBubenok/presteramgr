@@ -2306,6 +2306,12 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
       return GT_BAD_PARAM;
       break;
 
+    case HWST_ARLAN_3250GE_USR:
+      if ((pid < 25) || (pid > 48))
+        return GT_BAD_PARAM;
+      break;
+
+
     default:
       if (pid == 23 || pid == 24) {
         mode_1000mbps = 0x0007;
