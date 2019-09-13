@@ -499,10 +499,16 @@ const char* get_rev_str(int d)
     return "A1";
   } else if (val_0x4c == 0x3 && val_0x54 == 0x3) {
     /* B0 */
-    return "B0";
+    if (dev_info[d].chip_revision[3] & 0x80000000)
+      return "C0";
+    else
+      return "B0";
   } else if (val_0x4c == 0x3) {
     /* A2 */
-    return "A2";
+    if (dev_info[d].chip_revision[3] & 0x80000000)
+      return "C0";
+    else
+      return "A2";
   } else {
     /* Unknown */
     return "UNKNOWN";
