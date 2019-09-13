@@ -697,7 +697,11 @@ do_reset (void)
 
   DEBUG ("*** reset requested\r\n");
 
+#if defined (VARIANT_ARLAN_3448GE)
+  for (i = NDEVS-1; i >= 0; i--) {
+#else
   for_each_dev (i) {
+#endif
     pci_find_dev (&dev_info[i]);
 
     DEBUG ("doing phase1 config\n");
