@@ -3030,6 +3030,7 @@ port_set_rate_limit (port_id_t pid, const struct rate_limit *rl)
       cfg.enableBc = GT_TRUE;
       cfg.enableMc = GT_FALSE;
       cfg.enableUcUnk = GT_FALSE;
+      break;
 
     case TT_ALL:
       cfg.enableBc = GT_TRUE;
