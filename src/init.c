@@ -690,8 +690,12 @@ static void
 do_reset (void)
 {
 #ifdef VARIANT_ARLAN_3050PGE
-  return; /* TODO  3050 only */
+  return; /* TODO:  3050 only */
 #endif
+#ifdef VARIANT_ARLAN_3448GE
+  return; /* TODO:  3448 only */
+#endif
+
   CPSS_PP_DEVICE_TYPE dev_type;
   int i;
 
