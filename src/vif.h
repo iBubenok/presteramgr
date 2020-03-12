@@ -100,6 +100,17 @@ vif_is_forwarding_on_vlan(struct vif *vif, vid_t vid) {
   };
 }
 
+static inline vid_t
+vif_vid (const struct vif *vif)
+{
+  switch (vif->mode) {
+  case PM_ACCESS:   return vif->access_vid;
+  case PM_CUSTOMER: return vif->customer_vid;
+  case PM_TRUNK:    return vif->native_vid;
+  default:          return 0;            /* should never get here */
+  }
+}
+
 #define STP_STATES_PER_BYTE (8 / STP_STATE_BITS_WIDTH)
 
 struct vif_stg {
