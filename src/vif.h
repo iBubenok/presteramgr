@@ -26,6 +26,8 @@ struct vif {
   uint8_t stg_state[256];
 
   enum port_mode mode;
+  vid_t access_vid;
+  vid_t customer_vid;
   vid_t native_vid;
   vid_t voice_vid;
   int trust_cos;
