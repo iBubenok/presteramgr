@@ -25,6 +25,9 @@
 
 size_t sysdeps_default_stack_size;
 CPSS_PORTS_BMP_STC ic0_ports_bmp = {{0,0}};
+int sysd_override_serdes_ref_clock = 0;
+CPSS_DXCH_PP_SERDES_REF_CLOCK_ENT sysd_serdes_ref_clock;
+
 
 static void __attribute__ ((constructor))
 get_system_params (void)
