@@ -768,6 +768,12 @@ init_cpss (void)
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
 
+    if (sysd_override_serdes_ref_clock) {
+      DEBUG ("overriding SERDES reference clock with %d\n",
+             sysd_serdes_ref_clock);
+      dev_info[i].ph1_info.serdesRefClock = sysd_serdes_ref_clock;
+    }
+
     DEBUG ("doing phase1 config\n");
     rc = cpssDxChHwPpPhase1Init (&dev_info[i].ph1_info, &dev_type);
     RCC (rc, cpssDxChHwPpPhase1Init);

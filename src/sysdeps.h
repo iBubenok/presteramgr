@@ -397,5 +397,7 @@ extern size_t sysdeps_default_stack_size;
 extern void sysd_setup_ic (void);
 extern int sysd_hw_dev_num (int);
 
+extern int sysd_override_serdes_ref_clock;
+extern CPSS_DXCH_PP_SERDES_REF_CLOCK_ENT sysd_serdes_ref_clock;
 
 #endif /* __SYSDEPS_H__ */
