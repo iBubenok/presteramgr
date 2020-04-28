@@ -40,7 +40,7 @@ pdsa_vlan_if_op (vid_t vid, int add)
   nla_put_u16 (msg, PDSA_A_VID, (__u16) vid);
 
   rc = nl_send_sync (sock, msg);
-  DEBUG ("nl_send_sync() returned %s (%d)\r\n", strerror (-rc), rc);
+//  DEBUG ("nl_send_sync() returned %s (%d)\r\n", strerror (-rc), rc);
 
   return ST_OK;
 }

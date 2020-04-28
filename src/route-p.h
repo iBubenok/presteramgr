@@ -27,6 +27,8 @@ enum {
   FIRST_REGULAR_RE_IDX
 };
 
+#define DROP_MC_RE_IDX DEFAULT_MC_RE_IDX
+
 #define GW_FMT "%d.%d.%d.%d:%d"
 #define GW_FMT_ARGS(gw) \
   gw->addr.arIP[0],gw->addr.arIP[1],gw->addr.arIP[2],gw->addr.arIP[3],gw->vid

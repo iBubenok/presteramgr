@@ -7,7 +7,9 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
 
 #include <control-proto.h>
+#include <sysdeps.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -57,7 +59,7 @@ int
 nht_add (const GT_ETHERADDR *addr)
 {
   struct nexthop *nh;
-  int idx;
+  int idx, d;
   GT_STATUS rc;
 
   HASH_FIND_ETH (nht, addr, nh);
@@ -70,7 +72,9 @@ nht_add (const GT_ETHERADDR *addr)
   if (idx < 0)
     return idx;
 
-  rc = CRP (cpssDxChIpRouterArpAddrWrite (0, idx, (GT_ETHERADDR *) addr));
+  for_each_dev(d)
+    rc = CRP (cpssDxChIpRouterArpAddrWrite (d, idx, (GT_ETHERADDR *) addr));
+
   if (rc != ST_OK) {
     nhs_push (idx);
     return -1;
@@ -117,4 +121,15 @@ nht_init (void)
   nhs.sp = 0;
 
   return ST_OK;
+}
+
+void
+nht_dump (void) {
+  struct nexthop *s, *t;
+  DEBUG("!!!! NHT DUMP!!!!\n");
+  HASH_ITER (hh, nht, s, t) {
+    DEBUG(MAC_FMT ",    %08d:%02d\n",
+        MAC_ARG(s->addr.arEther), s->idx, s->refc);
+  }
+  DEBUG("!!!! end NHT DUMP!!!!\n\n");
 }

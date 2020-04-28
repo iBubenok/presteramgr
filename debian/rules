@@ -29,6 +29,12 @@ else
 WITH_ARPD := --with-arpd=$(ARPD)
 endif
 
+ifeq ($(STACKD),)
+WITH_STACKD :=
+else
+WITH_STACKD := --with-stackd=$(STACKD)
+endif
+
 ifeq ($(LINUXHDRS),)
 WITH_LINUX_HEADERS :=
 else
@@ -42,6 +48,7 @@ configure: configure.ac
 
 config.status: configure
 	dh_testdir
+	CFLAGS="-O2 -fno-omit-frame-pointer -mapcs-frame -rdynamic" \
 	./configure \
 		--build=$(DEB_BUILD_GNU_TYPE) \
 		--host=$(CROSS_GNU_TARGET) \
@@ -52,7 +59,8 @@ config.status: configure
 		$(WITH_LINUX_HEADERS) \
 		$(WITH_PSCP) \
 		$(WITH_RTBD) \
-		$(WITH_ARPD)
+		$(WITH_ARPD) \
+		$(WITH_STACKD)
 
 build: build-stamp
 build-stamp: config.status
@@ -61,7 +69,7 @@ build-stamp: config.status
 
 clean:
 	dh_testroot
-	rm -f build-stamp prepare-stamp
+	rm -f build-stamp config.status
 	rm -rf debian/install
 	-$(MAKE) distclean
 	-dh_clean

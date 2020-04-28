@@ -4,9 +4,13 @@
 
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdb.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgVlan.h>
-#include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgStp.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgFdbHash.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgMc.h>
+#include <cpss/generic/config/private/prvCpssConfigTypes.h>
+#include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 
+#include <sysdeps.h>
 #include <presteramgr.h>
 #include <debug.h>
 #include <string.h>
@@ -14,9 +18,13 @@
 #include <port.h>
 #include <pdsa.h>
 #include <route.h>
+#include <utils.h>
+#include <dev.h>
+#include <mac.h>
 #include <control-proto.h>
 
 struct vlan vlans[NVLANS];
+stp_state_t stg_state[NPORTS][256];
 
 DECLSHOW (GT_BOOL);
 DECLSHOW (CPSS_PACKET_CMD_ENT);
@@ -158,7 +166,14 @@ stg_set_active (stp_id_t stg)
   stgs[STG_IDX (stg)] |= STG_BIT (stg);
 }
 
+static inline void
+stg_set_inactive (stp_id_t stg)
+{
+  stgs[STG_IDX (stg)] &= ~(STG_BIT (stg));
+}
+
 int vlan_dot1q_tag_native = 0;
+int vlan_xlate_tunnel = 0;
 
 static void
 setup_tagging (vid_t vid,
@@ -166,39 +181,77 @@ setup_tagging (vid_t vid,
                CPSS_PORTS_BMP_STC *tagging,
                CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC *tagging_cmd)
 {
-  int i;
+  int i, d;
 
-  memset (members, 0, sizeof (*members));
-  memset (tagging, 0, sizeof (*tagging));
-  memset (tagging_cmd, 0, sizeof (*tagging_cmd));
+  memset (members, 0, sizeof (*members) * NDEVS);
+  memset (tagging, 0, sizeof (*tagging) * NDEVS);
+  memset (tagging_cmd, 0, sizeof (*tagging_cmd) * NDEVS);
+
+  for_each_dev (d) {
+    for (i = 0; i < dev_info[d].n_ic_ports; i++) {
+      int p = dev_info[d].ic_ports[i];
+
+      CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], p);
+      CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], p);
+      tagging_cmd[d].portsCmd[p] =
+        CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+    }
+  }
 
   for (i = 0; i < nports; i++) {
     struct port *port = port_ptr (i + 1);
+    d = port->ldev;
+
+    if (is_stack_port (port)) {
+      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
+      tagging_cmd->portsCmd[port->lport] =
+        CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      continue;
+    }
 
     switch (port->mode) {
     case PM_ACCESS:
       if (port->access_vid == vid) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      } else if (port->voice_vid == vid) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
+          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
       }
       break;
 
     case PM_TRUNK:
-      CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-      if (port->native_vid != vid || vlan_dot1q_tag_native) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (tagging, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
-          CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
-      } else
-        tagging_cmd->portsCmd[port->lport] =
-          CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+      if (port->native_vid == vid ||
+          port->vlan_conf[vid - 1].tallow ||
+          port->vlan_conf[vid - 1].refc) {
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+
+        if (port->vlan_conf[vid - 1].refc) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] = vlan_xlate_tunnel
+            ? CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E
+            : CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+        } else if (port->native_vid == vid) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] = vlan_dot1q_tag_native
+            ? CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E
+            : CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
+        } else if (vlans[vid - 1].vt_refc && vlan_xlate_tunnel) {
+          CPSS_PORTS_BMP_PORT_SET_MAC (&tagging[d], port->lport);
+          tagging_cmd[d].portsCmd[port->lport] =
+            CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
+        } else
+          tagging_cmd[d].portsCmd[port->lport] =
+            CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      }
       break;
 
     case PM_CUSTOMER:
       if (port->customer_vid == vid) {
-        CPSS_PORTS_BMP_PORT_SET_MAC (members, port->lport);
-        tagging_cmd->portsCmd[port->lport] =
+        CPSS_PORTS_BMP_PORT_SET_MAC (&members[d], port->lport);
+        tagging_cmd[d].portsCmd[port->lport] =
           CPSS_DXCH_BRG_VLAN_PORT_POP_OUTER_TAG_CMD_E;
       }
       break;
@@ -206,16 +259,14 @@ setup_tagging (vid_t vid,
   }
 }
 
-enum status
-vlan_add (vid_t vid)
+static enum status
+__vlan_add (vid_t vid)
 {
-  CPSS_PORTS_BMP_STC members, tagging;
+  CPSS_PORTS_BMP_STC members[NDEVS], tagging[NDEVS];
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
-  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
+  CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd[NDEVS];
+  int d;
   GT_STATUS rc;
-
-  if (!vlan_valid (vid))
-    return ST_BAD_VALUE;
 
   memset (&vlan_info, 0, sizeof (vlan_info));
   vlan_info.unkSrcAddrSecBreach   = GT_FALSE;
@@ -239,7 +290,7 @@ vlan_add (vid_t vid)
   vlan_info.ipv6UcastRouteEn      = GT_FALSE;
   vlan_info.ipv6McastRouteEn      = GT_FALSE;
   vlan_info.stgId                 = vlans[vid - 1].stp_id;
-  vlan_info.autoLearnDisable      = GT_FALSE;
+  vlan_info.autoLearnDisable      = GT_TRUE;
   vlan_info.naMsgToCpuEn          = GT_TRUE;
   vlan_info.mruIdx                = 0;
   vlan_info.bcastUdpTrapMirrEn    = GT_FALSE;
@@ -250,13 +301,19 @@ vlan_add (vid_t vid)
   vlan_info.ucastLocalSwitchingEn = GT_FALSE;
   vlan_info.mcastLocalSwitchingEn = GT_FALSE;
 
-  setup_tagging (vid, &members, &tagging, &tagging_cmd);
+  setup_tagging (vid, members, tagging, tagging_cmd);
 
-  rc = CRP (cpssDxChBrgVlanEntryWrite (0, vid, &members,
-                                       &tagging, &vlan_info,
-                                       &tagging_cmd));
+  for_each_dev (d) {
+    rc = CRP (cpssDxChBrgVlanEntryWrite (d, vid, &members[d],
+                                         &tagging[d], &vlan_info,
+                                         &tagging_cmd[d]));
+    ON_GT_ERROR (rc) break;
+  }
+
   switch (rc) {
   case GT_OK:
+    for_each_dev (d)
+      CRP (cpssDxChIpRouterVlanMacSaLsbSet (d, vid, route_mac_lsb));
     vlans[vid - 1].state = VS_ACTIVE;
     return ST_OK;
   case GT_HW_ERROR:
@@ -267,14 +324,61 @@ vlan_add (vid_t vid)
 }
 
 enum status
+vlan_add (vid_t vid)
+{
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  return __vlan_add (vid);
+}
+
+enum status
+vlan_add_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+    	vid_t v;
+    	for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+    		if ( (result = vlan_add (v)) != ST_OK ) {
+    			return result;
+    		}
+    	}
+      if (size) {
+    	  arr += 2;
+    	  size -= 2;
+      }
+    } else {
+    	if ( (result = vlan_add (*arr)) != ST_OK ) {
+    			return result;
+    	}
+      if (size) {
+    	  arr++;
+    	  size--;
+      }
+    }
+  }
+  return ST_OK;
+}
+
+enum status
 vlan_delete (vid_t vid)
 {
   GT_STATUS rc;
+  int d;
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
 
-  rc = CRP (cpssDxChBrgVlanEntryInvalidate (0, vid));
+  for_each_dev (d) {
+    rc = CRP (cpssDxChBrgVlanEntryInvalidate (d, vid));
+    ON_GT_ERROR (rc) break;
+  }
+
+  struct mac_age_arg_vif aa = { .vid = vid, .vifid = ALL_VIFS };
+  mac_flush_vif(&aa, GT_TRUE);
+
   switch (rc) {
   case GT_OK:
     vlans[vid - 1].state = VS_DELETED;
@@ -284,11 +388,42 @@ vlan_delete (vid_t vid)
   }
 }
 
+enum status
+vlan_delete_range (uint16_t size, vid_t* arr)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_delete (v)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_delete (*arr)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+
+  return ST_OK;
+}
+
 int
 vlan_init (void)
 {
-  GT_STATUS rc;
-  int i;
+  CPSS_PORTS_BMP_STC pbm;
+  int i, d;
 
   for (i = 0; i < NVLANS; i++) {
     vlans[i].vid = i + 1;
@@ -296,139 +431,69 @@ vlan_init (void)
     vlans[i].c_cpu = 0;
     vlans[i].mac_addr_set = 0;
     vlans[i].state = VS_DELETED;
+    vlans[i].vt_refc = 0;
   }
 
-  CRP (cpssDxChBrgVlanTableInvalidate (0));
-  CRP (cpssDxChBrgVlanMruProfileValueSet (0, 0, 10000));
-  rc = CRP (cpssDxChBrgVlanBridgingModeSet (0, CPSS_BRG_MODE_802_1Q_E));
-  CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
-       (0, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
+  memset (&pbm, 0, sizeof (pbm));
 
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+  for_each_dev (d) {
+    CRP (cpssDxChBrgVlanTableInvalidate (d));
+    CRP (cpssDxChBrgVlanMruProfileValueSet (d, 0, 12000));
+    CRP (cpssDxChBrgVlanBridgingModeSet (d, CPSS_BRG_MODE_802_1Q_E));
+    CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+         (d, CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E));
 
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
-  CRP (cpssDxChBrgVlanTpidEntrySet
-       (0, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_INGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_EGRESS_E, VLAN_TPID_IDX, VLAN_TPID));
 
-  vlan_add (1);
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_INGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+    CRP (cpssDxChBrgVlanTpidEntrySet
+         (d, CPSS_DIRECTION_EGRESS_E, FAKE_TPID_IDX, FAKE_TPID));
+
+    CRP (cpssDxChBrgMcEntryWrite (d, 4092, &pbm));
+  }
 
   static stp_id_t ids[NVLANS];
   memset (ids, 0, sizeof (ids));
   vlan_set_fdb_map (ids);
+  memset (stg_state, STP_STATE_DISABLED, sizeof(stg_state));
 
-  return rc != GT_OK;
+  vlan_add (1);
+  __vlan_add (SVC_VID);
+
+  return ST_OK;
 }
 
 static void
 vlan_clear_mac_addr (struct vlan *vlan)
 {
   if (vlan->mac_addr_set) {
-    DEBUG ("invalidate FDB entry at %d", vlan->mac_idx);
-    CRP (cpssDxChBrgFdbMacEntryInvalidate (0, vlan->mac_idx));
-    vlan->mac_idx = 0;
+    mac_op_own (vlan->vid, vlan->c_mac_addr, 0);
     vlan->mac_addr_set = 0;
   }
 }
 
-#define VLAN_MAC_ENTRY 1
-
-GT_STATUS
+void
 vlan_set_mac_addr (GT_U16 vid, const unsigned char *addr)
 {
-  CPSS_MAC_ENTRY_EXT_STC mac_entry;
-  GT_STATUS rc;
-  GT_U32 idx, best_idx, i, score;
+  struct vlan *vlan = &vlans[vid - 1];
 
-  vlan_clear_mac_addr (&vlans[vid - 1]);
+  vlan_clear_mac_addr (vlan);
+  memcpy (vlan->c_mac_addr, addr, 6);
+  mac_op_own (vlan->vid, vlan->c_mac_addr, 1);
+  vlan->mac_addr_set = 1;
+}
 
-  memset (&mac_entry, 0, sizeof (mac_entry));
-  mac_entry.key.entryType = CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E;
-  mac_entry.key.key.macVlan.vlanId = vid;
-  memcpy (mac_entry.key.key.macVlan.macAddr.arEther, addr, 6);
-  mac_entry.dstInterface.type = CPSS_INTERFACE_PORT_E;
-  mac_entry.dstInterface.devPort.devNum = 0;
-  mac_entry.dstInterface.devPort.portNum = 63;
-  mac_entry.appSpecificCpuCode = GT_TRUE;
-  mac_entry.isStatic = GT_TRUE;
-  mac_entry.daCommand = CPSS_MAC_TABLE_FRWRD_E;
-  mac_entry.saCommand = CPSS_MAC_TABLE_FRWRD_E;
-  mac_entry.daRoute = GT_TRUE;
-  mac_entry.userDefined = VLAN_MAC_ENTRY;
-
-  rc = CRP (cpssDxChBrgFdbHashCalc (0, &mac_entry.key, &idx));
-  if (rc != GT_OK)
-    goto out;
-
-  best_idx = idx;
-  score = 10;
-  DEBUG ("searching FDB from %lu to %lu, initial score %lu",
-         idx, idx + 3, score);
-  for (i = 0; i < 4; i++) {
-    GT_BOOL valid, skip, aged;
-    GT_U8 adev;
-    CPSS_MAC_ENTRY_EXT_STC tmp;
-
-    CRP (cpssDxChBrgFdbMacEntryRead
-         (0, idx + i, &valid, &skip, &aged, &adev, &tmp));
-
-    if (skip || !valid) {
-      DEBUG ("found free FDB entry (score 0) at %lu", idx + i);
-      best_idx = idx + i;
-      score = 0;
-      break;
-    }
-
-    if (aged) {
-      DEBUG ("found aged FDB entry (score 1) at %lu", idx + i);
-      best_idx = idx + i;
-      score = 1;
-      continue;
-    }
-
-    if (tmp.isStatic) {
-      if (tmp.userDefined == VLAN_MAC_ENTRY) {
-        DEBUG ("found static VLAN FDB entry (score 10) at %lu", idx + i);
-        continue;
-      } else {
-        DEBUG ("found static FDB entry (score 5) at %lu", idx + i);
-        if (score > 5) {
-          best_idx = idx + i;
-          score = 5;
-        }
-      }
-    } else {
-      DEBUG ("found dynamic FDB entry (score 2) at %lu", idx + i);
-      if (score > 2) {
-        best_idx = idx + i;
-        score = 2;
-      }
-    }
-  }
-
-  if (score < 10) {
-    DEBUG ("writing VLAN FDB entry at %lu (score %lu)", best_idx, score);
-    rc = CRP (cpssDxChBrgFdbMacEntryWrite
-              (0, best_idx, GT_FALSE, &mac_entry));
-    if (rc != GT_OK)
-      goto out;
-  } else {
-    DEBUG ("no room for VLAN FDB entry");
-    rc = GT_NOT_FOUND;
-    goto out;
-  }
-
-  memcpy (vlans[vid - 1].c_mac_addr, addr, 6);
-  vlans[vid - 1].mac_addr_set = 1;
-  vlans[vid - 1].mac_idx = best_idx;
-
-  return GT_OK;
-
- out:
-  return rc;
+void
+vlan_set_mac_lsb (void) {
+  int i, d;
+  for (i = 0; i < NVLANS; i++)
+    if (vlans[i].state != VS_DELETED)
+      for_each_dev (d)
+        CRP(cpssDxChIpRouterVlanMacSaLsbSet( d, vlans[i].vid, route_mac_lsb));
 }
 
 enum status
@@ -443,7 +508,7 @@ vlan_set_dot1q_tag_native (int value)
 
     if (value) {
       tag = GT_TRUE;
-      cmd = CPSS_DXCH_BRG_VLAN_PORT_OUTER_TAG0_INNER_TAG1_CMD_E;
+      cmd = CPSS_DXCH_BRG_VLAN_PORT_TAG0_CMD_E;
     } else {
       tag = GT_FALSE;
       cmd = CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E;
@@ -452,7 +517,8 @@ vlan_set_dot1q_tag_native (int value)
     for (i = 0; i < nports; i++) {
       struct port *port = port_ptr (i + 1);
 
-      if (port->mode == PM_TRUNK) {
+      if (port->mode == PM_TRUNK &&
+          !port->vlan_conf[port->native_vid - 1].refc) {
         rc = CRP (cpssDxChBrgVlanMemberSet
                   (port->ldev,
                    port->native_vid,
@@ -480,22 +546,30 @@ vlan_set_dot1q_tag_native (int value)
 static void
 vlan_reconf_cpu (vid_t vid, bool_t cpu)
 {
-  CPSS_PORTS_BMP_STC members, tagging = { .ports = {0, 0} };
+  CPSS_PORTS_BMP_STC members, tagging;
   CPSS_DXCH_BRG_VLAN_INFO_STC vlan_info;
   CPSS_DXCH_BRG_VLAN_PORTS_TAG_CMD_STC tagging_cmd;
   GT_BOOL valid;
+  int d;
 
-  CRP (cpssDxChBrgVlanEntryRead
-       (0, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
-  if (cpu) {
-    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
-    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
-  } else {
-    vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
-    vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+  for_each_dev (d) {
+    CRP (cpssDxChBrgVlanEntryRead
+         (d, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
+
+    if (cpu) {
+      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
+      vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+    } else {
+      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
+      vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_FORWARD_E;
+    }
+    CRP (cpssDxChBrgVlanEntryWrite
+         (d, vid, &members, &tagging, &vlan_info, &tagging_cmd));
+
+    if (!valid) {
+      CRP(cpssDxChBrgVlanEntryInvalidate(d, vid));
+    }
   }
-  CRP (cpssDxChBrgVlanEntryWrite
-       (0, vid, &members, &tagging, &vlan_info, &tagging_cmd));
 }
 
 enum status
@@ -510,15 +584,49 @@ vlan_set_cpu (vid_t vid, bool_t cpu)
 
   cpu = !!cpu;
   vlan_reconf_cpu (vid, cpu);
-  if (vlan->c_cpu == cpu)
+
+  if (vlan->c_cpu == cpu) {
     return ST_OK;
+  }
 
   vlan->c_cpu = cpu;
 
-  if (!cpu)
+  if (!cpu) {
     vlan_clear_mac_addr (vlan);
+  }
 
   return pdsa_vlan_if_op (vid, cpu);
+}
+
+enum status
+vlan_set_cpu_range (uint16_t size, vid_t* arr, bool_t cpu)
+{
+  enum status result;
+
+  while (size) {
+    if ( IS_IN_RANGE (*arr) ) {
+      vid_t v;
+      for (v = (*arr - 10000); v <= (*(arr + 1) - 10000); v++) {
+        if ( (result = vlan_set_cpu (v, cpu)) != ST_OK ) {
+          return result;
+        }
+      }
+      if (size) {
+        arr += 2;
+        size -= 2;
+      }
+    } else {
+      if ( (result = vlan_set_cpu (*arr, cpu)) != ST_OK ) {
+          return result;
+      }
+      if (size) {
+        arr++;
+        size--;
+      }
+    }
+  }
+
+  return ST_OK;
 }
 
 enum status
@@ -532,12 +640,67 @@ vlan_set_fdb_map (const stp_id_t *ids)
 
   stgs_clear ();
   for (i = 0; i < NVLANS; i++) {
-    vlans[i].stp_id = ids[i];
-    stg_set_active (ids[i]);
-    if (vlans[i].state == VS_ACTIVE)
-      CRP (cpssDxChBrgVlanToStpIdBind (0, i + 1, ids[i]));
+    vlan_set_stp_id(i + 1, ids[i]);
   }
 
+  return ST_OK;
+}
+
+enum status
+vlan_set_stp_id (vid_t vid, stp_id_t id)
+{
+  if (id > 255) return ST_BAD_VALUE;
+
+  int i, deactive = 1;
+  for (i = 0; i < NVLANS; i++)
+    if ((i != (vid-1))                           &&
+        (vlans[i].stp_id == vlans[vid-1].stp_id) &&
+        stg_is_active(vlans[i].stp_id)) {
+      deactive = 0;
+      break;
+    }
+
+  if (deactive) stg_set_inactive(vlans[vid-1].stp_id);
+
+  vlans[vid-1].stp_id = id;
+  stg_set_active(id);
+
+  int d;
+  for_each_dev (d) {
+    int p;
+    CRP (cpssDxChBrgVlanToStpIdBind (d, vid, id));
+    for (p = 0; p < dev_info[d].n_ic_ports; p++) {
+      CRP (cpssDxChBrgStpStateSet
+           (d, dev_info[d].ic_ports[p], id, CPSS_STP_FRWRD_E));
+    }
+  }
+
+  // @todo: ports_all_set_stp_state_default(id);
+  //
+  // instead of:
+  //
+  // int pid;
+  // struct port *port;
+  // struct port_link_state state;
+  // for (pid = 1; pid != nports; pid++) {
+  //   port = port_ptr(pid);
+  //   if (!port) continue;
+  //   if (port_get_state(pid, &state) != ST_OK) continue;
+  //   if (!is_stack_port(port))
+  //     port_set_stp_state (pid, id, 0, state.link ? STP_STATE_DISCARDING :
+  //                                                  STP_STATE_DISABLED);
+  // }
+
+  return ST_OK;
+}
+
+enum status
+vlan_get_stp_id(vid_t vid, stp_id_t *id)
+{
+  if (!vlan_valid(vid))
+    return ST_BAD_VALUE;
+
+  *id = vlans[vid-1].stp_id;
   return ST_OK;
 }
 
@@ -596,6 +759,111 @@ vlan_del_ip_addr (vid_t vid)
 
   route_del_mgmt_ip (vlan->c_ip_addr);
   vlan->ip_addr_set = 0;
+
+  return ST_OK;
+}
+
+void
+vlan_svc_enable_port (port_id_t pid, int en)
+{
+  struct port *port;
+
+  port = port_ptr (pid);
+  if (!port || is_stack_port (port))
+    return;
+
+  CRP (cpssDxChBrgVlanMemberSet
+       (port->ldev, SVC_VID, port->lport, gt_bool (en),
+        GT_FALSE, CPSS_DXCH_BRG_VLAN_PORT_UNTAGGED_CMD_E));
+}
+
+enum status
+vlan_set_xlate_tunnel (int enable)
+{
+  enable = !!enable;
+
+  if (vlan_xlate_tunnel != enable) {
+    int i, d;
+
+    port_clear_translation (ALL_PORTS);
+    for (i = 1; i < 4095; i++)
+      port_update_trunk_vlan_all_ports (i);
+
+    for_each_dev (d)
+      CRP (cpssDxChBrgVlanRemoveVlanTag1IfZeroModeSet
+           (d, (enable
+                ? CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_DISABLE_E
+                : CPSS_DXCH_BRG_VLAN_REMOVE_TAG1_IF_ZERO_E)));
+
+    vlan_xlate_tunnel = enable;
+  }
+
+  return ST_OK;
+}
+
+enum status
+vlan_igmp_snoop (vid_t vid, int enable)
+{
+  GT_STATUS rc;
+  int d;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  for_each_dev (d)
+    rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (d, vid, gt_bool (enable)));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+enum status
+vlan_set_remote_span (vid_t vid, int enable)
+{
+  GT_STATUS rc;
+  int d;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  for_each_dev (d)
+    rc = CRP (cpssDxChBrgVlanNaToCpuEnable (d, vid, gt_bool (!enable)));
+  switch (rc) {
+  case GT_OK:       return ST_OK;
+  case GT_HW_ERROR: return ST_HW_ERROR;
+  default:          return ST_HEX;
+  }
+}
+
+void
+vlan_stack_setup (void)
+{
+  __vlan_add (4095);
+}
+
+enum status
+vlan_mc_route (vid_t vid, bool_t enable)
+{
+  int d;
+
+  if (!vlan_valid (vid))
+    return ST_BAD_VALUE;
+
+  for_each_dev (d) {
+    if (enable) {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
+      CRP (cpssDxChBrgVlanFloodVidxModeSet
+           (d, vid, 4092, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+    } else {
+      CRP (cpssDxChBrgVlanIpMcRouteEnable
+           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_FALSE));
+      CRP (cpssDxChBrgVlanFloodVidxModeSet
+           (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
+    }
+  }
 
   return ST_OK;
 }

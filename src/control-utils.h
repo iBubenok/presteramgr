@@ -82,6 +82,7 @@ typedef void (*cmd_handler_t) (zmsg_t *, void *);
     })
 
 #define FIRST_ARG (zmsg_first (__args))
+#define NEXT_ARG (zmsg_next (__args))
 
 #define GET_FROM_FRAME(val, frame)                              \
   ({                                                            \
@@ -102,7 +103,7 @@ struct handler_data {
   int nhandlers;
 };
 
-extern int control_handler (zloop_t *, zmq_pollitem_t *, void *);
+extern int control_handler (zloop_t *, zsock_t *, void *);
 
 
 #endif /* __CONTROL_UTILS_H__ */

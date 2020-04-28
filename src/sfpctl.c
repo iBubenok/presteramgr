@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -15,77 +14,40 @@
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
 
+#include <i2c.h>
+
 static void
 clear_bits (int fd, int addr, __u8 cr, __u8 or, __u8 mask)
 {
-  struct i2c_msg msgs[2];
-  struct i2c_rdwr_ioctl_data data = {
-    .msgs  = msgs,
-    .nmsgs = 2
-  };
-  __u8 buf[2];
+  __u8 crv = 0, orv = 0;
 
-  if (ioctl (fd, I2C_SLAVE, addr) < 0) {
-    fprintf (stderr, "I2C_SLAVE(0x%X): %s\n", addr, strerror (errno));
-    return;
-  }
+  i2c_slave (fd, addr);
 
-  buf[0] = cr;
-  buf[1] = 0;
+  i2c_read (fd, addr, cr, &crv);
+  fprintf (stderr, "reg %d = %02X\n", cr, crv);
+  crv &= ~mask;
+  fprintf (stderr, "set reg %d = %02X\n", cr, crv);
+  i2c_write (fd, addr, cr, crv);
 
-  msgs[0].addr  = addr;
-  msgs[0].flags = 0;
-  msgs[0].len   = 1;
-  msgs[0].buf   = buf;
-  msgs[1].addr  = addr;
-  msgs[1].flags = I2C_M_RD;
-  msgs[1].len   = 1;
-  msgs[1].buf   = buf + 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    fprintf (stderr, "I2C_READ(0x%X, 0x%X): %s\n", addr, cr, strerror (errno));
-    return;
-  }
-
-  buf[1] &= ~mask;
-
-  msgs[0].addr  = addr;
-  msgs[0].flags = 0;
-  msgs[0].len   = 2;
-  msgs[0].buf   = buf;
-  data.nmsgs = 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    fprintf (stderr, "I2C_WRITE(0x%X, 0x%X): %s\n", addr, cr, strerror (errno));
-    return;
-  }
-
-  buf[0] = or;
-  buf[1] = 0;
-
-  msgs[0].addr  = addr;
-  msgs[0].flags = 0;
-  msgs[0].len   = 1;
-  msgs[0].buf   = buf;
-  msgs[1].addr  = addr;
-  msgs[1].flags = I2C_M_RD;
-  msgs[1].len   = 1;
-  msgs[1].buf   = buf + 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    fprintf (stderr, "I2C_READ(0x%X, 0x%X): %s\n", addr, or, strerror (errno));
-    return;
-  }
-
-  buf[1] &= ~mask;
-
-  msgs[0].addr  = addr;
-  msgs[0].flags = 0;
-  msgs[0].len   = 2;
-  msgs[0].buf   = buf;
-  data.nmsgs = 1;
-  if (ioctl (fd, I2C_RDWR, &data) < 0) {
-    fprintf (stderr, "I2C_WRITE(0x%X, 0x%X): %s\n", addr, or, strerror (errno));
-    return;
-  }
+  i2c_read (fd, addr, or, &orv);
+  fprintf (stderr, "reg %d = %02X\n", or, orv);
+  orv &= ~mask;
+  fprintf (stderr, "set reg %d = %02X\n", or, orv);
+  i2c_write (fd, addr, or, orv);
 }
+
+static void
+set_bits (int fd, int addr, __u8 cr, __u8 mask)
+{
+  __u8 crv = 0;
+
+  i2c_slave (fd, addr);
+
+  i2c_read (fd, addr, cr, &crv);
+  crv |= mask;
+  i2c_write (fd, addr, cr, crv);
+}
+
 
 int
 main (int argc, char **argv)
@@ -115,9 +77,21 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  if (hw_type == 10 || hw_type == 11 || hw_type == 20)
+  if (hw_type == 23 || hw_type == 26) {
+//    clear_bits (fd, 0x20, 6, 2, (1 << 3) | (1 << 7));
+    clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
+    set_bits (fd, 0x20, 7, 0x77);
+  } else if (hw_type == 10)
     clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3));
-  else if (hw_type == 12) {
+  else if (hw_type == 20 || hw_type == 11) {
+    clear_bits (fd, 0x20, 6, 2, (1 << 2) | (1 << 3) | (1 << 6));
+    set_bits (fd, 0x20, 2, (1 << 6));
+    set_bits (fd, 0x20, 6, (1 << 0) | (1 << 1) | (1 << 4) | (1 << 5));
+    clear_bits (fd, 0x20, 7, 3, (1 << 2) | (1 << 3));
+    set_bits (fd, 0x20, 7, (1 << 0) | (1 << 1) | (1 << 4) | (1 << 5));
+  } else if (hw_type == 24 || hw_type == 25) {
+    clear_bits (fd, 0x20, 7, 3, (1 << 3) | (1 << 7));
+  } else if (hw_type == 12) {
     switch (hw_subtype) {
     case 0:
     case 1:
@@ -139,9 +113,12 @@ main (int argc, char **argv)
       clear_bits (fd, addr, 6, 2, (1 << 0) | (1 << 3));
       clear_bits (fd, addr, 7, 3, (1 << 0) | (1 << 3));
     }
+    set_bits (fd, 0x26, 6, (1 << 1) | (1 << 2));
+    set_bits (fd, 0x26, 7, (1 << 1) | (1 << 2));
   }
 
   close (fd);
 
+  fprintf(stderr, "%s: done\n", argv[0]);
   return 0;
 }

@@ -7,6 +7,7 @@
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 
 #include <wnct.h>
+#include <sysdeps.h>
 #include <debug.h>
 #include <utils.h>
 
@@ -16,16 +17,19 @@ enum status
 wnct_enable_proto (uint8_t proto, int enable)
 {
   GT_STATUS rc;
+  int d;
 
   enable = !!enable;
   if (protos[proto] == enable)
     return ST_OK;
 
-  rc = CRP (cpssDxChBrgGenIeeeReservedMcastProtCmdSet
-            (0, 0, proto, enable
-             ? CPSS_PACKET_CMD_TRAP_TO_CPU_E
-             : CPSS_PACKET_CMD_FORWARD_E));
-  ON_GT_ERROR (rc) goto out;
+  for_each_dev (d) {
+    rc = CRP (cpssDxChBrgGenIeeeReservedMcastProtCmdSet
+              (d, 0, proto, enable
+               ? CPSS_PACKET_CMD_TRAP_TO_CPU_E
+               : CPSS_PACKET_CMD_FORWARD_E));
+    ON_GT_ERROR (rc) goto out;
+  }
 
   protos[proto] = enable;
 
@@ -40,18 +44,19 @@ wnct_enable_proto (uint8_t proto, int enable)
 enum status
 wnct_start (void)
 {
-  GT_STATUS rc;
+  int d;
 
   memset (protos, 0, sizeof (protos));
 
-  rc = CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (0, GT_TRUE));
-  ON_GT_ERROR (rc) goto gt_error;
-
-  return wnct_enable_proto (WNCT_STP, 1);
-
- gt_error:
-  switch (rc) {
-  case GT_HW_ERROR: return ST_HW_ERROR;
-  default:          return ST_HEX;
+  for_each_dev (d) {
+    CRP (cpssDxChBrgGenIeeeReservedMcastTrapEnable (d, GT_TRUE));
+    CRP (cpssDxChBrgGenCiscoL2ProtCmdSet (d, CPSS_PACKET_CMD_TRAP_TO_CPU_E));
   }
+
+  memset (protos, 0, sizeof (protos));
+
+  wnct_enable_proto (WNCT_STP, 1);
+  wnct_enable_proto (WNCT_802_3_SP, 0);
+
+  return ST_OK;
 }

@@ -17,7 +17,12 @@
 #include <vlan.h>
 #include <fib.h>
 #include <arpc.h>
+#include <sysdeps.h>
+#include <mcg.h>
+#include <mac.h>
+#include <stack.h>
 #include <debug.h>
+#include <utils.h>
 
 #include <uthash.h>
 
@@ -34,6 +39,7 @@
 
 struct pfx_by_pfx {
   struct route_pfx pfx;
+  uint32_t udaddr;
   UT_hash_handle hh;
 };
 
@@ -44,6 +50,7 @@ struct pfxs_by_gw {
 };
 static struct pfxs_by_gw *pfxs_by_gw;
 
+uint8_t route_mac_lsb;
 
 static GT_STATUS
 cpss_lib_init (void)
@@ -61,8 +68,8 @@ cpss_lib_init (void)
   GT_BOOL                                         isCh2VrSupported;
   GT_U32                                          lpmDbId = 0;
   GT_U32                                          tcamColumns;
-  static GT_BOOL lpmDbInitialized = GT_FALSE;     /* traces after LPM DB creation */
   GT_U8 devs[] = { 0 };
+  int d;
 
   /* init default UC and MC entries */
   memset (&defUcLttEntry, 0, sizeof (CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT));
@@ -105,56 +112,6 @@ cpss_lib_init (void)
           &defMcLttEntry,
           sizeof (CPSS_DXCH_IP_LTT_ENTRY_STC));
 
-  memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
-  ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-  rc = cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1);
-  if (rc != GT_OK) {
-    if (rc == GT_OUT_OF_RANGE) {
-      /* The device does not support any IP (not router device). */
-      rc = GT_OK;
-      DEBUG ("cpssDxChIpUcRouteEntriesWrite : device not supported\n");
-    }
-    return  rc;
-  }
-
-  memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
-  mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  CRPR (cpssDxChIpMcRouteEntriesWrite (0, DEFAULT_MC_RE_IDX, &mcRouteEntry));
-
-  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-  memset (&rt, 0, sizeof (rt));
-  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, MGMT_IP_RE_IDX, &rt, 1));
-
-  /* Set up the unknown dst trap entry. */
-  rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, TRAP_RE_IDX, &rt, 1));
-
-  /* Set up the unknown dst drop entry. */
-  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-  CRP (cpssDxChIpUcRouteEntriesWrite (0, DROP_RE_IDX, &rt, 1));
-
-  /********************************************************************/
-  /* if lpm db is already created, all that is needed to do is to add */
-  /* the device to the lpm db                                         */
-  /********************************************************************/
-  if (lpmDbInitialized == GT_TRUE) {
-    rc = cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1);
-    if (rc == GT_BAD_PARAM) {
-      DEBUG ("cpssDxChIpLpmDBDevListAdd : device not supported\n");
-      rc = GT_OK;
-    }
-    return  rc;
-  }
-
-  /*****************/
-  /* create LPM DB */
-  /*****************/
-
-  /* set parameters */
   cpssLpmDbCapacity.numOfIpv4Prefixes         = 3920;
   cpssLpmDbCapacity.numOfIpv6Prefixes         = 100;
   cpssLpmDbCapacity.numOfIpv4McSourcePrefixes = 100;
@@ -166,17 +123,45 @@ cpss_lib_init (void)
                                GT_TRUE,
                                &cpssLpmDbCapacity, NULL));
 
-  /* mark the lpm db as created */
-  lpmDbInitialized = GT_TRUE;
+  for_each_dev (d) {
+    memset (&ucRouteEntry, 0, sizeof (ucRouteEntry));
+    ucRouteEntry.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    ucRouteEntry.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1));
 
-  /*******************************/
-  /* add active device to LPM DB */
-  /*******************************/
-  CRPR (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+    memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
+    mcRouteEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpMcRouteEntriesWrite (d, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
-  /*************************/
-  /* create virtual router */
-  /*************************/
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+
+    /* Set up the management IP addr route entry. */
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.appSpecificCpuCodeEnable = GT_TRUE;
+    rt.entry.regularEntry.trapMirrorArpBcEnable = GT_TRUE;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, MGMT_IP_RE_IDX, &rt, 1));
+
+    /* Set up the unknown dst trap entry. */
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.appSpecificCpuCodeEnable = GT_TRUE;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, TRAP_RE_IDX, &rt, 1));
+
+    /* Set up the unknown dst drop entry. */
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    CRP (cpssDxChIpUcRouteEntriesWrite (d, DROP_RE_IDX, &rt, 1));
+
+    devs[0] = d;
+    CRP (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+  }
+
   rc = CRP (cpssDxChIpLpmVirtualRouterAdd (lpmDbId, 0, &vrConfigInfo));
 
   return rc;
@@ -186,29 +171,36 @@ enum status
 route_set_router_mac_addr (mac_addr_t addr)
 {
   GT_ETHERADDR ra;
-  GT_STATUS rc;
+  int d;
 
-  memcpy (ra.arEther, addr, sizeof (addr));
-  rc = CRP (cpssDxChIpRouterMacSaBaseSet (0, &ra));
-  switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
+  route_mac_lsb = addr[5];
+//  memcpy (ra.arEther, addr, sizeof (addr));  XXX to check other same applications
+  memcpy (ra.arEther, addr, 6);
+  for_each_dev (d) {
+    CRP (cpssDxChIpRouterMacSaBaseSet (d, &ra));
+    vlan_set_mac_lsb();
   }
+
+
+  return ST_OK;
 }
 
 enum status
 route_start (void)
 {
+  int d;
+
   arpc_start ();
 
   DEBUG ("enable routing");
-  CRP (cpssDxChIpRoutingEnable (0, GT_TRUE));
+  for_each_dev (d)
+    CRP (cpssDxChIpRoutingEnable (d, GT_TRUE));
 
   return ST_OK;
 }
 
 static void
-route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
+route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t udaddr)
 {
   GT_IPADDR ip;
   struct gw gw;
@@ -242,6 +234,7 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
   if (!pbp) {
     pbp = calloc (1, sizeof (*pbp));
     pbp->pfx = pfx;
+    pbp->udaddr = udaddr;
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
 }
@@ -292,6 +285,9 @@ route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 enum status
 route_add (const struct route *rt)
 {
+DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   fib_add (ntohl (rt->pfx.addr.u32Ip),
            rt->pfx.alen,
            rt->vid,
@@ -307,12 +303,14 @@ route_add (const struct route *rt)
   if (rt->pfx.alen == 0) {
     /* Default route. */
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
 
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
     rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
-    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   } else {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
@@ -377,6 +375,9 @@ route_del_fib_entry (struct fib_entry *e)
 enum status
 route_del (const struct route *rt)
 {
+DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
   if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
     DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
@@ -389,6 +390,8 @@ route_del (const struct route *rt)
 enum status
 route_add_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
   GT_IPADDR ga;
   GT_STATUS rc;
@@ -406,6 +409,7 @@ route_add_mgmt_ip (ip_addr_t addr)
 enum status
 route_del_mgmt_ip (ip_addr_t addr)
 {
+DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
   GT_STATUS rc;
   GT_IPADDR ga;
 
@@ -429,6 +433,7 @@ route_cpss_lib_init (void)
 
 
 static void
+__attribute__ ((unused))
 route_prefix_set_drop (uint32_t ip, int len)
 {
   if (len) {
@@ -442,16 +447,44 @@ route_prefix_set_drop (uint32_t ip, int len)
   } else {
     /* Default route. */
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
 
     memset (&rt, 0, sizeof (rt));
     rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
     rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-    CRP (cpssDxChIpUcRouteEntriesWrite (0, DEFAULT_UC_RE_IDX, &rt, 1));
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   }
 }
 
 static void
-route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
+route_prefix_set_trap (uint32_t ip, int len)
+{
+DEBUG(">>>>route_prefix_set_trap (%x, %d)\n", ip, len);
+  if (len) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPADDR addr;
+
+    addr.u32Ip = htonl (ip);
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
+  } else {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
+}
+
+static void
+route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen, struct gw *ret_key)
 {
   struct gw gw;
   GT_IPADDR gwaddr;
@@ -459,7 +492,7 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 
   gwaddr.u32Ip = htonl (gwip);
   route_fill_gw (&gw, &gwaddr, vid);
-  ix = ret_add (&gw, alen == 0);
+  ix = ret_add (&gw, alen == 0, ret_key);
   DEBUG ("route entry index %d\r\n", ix);
   if ((ix >= 0) && (alen != 0)) {
     CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
@@ -475,24 +508,12 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen)
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
-route_handle_udt (const uint8_t *data, int len)
-{
-  uint32_t daddr, rt;
+route_handle_udaddr (uint32_t daddr) {
+DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
+  uint32_t rt;
   int alen;
-  const struct fib_entry *e;
+  struct fib_entry *e;
 
-  if (len < MIN_IPv4_PKT_LEN) {
-    DEBUG ("frame length %d too small\r\n", len);
-    return;
-  }
-
-  if ((data[12] != 0x08) ||
-      (data[13] != 0x00)) {
-    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
-    return;
-  }
-
-  daddr = ntohl (*((uint32_t *) (data + 30)));
   e = fib_route (daddr);
   if (!e) {
     DEBUG ("can't route for %d.%d.%d.%d\r\n",
@@ -508,13 +529,240 @@ route_handle_udt (const uint8_t *data, int len)
     rt = daddr;
     alen = 32;
   }
-  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
-  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e));
-  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen);
+//  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
+  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e), daddr);
+  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen, fib_entry_get_retkey_ptr(e));
 
   DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
          (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
          (daddr >> 8) & 0xFF, daddr & 0xFF,
          (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
          (rt >> 8) & 0xFF, rt & 0xFF);
+}
+
+void
+route_handle_udt (const uint8_t *data, int len)
+{
+  uint32_t daddr;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x08) ||
+      (data[13] != 0x00)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  daddr = ntohl (*((uint32_t *) (data + 30)));
+
+  if (master_id == stack_id) {
+    mac_op_udt(daddr);
+  }
+
+  route_handle_udaddr (daddr);
+}
+
+enum status
+route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
+              vid_t src_vid)
+{
+  CPSS_DXCH_IP_LTT_ENTRY_STC le;
+  GT_STATUS rc;
+  GT_IPADDR s, d;
+  int idx, splen, res;
+
+  memcpy (&d.arIP, dst, sizeof (d.arIP));
+  memcpy (&s.arIP, src, sizeof (s.arIP));
+  if (s.u32Ip == 0)
+    splen = 0;
+  else
+    splen = 32;
+
+  DEBUG ("Adding route for vlan %d, vidx %d from "
+         "group %d.%d.%d.%d of vlan %d\n",
+         vid, via,
+         d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3],
+         src_vid);
+
+  if (via == 0xFFFF)
+    idx = DROP_MC_RE_IDX;
+  else if (mcg_valid (via)) {
+    DEBUG ("Looking for idx...\n");
+    idx = mcre_find (dst, src, src_vid);
+    if (idx == -1) { // idx does not exist
+      DEBUG ("Idx does not exist. Creating mcre.\n");
+
+      idx = mcre_create (dst, src, via, vid, src_vid);
+      if (idx == -1)
+        return ST_BAD_STATE;
+
+      le.ipv6MCGroupScopeLevel    = CPSS_IPV6_PREFIX_SCOPE_GLOBAL_E;
+      le.numOfPaths               = 0;
+      le.routeEntryBaseIndex      = idx;
+      le.routeType                = CPSS_DXCH_IP_ECMP_ROUTE_ENTRY_GROUP_E;
+      le.sipSaCheckMismatchEnable = GT_FALSE;
+      le.ucRPFCheckEnable         = GT_FALSE;
+
+      rc = CRP (cpssDxChIpLpmIpv4McEntryAdd
+                (0, 0, d, 32, s, splen, &le, GT_TRUE, GT_TRUE));
+      if (rc == GT_OK) {
+        DEBUG ("Add route from group %d.%d.%d.%d to idx %d.\n",
+               d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3], idx);
+        return ST_OK;
+      }
+
+      if (via != 0xFFFF)
+        mcre_put (dst, src, src_vid);
+      return ST_HEX;
+    } else { // idx already exists
+      DEBUG ("Idx = %d. Adding node.\n", idx);
+      res = mcre_add_node (idx, via, vid);
+      if (!res)
+        return ST_OK;
+    }
+
+  } else
+    return ST_BAD_VALUE;
+  return ST_BAD_VALUE;
+}
+
+enum status
+route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
+              vid_t src_vid)
+{
+  CPSS_DXCH_IP_LTT_ENTRY_STC le;
+  GT_STATUS rc;
+  GT_IPADDR s, d;
+  int splen, res;
+  GT_U32 gri, gci, sri, sci;
+
+  memcpy (&d.arIP, dst, sizeof (d.arIP));
+  memcpy (&s.arIP, src, sizeof (s.arIP));
+
+  DEBUG ("Deleting route of vlan %d, vidx %d from "
+         "group %d.%d.%d.%d of vlan %d\n",
+         vid, via,
+         d.arIP [0], d.arIP [1], d.arIP [2], d.arIP [3],
+         src_vid);
+
+  if (s.u32Ip == 0)
+    splen = 0;
+  else
+    splen = 32;
+
+  DEBUG ("Looking such prefix...\n");
+
+  rc = CRP (cpssDxChIpLpmIpv4McEntrySearch
+            (0, 0, d, 32, s, splen, &le, &gri, &gci, &sri, &sci));
+  ON_GT_ERROR (rc)
+    goto out_err;
+
+  if (le.routeEntryBaseIndex != DROP_MC_RE_IDX)
+  {
+    DEBUG ("Prefix found.\n");
+    res = mcre_del_node (le.routeEntryBaseIndex, via, vid, src_vid);
+
+    if (!res) {
+      rc = CRP (cpssDxChIpLpmIpv4McEntryDel (0, 0, d, 32, s, splen));
+      ON_GT_ERROR (rc)
+        goto out_err;
+    }
+
+    return ST_OK;
+  }
+
+ out_err:
+  DEBUG ("Prefix was not found/\n");
+  return ST_HEX;
+}
+
+void *
+route_get_udaddrs(void) {
+  uint32_t n = 0;
+  struct pfxs_by_gw *s, *t;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        n++;
+      }
+    }
+  }
+
+  void *r = malloc(sizeof(n) + sizeof(uint32_t) * n);
+  if (!r)
+    return NULL;
+
+  *(uint32_t*)r = n;
+  uint32_t *r1 = (uint32_t*)r + 1;
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        *r1++ = s1->udaddr;
+      }
+    }
+  }
+  return r;
+}
+
+void
+route_reset_prefixes4gw(struct gw * gw) {
+  struct pfxs_by_gw *s;
+  struct pfx_by_pfx *s1,*t1;
+
+  HASH_FIND_GW (pfxs_by_gw, gw, s);
+  if (!s) {
+    DEBUG("GW: %x/%d not found. exiting\n", ntohl(gw->addr.u32Ip), gw->vid);
+    return;
+  }
+  HASH_ITER (hh, s->pfxs, s1, t1) {
+    struct route_pfx cache_pfx;
+    memcpy(&cache_pfx, &s1->pfx, sizeof(cache_pfx));
+
+    if (!s1->pfx.alen) { /* default route */
+      route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+      route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+    }
+    else {
+      if (s1->pfx.alen == 32) {
+        struct fib_entry *f = fib_unhash_child(ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen);
+        if (!f) {
+          DEBUG("connected fib child not found. next_iter\n");
+          continue;
+        }
+        route_del_fib_entry (f);
+        free(f);
+      }
+      else {
+        route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
+        route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
+      }
+    }
+  }
+}
+
+void
+route_dump(void) {
+  struct pfxs_by_gw *s, *t;
+  DEBUG("!!!! ROUTE DUMP  !!!!\n");
+  HASH_ITER (hh, pfxs_by_gw, s, t) {
+    DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
+    if (s->pfxs) {
+      struct pfx_by_pfx *s1,*t1;
+      HASH_ITER (hh, s->pfxs, s1, t1) {
+        DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
+      }
+    }
+  }
+  DEBUG("!!!! end GW DUMP!!!!\n\n");
+/*struct pfxs_by_gw {
+  struct gw gw;
+  struct pfx_by_pfx *pfxs;
+  UT_hash_handle hh;
+};*/
+
 }

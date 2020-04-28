@@ -162,7 +162,7 @@ main (int argc, char **argv)
   zloop_t *loop = zloop_new ();
 
   sub_sock = zsocket_new (context, ZMQ_SUB);
-  zmq_setsockopt (sub_sock, ZMQ_UNSUBSCRIBE, "", 0);
+  zsock_set_unsubscribe (sub_sock, "");
   control_notification_subscribe (sub_sock, CN_PORT_LINK_STATE);
   control_notification_subscribe (sub_sock, CN_BPDU);
   control_notification_connect (sub_sock);
@@ -176,8 +176,7 @@ main (int argc, char **argv)
   /* Test CC_PORT_SET_STP_STATE request. */
   test_CC_PORT_SET_STP_STATE ();
 
-  zmq_pollitem_t pi = { sub_sock, 0, ZMQ_POLLIN };
-  zloop_poller (loop, &pi, notify_handler, sub_sock);
+  zloop_reader (loop, sub_sock, notify_handler, sub_sock);
 
   zloop_start (loop);
 

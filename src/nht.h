@@ -9,5 +9,6 @@
 extern enum status nht_init (void);
 extern int nht_add (const GT_ETHERADDR *addr);
 extern enum status nht_unref (const GT_ETHERADDR *addr);
+extern void nht_dump (void);
 
 #endif /* __NHT_H__ */

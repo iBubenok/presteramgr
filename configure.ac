@@ -3,9 +3,9 @@
 
 AC_PREREQ([2.67])
 AC_INIT([presteramgr], [0.0.0], [obelozeorov@plgn.ru])
-AM_INIT_AUTOMAKE([presteramgr], [0.0.0])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([config.h])
+AM_INIT_AUTOMAKE
 
 AC_PROG_CC
 
@@ -44,6 +44,13 @@ AC_ARG_WITH([arpd],
   [arpd=/usr/include/arpd])
 AC_SUBST([arpd])
 
+AC_ARG_WITH([stackd],
+  [AS_HELP_STRING([--with-stackd=PATH],
+                  [specify the STACKD templates location])],
+  [stackd=`readlink -f $withval`],
+  [stackd=/usr/include/stackd])
+AC_SUBST([stackd])
+
 AC_ARG_WITH([linux-headers],
   [AS_HELP_STRING([--with-linux-headers=PATH],
                   [specify the Linux header files location])],
@@ -62,6 +69,16 @@ case "$variant" in
      arlan-3424ge)  AC_DEFINE([VARIANT_ARLAN_3424GE], [1], [Arlan-3424GE variant]) ;;
      sm-12f)        AC_DEFINE([VARIANT_SM_12F], [1], [Switch Module 12F variant]) ;;
      arlan-3424pfe) AC_DEFINE([VARIANT_ARLAN_3424PFE], [1], [Arlan-3424PFE variant]) ;;
+     arlan-3448pge) AC_DEFINE([VARIANT_ARLAN_3448PGE], [1], [Arlan-3448PGE variant]) ;;
+     arlan-3448ge)  AC_DEFINE([VARIANT_ARLAN_3448GE], [1], [Arlan-3448GE variant]) ;;
+     arlan-3226pge) AC_DEFINE([VARIANT_ARLAN_3226PGE], [1], [Arlan-3226PGE variant]) ;;
+     arlan-3226ge)  AC_DEFINE([VARIANT_ARLAN_3226GE], [1], [Arlan-3226GE variant]) ;;
+     arlan-3050pge) AC_DEFINE([VARIANT_ARLAN_3050PGE], [1], [Arlan-3050PGE variant]) ;;
+     arlan-3050ge)  AC_DEFINE([VARIANT_ARLAN_3050GE], [1], [Arlan-3050GE variant]) ;;
+     arlan-3250pge-sr)  AC_DEFINE([VARIANT_ARLAN_3250PGE_SR], [1], [Arlan-3250PGE-SR variant]) ;;
+     arlan-3226ge-sr)  AC_DEFINE([VARIANT_ARLAN_3226GE_SR], [1], [Arlan-3226GE-SR variant]) ;;
+     arlan-3226pge-sr)  AC_DEFINE([VARIANT_ARLAN_3226PGE_SR], [1], [Arlan-3226PGE-SR variant]) ;;
+     arlan-3212ge)  AC_DEFINE([VARIANT_ARLAN_3212GE], [1], [Arlan-3212GE variant]) ;;
      *)             AC_MSG_ERROR([unsupported variant]) ;;
 esac
 
@@ -70,7 +87,7 @@ AC_DEFINE([_GNU_SOURCE], [1], [for TEMP_FAILURE_RETRY() etc.])
 AC_CHECK_LIB([pthread], [pthread_create], , [AC_MSG_ERROR([no pthread_create() in -lpthread])])
 AC_CHECK_LIB([rt], [clock_gettime], , [AC_MSG_ERROR([no clock_gettime() in -lrt])])
 AC_CHECK_LIB([zmq], [zmq_init], , [AC_MSG_ERROR([no zmq_init() in -lzmq])])
-AC_CHECK_LIB([czmq], [zctx_new], , [AC_MSG_ERROR([no zctx_new() in -lczmq])])
+AC_CHECK_LIB([czmq], [zsock_new], , [AC_MSG_ERROR([no zsock_new() in -lczmq])])
 AC_CHECK_LIB([nl-3], [nl_send_sync], , [AC_MSG_ERROR([no nl_send_sync() in -lnl-3])])
 AC_CHECK_LIB([nl-genl-3], [genl_connect], , [AC_MSG_ERROR([no genl_connect() in -lnl-genl-3])])
 

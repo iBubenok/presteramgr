@@ -20,3 +20,8 @@ TAGS
 /install-sh
 /missing
 /compile
+.*.sw?
+cscope.out
+/doxy/
+/Doxyfile
+/src/stackd.h

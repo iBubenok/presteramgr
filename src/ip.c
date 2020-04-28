@@ -7,6 +7,7 @@
 
 #include <route.h>
 #include <ip.h>
+#include <sysdeps.h>
 #include <log.h>
 #include <debug.h>
 
@@ -19,12 +20,33 @@ ip_cpss_lib_init (void)
 enum status
 ip_start (void)
 {
+  int d;
+
   DEBUG ("enable IPv4 link local MC reception");
-  CRP (cpssDxChBrgGenIpLinkLocalMirrorToCpuEnable
-       (0, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
 
-  CRP (cpssDxChBrgGenIpLinkLocalProtMirrorToCpuEnable
-       (0, CPSS_IP_PROTOCOL_IPV4_E, 18, GT_TRUE));
+  for_each_dev (d) {
+    CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
+         (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+    CRP (cpssDxChBrgGenIpLinkLocalMirrorToCpuEnable
+         (d, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
+    CRP (cpssDxChBrgGenIpLinkLocalProtMirrorToCpuEnable
+         (d, CPSS_IP_PROTOCOL_IPV4_E, 18, GT_TRUE));
+  }
 
+  return ST_OK;
+}
+
+enum status
+ip_arp_trap_enable (int enable) {
+
+  int d;
+
+  for_each_dev (d) {
+    CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
+       (d,
+        (enable) ?
+          CPSS_PACKET_CMD_TRAP_TO_CPU_E :
+          CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
+  }
   return ST_OK;
 }

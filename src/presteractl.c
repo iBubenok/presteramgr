@@ -72,10 +72,8 @@ set_port_stp_state (port_id_t pid, stp_state_t state)
 int
 main (int argc, char **argv)
 {
-  zctx_t *context = zctx_new ();
-
-  cmd_sock = zsocket_new (context, ZMQ_REQ);
-  zsocket_connect (cmd_sock, CMD_SOCK_EP);
+  cmd_sock = zsock_new (ZMQ_REQ);
+  zsock_connect (cmd_sock, CMD_SOCK_EP);
 
   CHECK_STATUS (add_vlan (1));
   CHECK_STATUS (set_cpu_vlan (1, 1));

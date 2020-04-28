@@ -8,16 +8,19 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <linux/pdsa-mgmt.h>
+#include <control-proto.h>
 #include <pthread.h>
+#include <sys/prctl.h>
 #include <mgmt.h>
 #include <port.h>
 #include <control.h>
 #include <vlan.h>
-#include <zcontext.h>
+#include <stack.h>
+#include <dev.h>
 #include <debug.h>
 #include <log.h>
 
-#define MAX_PAYLOAD 1024
+#define MAX_PAYLOAD 2048
 
 static int sock;
 static void *inp_sock;
@@ -53,7 +56,7 @@ mgmt_tx (pid_t to, __u16 type, const void *data, size_t len)
   msg.msg_iov = iov;
   msg.msg_iovlen = 2;
 
-  return sendmsg (sock, &msg, 0);
+  return TEMP_FAILURE_RETRY (sendmsg (sock, &msg, 0));
 }
 
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
@@ -73,22 +76,38 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
 {
   struct pdsa_spec_frame *frame = NLMSG_DATA (nlh);
+/*
   port_id_t pid = port_id (frame->dev, frame->port);
 
-  if (!pid) {
+  if (!pid && frame->port != 63) {
     ERR ("invalid port spec %d-%d\n", frame->dev, frame->port);
     return;
   }
+*/
+  if (PDSA_SPEC_FRAME_SIZE (frame->len) > MAX_PAYLOAD) {
+    ERR ("CPU captured oversized for %u bytes buffer frame in %u bytes\n",
+        MAX_PAYLOAD - sizeof(struct pdsa_spec_frame), frame->len);
+    return;
+  }
 
-  zmsg_t *msg = zmsg_new ();
+  switch (frame->code) {
+  case CPU_CODE_USER_DEFINED (7):
+  case CPU_CODE_USER_DEFINED (8):
+    control_spec_frame(frame);
+    return;
+  default: {
+    zmsg_t *msg = zmsg_new ();
 
-  command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
-  zmsg_addmem (msg, &cmd, sizeof (cmd));
-  zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
-  zmsg_send (&msg, inp_sock);
+    command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
+    zmsg_addmem (msg, &cmd, sizeof (cmd));
+    zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
+    zmsg_send (&msg, inp_sock);
 
-  msg = zmsg_recv (inp_sock);
-  zmsg_destroy (&msg);
+    msg = zmsg_recv (inp_sock);
+    zmsg_destroy (&msg);
+    break;
+    }
+  }
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {
@@ -105,13 +124,12 @@ mgmt_thread (void *unused)
   struct msghdr msg;
   struct iovec iov;
 
-  assert (zcontext);
-  inp_sock = zsocket_new (zcontext, ZMQ_REQ);
+  inp_sock = zsock_new (ZMQ_REQ);
   if (!inp_sock) {
     ERR ("failed to create ZMQ socket %s\n", INP_SOCK_EP);
     exit (1);
   }
-  zsocket_connect (inp_sock, INP_SOCK_EP);
+  zsock_connect (inp_sock, INP_SOCK_EP);
 
   iov.iov_base = buf;
   iov.iov_len = NLMSG_SPACE (MAX_PAYLOAD);
@@ -127,9 +145,18 @@ mgmt_thread (void *unused)
     return NULL;
   }
 
+  DEBUG ("configuring device number %d\r\n", stack_id);
+  struct pdsa_dev_num devnum = { .num = stack_id };
+  if (mgmt_tx (0, PDSA_MGMT_SET_DEV_NUM, &devnum, sizeof (devnum)) < 0) {
+    ERR ("mgmt_tx(): %s\r\n", strerror (errno));
+    return NULL;
+  }
+
+  prctl(PR_SET_NAME, "mgmt", 0, 0, 0);
+
   DEBUG ("receiving messages from kernel\r\n");
   while (1) {
-    if (recvmsg (sock, &msg, 0) < 0) {
+    if (TEMP_FAILURE_RETRY (recvmsg (sock, &msg, 0) < 0)) {
       ERR ("recvmsg(): %s\r\n", strerror (errno));
       break;
     }
@@ -174,7 +201,7 @@ mgmt_send_frame (GT_U8 dev, GT_U8 port, const void *data, size_t len)
   struct pdsa_spec_frame *frame;
 
   frame = malloc (PDSA_SPEC_FRAME_SIZE (len));
-  frame->dev = dev;
+  frame->dev = phys_dev (dev);
   frame->port = port;
   frame->len = len;
   memcpy (frame->data, data, len);
@@ -195,6 +222,39 @@ mgmt_send_regular_frame (vid_t vid, const void *data, size_t len)
   memcpy (frame->data, data, len);
 
   mgmt_tx (0, PDSA_MGMT_REG_FRAME_TX, frame, PDSA_REG_FRAME_SIZE (len));
+
+  free (frame);
+}
+
+void
+mgmt_send_gen_frame (const void *tag, const void *data, size_t len)
+{
+  struct pdsa_gen_frame *frame;
+  size_t full_len = len + 8;
+
+  frame = malloc (PDSA_GEN_FRAME_SIZE (full_len));
+  frame->len = full_len;
+  memcpy (frame->data, data, 12);
+  memcpy (frame->data + 12, tag, 8);
+  memcpy (frame->data + 20, data + 12, len - 12);
+
+  mgmt_tx (0, PDSA_MGMT_GEN_FRAME_TX, frame, PDSA_GEN_FRAME_SIZE (full_len));
+
+  free (frame);
+}
+
+void
+mgmt_inject_frame (vid_t vid, const void *data, size_t len)
+{
+  struct pdsa_inj_frame *frame;
+
+  frame = malloc (PDSA_INJ_FRAME_SIZE (len));
+  frame->iface_type = PDSA_MGMT_IFTYPE_VLAN;
+  frame->iface.vid = vid;
+  frame->len = len;
+  memcpy (frame->data, data, len);
+
+  mgmt_tx (0, PDSA_MGMT_INJECT_FRAME, frame, PDSA_INJ_FRAME_SIZE (len));
 
   free (frame);
 }

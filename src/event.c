@@ -17,19 +17,29 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <sys/prctl.h>
 
+#include <control-proto.h>
 #include <presteramgr.h>
 #include <debug.h>
 #include <log.h>
 #include <utils.h>
+#include <vif.h>
 #include <port.h>
 #include <data.h>
-#include <zcontext.h>
+#include <tipc.h>
+#include <mac.h>
+#include <sec.h>
+#include <sysdeps.h>
+#include <variant.h>
 
 #include <czmq.h>
 
 
 static void *pub_sock;
+static void *not_sock;
+static void *fdb_sock;
 
 static zmsg_t *
 make_notify_message (enum control_notification type)
@@ -55,7 +65,7 @@ put_port_id (zmsg_t *msg, port_id_t pid)
   zmsg_addmem (msg, &pid, sizeof (pid));
 }
 
-static void
+static void __attribute__ ((unused))
 put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 {
   struct port_link_state state;
@@ -65,22 +75,57 @@ put_port_state (zmsg_t *msg, const CPSS_PORT_ATTRIBUTES_STC *attrs)
 }
 
 static void
-notify_port_state (port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs)
+thr_notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps)
 {
+  tipc_notify_link (vifid, pid, ps);
+
+  if (!pid)
+    return;
+
   zmsg_t *msg = make_notify_message (CN_PORT_LINK_STATE);
   put_port_id (msg, pid);
-  put_port_state (msg, attrs);
+  zmsg_addmem(msg, ps, sizeof(*ps));
   notify_send (&msg);
+
+  struct port *port = port_ptr (pid);
+  if (is_stack_port (port)) {
+    zmsg_t *msg = make_notify_message (CN_STACK_PORT_STATE);
+    port_stack_role_t role = port->stack_role;
+    zmsg_addmem (msg, &role, sizeof (role));
+    uint8_t link = ps->link;
+    zmsg_addmem (msg, &link, sizeof (link));
+    notify_send (&msg);
+  }
 }
 
+static void
+notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC *attrs) {
+  struct port_link_state ps;
+  data_encode_port_state (&ps, attrs);
+
+  zmsg_t *msg = zmsg_new ();
+  assert (msg);
+  enum event_notification en = EN_LS;
+  zmsg_addmem (msg, &en, sizeof (en));
+  zmsg_addmem (msg, &vifid, sizeof (vifid));
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, &ps, sizeof (ps));
+  zmsg_send (&msg, not_sock);
+
+  vif_set_link_status(vifid, &ps, not_sock);
+}
 
 DECLSHOW (CPSS_PORT_SPEED_ENT);
 DECLSHOW (CPSS_PORT_DUPLEX_ENT);
 
 
 static CPSS_UNI_EV_CAUSE_ENT events [] = {
-  CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E,
+  /* CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, */
+#ifndef VARIANT_FE
   CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
+#endif
+  CPSS_PP_EB_AUQ_PENDING_E,
+  CPSS_PP_EB_SECURITY_BREACH_UPDATE_E
 };
 #define EVENT_NUM ARRAY_SIZE (events)
 
@@ -112,6 +157,26 @@ eventp (CPSS_UNI_EV_CAUSE_ENT e, const GT_U32 *b)
 }
 
 static GT_STATUS
+event_handle_security_breach_update(CPSS_UNI_EV_CAUSE_ENT evt) {
+
+  GT_U32 edata;
+  GT_U8 dev;
+  GT_STATUS rc;
+  unsigned long long nn = 0;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              evt,
+                              &edata, &dev)) == GT_OK)
+    nn++;
+  if (rc == GT_NO_MORE) {
+    sec_handle_security_breach_updates (dev, edata);
+  }else {
+    DEBUG("unappropriate GT_STATUS == %d after security breach events masspop\n", rc);
+  }
+  return GT_OK;
+}
+
+static GT_STATUS
 event_handle_link_change (void)
 {
   GT_U32 edata;
@@ -121,10 +186,11 @@ event_handle_link_change (void)
   while ((rc = cpssEventRecv (event_handle,
                               CPSS_PP_PORT_LINK_STATUS_CHANGED_E,
                               &edata, &dev)) == GT_OK) {
+    vif_id_t vifid;
     port_id_t pid;
     CPSS_PORT_ATTRIBUTES_STC attrs;
-    if (port_handle_link_change (dev, (GT_U8) edata, &pid, &attrs) == ST_OK)
-      notify_port_state (pid, &attrs);
+    if (port_handle_link_change (dev, (GT_U8) edata, &vifid, &pid, &attrs) == ST_OK)
+      notify_port_state (vifid, pid, &attrs);
   }
 
   if (rc == GT_NO_MORE)
@@ -152,12 +218,32 @@ event_handle_aging_done (void)
   return CRP (rc);
 }
 
+static GT_STATUS
+event_handle_au_msg (void)
+{
+  GT_STATUS rc;
+  GT_U32 edata;
+  GT_U8 dev;
+
+  while ((rc = cpssEventRecv (event_handle,
+                              CPSS_PP_EB_AUQ_PENDING_E,
+                              &edata, &dev)) == GT_OK)
+  if (rc == GT_NO_MORE)
+    rc = GT_OK;
+
+  zmsg_t *msg = zmsg_new ();
+  zmsg_addmem (msg, &dev, sizeof (dev));
+  zmsg_send (&msg, fdb_sock);
+
+  return GT_OK;
+}
+
 void
 event_enter_loop (void)
 {
   static GT_U32 ebmp [CPSS_UNI_EV_BITMAP_SIZE_CNS];
   GT_STATUS rc;
-  int i;
+  int i, d;
   GT_32 key;
 
   key = intr_lock ();
@@ -167,13 +253,16 @@ event_enter_loop (void)
     exit (1);
 
   for (i = 0; i < EVENT_NUM; ++i) {
-    rc = CRP (cpssEventDeviceMaskSet (0, events [i],
-                                      CPSS_EVENT_UNMASK_E));
-    if (rc != GT_OK)
-      exit (1);
+    for_each_dev (d) {
+      rc = CRP (cpssEventDeviceMaskSet (d, events [i], CPSS_EVENT_UNMASK_E));
+      if (rc != GT_OK)
+        exit (1);
+    }
   }
 
   intr_unlock (key);
+
+  prctl(PR_SET_NAME, "evt-loop", 0, 0, 0);
 
   while (1) {
     rc = CRP (cpssEventSelect (event_handle, NULL, ebmp,
@@ -181,17 +270,103 @@ event_enter_loop (void)
     if (rc != GT_OK)
       continue;
 
-    if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp))
+    if (eventp (CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E, ebmp)) {
+//      DEBUG("EVENT!!!: CPSS_PP_MAC_AGE_VIA_TRIGGER_ENDED_E\n"); // TODO remove
       event_handle_aging_done ();
+    }
+    if (eventp (CPSS_PP_EB_SECURITY_BREACH_UPDATE_E, ebmp)){
+      event_handle_security_breach_update(CPSS_PP_EB_SECURITY_BREACH_UPDATE_E);
+    }
     if (eventp (CPSS_PP_PORT_LINK_STATUS_CHANGED_E, ebmp))
       event_handle_link_change ();
+    if (eventp (CPSS_PP_EB_AUQ_PENDING_E, ebmp))  {
+      DEBUG("EVENT!!!: CPSS_PP_EB_AUQ_PENDING_E\n"); // TODO remove
+      event_handle_au_msg ();}
   }
+}
+
+static int
+notify_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
+{
+  zmsg_t *msg = zmsg_recv (not_sock);
+
+  zframe_t *frame = zmsg_first (msg);
+  enum event_notification en = *((enum event_notification *) zframe_data (frame));
+  assert(zframe_size(frame) == sizeof(en));
+  switch (en) {
+    case EN_LS:
+      frame = zmsg_next(msg);
+      vif_id_t vifid = *((vif_id_t *) zframe_data (frame));
+      assert(zframe_size(frame) == sizeof(vifid));
+
+      frame = zmsg_next(msg);
+      port_id_t pid = *((port_id_t *) zframe_data (frame));
+      assert(zframe_size(frame) == sizeof(pid));
+
+      frame = zmsg_next(msg);
+      assert(frame);
+      struct port_link_state *ps = (struct port_link_state *) zframe_data(frame);
+      assert(zframe_size(frame) == sizeof(struct port_link_state));
+
+      thr_notify_port_state (vifid, pid, ps);
+      break;
+    case EN_BC_LS:
+      tipc_bc_link_state();
+      break;
+  }
+  zmsg_destroy (&msg);
+
+  return 0;
+}
+
+volatile static int notify_thread_started = 0;
+
+static void*
+notify_thread(void *_) {
+  void *tnot_sock;
+  zloop_t  *loop = zloop_new ();
+  assert (loop);
+
+  pub_sock = zsock_new (ZMQ_PUB);
+  assert (pub_sock);
+  zsock_bind (pub_sock, EVENT_PUBSUB_EP);
+
+  tnot_sock = zsock_new (ZMQ_PULL);
+  assert (tnot_sock);
+  zsock_bind (tnot_sock, NOTIFY_QUEUE_EP);
+
+  zloop_reader (loop, tnot_sock, notify_evt_handler, tnot_sock);
+
+  prctl(PR_SET_NAME, "evt-notify", 0, 0, 0);
+  notify_thread_started = 1;
+
+  zloop_start(loop);
+
+  return NULL;
+}
+
+void
+event_start_notify_thread (void) {
+  pthread_t tid;
+  pthread_create (&tid, NULL, notify_thread, NULL);
+
+  DEBUG ("waiting for event notify thread startup\r\n");
+  unsigned n = 0;
+  while (!notify_thread_started) {
+    n++;
+    usleep (10000);
+  }
+  DEBUG ("event notify thread startup finished after %u iteractions\r\n", n);
+
+  not_sock = zsock_new (ZMQ_PUSH);
+  assert (not_sock);
+  zsock_connect (not_sock, NOTIFY_QUEUE_EP);
 }
 
 void
 event_init (void)
 {
-  pub_sock = zsocket_new (zcontext, ZMQ_PUB);
-  assert (pub_sock);
-  zsocket_bind (pub_sock, EVENT_PUBSUB_EP);
+  fdb_sock = zsock_new (ZMQ_PUSH);
+  assert (fdb_sock);
+  zsock_connect (fdb_sock, FDB_NOTIFY_EP);
 }

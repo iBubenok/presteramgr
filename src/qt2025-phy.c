@@ -18,13 +18,14 @@
 
 #include <utils.h>
 #include <log.h>
+#include <sysdeps.h>
 #include <debug.h>
 
 #include <qt2025-phy.h>
 #include <qt2025-phy-fw.h>
 
-#define SHOW_XG_PHY_HEARTBEAT
-#define SHOW_HG_PHY_FW_VERSION
+#undef SHOW_XG_PHY_HEARTBEAT
+#undef SHOW_HG_PHY_FW_VERSION
 
 /*******************************************************************************
  * Global variables
@@ -175,38 +176,45 @@ qt2025PhyConfig (GT_U8 dev, int ng, int np, int cl, GT_U32 *xsmiAddrArrayPtr)
 enum status
 qt2025_phy_load_fw (void)
 {
-  static GT_U32 xsmi_addrs[] = {0x18, 0x19, 0x1A, 0x1B};
-  GT_U32 xsmiAddr;
+#if defined (SHOW_HG_PHY_FW_VERSION) || defined (SHOW_XG_PHY_HEARTBEAT)
   GT_U16 val;
-  int i;
+  int i, a;
+#endif /* SHOW_HG_PHY_FW_VERSION) || SHOW_XG_PHY_HEARTBEAT */
+  int d;
 
-  CRP (prvCpssDrvHwPpSetRegField (0, 0x01800180, 14, 1, 1));
-  CRP (qt2025PhyConfig (0, 1, ARRAY_SIZE (xsmi_addrs), 0, xsmi_addrs));
+  for_each_dev (d) {
+    CRP (prvCpssDrvHwPpSetRegField (d, 0x01800180, 14, 1, 1));
+    CRP (qt2025PhyConfig (d, 1, dev_info[d].n_xg_phys, 0, dev_info[d].xg_phys));
 
 #ifdef SHOW_XG_PHY_HEARTBEAT
-  for (i = 0; i < 10; ++i) {
-    for (xsmiAddr = 0x18; xsmiAddr <= 0x1B; ++xsmiAddr) {
-      CRP (cpssXsmiPortGroupRegisterRead
-           (0, CPSS_PORT_GROUP_UNAWARE_MODE_CNS, xsmiAddr, 0xD7EE, 3, &val));
-      DEBUG ("heartbeat: %02X %04X\n", xsmiAddr, val);
+    for (i = 0; i < 10; ++i) {
+      for (a = 0; a < dev_info[d].n_xg_phys; a++) {
+        CRP (cpssXsmiPortGroupRegisterRead
+             (d, CPSS_PORT_GROUP_UNAWARE_MODE_CNS,
+              dev_info[d].xg_phys[a], 0xD7EE, 3, &val));
+        DEBUG ("heartbeat: %d:%02X %04X\n", d, dev_info[d].xg_phys[a], val);
+      }
+      osDelay (10);
     }
-    osDelay (10);
-  }
 #endif /* SHOW_XG_PHY_HEARTBEAT */
 
 #ifdef SHOW_HG_PHY_FW_VERSION
-  for (xsmiAddr = 0x18; xsmiAddr <= 0x1B; ++xsmiAddr) {
-    CRP (cpssXsmiPortGroupRegisterRead
-         (0, CPSS_PORT_GROUP_UNAWARE_MODE_CNS, xsmiAddr, 0xD7F3, 3, &val));
-    DEBUG ("3.D7F3: %02X %04X\n", xsmiAddr, val);
-    CRP (cpssXsmiPortGroupRegisterRead
-         (0, CPSS_PORT_GROUP_UNAWARE_MODE_CNS, xsmiAddr, 0xD7F4, 3, &val));
-    DEBUG ("3.D7F4: %02X %04X\n", xsmiAddr, val);
-    CRP (cpssXsmiPortGroupRegisterRead
-         (0, CPSS_PORT_GROUP_UNAWARE_MODE_CNS, xsmiAddr, 0xD7F5, 3, &val));
-    DEBUG ("3.D7F5: %02X %04X\n", xsmiAddr, val);
-  }
+    for (a = 0; a < dev_info[d].n_xg_phys; a++) {
+      CRP (cpssXsmiPortGroupRegisterRead
+           (d, CPSS_PORT_GROUP_UNAWARE_MODE_CNS,
+            dev_info[d].xg_phys[a], 0xD7F3, 3, &val));
+      DEBUG ("3.D7F3: %d:%02X %04X\n", d, dev_info[d].xg_phys[a], val);
+      CRP (cpssXsmiPortGroupRegisterRead
+           (d, CPSS_PORT_GROUP_UNAWARE_MODE_CNS,
+            dev_info[d].xg_phys[a], 0xD7F4, 3, &val));
+      DEBUG ("3.D7F4: %d:%02X %04X\n", d, dev_info[d].xg_phys[a], val);
+      CRP (cpssXsmiPortGroupRegisterRead
+           (d, CPSS_PORT_GROUP_UNAWARE_MODE_CNS,
+            dev_info[d].xg_phys[a], 0xD7F5, 3, &val));
+      DEBUG ("3.D7F5: %d:%02X %04X\n", d, dev_info[d].xg_phys[a], val);
+    }
 #endif /* SHOW_HG_PHY_FW_VERSION */
+  }
 
   return ST_OK;
 }
