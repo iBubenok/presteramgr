@@ -3764,10 +3764,11 @@ port_set_mru (uint16_t mru)
 }
 
 enum status
-port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
+port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable, int is_trunk)
 {
   struct port *src = port_ptr (spid);
   GT_STATUS rc;
+  GT_U8 dest;
 
   if (!src)
     return ST_BAD_VALUE;
@@ -3783,13 +3784,13 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
 
     if (is_stack_port (dst))
       return ST_BAD_STATE;
-
+    if (is_trunk) dest = (GT_U8)dpid;  else dest = dst->lport;
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
-              (src->ldev, src->lport, !!enable,
-               dst->lport, phys_dev (dst->ldev), GT_FALSE));
+             (src->ldev, src->lport, !!enable,
+              dest, phys_dev (dst->ldev), (GT_BOOL)is_trunk));
   } else {
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
-              (src->ldev, src->lport, !!enable, 0, 0, GT_FALSE));
+              (src->ldev, src->lport, !!enable, 0, 0, (GT_BOOL)is_trunk));
   }
 
   switch (rc) {

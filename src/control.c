@@ -3633,7 +3633,7 @@ DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_pve_dst (spid, dpid, enable);
+  result = port_set_pve_dst (spid, dpid, enable, 0);
 
  out:
   report_status (result);
@@ -3643,22 +3643,21 @@ DEFINE_HANDLER (CC_VIF_SET_PVE_DST)
 {
   enum status result;
   vif_id_t vif;
-  port_id_t dpid;
+  vif_id_t dst;
   bool_t enable;
 
   result = POP_ARG (&vif);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&dpid);
+  result = POP_ARG (&dst);
   if (result != ST_OK)
     goto out;
 
   result = POP_ARG (&enable);
   if (result != ST_OK)
     goto out;
-
-  result = vif_set_pve_dst (vif, dpid, enable);
+  result = vif_set_pve_dst (vif, dst, enable);
 
  out:
   report_status (result);
