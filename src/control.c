@@ -3633,7 +3633,7 @@ DEFINE_HANDLER (CC_PORT_SET_PVE_DST)
   if (result != ST_OK)
     goto out;
 
-  result = port_set_pve_dst (spid, dpid, enable, 0);
+  result = port_set_pve_dst (spid, dpid, enable);
 
  out:
   report_status (result);

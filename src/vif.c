@@ -1348,20 +1348,8 @@ VIF_PROC_REMOTE(set_pve_dst, vif_id_t dst, int enable)
 
 VIF_PROC_PORT_HEAD(set_pve_dst, vif_id_t dst, int enable)
 {
-struct vif *dest = vif_getn (dst);
-if (!dest) {
-  VIF_PROC_PORT_BODY(set_pve_dst, 0, enable, 0)
-}
-else {
-  struct vif_id* dstvid = (struct vif_id*) &dst;
-  if (dstvid->type == 3) {
-    struct trunk *dsttrunk = (struct trunk*) dest;
-    VIF_PROC_PORT_BODY(set_pve_dst, dsttrunk->id, enable, 1)
-  } else {
-    struct port *dstport = (struct port*) dest;
-    VIF_PROC_PORT_BODY(set_pve_dst, dstport->id, enable, 0)
-  }
-}
+DEBUG ("dst: %d\n", (int)dst);
+VIF_PROC_PORT_BODY(set_pve_dst, dst, enable)
 }
 
 VIF_PROC_TRUNK_HEAD(set_pve_dst, vif_id_t dst, int enable)
