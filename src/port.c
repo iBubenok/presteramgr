@@ -3779,7 +3779,6 @@ port_set_pve_dst (port_id_t spid, vif_id_t dstvid, int enable)
 
   if (enable) {
 	struct vif *dest = vif_getn (dstvid);
-    DEBUG ("src->ldev: %d, src->lport: %d\n", src->ldev, src->lport);
     if (!dest)
       return ST_BAD_VALUE;
 
@@ -3790,7 +3789,6 @@ port_set_pve_dst (port_id_t spid, vif_id_t dstvid, int enable)
       dev = dstvifid->dev;
       is_trunk = 1;
     } else {
-      DEBUG ("dest->remote->hw_dev: %d, dest->remote->hw_port: %d\n", dest->remote.hw_dev, dest->remote.hw_port);
       struct port *dstport = port_ptr (dstvifid->num);
       if (is_stack_port (dstport))
         return ST_BAD_STATE;
@@ -3802,9 +3800,8 @@ port_set_pve_dst (port_id_t spid, vif_id_t dstvid, int enable)
         dev =  dest->remote.hw_dev;
       }
       is_trunk = 0;
-      DEBUG ("dstport->lport: %d, dstport->id: %d\n",(int)dstport->lport, (int)dstport->id);
     }
-    DEBUG ("dev: %d, dpid: %d", dev, dpid);
+
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
              (src->ldev, src->lport, !!enable,
               dpid, dev, is_trunk));
@@ -3812,18 +3809,7 @@ port_set_pve_dst (port_id_t spid, vif_id_t dstvid, int enable)
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
               (src->ldev, src->lport, !!enable, 0, 0, 0));
   }
-  GT_STATUS rc2;
-  GT_U8 *dstportptr, *dstdevptr;
-  GT_BOOL *enableptr, *dsttrunkptr;
-  dstportptr = (GT_U8*) malloc (sizeof (GT_U8));
-  dstdevptr = (GT_U8*) malloc (sizeof (GT_U8));
-  enableptr = (GT_BOOL*) malloc (sizeof (GT_BOOL));
-  dsttrunkptr = (GT_BOOL*) malloc (sizeof (GT_BOOL));
-  rc2 = CRP (cpssDxChBrgPrvEdgeVlanPortEnableGet
-            (src->ldev, src->lport, enableptr,
-             dstportptr, dstdevptr, dsttrunkptr));
-  DEBUG ("rc2: %d ; enableptr: %d ; dstportptr: %d ; dstdevptr: %d ; dsttrunkptr: %d \n",
-		  (int)rc2, (int)*enableptr, (int)*dstportptr, (int)*dstdevptr, (int)*dsttrunkptr);
+
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;

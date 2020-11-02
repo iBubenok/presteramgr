@@ -1348,7 +1348,6 @@ VIF_PROC_REMOTE(set_pve_dst, vif_id_t dst, int enable)
 
 VIF_PROC_PORT_HEAD(set_pve_dst, vif_id_t dst, int enable)
 {
-DEBUG ("dst: %d\n", (int)dst);
 VIF_PROC_PORT_BODY(set_pve_dst, dst, enable)
 }
 
