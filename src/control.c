@@ -269,6 +269,12 @@ put_vif_id (zmsg_t *msg, vif_id_t vifid)
 }
 
 static inline void
+put_msg_opt (zmsg_t *msg, struct notify_msg_opt *opt)
+{
+  zmsg_addmem (msg, opt, sizeof (struct notify_msg_opt));
+}
+
+static inline void
 put_stp_id (zmsg_t *msg, stp_id_t stp_id)
 {
   zmsg_addmem (msg, &stp_id, sizeof (stp_id));
@@ -1227,24 +1233,39 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vifid);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
-  zmsg_addmem (msg, frame->data, frame->len);
+  struct dot1q_tag tag = {
+    .tagged = frame->tagged,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0
+  };
+  struct notify_msg_opt msg_opt = {
+    .tag = tag,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
 
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+      put_msg_opt (msg, &msg_opt);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
+      put_msg_opt (msg, &msg_opt);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send_dhcp (&msg);
       break;
     default:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send (&msg);
       break;
   }
@@ -3497,24 +3518,39 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vif->id);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
-  zmsg_addmem (msg, frame->data, frame->len);
+  struct dot1q_tag tag = {
+    .tagged = (frame->tagged == 1) ? frame->tagged : 0,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0
+  };
+  struct notify_msg_opt msg_opt = {
+    .tag = tag,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
 
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+      put_msg_opt (msg, &msg_opt);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
+      put_msg_opt (msg, &msg_opt);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send_dhcp (&msg);
       break;
     default:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+      zmsg_addmem (msg, frame->data, frame->len);
       notify_send (&msg);
       break;
   }
