@@ -269,6 +269,12 @@ put_vif_id (zmsg_t *msg, vif_id_t vifid)
 }
 
 static inline void
+put_vlan_id (zmsg_t *msg, vid_t vid)
+{
+  zmsg_addmem (msg, &vid, sizeof (vid));
+}
+
+static inline void
 put_pkt_info (zmsg_t *msg, struct pkt_info *info, notification_t type)
 {
   switch (type)
@@ -293,12 +299,6 @@ static inline void
 put_stp_id (zmsg_t *msg, stp_id_t stp_id)
 {
   zmsg_addmem (msg, &stp_id, sizeof (stp_id));
-}
-
-static inline void
-put_vlan_id (zmsg_t *msg, vid_t vid)
-{
-  zmsg_addmem (msg, &vid, sizeof (vid));
 }
 
 static inline void
@@ -1258,7 +1258,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     .vif = put_vif ? vif->id : 0
   };
 
-  put_pkt_info(msg, &info, type);
+  put_pkt_info (msg, &info, type);
   zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {
@@ -3533,7 +3533,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     .vif = put_vif ? vif->id : 0
   };
 
-  put_pkt_info (msg, info, type);
+  put_pkt_info (msg, &info, type);
   zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {
