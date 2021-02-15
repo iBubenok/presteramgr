@@ -684,9 +684,9 @@ vif_tx (const struct vif_id *id,
   enum port_mode mode = 0;
   vid_t native_vid = 0, voice_vid = 0;
 
-  if (opts->tag.tagged){
-    pcp = opts->tag.pcp;
-    cfi = opts->tag.cfi;
+  if (opts->tagged){
+    pcp = opts->pcp;
+    cfi = opts->cfi;
   }
 //int deb = (*(uint8_t*)data != 1);
 //if (deb)
