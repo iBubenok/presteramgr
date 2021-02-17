@@ -279,18 +279,15 @@ put_pkt_info (zmsg_t *msg, struct pkt_info *info, notification_t type)
 {
   switch (type)
   {
-    case CN_ARP_BROADCAST:
-    case CN_ARP_REPLY_TO_ME:
-    case CN_ARP:
-    case CN_DHCP_TRAP:
-      zmsg_addmem (msg, info, sizeof( *info));
-      break;
-    default:
+    case CN_OAMPDU:
       if (info->vif)
           put_vif_id (msg, info->vif);
       if (info->vid)
           put_vlan_id (msg, info->vid);
       put_port_id (msg, info->pid);
+      break;
+    default:
+      zmsg_addmem (msg, info, sizeof( *info));
       break;
   }
 }
