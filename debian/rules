@@ -41,6 +41,12 @@ else
 WITH_LINUX_HEADERS := --with-linux-headers=$(LINUXHDRS)
 endif
 
+ifeq ($(CFM),)
+WITH_CFM :=
+else
+WITH_CFM := --with-cfm=$(CFM)
+endif
+
 
 configure: configure.ac
 	dh_testdir
@@ -60,6 +66,7 @@ config.status: configure
 		$(WITH_PSCP) \
 		$(WITH_RTBD) \
 		$(WITH_ARPD) \
+		$(WITH_CFM) \
 		$(WITH_STACKD)
 
 build: build-stamp
