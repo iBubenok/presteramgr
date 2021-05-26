@@ -920,6 +920,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   struct vif *vif;
   vif_id_t vifid;
   int is_vif_forwarding_on_vlan;
+  vid_t vid = frame->vid;
 
   vif_rlock();
 
@@ -939,8 +940,11 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   if (vif && vif->trunk)
     vif = vif->trunk;
 
+  if (vid == 0) /* priority tagged */
+    vid = vif_vid (vif);
+
   vifid = vif->id;
-  is_vif_forwarding_on_vlan = vif_is_forwarding_on_vlan(vif, frame->vid);
+  is_vif_forwarding_on_vlan = vif_is_forwarding_on_vlan(vif, vid);
 
   vif_unlock();
 
@@ -972,7 +976,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
         result = ST_OK;
         goto out;
       default:
-        tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        tipc_notify_bpdu (vifid, pid, vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       }
@@ -1049,7 +1053,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       /* frame des MAC is 01:00:0C:CC:CC:CD */
       if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
         /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
-        tipc_notify_bpdu (vifid, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        tipc_notify_bpdu (vifid, pid, vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       } else {
@@ -1134,7 +1138,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
       goto out;
     control_notify_ip_sg_trap (pid, frame);
     goto out;
@@ -1178,7 +1182,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     if (! is_vif_forwarding_on_vlan) {
       DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, \n",
-          frame->vid, vifid, pid, frame->dev, frame->port);
+          vid, vifid, pid, frame->dev, frame->port);
       goto out;
     }
     route_handle_udt (frame->data, frame->len);
@@ -1205,7 +1209,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   if (conform2stp_state)
     if (! is_vif_forwarding_on_vlan) {
       DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, \n",
-          frame->vid, vifid, pid, frame->dev, frame->port);
+          vid, vifid, pid, frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
@@ -1215,7 +1219,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       char *frame_source_mac = ((char*)frame->data) + 6;
       if (!memcmp(frame_source_mac, master_mac, 6)) {
         DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
-              frame->code, frame->vid, vifid);
+              frame->code, vid, vifid);
         result = ST_OK;
         goto out;
       }
@@ -1226,7 +1230,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   if (put_vif)
     put_vif_id (msg, vifid);
   if (put_vid)
-    put_vlan_id (msg, frame->vid);
+    put_vlan_id (msg, vid);
   put_port_id (msg, pid);
 
   zmsg_addmem (msg, frame->data, frame->len);
@@ -3187,7 +3191,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   register int conform2stp_state = 0;
   int check_source_mac = 0;
   struct vif *vif;
-
+  vid_t vid;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3195,6 +3199,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   }
 
   frame = (struct pdsa_spec_frame *) zframe_data (FIRST_ARG);
+  vid = frame->vid;
 
   vif = vif_by_hw(frame->dev, frame->port);
   if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
@@ -3225,6 +3230,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   if (vif && vif->trunk)
     vif = vif->trunk;
 
+  if (vid == 0) /* priority tagged */
+    vid = vif_vid (vif);
+
   result = ST_BAD_VALUE;
 
   switch (frame->code) {
@@ -3238,7 +3246,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
         result = ST_OK;
         goto out;
       default:
-        tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        tipc_notify_bpdu (vif->id, pid, vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       }
@@ -3315,7 +3323,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       /* frame des MAC is 01:00:0C:CC:CC:CD */
       if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
         /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
-        tipc_notify_bpdu (vif->id, pid, frame->vid, frame->tagged, frame->len, frame->data);
+        tipc_notify_bpdu (vif->id, pid, vid, frame->tagged, frame->len, frame->data);
         result = ST_OK;
         goto out;
       } else {
@@ -3400,7 +3408,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
-    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
       goto out;
     control_notify_ip_sg_trap (pid, frame);
     goto out;
@@ -3418,7 +3426,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
 
   case CPU_CODE_USER_DEFINED (9):
-//    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, frame->vid);
+//    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, vid);
     switch (frame->data[14]) {
       case WNCT_802_3_SP_LACP:
         type = CN_LACPDU;
@@ -3443,9 +3451,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
     result = ST_OK;
-    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
-//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
-//    if (! vlan_port_is_forwarding_on_vlan(pid, frame->vid))
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
       goto out;
     }
     route_handle_udt (frame->data, frame->len);
@@ -3470,8 +3478,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   }
 
   if (conform2stp_state)
-    if (! vif_is_forwarding_on_vlan(vif, frame->vid)) {
-//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, frame->vid, vif->id, pid, frame->dev, frame->port);
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
       result = ST_OK;
       goto out;
     }
@@ -3481,7 +3489,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       char *frame_source_mac = ((char*)frame->data) + 6;
       if (!memcmp(frame_source_mac, master_mac, 6)) {
         DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
-              frame->code, frame->vid, vif->id);
+              frame->code, vid, vif->id);
         result = ST_OK;
         goto out;
       }
@@ -3492,7 +3500,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   if (put_vif)
     put_vif_id (msg, vif->id);
   if (put_vid)
-    put_vlan_id (msg, frame->vid);
+    put_vlan_id (msg, vid);
   put_port_id (msg, pid);
 
   zmsg_addmem (msg, frame->data, frame->len);

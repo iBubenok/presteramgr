@@ -1258,10 +1258,15 @@ VIF_PROC_ROOT_BODY(block, what)
 }
 
 
-VIF_PROC_REMOTE(set_access_vid, vid_t vid)
+VIF_PROC_REMOTE_HEAD(set_access_vid, vid_t vid)
+{
+  vif->access_vid = vid;
+  return ST_REMOTE;
+}
 
 VIF_PROC_PORT_HEAD(set_access_vid, vid_t vid)
 {
+  vif->access_vid = vid;
 VIF_PROC_PORT_BODY(set_access_vid, vid)
 }
 
@@ -1294,10 +1299,15 @@ VIF_PROC_ROOT_BODY(set_comm, comm)
 }
 
 
-VIF_PROC_REMOTE(set_customer_vid, vid_t vid)
+VIF_PROC_REMOTE_HEAD(set_customer_vid, vid_t vid)
+{
+  vif->customer_vid = vid;
+  return ST_REMOTE;
+}
 
 VIF_PROC_PORT_HEAD(set_customer_vid, vid_t vid)
 {
+  vif->customer_vid = vid;
 VIF_PROC_PORT_BODY(set_customer_vid, vid)
 }
 
