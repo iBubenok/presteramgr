@@ -40,6 +40,7 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <sflow.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -51,6 +52,7 @@ static void *control_packet_loop (void *);
 
 static void *pub_sock;
 static void *pub_arp_sock;
+static void *pub_sflow_sock;
 static void *pub_dhcp_sock;
 static void *pub_stack_sock;
 static void *cmd_sock;
@@ -164,6 +166,11 @@ control_init (void)
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
   assert (rc == 0);
 
+  pub_sflow_sock = zsock_new (ZMQ_PUB);
+  assert (pub_sflow_sock);
+  rc = zsock_bind (pub_sflow_sock, PUB_SOCK_SFLOW_EP);
+  assert (rc == 0);
+
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
   assert (pub_dhcp_sock);
   zsock_set_sndhwm(pub_dhcp_sock, hwm);
@@ -242,6 +249,13 @@ static inline void
 notify_send_arp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_arp_sock);
+}
+
+static inline void
+notify_send_sflow (zmsg_t **msg)
+{
+  int rc = zmsg_send (msg, pub_sflow_sock);
+  DEBUG("%s rc = %d\n",__FUNCTION__, rc);
 }
 
 static inline void
@@ -531,6 +545,13 @@ DECLARE_HANDLER (CC_GET_CH_REV);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
+DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_ENABLE);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -714,7 +735,14 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_GET_CH_REV),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
-  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025),
+  HANDLER (CC_SFLOW_SET_EGRESS_ENABLE),
+  HANDLER (CC_SFLOW_SET_INGRESS_ENABLE),
+  HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
+  HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE),
+  HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE),
+  HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT),
+  HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -1201,6 +1229,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
 
+  // TODO
+  // case CPU_CODE_INGRESS_SAMPLED:
+  // case CPU_CODE_EGRESS_SAMPLED:
+  
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -1235,16 +1267,33 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   zmsg_addmem (msg, frame->data, frame->len);
 
+  zmsg_t *msg2 = make_notify_message (type);
+  if (put_vif)
+    put_vif_id (msg2, vifid);
+  if (put_vid)
+    put_vlan_id (msg2, vid);
+  put_port_id (msg2, pid);
+
+  zmsg_addmem (msg2, frame->data, frame->len);
+
   switch (type) {
     case CN_ARP_BROADCAST:
+    DEBUG("MYDBG 1");
     case CN_ARP_REPLY_TO_ME:
+    DEBUG("MYDBG 2");
     case CN_ARP:
+    DEBUG("MYDBG 3");
       notify_send_arp (&msg);
+      notify_send_sflow (&msg2); //2
       break;
     case CN_DHCP_TRAP:
+    DEBUG("MYDBG 4");
       notify_send_dhcp (&msg);
       break;
+    // case CN_SFLOW:
+    //   notify_send_sflow(&msg);
     default:
+    DEBUG("MYDBG 5");
       notify_send (&msg);
       break;
   }
@@ -3472,6 +3521,16 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
 
+  // TODO
+  case CPU_CODE_EGRESS_SAMPLED:
+    DEBUG ("mydbg egress sampled");
+    type = CN_SAMPLED;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    DEBUG ("mydbg ingress sampled");
+    type = CN_SAMPLED;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -3514,6 +3573,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
       break;
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
     default:
       notify_send (&msg);
       break;
@@ -5607,4 +5668,47 @@ out:
   reply = make_reply(result);
   zmsg_addmem(reply, &val, sizeof(val));
   send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
+{
+  zmsg_t *reply;
+  enum status result = ST_OK;
+
+  DEBUG("%s\n",__FUNCTION__);
+  enable_sampling();
+
+  reply = make_reply(result);
+  send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_ENABLE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+  get_count_sflow();
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
+{
+  DEBUG("%s\n",__FUNCTION__);
 }

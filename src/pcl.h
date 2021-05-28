@@ -48,6 +48,10 @@ extern bool_t is_free_rule_ix (port_id_t);
 /* ARP */
 extern enum status pcl_enable_arp_trap (int);
 
+/* sFlow */
+void pcl_enable_sflow_sampling();
+void pcl_get_sflow_count();
+
 /* User ACL */
 typedef struct {
   uint8_t value[16];

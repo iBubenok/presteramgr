@@ -5,6 +5,12 @@
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/pcl/cpssDxChPcl.h>
 #include <cpss/dxCh/dxChxGen/cnc/cpssDxChCnc.h>
+#include <cpss/dxCh/dxChxGen/mirror/cpssDxChStc.h>
+#include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
+#include <cpss/dxCh/dxChxGen/ipfix/cpssDxChIpfix.h>
+// #include <data.h>
+// #include <sysdeps.h>
+// #include <linux/pdsa-mgmt.h>
 
 #include <pcl.h>
 #include <port.h>
@@ -52,6 +58,7 @@ static uint16_t port_ip_sourceguard_rule_start_ix[NPORTS + 1] = {};
 static uint16_t port_ip_sourceguard_drop_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_ip_ospf_mirror_rule_ix[NPORTS + 1] = {};
+static uint16_t port_sflow_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_ip_rip_mirror_rule_ix[NPORTS + 1] = {};
 
@@ -111,6 +118,7 @@ initialize_vars (void)
     port_ip_sourceguard_drop_rule_ix[pid]  = idx[port->ldev]++;
     port_ip_ospf_mirror_rule_ix[pid]       = idx[port->ldev]++;
     port_ip_rip_mirror_rule_ix[pid]        = idx[port->ldev]++;
+    port_sflow_rule_ix[pid]                = idx[port->ldev]++;
   }
 
   for_each_dev(dev) {
@@ -3491,4 +3499,177 @@ pcl_cpss_lib_init (int d)
   pcl_setup_rip(d);
 
   return ST_OK;
+}
+
+// void 
+// pcl_enable_sflow_sampling() // v1
+// {
+//   DEBUG("%s\n", __FUNCTION__);
+
+//   int dev;
+//   port_id_t  pid; //, pi;
+//   for_each_dev (dev) {
+//     CRP(cpssDxChStcEnableSet(dev, CPSS_DXCH_STC_INGRESS_E, GT_TRUE)); // глобальное включение
+//     CRP(cpssDxChStcEnableSet(dev, CPSS_DXCH_STC_EGRESS_E,  GT_TRUE)); // глобальное включение
+
+//     CRP(cpssDxChStcIngressCountModeSet(dev, CPSS_DXCH_STC_COUNT_ALL_PACKETS_E)); // все входящие пакеты
+
+//     CRP(cpssDxChStcReloadModeSet(dev, CPSS_DXCH_STC_EGRESS_E,  CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+//     CRP(cpssDxChStcReloadModeSet(dev, CPSS_DXCH_STC_INGRESS_E, CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+
+//     CRP(cpssDxChNetIfDuplicateEnableSet(dev, GT_TRUE));
+
+//     for_each_port (pid) {
+//       CRP(cpssDxChStcPortLimitSet (dev, pid - 1, CPSS_DXCH_STC_INGRESS_E, 1));
+//       CRP(cpssDxChStcPortLimitSet (dev, pid - 1, CPSS_DXCH_STC_EGRESS_E,  1));
+//       cpssDxChNetIfPortDuplicateToCpuSet(dev, pid, GT_TRUE);
+//     }
+//   }
+
+//   // for_each_dev (dev) {
+//   //   for_each_port(pi) {
+//   //     struct port *port = port_ptr (pi);
+//   //     if (port->ldev != dev)
+//   //       continue;
+
+//   //     if (is_stack_port(port))
+//   //       return;
+
+//   //     CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+//   //     CPSS_DXCH_PCL_ACTION_STC act;
+
+//   //     memset (&mask, 0, sizeof (mask));
+//   //     memset (&rule, 0, sizeof (rule));
+//   //     memset (&act, 0, sizeof (act));
+
+//   //     mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+//   //     mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+//   //     mask.ruleExtNotIpv6.common.isIp = 0xFF;
+//   //     mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xFF;
+
+//   //     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+//   //     rule.ruleExtNotIpv6.common.isL2Valid = 1;
+//   //     rule.ruleExtNotIpv6.common.isIp = 1;
+//   //     rule.ruleExtNotIpv6.commonExt.ipProtocol  = 0x11; /* UDP */
+
+//   //     act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+//   //     act.actionStop = GT_TRUE;
+//   //     act.mirror.cpuCode = CPSS_NET_INGRESS_SAMPLED_E; //CPSS_NET_EGRESS_SAMPLED_E
+
+//   //     CRP (cpssDxChPclRuleSet
+//   //         (port->ldev,                                        /* devNum         */
+//   //           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+//   //           port_sflow_rule_ix[pi],                           /* ruleIndex      */
+//   //           0,                                                /* ruleOptionsBmp */
+//   //           &mask,                                            /* maskPtr        */
+//   //           &rule,                                            /* patternPtr     */
+//   //           &act));                                           /* actionPtr      */
+//   //   }
+//   // }
+// }
+
+// void 
+// pcl_get_sflow_count() // v1
+// {
+//   DEBUG("%s\n", __FUNCTION__);
+
+//   int dev;
+//   port_id_t port;
+//   GT_U32 count = 0;
+
+//   for_each_dev (dev) {
+//     for_each_port (port) {
+//       CRP(cpssDxChStcPortSampledPacketsCntrGet(dev, port - 1, CPSS_DXCH_STC_INGRESS_E, &count));
+//       DEBUG("d  count ingress = %d\n", count);
+//       DEBUG("u  count ingress = %u\n", count);
+
+//       CRP(cpssDxChStcPortSampledPacketsCntrGet(dev, port - 1, CPSS_DXCH_STC_EGRESS_E, &count));
+//       DEBUG("d  count egress = %d\n", count);
+//       DEBUG("u  count egress = %u\n", count);
+
+//       CRP(cpssDxChStcPortCountdownCntrGet(dev, port - 1, CPSS_DXCH_STC_EGRESS_E, &count));
+//       DEBUG("d  count down egress = %d\n", count);
+//       DEBUG("u  count down egress = %u\n", count);
+
+//       CRP(cpssDxChStcPortCountdownCntrGet(dev, port - 1, CPSS_DXCH_STC_INGRESS_E, &count));
+//       DEBUG("d  count down ingress = %d\n", count);
+//       DEBUG("u  count down ingress = %u\n", count);
+//     }
+//   }
+// }
+
+void 
+pcl_enable_sflow_sampling() // v2
+{
+  DEBUG("%s\n", __FUNCTION__);
+
+  port_id_t  pid;
+
+  for_each_port (pid) {
+    struct port *port = port_ptr (pid);
+    // if (port->ldev != dev)
+    //   continue;
+
+    // if (is_stack_port(port))
+    //   return;
+
+    // по dev
+    CRP(cpssDxChStcEnableSet(port->ldev, CPSS_DXCH_STC_INGRESS_E, GT_TRUE)); // глобальное включение
+    CRP(cpssDxChStcEnableSet(port->ldev, CPSS_DXCH_STC_EGRESS_E,  GT_TRUE)); // глобальное включение
+
+    CRP(cpssDxChStcIngressCountModeSet(port->ldev, CPSS_DXCH_STC_COUNT_ALL_PACKETS_E)); // все входящие пакеты
+
+    CRP(cpssDxChStcReloadModeSet(port->ldev, CPSS_DXCH_STC_EGRESS_E,  CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+    CRP(cpssDxChStcReloadModeSet(port->ldev, CPSS_DXCH_STC_INGRESS_E, CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+
+    // CRP(cpssDxChNetIfDuplicateEnableSet(port->ldev, GT_TRUE));
+
+    // по pid
+    CRP(cpssDxChStcPortLimitSet (port->ldev, port->lport, CPSS_DXCH_STC_INGRESS_E, 2));
+    CRP(cpssDxChStcPortLimitSet (port->ldev, port->lport, CPSS_DXCH_STC_EGRESS_E,  2));
+    // CRP(cpssDxChNetIfPortDuplicateToCpuSet(port->ldev, port->lport, GT_TRUE));
+
+    // CRP(cpssDxChIpfixCpuCodeSet(port->ldev, CPSS_DXCH_POLICER_STAGE_INGRESS_1_E, CPSS_NET_INGRESS_SAMPLED_E));
+    // CRP(cpssDxChIpfixCpuCodeSet(port->ldev, CPSS_DXCH_POLICER_STAGE_EGRESS_E,    CPSS_NET_EGRESS_SAMPLED_E));
+  }
+}
+
+void 
+pcl_get_sflow_count() // v2
+{
+  DEBUG("%s\n", __FUNCTION__);
+
+  port_id_t pid;
+  GT_U32 count = -100;
+
+  for_each_port (pid) {
+    struct port *port = port_ptr (pid);
+
+    CRP(cpssDxChStcPortSampledPacketsCntrGet (port->ldev, port->lport, CPSS_DXCH_STC_INGRESS_E, &count));
+    if(count != 0) {
+      DEBUG("d  count ingress = %d\n",      count);
+      DEBUG("u  count ingress = %u\n",      count);
+    }
+
+    CRP(cpssDxChStcPortSampledPacketsCntrGet (port->ldev, port->lport, CPSS_DXCH_STC_EGRESS_E,  &count));
+    if(count != 0) {
+      DEBUG("d  count egress = %d\n",       count);
+      DEBUG("u  count egress = %u\n",       count);
+    }
+
+    CRP(cpssDxChStcPortCountdownCntrGet      (port->ldev, port->lport, CPSS_DXCH_STC_EGRESS_E,  &count));
+    if(count != 0) {
+      DEBUG("d  count down egress = %d\n",  count);
+      DEBUG("u  count down egress = %u\n",  count);
+    }
+
+    CRP(cpssDxChStcPortCountdownCntrGet      (port->ldev, port->lport, CPSS_DXCH_STC_INGRESS_E, &count));
+    if(count != 0) {
+      DEBUG("d  count down ingress = %d\n", count);
+      DEBUG("u  count down ingress = %u\n", count);
+    }
+  }
+
+  DEBUG("%s eeeeeeeeeend\n", __FUNCTION__);
 }
