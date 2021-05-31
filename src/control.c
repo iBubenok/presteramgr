@@ -5672,43 +5672,91 @@ out:
 
 DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
 {
-  zmsg_t *reply;
-  enum status result = ST_OK;
-
   DEBUG("%s\n",__FUNCTION__);
-  enable_sampling();
 
+  bool_t enable;
+  zmsg_t *reply;
+  enum status result;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_egress_enable(enable);
+
+out:
   reply = make_reply(result);
   send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_ENABLE)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
-  get_count_sflow();
+  result = sflow_set_ingress_enable(true);
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
+  result = sflow_set_ingress_count_mode();
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
+  result = sflow_set_egress_reload_mode();
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
+  result = sflow_set_ingress_reload_mode();
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
+  result = sflow_set_egress_port_limit();
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
 {
+  zmsg_t *reply;
+  enum status result;
+
   DEBUG("%s\n",__FUNCTION__);
+  result = sflow_set_ingress_port_limit();
+
+  reply = make_reply(result);
+  send_reply(reply);
 }
