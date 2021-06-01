@@ -64,6 +64,7 @@ static void *sec_sock;
 static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
+static void *pub_cfm_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -162,6 +163,11 @@ control_init (void)
   pub_arp_sock = zsock_new (ZMQ_PUB);
   assert (pub_arp_sock);
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
+  assert (rc == 0);
+
+  pub_cfm_sock = zsock_new (ZMQ_PUB);
+  assert (pub_cfm_sock);
+  rc = zsock_bind (pub_cfm_sock, PUB_SOCK_CFM_EP);
   assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
@@ -3191,7 +3197,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   register int conform2stp_state = 0;
   int check_source_mac = 0;
   struct vif *vif;
-  vid_t vid;
+  vid_t vid;  
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3471,6 +3477,32 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
+
+  case CPU_CODE_BRIDGED_F:
+  type = CN_ARP_BROADCAST;
+    DEBUG("take frame");
+
+    zmsg_t *msg = zmsg_new ();
+
+    char opcode = frame->data[15];
+    DEBUG("%d", opcode);
+    zmsg_addmem (msg, &opcode, sizeof (opcode));
+    zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+    zmsg_addmem (msg, frame->data, frame->len);
+
+    /* start debug - for watch msg*/
+    DEBUG("*****test****");
+    zframe_t* tmp_frame = zmsg_first(msg);
+    while(tmp_frame)
+    {
+      hexdump(zframe_data(tmp_frame), zframe_size(tmp_frame));
+      tmp_frame = zmsg_next(msg);
+    }
+    /* stop debug foo send inject frame */
+
+    zmsg_send (&msg, pub_cfm_sock);
+
+  break;
 
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
