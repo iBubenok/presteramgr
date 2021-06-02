@@ -269,15 +269,33 @@ put_vif_id (zmsg_t *msg, vif_id_t vifid)
 }
 
 static inline void
-put_stp_id (zmsg_t *msg, stp_id_t stp_id)
-{
-  zmsg_addmem (msg, &stp_id, sizeof (stp_id));
-}
-
-static inline void
 put_vlan_id (zmsg_t *msg, vid_t vid)
 {
   zmsg_addmem (msg, &vid, sizeof (vid));
+}
+
+static inline void
+put_pkt_info (zmsg_t *msg, struct pkt_info *info, notification_t type)
+{
+  switch (type)
+  {
+    case CN_OAMPDU:
+      if (info->vif)
+          put_vif_id (msg, info->vif);
+      if (info->vid)
+          put_vlan_id (msg, info->vid);
+      put_port_id (msg, info->pid);
+      break;
+    default:
+      zmsg_addmem (msg, info, sizeof( *info));
+      break;
+  }
+}
+
+static inline void
+put_stp_id (zmsg_t *msg, stp_id_t stp_id)
+{
+  zmsg_addmem (msg, &stp_id, sizeof (stp_id));
 }
 
 static inline void
@@ -1227,12 +1245,17 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vifid);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
+  struct pkt_info info = {
+    .tagged = frame->tagged,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
+
+  put_pkt_info (msg, &info, type);
   zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {
@@ -3497,12 +3520,17 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vif->id);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
+  struct pkt_info info = {
+    .tagged = frame->tagged,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
+
+  put_pkt_info (msg, &info, type);
   zmsg_addmem (msg, frame->data, frame->len);
 
   switch (type) {

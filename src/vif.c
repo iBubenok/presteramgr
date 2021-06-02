@@ -676,7 +676,7 @@ vif_tx (const struct vif_id *id,
         const void *data)
 {
   CPSS_DXCH_NET_DSA_PARAMS_STC tp;
-  uint8_t tag[8];
+  uint8_t tag[8], pcp = 7, cfi = 0;
   enum status result;
   struct hw_port hp;
   struct vif *vif, *vifp = NULL;
@@ -684,6 +684,10 @@ vif_tx (const struct vif_id *id,
   enum port_mode mode = 0;
   vid_t native_vid = 0, voice_vid = 0;
 
+  if (opts->tagged){
+    pcp = opts->pcp;
+    cfi = opts->cfi;
+  }
 //int deb = (*(uint8_t*)data != 1);
 //if (deb)
 //DEBUG(">>>>vif_tx (%x,, , size=%d )\n", *(uint32_t*) id, size);
@@ -737,9 +741,10 @@ vif_tx (const struct vif_id *id,
 
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
-      tp.commonParams.vpt = 7;
+      tp.commonParams.vpt = pcp;
+      tp.commonParams.cfiBit = cfi;
       tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
-      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.tc = pcp;
       tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_PORT_E;
       tp.dsaInfo.fromCpu.dstInterface.devPort.devNum = hp.hw_dev;
       tp.dsaInfo.fromCpu.dstInterface.devPort.portNum = hp.hw_port;
@@ -767,9 +772,10 @@ vif_tx (const struct vif_id *id,
 
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
-      tp.commonParams.vpt = 7;
+      tp.commonParams.vpt = pcp;
+      tp.commonParams.cfiBit = cfi;
       tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
-      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.tc = pcp;
       tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VID_E;
       tp.dsaInfo.fromCpu.dstInterface.vlanId = opts->vid;
       tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
@@ -793,9 +799,10 @@ vif_tx (const struct vif_id *id,
 
       tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
       tp.commonParams.vid = opts->vid;
-      tp.commonParams.vpt = 7;
+      tp.commonParams.vpt = pcp;
+      tp.commonParams.cfiBit = cfi;
       tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FROM_CPU_E;
-      tp.dsaInfo.fromCpu.tc = 7;
+      tp.dsaInfo.fromCpu.tc = pcp;
       tp.dsaInfo.fromCpu.dstInterface.type = CPSS_INTERFACE_VIDX_E;
       tp.dsaInfo.fromCpu.dstInterface.vidx = opts->mcg;
       tp.dsaInfo.fromCpu.extDestInfo.multiDest.excludeInterface = gt_bool(opts->exclude_src_port);
