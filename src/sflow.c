@@ -7,35 +7,53 @@
 
 #define for_each_port(p) for (p = 1; p <= nports; p++)
 
-GT_STATUS sflow_set_egress_enable(int enable)
+GT_STATUS sflow_set_enable (
+  sflow_type_t type, 
+  int enable)
 {
-  DEBUG("%s\n", __FUNCTION__);
+  DEBUG("%s type: %d enable: %d\n", __FUNCTION__, type, enable);
 
   int dev, rc;
   for_each_dev(dev) {
-    rc = CRP(cpssDxChStcEnableSet(dev, CPSS_DXCH_STC_EGRESS_E,  gt_bool(enable)));
-    if (rc != GT_OK)
-      return rc;
+    switch (type) {
+      case INGRESS:
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_INGRESS_E,
+                                      gt_bool(enable)));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case EGRESS:
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_EGRESS_E,
+                                      gt_bool(enable)));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case BOTH:
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_INGRESS_E,
+                                      gt_bool(enable)));
+        if (rc != GT_OK)
+          return rc;
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_EGRESS_E,
+                                      gt_bool(enable)));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      default:
+        DEBUG("%s Bad type: %d\n", __FUNCTION__, type);
+        return GT_BAD_PARAM;
+        break;
+    }
   }
 
   return GT_OK;
 }
 
-GT_STATUS sflow_set_ingress_enable(int enable)
-{
-  DEBUG("%s\n", __FUNCTION__);
-
-  int dev, rc;
-  for_each_dev(dev) {
-    rc = CRP(cpssDxChStcEnableSet(dev, CPSS_DXCH_STC_INGRESS_E,  gt_bool(enable)));
-    if (rc != GT_OK)
-      return rc;
-  }
-
-  return GT_OK;
-}
-
-GT_STATUS sflow_set_ingress_count_mode(sflow_count_mode_t mode)
+GT_STATUS sflow_set_ingress_count_mode (
+  sflow_count_mode_t mode)
 {
   DEBUG("%s\n", __FUNCTION__);
 
@@ -43,16 +61,16 @@ GT_STATUS sflow_set_ingress_count_mode(sflow_count_mode_t mode)
   CPSS_DXCH_STC_COUNT_MODE_ENT cpss_mode;
 
   switch (mode) {
-  case ALL_PACKETS:
-    cpss_mode = CPSS_DXCH_STC_COUNT_ALL_PACKETS_E;
-    break;
-  case NON_DROPPED_PACKETS:
-    cpss_mode = CPSS_DXCH_STC_COUNT_NON_DROPPED_PACKETS_E;
-    break;
-  default:
-    DEBUG("%s Bad mode\n", __FUNCTION__);
-    return GT_BAD_PARAM;
-    break;
+    case ALL_PACKETS:
+      cpss_mode = CPSS_DXCH_STC_COUNT_ALL_PACKETS_E;
+      break;
+    case NON_DROPPED_PACKETS:
+      cpss_mode = CPSS_DXCH_STC_COUNT_NON_DROPPED_PACKETS_E;
+      break;
+    default:
+      DEBUG("%s Bad mode\n", __FUNCTION__);
+      return GT_BAD_PARAM;
+      break;
   }
 
   for_each_dev(dev) {
@@ -64,38 +82,9 @@ GT_STATUS sflow_set_ingress_count_mode(sflow_count_mode_t mode)
   return GT_OK;
 }
 
-GT_STATUS sflow_set_egress_reload_mode(sflow_count_reload_mode_t mode)
-{
-  DEBUG("%s\n", __FUNCTION__);
-
-  int dev, rc;
-  CPSS_DXCH_STC_COUNT_RELOAD_MODE_ENT cpss_mode;
-
-  switch (mode) {
-  case RELOAD_CONTINUOUS:
-    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E;
-    break;
-  case RELOAD_TRIGGERED:
-    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_TRIGGERED_E;
-    break;
-  default:
-    DEBUG("%s Bad mode\n", __FUNCTION__);
-    return GT_BAD_PARAM;
-    break;
-  }
-  
-  for_each_dev(dev) {
-    rc = CRP(cpssDxChStcReloadModeSet(dev,
-                                      CPSS_DXCH_STC_EGRESS_E,
-                                      cpss_mode));
-    if (rc != GT_OK)
-      return rc;
-  }
-
-  return GT_OK;
-}
-
-GT_STATUS sflow_set_ingress_reload_mode(sflow_count_reload_mode_t mode)
+GT_STATUS sflow_set_reload_mode (
+  sflow_type_t type, 
+  sflow_count_reload_mode_t mode)
 {
   DEBUG("%s\n", __FUNCTION__);
 
@@ -116,17 +105,45 @@ GT_STATUS sflow_set_ingress_reload_mode(sflow_count_reload_mode_t mode)
   }
 
   for_each_dev(dev) {
-    rc = CRP(cpssDxChStcReloadModeSet(dev,
-                                      CPSS_DXCH_STC_INGRESS_E,
-                                      cpss_mode));
-    if (rc != GT_OK)
-      return rc;
+    switch (type) {
+      case INGRESS:
+        rc = CRP(cpssDxChStcReloadModeSet(dev,
+                                          CPSS_DXCH_STC_INGRESS_E,
+                                          cpss_mode));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case EGRESS:
+        rc = CRP(cpssDxChStcReloadModeSet(dev,
+                                          CPSS_DXCH_STC_EGRESS_E,
+                                          cpss_mode));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case BOTH:
+        rc = CRP(cpssDxChStcReloadModeSet(dev,
+                                          CPSS_DXCH_STC_INGRESS_E,
+                                          cpss_mode));
+        if (rc != GT_OK)
+          return rc;
+        rc = CRP(cpssDxChStcReloadModeSet(dev,
+                                          CPSS_DXCH_STC_EGRESS_E,
+                                          cpss_mode));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      default:
+        DEBUG("%s Bad type: %d\n", __FUNCTION__, type);
+        return GT_BAD_PARAM;
+        break;
+    }
   }
 
   return GT_OK;
 }
 
-GT_STATUS sflow_set_egress_port_limit()
+GT_STATUS sflow_set_port_limit (
+  sflow_type_t type)
 {
   DEBUG("%s\n", __FUNCTION__);
 
@@ -135,32 +152,42 @@ GT_STATUS sflow_set_egress_port_limit()
   for_each_port(pid) {
     struct port *port = port_ptr (pid);
     // TODO: количество и порты
-    rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
-                                      port->lport,
-                                      CPSS_DXCH_STC_EGRESS_E,
-                                      2));
-    if (rc != GT_OK)
-      return rc;
-  }
-
-  return GT_OK;
-}
-
-GT_STATUS sflow_set_ingress_port_limit()
-{
-  DEBUG("%s\n", __FUNCTION__);
-
-  int rc;
-  port_id_t  pid;
-  for_each_port(pid) {
-    struct port *port = port_ptr (pid);
-    // TODO: количество и порты
-    rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
-                                      port->lport,
-                                      CPSS_DXCH_STC_INGRESS_E,
-                                      2));
-    if (rc != GT_OK)
-      return rc;
+    switch (type) {
+      case INGRESS:
+        rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                          port->lport,
+                                          CPSS_DXCH_STC_INGRESS_E,
+                                          2));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case EGRESS:
+        rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                          port->lport,
+                                          CPSS_DXCH_STC_EGRESS_E,
+                                          2));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      case BOTH:
+        rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                          port->lport,
+                                          CPSS_DXCH_STC_INGRESS_E,
+                                          2));
+        if (rc != GT_OK)
+          return rc;
+        rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                          port->lport,
+                                          CPSS_DXCH_STC_EGRESS_E,
+                                          2));
+        if (rc != GT_OK)
+          return rc;
+        break;
+      default:
+        DEBUG("%s Bad type: %d\n", __FUNCTION__, type);
+        return GT_BAD_PARAM;
+        break;
+    }
   }
 
   return GT_OK;

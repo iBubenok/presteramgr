@@ -545,13 +545,10 @@ DECLARE_HANDLER (CC_GET_CH_REV);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
-DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE);
-DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_ENABLE);
+DECLARE_HANDLER (CC_SFLOW_SET_ENABLE);
 DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
-DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE);
-DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE);
-DECLARE_HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT);
-DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT);
+DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -736,13 +733,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025),
-  HANDLER (CC_SFLOW_SET_EGRESS_ENABLE),
-  HANDLER (CC_SFLOW_SET_INGRESS_ENABLE),
+  HANDLER (CC_SFLOW_SET_ENABLE),
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
-  HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE),
-  HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE),
-  HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT),
-  HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
+  HANDLER (CC_SFLOW_SET_RELOAD_MODE),
+  HANDLER (CC_SFLOW_SET_PORT_LIMIT)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5672,7 +5666,7 @@ out:
 }
 
 /* sFlow functions. */
-DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
+DEFINE_HANDLER (CC_SFLOW_SET_ENABLE)
 {
   DEBUG("%s\n",__FUNCTION__);
 
@@ -5684,15 +5678,12 @@ DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
   if (result != ST_OK)
     goto out;
 
-  result = sflow_set_egress_enable(enable);
+  result = sflow_set_enable(BOTH, enable);
 
   // TODO: remove
-  sflow_set_ingress_enable(enable);
   sflow_set_ingress_count_mode(ALL_PACKETS);
-  sflow_set_egress_reload_mode(RELOAD_CONTINUOUS);
-  sflow_set_ingress_reload_mode(RELOAD_CONTINUOUS);
-  sflow_set_egress_port_limit();
-  sflow_set_ingress_port_limit();
+  sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
+  sflow_set_port_limit(BOTH);
   ///////////////////////////////
 
 out:
@@ -5700,73 +5691,41 @@ out:
   send_reply(reply);
 }
 
-DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_ENABLE)
-{
-  zmsg_t *reply;
-  enum status result;
-
-  DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_ingress_enable(true);
-
-  reply = make_reply(result);
-  send_reply(reply);
-}
-
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
 {
+  DEBUG("%s\n",__FUNCTION__);
+
   zmsg_t *reply;
   enum status result;
 
-  DEBUG("%s\n",__FUNCTION__);
   result = sflow_set_ingress_count_mode(ALL_PACKETS);
 
   reply = make_reply(result);
   send_reply(reply);
 }
 
-DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE)
+DEFINE_HANDLER (CC_SFLOW_SET_RELOAD_MODE)
 {
+  DEBUG("%s\n",__FUNCTION__);
+
   zmsg_t *reply;
   enum status result;
 
-  DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_egress_reload_mode(RELOAD_CONTINUOUS);
+  result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
 
   reply = make_reply(result);
   send_reply(reply);
 }
 
-DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE)
+DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
 {
+  DEBUG("%s\n",__FUNCTION__);
+  
   zmsg_t *reply;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_ingress_reload_mode(RELOAD_CONTINUOUS);
-
-  reply = make_reply(result);
-  send_reply(reply);
-}
-
-DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_PORT_LIMIT)
-{
-  zmsg_t *reply;
-  enum status result;
-
-  DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_egress_port_limit();
-
-  reply = make_reply(result);
-  send_reply(reply);
-}
-
-DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
-{
-  zmsg_t *reply;
-  enum status result;
-
-  DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_ingress_port_limit();
+  result = sflow_set_port_limit(BOTH);
 
   reply = make_reply(result);
   send_reply(reply);
