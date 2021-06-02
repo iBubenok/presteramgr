@@ -3575,6 +3575,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       break;
     case CN_SAMPLED:
       notify_send_sflow(&msg);
+      break;
     default:
       notify_send (&msg);
       break;
@@ -5670,6 +5671,7 @@ out:
   send_reply(reply);
 }
 
+/* sFlow functions. */
 DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5683,6 +5685,15 @@ DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_ENABLE)
     goto out;
 
   result = sflow_set_egress_enable(enable);
+
+  // TODO: remove
+  sflow_set_ingress_enable(enable);
+  sflow_set_ingress_count_mode(ALL_PACKETS);
+  sflow_set_egress_reload_mode(RELOAD_CONTINUOUS);
+  sflow_set_ingress_reload_mode(RELOAD_CONTINUOUS);
+  sflow_set_egress_port_limit();
+  sflow_set_ingress_port_limit();
+  ///////////////////////////////
 
 out:
   reply = make_reply(result);
@@ -5707,7 +5718,7 @@ DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_ingress_count_mode();
+  result = sflow_set_ingress_count_mode(ALL_PACKETS);
 
   reply = make_reply(result);
   send_reply(reply);
@@ -5719,7 +5730,7 @@ DEFINE_HANDLER (CC_SFLOW_SET_EGRESS_RELOAD_MODE)
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_egress_reload_mode();
+  result = sflow_set_egress_reload_mode(RELOAD_CONTINUOUS);
 
   reply = make_reply(result);
   send_reply(reply);
@@ -5731,7 +5742,7 @@ DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_RELOAD_MODE)
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_ingress_reload_mode();
+  result = sflow_set_ingress_reload_mode(RELOAD_CONTINUOUS);
 
   reply = make_reply(result);
   send_reply(reply);
@@ -5760,3 +5771,4 @@ DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_PORT_LIMIT)
   reply = make_reply(result);
   send_reply(reply);
 }
+/* End sFlow functions. */

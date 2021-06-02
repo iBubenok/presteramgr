@@ -35,14 +35,28 @@ GT_STATUS sflow_set_ingress_enable(int enable)
   return GT_OK;
 }
 
-GT_STATUS sflow_set_ingress_count_mode()
+GT_STATUS sflow_set_ingress_count_mode(sflow_count_mode_t mode)
 {
   DEBUG("%s\n", __FUNCTION__);
 
   int dev, rc;
+  CPSS_DXCH_STC_COUNT_MODE_ENT cpss_mode;
+
+  switch (mode) {
+  case ALL_PACKETS:
+    cpss_mode = CPSS_DXCH_STC_COUNT_ALL_PACKETS_E;
+    break;
+  case NON_DROPPED_PACKETS:
+    cpss_mode = CPSS_DXCH_STC_COUNT_NON_DROPPED_PACKETS_E;
+    break;
+  default:
+    DEBUG("%s Bad mode\n", __FUNCTION__);
+    return GT_BAD_PARAM;
+    break;
+  }
+
   for_each_dev(dev) {
-    // TODO: мод только 1 реализован. все входящие пакеты;
-    rc = CRP(cpssDxChStcIngressCountModeSet(dev, CPSS_DXCH_STC_COUNT_ALL_PACKETS_E));
+    rc = CRP(cpssDxChStcIngressCountModeSet(dev, cpss_mode));
     if (rc != GT_OK)
       return rc;
   }
@@ -50,16 +64,30 @@ GT_STATUS sflow_set_ingress_count_mode()
   return GT_OK;
 }
 
-GT_STATUS sflow_set_egress_reload_mode()
+GT_STATUS sflow_set_egress_reload_mode(sflow_count_reload_mode_t mode)
 {
   DEBUG("%s\n", __FUNCTION__);
 
   int dev, rc;
+  CPSS_DXCH_STC_COUNT_RELOAD_MODE_ENT cpss_mode;
+
+  switch (mode) {
+  case RELOAD_CONTINUOUS:
+    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E;
+    break;
+  case RELOAD_TRIGGERED:
+    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_TRIGGERED_E;
+    break;
+  default:
+    DEBUG("%s Bad mode\n", __FUNCTION__);
+    return GT_BAD_PARAM;
+    break;
+  }
+  
   for_each_dev(dev) {
-    // TODO: мод только 1 реализован.
     rc = CRP(cpssDxChStcReloadModeSet(dev,
                                       CPSS_DXCH_STC_EGRESS_E,
-                                      CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+                                      cpss_mode));
     if (rc != GT_OK)
       return rc;
   }
@@ -67,16 +95,30 @@ GT_STATUS sflow_set_egress_reload_mode()
   return GT_OK;
 }
 
-GT_STATUS sflow_set_ingress_reload_mode()
+GT_STATUS sflow_set_ingress_reload_mode(sflow_count_reload_mode_t mode)
 {
   DEBUG("%s\n", __FUNCTION__);
 
   int dev, rc;
+  CPSS_DXCH_STC_COUNT_RELOAD_MODE_ENT cpss_mode;
+
+  switch (mode) {
+  case RELOAD_CONTINUOUS:
+    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E;
+    break;
+  case RELOAD_TRIGGERED:
+    cpss_mode = CPSS_DXCH_STC_COUNT_RELOAD_TRIGGERED_E;
+    break;
+  default:
+    DEBUG("%s Bad mode\n", __FUNCTION__);
+    return GT_BAD_PARAM;
+    break;
+  }
+
   for_each_dev(dev) {
-    // TODO: мод только 1 реализован.
     rc = CRP(cpssDxChStcReloadModeSet(dev,
                                       CPSS_DXCH_STC_INGRESS_E,
-                                      CPSS_DXCH_STC_COUNT_RELOAD_CONTINUOUS_E));
+                                      cpss_mode));
     if (rc != GT_OK)
       return rc;
   }
