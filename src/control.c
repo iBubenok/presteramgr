@@ -5671,63 +5671,86 @@ DEFINE_HANDLER (CC_SFLOW_SET_ENABLE)
   DEBUG("%s\n",__FUNCTION__);
 
   bool_t enable;
-  zmsg_t *reply;
   enum status result;
+  sflow_type_t type;
+
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
 
   result = POP_ARG (&enable);
   if (result != ST_OK)
     goto out;
 
-  result = sflow_set_enable(BOTH, enable);
-
-  // TODO: remove
-  sflow_set_ingress_count_mode(ALL_PACKETS);
-  sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
-  sflow_set_port_limit(BOTH);
-  ///////////////////////////////
+  result = sflow_set_enable(type, enable);
 
 out:
-  reply = make_reply(result);
-  send_reply(reply);
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
 {
   DEBUG("%s\n",__FUNCTION__);
 
-  zmsg_t *reply;
   enum status result;
+  sflow_count_mode_t mode;
 
-  result = sflow_set_ingress_count_mode(ALL_PACKETS);
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
 
-  reply = make_reply(result);
-  send_reply(reply);
+  result = sflow_set_ingress_count_mode(mode);
+
+out:
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_RELOAD_MODE)
 {
   DEBUG("%s\n",__FUNCTION__);
 
-  zmsg_t *reply;
   enum status result;
+  sflow_type_t type;
+  sflow_count_reload_mode_t mode;
 
-  result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
 
-  reply = make_reply(result);
-  send_reply(reply);
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(type, mode);
+
+out:
+  report_status (result);
 }
 
 DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
 {
   DEBUG("%s\n",__FUNCTION__);
-  
-  zmsg_t *reply;
+
   enum status result;
+  uint32_t limit;
+  sflow_type_t type;
+  port_id_t pid;
 
-  DEBUG("%s\n",__FUNCTION__);
-  result = sflow_set_port_limit(BOTH);
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
 
-  reply = make_reply(result);
-  send_reply(reply);
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&limit);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_port_limit(pid, type, limit);
+
+out:
+  report_status (result);
 }
 /* End sFlow functions. */
