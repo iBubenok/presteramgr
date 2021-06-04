@@ -145,7 +145,7 @@ GT_STATUS sflow_set_port_limit (
   sflow_type_t type,
   uint32_t limit)
 {
-  DEBUG("%s\n", __FUNCTION__);
+  DEBUG("%s pid: %d type: %d limit: %d\n", __FUNCTION__, pid, type, limit);
 
   int rc;
   struct port *port = port_ptr (pid);
