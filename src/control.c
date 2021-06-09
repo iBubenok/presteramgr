@@ -1223,9 +1223,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
 
-  // TODO
-  // case CPU_CODE_INGRESS_SAMPLED:
-  // case CPU_CODE_EGRESS_SAMPLED:
+  // TODO or remove
+  case CPU_CODE_INGRESS_SAMPLED:
+  case CPU_CODE_EGRESS_SAMPLED:
+    DEBUG("MYDBG SAMPLED\n");
   
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
@@ -3235,6 +3236,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   int check_source_mac = 0;
   struct vif *vif;
   vid_t vid;
+  int put_direction = 0;
+  sflow_type_t direction;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3519,10 +3522,16 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_EGRESS_SAMPLED:
     DEBUG ("mydbg egress sampled");
     type = CN_SAMPLED;
+    direction = EGRESS;
+    put_vid = 1;
+    put_direction = 1;
     break;
   case CPU_CODE_INGRESS_SAMPLED:
     DEBUG ("mydbg ingress sampled");
     type = CN_SAMPLED;
+    direction = INGRESS;
+    put_vid = 1;
+    put_direction = 1;
     break;
 
   default:
@@ -3554,6 +3563,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vif_id (msg, vif->id);
   if (put_vid)
     put_vlan_id (msg, vid);
+  if (put_direction)
+    zmsg_addmem (msg, &direction, sizeof direction);
   put_port_id (msg, pid);
 
   zmsg_addmem (msg, frame->data, frame->len);
