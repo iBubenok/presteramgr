@@ -5743,23 +5743,16 @@ DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
   DEBUG("%s\n",__FUNCTION__);
 
   enum status result;
-  uint32_t limit;
-  sflow_type_t type;
-  port_id_t pid;
+  struct sflow_port_limit_info params;
 
-  result = POP_ARG (&pid);
+  result = POP_ARG (& params);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&type);
-  if (result != ST_OK)
-    goto out;
-
-  result = POP_ARG (&limit);
-  if (result != ST_OK)
-    goto out;
-
-  result = sflow_set_port_limit(pid, type, limit);
+  result = sflow_set_port_limit(
+      params.pid,
+      params.direction,
+      params.rate);
 
 out:
   report_status (result);
