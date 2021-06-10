@@ -498,6 +498,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
 DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
+DECLARE_HANDLER (CC_PORT_ENABLE_CFM);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_VIF_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
@@ -681,6 +682,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_LLDP),
   HANDLER (CC_PORT_ENABLE_LACP),
+  HANDLER (CC_PORT_ENABLE_CFM),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_VIF_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
@@ -3240,6 +3242,56 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     vid = vif_vid (vif);
 
   result = ST_BAD_VALUE;
+  DEBUG ("SUFIK frame:\n");
+  DEBUG ("SUFIK len %d\n", frame->len);
+  DEBUG ("SUFIK vid %d\n", frame->vid);
+  DEBUG ("SUFIK dev %d\n", frame->dev);
+  DEBUG ("SUFIK port %d\n", frame->port);
+  DEBUG ("SUFIK code %d\n", frame->code);
+  DEBUG ("SUFIK code 16 %x\n", frame->code);
+  DEBUG ("SUFIK tagged %d\n", frame->tagged);
+  DEBUG ("SUFIK up %d\n", frame->up);
+  DEBUG ("SUFIK cfi %d\n\n", frame->cfi);
+
+  DEBUG ("SUFIK etype data0 %d\n", frame->data[0]);
+  DEBUG ("SUFIK etype data0 16 %x\n", frame->data[0]);
+    DEBUG ("SUFIK etype data1 %d\n", frame->data[1]);
+  DEBUG ("SUFIK etype data1 16 %x\n", frame->data[1]);
+    DEBUG ("SUFIK etype data2 %d\n", frame->data[2]);
+  DEBUG ("SUFIK etype data2 16 %x\n", frame->data[2]);
+    DEBUG ("SUFIK etype data3 %d\n", frame->data[3]);
+  DEBUG ("SUFIK etype data3 16 %x\n", frame->data[3]);
+    DEBUG ("SUFIK etype data4 %d\n", frame->data[4]);
+  DEBUG ("SUFIK etype data4 16 %x\n", frame->data[4]);
+    DEBUG ("SUFIK etype data5 %d\n", frame->data[5]);
+  DEBUG ("SUFIK etype data5 16 %x\n", frame->data[5]);
+    DEBUG ("SUFIK etype data6 %d\n", frame->data[6]);
+  DEBUG ("SUFIK etype data6 16 %x\n", frame->data[6]);
+    DEBUG ("SUFIK etype data7 %d\n", frame->data[7]);
+  DEBUG ("SUFIK etype data7 16 %x\n", frame->data[7]);
+    DEBUG ("SUFIK etype data8 %d\n", frame->data[8]);
+  DEBUG ("SUFIK etype data8 16 %x\n", frame->data[8]);
+   DEBUG ("SUFIK etype data9 %d\n", frame->data[9]);
+  DEBUG ("SUFIK etype data9 16 %x\n", frame->data[9]);
+    DEBUG ("SUFIK etype data10 %d\n", frame->data[10]);
+  DEBUG ("SUFIK etype data10 16 %x\n", frame->data[10]);
+    DEBUG ("SUFIK etype data11 %d\n", frame->data[11]);
+  DEBUG ("SUFIK etype data11 16 %x\n", frame->data[11]);
+    DEBUG ("SUFIK etype data12 %d\n", frame->data[12]);
+  DEBUG ("SUFIK etype data12 16 %x\n", frame->data[12]);
+    DEBUG ("SUFIK etype data13 %d\n", frame->data[13]);
+  DEBUG ("SUFIK etype data13 16 %x\n", frame->data[13]);
+    DEBUG ("SUFIK etype data14 %d\n", frame->data[14]);
+  DEBUG ("SUFIK etype data14 16 %x\n", frame->data[14]);
+    DEBUG ("SUFIK etype data15 %d\n", frame->data[15]);
+  DEBUG ("SUFIK etype data15 16 %x\n", frame->data[15]);
+    DEBUG ("SUFIK etype data16 %d\n", frame->data[16]);
+  DEBUG ("SUFIK etype data16 16 %x\n", frame->data[16]);
+    DEBUG ("SUFIK etype data17 %d\n", frame->data[17]);
+  DEBUG ("SUFIK etype data17 16 %x\n", frame->data[17]);
+
+
+
 
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
@@ -3479,13 +3531,13 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     goto out;
 
   case CPU_CODE_BRIDGED_F:
-  type = CN_ARP_BROADCAST;
+    type = CN_ARP_BROADCAST;
     DEBUG("take frame");
 
     zmsg_t *msg = zmsg_new ();
 
     char opcode = frame->data[15];
-    DEBUG("%d", opcode);
+    DEBUG("OpCode %d", opcode);
     zmsg_addmem (msg, &opcode, sizeof (opcode));
     zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
     zmsg_addmem (msg, frame->data, frame->len);
@@ -4726,6 +4778,26 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
     goto out;
 
   result = pcl_enable_lacp_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_cfm_trap (pid, enable);
 
  out:
   report_status (result);

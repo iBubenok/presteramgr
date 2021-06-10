@@ -24,6 +24,8 @@ extern enum status pcl_enable_lldp_trap (port_id_t, int);
 /* SP */
 extern enum status pcl_enable_lacp_trap (port_id_t, int);
 
+extern enum status pcl_enable_cfm_trap (port_id_t, int);
+
 /* DHCP */
 extern enum status pcl_enable_dhcp_trap (int);
 
