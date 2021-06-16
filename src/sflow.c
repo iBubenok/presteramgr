@@ -90,6 +90,8 @@ enum status sflow_set_enable (
     }
   }
 
+  rc = GT_OK;
+
 out:
   return convert_status (rc);
 }
@@ -121,6 +123,8 @@ enum status sflow_set_ingress_count_mode (
     if (rc != GT_OK)
       goto out;
   }
+
+  rc = GT_OK;
 
 out:
   return convert_status (rc);
