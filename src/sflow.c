@@ -20,11 +20,21 @@ GT_STATUS sflow_set_enable (
                                       gt_bool(enable)));
         if (rc != GT_OK)
           return rc;
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_EGRESS_E,
+                                      gt_bool(0)));
+        if (rc != GT_OK)
+          return rc;
         break;
       case EGRESS:
         rc = CRP(cpssDxChStcEnableSet(dev,
                                       CPSS_DXCH_STC_EGRESS_E,
                                       gt_bool(enable)));
+        if (rc != GT_OK)
+          return rc;
+        rc = CRP(cpssDxChStcEnableSet(dev,
+                                      CPSS_DXCH_STC_INGRESS_E,
+                                      gt_bool(0)));
         if (rc != GT_OK)
           return rc;
         break;
