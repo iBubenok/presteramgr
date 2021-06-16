@@ -168,12 +168,24 @@ GT_STATUS sflow_set_port_limit (
                                         limit));
       if (rc != GT_OK)
         return rc;
+      rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                        port->lport,
+                                        CPSS_DXCH_STC_EGRESS_E,
+                                        0));
+      if (rc != GT_OK)
+        return rc;
       break;
     case EGRESS:
       rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
                                         port->lport,
                                         CPSS_DXCH_STC_EGRESS_E,
                                         limit));
+      if (rc != GT_OK)
+        return rc;
+      rc = CRP(cpssDxChStcPortLimitSet (port->ldev,
+                                        port->lport,
+                                        CPSS_DXCH_STC_INGRESS_E,
+                                        0));
       if (rc != GT_OK)
         return rc;
       break;
