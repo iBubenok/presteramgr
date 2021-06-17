@@ -549,6 +549,7 @@ DECLARE_HANDLER (CC_SFLOW_SET_ENABLE);
 DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
+DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -736,7 +737,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SFLOW_SET_ENABLE),
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
   HANDLER (CC_SFLOW_SET_RELOAD_MODE),
-  HANDLER (CC_SFLOW_SET_PORT_LIMIT)
+  HANDLER (CC_SFLOW_SET_PORT_LIMIT),
+  HANDLER (CC_SFLOW_SET_DEFAULT)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5754,6 +5756,31 @@ DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
       params.direction,
       params.rate);
 
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+
+  result = sflow_set_enable(BOTH, false);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
+  if (result != ST_OK)
+    goto out;
+  
+  port_id_t pid;
+  for (pid = 1; pid <= NPORTS; pid++) {
+    result = sflow_set_port_limit(pid, BOTH, 0);
+    if (result != ST_OK)
+      goto out;
+  }
+  
 out:
   report_status (result);
 }
