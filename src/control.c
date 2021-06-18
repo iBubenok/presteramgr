@@ -3492,6 +3492,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
     zmsg_send (&msg, pub_cfm_sock);
 
+    zmsg_destroy (&msg);
+
   break;
 
   default:
