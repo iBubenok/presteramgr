@@ -3078,6 +3078,7 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
 }
 
 static char CFM_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x30 };
+static char CFM_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0 };
 
 enum status
 pcl_enable_cfm_trap (port_id_t pid, int enable)
@@ -3098,7 +3099,7 @@ pcl_enable_cfm_trap (port_id_t pid, int enable)
     mask.ruleExtNotIpv6.common.isTagged = 0xFF;
     mask.ruleExtNotIpv6.etherType = 0xFFFF;
     mask.ruleExtNotIpv6.l2Encap = 0xFF;
-    memset(mask.ruleExtNotIpv6.macDa.arEther, 0xff, 6);
+    memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
 
     memset (&rule, 0, sizeof (rule));
     rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
