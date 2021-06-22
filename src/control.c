@@ -3240,6 +3240,8 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   vid_t vid;
   int put_direction = 0;
   sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3525,15 +3527,19 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     DEBUG ("mydbg egress sampled");
     type = CN_SAMPLED;
     direction = EGRESS;
+    len = frame->len;
     put_vid = 1;
     put_direction = 1;
+    put_len = 1;
     break;
   case CPU_CODE_INGRESS_SAMPLED:
     DEBUG ("mydbg ingress sampled");
     type = CN_SAMPLED;
     direction = INGRESS;
+    len = frame->len;
     put_vid = 1;
     put_direction = 1;
+    put_len = 1;
     break;
 
   default:
@@ -3567,6 +3573,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vlan_id (msg, vid);
   if (put_direction)
     zmsg_addmem (msg, &direction, sizeof direction);
+  if (put_len)
+    zmsg_addmem (msg, &len, sizeof len);
   put_port_id (msg, pid);
 
   zmsg_addmem (msg, frame->data, frame->len);
