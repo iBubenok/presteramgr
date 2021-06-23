@@ -65,6 +65,8 @@ static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
 static void *pub_oam_sock;
+static void *pub_erps_sock;
+
 
 static void *
 forwarder_thread (void *dummy)
@@ -168,6 +170,11 @@ control_init (void)
   pub_oam_sock = zsock_new (ZMQ_PUB);
   assert (pub_oam_sock);
   rc = zsock_bind (pub_oam_sock, PUB_SOCK_OAM_EP);
+  assert (rc == 0);
+
+  pub_erps_sock = zsock_new (ZMQ_PUB);
+  assert (pub_erps_sock);
+  rc = zsock_bind (pub_erps_sock, PUB_SOCK_ERPS_EP);
   assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
@@ -1567,9 +1574,12 @@ DEBUG(">>>>DEFINE_HANDLER (SC_INT_CLEAR_RE_CMD)\n");
 
 DEFINE_HANDLER (CC_PORT_GET_STATE)
 {
+  DEBUG("%s\n",__FUNCTION__ );
   port_id_t pid;
   enum status result;
   struct port_link_state state;
+
+  zmsg_t *msg = zmsg_new ();
 
   result = POP_ARG (&pid);
   if (result != ST_OK) {
@@ -1586,10 +1596,23 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &state, sizeof (state));
   send_reply (reply);
+
+  DEBUG("%d\n",pid);
+  DEBUG("%d\n",state.link);
+  DEBUG("%d\n",state.speed);
+  DEBUG("%d\n",state.duplex);
+
+  zmsg_addmem (msg, &pid, sizeof (pid));
+  zmsg_addmem (msg, &state, sizeof (struct port_link_state));
+
+  zmsg_send (&msg, pub_erps_sock);
+
+  zmsg_destroy (&msg);
 }
 
 DEFINE_HANDLER (CC_PORT_GET_TYPE)
 {
+  DEBUG("%s\n",__FUNCTION__ );
   port_id_t pid;
   port_type_t ptype;
   enum status result;
@@ -1605,6 +1628,9 @@ DEFINE_HANDLER (CC_PORT_GET_TYPE)
     report_status (result);
     return;
   }
+
+  DEBUG("%d\n", pid);
+  DEBUG("%d\n", ptype);
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &ptype, sizeof (ptype));
