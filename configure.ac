@@ -44,13 +44,6 @@ AC_ARG_WITH([arpd],
   [arpd=/usr/include/arpd])
 AC_SUBST([arpd])
 
-AC_ARG_WITH([cfm],
-  [AS_HELP_STRING([--with-cfm=PATH],
-                  [specify the CFM templates location])],
-  [cfm=`readlink -f $withval`],
-  [cfm=/usr/include/cfm])
-AC_SUBST([cfm])
-
 AC_ARG_WITH([stackd],
   [AS_HELP_STRING([--with-stackd=PATH],
                   [specify the STACKD templates location])],
