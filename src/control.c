@@ -506,6 +506,7 @@ DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
 DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
 DECLARE_HANDLER (CC_PORT_ENABLE_CFM);
+DECLARE_HANDLER (CC_PORT_ENABLE_ERPS);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_VIF_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
@@ -690,6 +691,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LLDP),
   HANDLER (CC_PORT_ENABLE_LACP),
   HANDLER (CC_PORT_ENABLE_CFM),
+  HANDLER (CC_PORT_ENABLE_ERPS),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_VIF_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
@@ -4768,6 +4770,27 @@ DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PORT_ENABLE_ERPS)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_erps_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
 {

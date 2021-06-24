@@ -44,6 +44,8 @@ static uint16_t port_lacp_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_cfm_rule_ix[NPORTS + 1] = {};
 
+static uint16_t port_erps_rule_ix[NPORTS + 1] = {};
+
 static uint16_t port_dhcptrap67_rule_ix[NPORTS + 1] = {};
 static uint16_t port_dhcptrap68_rule_ix[NPORTS + 1] = {};
 
@@ -106,6 +108,7 @@ initialize_vars (void)
     port_lldp_rule_ix[pid]                 = idx[port->ldev]++;
     port_lacp_rule_ix[pid]                 = idx[port->ldev]++;
     port_cfm_rule_ix[pid]                  = idx[port->ldev]++;
+    port_erps_rule_ix[pid]                 = idx[port->ldev]++;
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
     port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
@@ -3132,6 +3135,65 @@ pcl_enable_cfm_trap (port_id_t pid, int enable)
   } else
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_cfm_rule_ix[pid]));
+
+  return ST_OK;
+}
+
+static char ERPS_MAC[6] = { 0x01, 0x19, 0xa7, 0x00, 0x00, 0x00 };
+static char ERPS_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0 };
+
+enum status
+pcl_enable_erps_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memcpy(mask.ruleExtNotIpv6.macDa.arEther, ERPS_MAC_MASK, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    mask.ruleExtNotIpv6.common.isTagged = 0;
+    rule.ruleExtNotIpv6.etherType = 0x8902;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, ERPS_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_BRIDGED_PACKET_FORWARD_E;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_erps_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_erps_rule_ix[pid]));
 
   return ST_OK;
 }
