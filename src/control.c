@@ -64,7 +64,7 @@ static void *sec_sock;
 static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
-static void *pub_cfm_sock;
+static void *pub_oam_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -165,9 +165,9 @@ control_init (void)
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
   assert (rc == 0);
 
-  pub_cfm_sock = zsock_new (ZMQ_PUB);
-  assert (pub_cfm_sock);
-  rc = zsock_bind (pub_cfm_sock, PUB_SOCK_CFM_EP);
+  pub_oam_sock = zsock_new (ZMQ_PUB);
+  assert (pub_oam_sock);
+  rc = zsock_bind (pub_oam_sock, PUB_SOCK_OAM_EP);
   assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
@@ -3490,7 +3490,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
     zmsg_addmem (msg, frame->data, frame->len);
 
-    zmsg_send (&msg, pub_cfm_sock);
+    zmsg_send (&msg, pub_oam_sock);
 
     zmsg_destroy (&msg);
 
