@@ -254,8 +254,7 @@ notify_send_arp (zmsg_t **msg)
 static inline void
 notify_send_sflow (zmsg_t **msg)
 {
-  int rc = zmsg_send (msg, pub_sflow_sock);
-  DEBUG("%s rc = %d\n",__FUNCTION__, rc);
+  zmsg_send (msg, pub_sflow_sock);
 }
 
 static inline void
@@ -945,6 +944,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   vif_id_t vifid;
   int is_vif_forwarding_on_vlan;
   vid_t vid = frame->vid;
+  int put_direction = 0;
+  sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
 
   vif_rlock();
 
@@ -1225,10 +1228,22 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
 
-  // TODO or remove
-  case CPU_CODE_INGRESS_SAMPLED:
   case CPU_CODE_EGRESS_SAMPLED:
-    DEBUG("MYDBG SAMPLED\n");
+    type = CN_SAMPLED;
+    direction = EGRESS;
+    len = frame->len;
+    put_vid = 1;
+    put_direction = 1;
+    put_len = 1;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = INGRESS;
+    len = frame->len;
+    put_vid = 1;
+    put_direction = 1;
+    put_len = 1;
+    break;
   
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
@@ -1260,37 +1275,27 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_vif_id (msg, vifid);
   if (put_vid)
     put_vlan_id (msg, vid);
+  if (put_direction)
+    zmsg_addmem (msg, &direction, sizeof direction);
+  if (put_len)
+    zmsg_addmem (msg, &len, sizeof len);
   put_port_id (msg, pid);
 
   zmsg_addmem (msg, frame->data, frame->len);
 
-  zmsg_t *msg2 = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg2, vifid);
-  if (put_vid)
-    put_vlan_id (msg2, vid);
-  put_port_id (msg2, pid);
-
-  zmsg_addmem (msg2, frame->data, frame->len);
-
   switch (type) {
     case CN_ARP_BROADCAST:
-    DEBUG("MYDBG 1");
     case CN_ARP_REPLY_TO_ME:
-    DEBUG("MYDBG 2");
     case CN_ARP:
-    DEBUG("MYDBG 3");
       notify_send_arp (&msg);
-      notify_send_sflow (&msg2); //2
       break;
     case CN_DHCP_TRAP:
-    DEBUG("MYDBG 4");
       notify_send_dhcp (&msg);
       break;
-    // case CN_SFLOW:
-    //   notify_send_sflow(&msg);
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
+      break;
     default:
-    DEBUG("MYDBG 5");
       notify_send (&msg);
       break;
   }
@@ -3522,9 +3527,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
 
-  // TODO
   case CPU_CODE_EGRESS_SAMPLED:
-    DEBUG ("mydbg egress sampled");
     type = CN_SAMPLED;
     direction = EGRESS;
     len = frame->len;
@@ -3533,7 +3536,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_len = 1;
     break;
   case CPU_CODE_INGRESS_SAMPLED:
-    DEBUG ("mydbg ingress sampled");
     type = CN_SAMPLED;
     direction = INGRESS;
     len = frame->len;
