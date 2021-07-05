@@ -65,6 +65,7 @@ static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
 static void *pub_oam_sock;
+static void *info_dealer_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -205,6 +206,11 @@ control_init (void)
   rtbd_sock = zsock_new (ZMQ_PULL);
   assert (rtbd_sock);
   rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  assert (rc == 0);
+
+  info_dealer_sock = zsock_new (ZMQ_REP);
+  assert (info_dealer_sock);
+  rc = zsock_bind (info_dealer_sock, INFO_DEALER);
   assert (rc == 0);
 
   arpd_sock = zsock_new (ZMQ_PULL);
@@ -870,6 +876,41 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
   return 0;
 }
 
+static int
+info_handler (zloop_t *loop, zsock_t* reader, void *dummy)
+{
+  command_t cmd;
+
+  zmsg_t *msg = zmsg_recv (info_dealer_sock);
+  zframe_t *frame = zmsg_first (msg);
+
+  notification_t notif = *((notification_t *) zframe_data (frame));
+
+  zmsg_t* reply = zmsg_new();
+
+  switch (notif) {
+    case GET_MAC:
+      frame = zmsg_next(msg);
+      vid_t vid = *((vid_t*) zframe_data(frame));
+
+      mac_addr_t addr[ETH_ALEN];
+      cmd = vlan_get_mac_addr (vid, addr[0]);
+
+      zmsg_addmem (reply, &cmd, sizeof (cmd));
+      zmsg_addmem (reply, addr, 6);
+
+      zmsg_send (&reply, info_dealer_sock);
+      zmsg_destroy(&reply);
+      break;
+
+    default:
+      break;
+  }
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
 static void *
 control_loop (void *dummy)
 {
@@ -891,6 +932,8 @@ control_loop (void *dummy)
   zloop_reader (loop, rtbd_sock, rtbd_handler, NULL);
 
   zloop_reader (loop, arpd_sock, arpd_handler, NULL);
+
+  zloop_reader (loop, info_dealer_sock, info_handler, NULL);
 
   zloop_reader (loop, fdb_sock, fdb_handler, NULL);
 
