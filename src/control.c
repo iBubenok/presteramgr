@@ -40,6 +40,7 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <erpsd.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -65,8 +66,9 @@ static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
 static void *pub_oam_sock;
-static void *pub_erps_sock;
 
+static void *pub_erps_sock;
+static void *erpsd_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -172,9 +174,9 @@ control_init (void)
   rc = zsock_bind (pub_oam_sock, PUB_SOCK_OAM_EP);
   assert (rc == 0);
 
-  pub_erps_sock = zsock_new (ZMQ_PUB);
-  assert (pub_erps_sock);
-  rc = zsock_bind (pub_erps_sock, PUB_SOCK_ERPS_EP);
+  pub_erps_sock  = zsock_new (ZMQ_PUB);
+  assert (pub_erps_sock );
+  rc = zsock_bind (pub_erps_sock , PUB_SOCK_ERPS_EP);
   assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
@@ -212,6 +214,11 @@ control_init (void)
   rtbd_sock = zsock_new (ZMQ_PULL);
   assert (rtbd_sock);
   rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  assert (rc == 0);
+
+  erpsd_sock = zsock_new (ZMQ_PULL);
+  assert (erpsd_sock);
+  rc = zsock_bind (erpsd_sock, ERPSD_NOTIFY_EP);
   assert (rc == 0);
 
   arpd_sock = zsock_new (ZMQ_PULL);
@@ -879,6 +886,83 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
   return 0;
 }
 
+static int
+erpsd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
+{
+  command_t cmd;
+
+  zmsg_t *msg = zmsg_recv (erpsd_sock);
+  zframe_t *frame = zmsg_first (msg);
+
+  erpsd_notif_t notif = *((erpsd_notif_t *) zframe_data (frame));
+
+  zmsg_t *msg_tx = zmsg_new();
+
+  switch (notif) {
+    case ERPSD_GET_VIF:
+      DEBUG("sbelo WORK CASE ERPSD_GET_VIF\n");
+
+      frame = zmsg_next(msg);
+      port_id_t pid = *((port_id_t*) zframe_data(frame));
+      struct port* port = port_ptr (pid);
+
+      cmd = ERPSD_GET_VIF;
+
+      struct vif_id vif;
+
+      vif.dev = port->vif.vifid.dev;
+      vif.dummy = port->vif.vifid.dummy;
+      vif.num = port->vif.vifid.num;
+      vif.type = port->vif.vifid.type;
+
+      DEBUG("sbelo %d\n",pid);
+
+      DEBUG("sbelo %d\n",vif.dev);
+      DEBUG("sbelo %d\n",vif.dummy);
+      DEBUG("sbelo %d\n",vif.num);
+      DEBUG("sbelo %d\n",vif.type);
+
+      zmsg_addmem (msg_tx, &cmd, sizeof (cmd));
+      zmsg_addmem (msg_tx, &pid, sizeof (pid));
+      zmsg_addmem (msg_tx, &vif, sizeof (vif));
+
+      zmsg_send (&msg_tx, pub_erps_sock);
+      zmsg_destroy(&msg_tx);
+      break;
+
+    case ERPSD_GET_MAC:
+      DEBUG("sbelo WORK CASE ERPSD_GET_MAC\n");
+
+      frame = zmsg_next(msg);
+      vid_t vid = *((vid_t*) zframe_data(frame));
+
+      mac_addr_t addr[ETH_ALEN];
+      uint16_t tmp = vlan_get_mac_addr (vid, addr[0]);
+
+      cmd = ERPSD_GET_MAC;
+
+      DEBUG("device  MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", ((char*)addr)[0],
+            ((char*)addr)[1], ((char*)addr)[2], ((char*)addr)[3],
+            ((char*)addr)[4], ((char*)addr)[5]);
+
+      DEBUG("%d\n", tmp);
+      DEBUG("%p\n", addr);
+
+      zmsg_addmem (msg_tx, &cmd, sizeof (cmd));
+      zmsg_addmem (msg_tx, addr, 6);
+
+      zmsg_send (&msg_tx, pub_erps_sock);
+      zmsg_destroy(&msg_tx);
+      break;
+
+    default:
+      break;
+  }
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
 static void *
 control_loop (void *dummy)
 {
@@ -900,6 +984,8 @@ control_loop (void *dummy)
   zloop_reader (loop, rtbd_sock, rtbd_handler, NULL);
 
   zloop_reader (loop, arpd_sock, arpd_handler, NULL);
+
+  zloop_reader (loop, erpsd_sock, erpsd_handler, NULL);
 
   zloop_reader (loop, fdb_sock, fdb_handler, NULL);
 
@@ -1580,6 +1666,7 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   port_id_t pid;
   enum status result;
   struct port_link_state state;
+  command_t cmd = ERPSD_GET_STATE_PORT;
 
   zmsg_t *msg = zmsg_new ();
 
@@ -1599,11 +1686,12 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
   zmsg_addmem (reply, &state, sizeof (state));
   send_reply (reply);
 
-  DEBUG("%d\n",pid);
-  DEBUG("%d\n",state.link);
-  DEBUG("%d\n",state.speed);
-  DEBUG("%d\n",state.duplex);
+  DEBUG("sbelo %d\n",pid);
+  DEBUG("sbelo %d\n",state.link);
+  DEBUG("sbelo %d\n",state.speed);
+  DEBUG("sbelo %d\n",state.duplex);
 
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
   zmsg_addmem (msg, &pid, sizeof (pid));
   zmsg_addmem (msg, &state, sizeof (struct port_link_state));
 
@@ -1630,9 +1718,6 @@ DEFINE_HANDLER (CC_PORT_GET_TYPE)
     report_status (result);
     return;
   }
-
-  DEBUG("%d\n", pid);
-  DEBUG("%d\n", ptype);
 
   zmsg_t *reply = make_reply (ST_OK);
   zmsg_addmem (reply, &ptype, sizeof (ptype));
@@ -1790,6 +1875,9 @@ DEFINE_HANDLER (CC_VIF_SHUTDOWN)
     goto out;
 
   result = vif_shutdown (vif, shutdown);
+  DEBUG("sbelo - %d\n", result);
+  DEBUG("sbelo - %d\n", vif);
+  DEBUG("sbelo - %d\n", shutdown);
 
  out:
   report_status (result);
@@ -1797,6 +1885,7 @@ DEFINE_HANDLER (CC_VIF_SHUTDOWN)
 
 DEFINE_HANDLER (CC_PORT_BLOCK)
 {
+  DEBUG("sbelo - CC_PORT_BLOCK ");
   enum status result;
   port_id_t pid;
   struct port_block what;
@@ -1810,6 +1899,7 @@ DEFINE_HANDLER (CC_PORT_BLOCK)
     goto out;
 
   result = port_block (pid, &what);
+  DEBUG("sbelo - %d\n", result);
 
  out:
   report_status (result);
