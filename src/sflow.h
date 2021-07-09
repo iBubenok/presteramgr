@@ -23,7 +23,8 @@ enum status
 sflow_set_port_limit (
   port_id_t pid,
   sflow_type_t type,
-  uint32_t limit);
+  uint32_t limit,
+  bool_t set_def_settings);
 
 /*Convert GT_STATUS to enum status*/
 enum status

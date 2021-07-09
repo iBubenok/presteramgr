@@ -197,12 +197,16 @@ out:
 enum status sflow_set_port_limit (
   port_id_t pid,
   sflow_type_t type,
-  uint32_t limit)
+  uint32_t limit,
+  bool_t set_def_settings)
 {
   DEBUG("%s pid: %d type: %d limit: %d\n", __FUNCTION__, pid, type, limit);
 
   int rc;
   struct port *port = port_ptr (pid);
+
+  if (!set_def_settings && is_stack_port(port))
+    return ST_BAD_VALUE;
 
   switch (type) {
     case INGRESS:

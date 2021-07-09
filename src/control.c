@@ -1244,7 +1244,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_direction = 1;
     put_len = 1;
     break;
-  
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -5764,7 +5764,8 @@ DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
   result = sflow_set_port_limit(
       params.pid,
       params.direction,
-      params.rate);
+      params.rate,
+      false);
 
 out:
   report_status (result);
@@ -5783,14 +5784,14 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
   result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
   if (result != ST_OK)
     goto out;
-  
+
   port_id_t pid;
   for (pid = 1; pid <= NPORTS; pid++) {
-    result = sflow_set_port_limit(pid, BOTH, 0);
+    result = sflow_set_port_limit(pid, BOTH, 0, true);
     if (result != ST_OK)
       goto out;
   }
-  
+
 out:
   report_status (result);
 }
