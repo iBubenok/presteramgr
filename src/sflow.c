@@ -1,3 +1,13 @@
+/**
+ * @file sflow.c
+ * @author G.Linaris (lgilfanov@akber-soft.ru)
+ * @brief This file is for configuring the sFlow protocol
+ * @date 2021-07-14
+ *
+ * @copyright (C) 2021, AkBer-Soft LLC
+ *
+ */
+
 #include <sflow.h>
 #include <port.h>
 

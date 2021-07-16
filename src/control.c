@@ -5688,7 +5688,14 @@ out:
   send_reply(reply);
 }
 
-/* sFlow functions. */
+/** @name sFlow functions */
+///@{
+/**
+ * @brief Global enable/disable flow sampling
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] enable true - enable, false - disable, type: bool_t
+ */
 DEFINE_HANDLER (CC_SFLOW_SET_ENABLE)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5711,6 +5718,11 @@ out:
   report_status (result);
 }
 
+/**
+ * @brief Set sFlow ingress count mode
+ *
+ * @param[in] mode count mode, type: sflow_count_mode_t
+ */
 DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5728,6 +5740,12 @@ out:
   report_status (result);
 }
 
+/**
+ * @brief Set sFlow reload mode
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] mode reload mode, type: sflow_count_reload_mode_t
+ */
 DEFINE_HANDLER (CC_SFLOW_SET_RELOAD_MODE)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5750,6 +5768,11 @@ out:
   report_status (result);
 }
 
+/**
+ * @brief Set sFlow configuration on port
+ *
+ * @param[in] params port configuration, type: struct sflow_port_limit_info
+ */
 DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5771,6 +5794,10 @@ out:
   report_status (result);
 }
 
+/**
+ * @brief Set the default sFlow settngs
+ *
+ */
 DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 {
   DEBUG("%s\n",__FUNCTION__);
@@ -5795,4 +5822,4 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 out:
   report_status (result);
 }
-/* End sFlow functions. */
+///@} /* End sFlow functions. */
