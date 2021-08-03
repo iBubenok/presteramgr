@@ -1433,7 +1433,18 @@ set_pcl_action (uint16_t                 rule_ix,
   switch (action) {
     case PCL_RULE_ACTION_PERMIT:
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
+      DEBUG("%s: %s\n", __FUNCTION__, "PROFILE");
+
       act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+
+      act->actionStop = GT_TRUE;
+      act->qos.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+      act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+//      act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
+      act->qos.qos.ingress.profileIndex = 10;
+      act->qos.qos.ingress.profileAssignIndex = GT_TRUE;
+      act->qos.qos.ingress.profilePrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
+
       break;
     case PCL_RULE_ACTION_DENY:
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_DROP_HARD_E");

@@ -421,6 +421,7 @@ DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
 DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
+DECLARE_HANDLER (CC_QOS_PROFILE_MANAGE);
 DECLARE_HANDLER (CC_GVRP_ENABLE);
 DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
@@ -604,6 +605,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
   HANDLER (CC_QOS_SET_DSCP_PRIO),
   HANDLER (CC_QOS_SET_COS_PRIO),
+  HANDLER (CC_QOS_PROFILE_MANAGE),
   HANDLER (CC_GVRP_ENABLE),
   HANDLER (CC_MCG_CREATE),
   HANDLER (CC_MCG_DELETE),
@@ -3709,6 +3711,26 @@ DEFINE_HANDLER (CC_QOS_SET_WRTD)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_QOS_PROFILE_MANAGE)
+{
+  enum status result;
+  struct qos_profile_mgmt qpm_cmd;
+  qos_profile_id_t qp_id;
+  zmsg_t *reply;
+
+  result = POP_ARG (&qpm_cmd);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_profile_manage (&qpm_cmd, &qp_id);
+
+ out:
+  reply = make_reply (result);
+  if (result == ST_OK && qpm_cmd.cmd == QOS_PROFILE_ADD)
+    zmsg_addmem (reply, &qp_id, sizeof (qp_id));
+  send_reply (reply);
 }
 
 DEFINE_HANDLER (CC_PORT_TDR_TEST_START)

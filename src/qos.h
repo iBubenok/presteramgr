@@ -22,6 +22,7 @@ extern enum status qos_set_cos_prio (const queue_id_t *);
 extern enum status qos_set_prioq_num (int);
 extern enum status qos_set_wrr_queue_weights (const uint8_t *);
 extern enum status qos_set_wrtd (int);
+extern enum status qos_profile_manage (struct qos_profile_mgmt *, qos_profile_id_t *);
 
 void *storm_control_thread (void *dummy);
 int storm_detect (zloop_t *loop, int timer_id, void *notify_socket);
