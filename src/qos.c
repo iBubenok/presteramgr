@@ -313,7 +313,7 @@ DEBUG("====qos_profile_manage(add) rep %d\n", rep);
       return ST_OK;
 
     case QOS_PROFILE_DEL:
-      HASH_FIND_QP(id, qpe);
+      HASH_FIND_QP(&qpm->id, qpe);
 DEBUG("====qos_profile_manage(del) qpe %p\n", qpe);
       if (!qpe) return ST_DOES_NOT_EXIST;
       HASH_DELETE(hh, qpdb, qpe);
@@ -322,7 +322,7 @@ DEBUG("====qos_profile_manage(del) qpe %p\n", qpe);
 DEBUG("====qos_profile_manage(del) OK\n");
       return ST_OK;
     case QOS_PROFILE_SET:
-      HASH_FIND_QP(id, qpe);
+      HASH_FIND_QP(&qpm->id, qpe);
 DEBUG("====qos_profile_manage(set) qpe %p\n", qpe);
       if (!qpe) return ST_DOES_NOT_EXIST;
       prof.dropPrecedence = CPSS_DP_GREEN_E;
@@ -335,7 +335,7 @@ DEBUG("====qos_profile_manage(set) qpe %p\n", qpe);
       return ST_OK;
 
     case QOS_PROFILE_CHK_AVAIL:
-      if (res_chk_avail(*id)) return ST_OK;
+      if (res_chk_avail(qpm->num)) return ST_OK;
       return ST_BUSY;
     default:
       return ST_BAD_VALUE;
