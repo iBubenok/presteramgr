@@ -135,6 +135,7 @@ pcl_ip_rule_set (char                 *name,
                  struct pcl_interface interface,
                  pcl_dest_t           dest,
                  pcl_rule_action_t    rule_action,
+                 void                 *rulse_action_params,
                  struct ip_pcl_rule   *rule_params);
 
 extern enum status
@@ -144,6 +145,7 @@ pcl_mac_rule_set (char                 *name,
                   struct pcl_interface interface,
                   pcl_dest_t           dest,
                   pcl_rule_action_t    rule_action,
+                  void                 *rulse_action_params,
                   struct mac_pcl_rule  *rule_params);
 
 extern enum status
@@ -153,6 +155,7 @@ pcl_ipv6_rule_set (char                 *name,
                    struct pcl_interface interface,
                    pcl_dest_t           dest,
                    pcl_rule_action_t    rule_action,
+                   void                 *rulse_action_params,
                    struct ipv6_pcl_rule *rule_params);
 
 extern enum status

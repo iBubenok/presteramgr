@@ -5180,6 +5180,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
     uint8_t           name_len;
     char              *name = NULL;
     pcl_rule_action_t rule_action;
+    void              *rule_action_params = NULL;
     pcl_rule_num_t    rule_num;
     void              *rule_params = NULL;
 
@@ -5187,6 +5188,21 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
     INIT_VAR(name_len);
     INIT_PTR_SZ(name, name_len);
     INIT_VAR(rule_action);
+
+    switch (rule_action) {
+      case PCL_RULE_ACTION_DENY:
+      case PCL_RULE_ACTION_PERMIT:
+        break;
+      case PCL_RULE_ACTION_DENY_QOS_POLICY:
+      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct rule_action_qos_policy));
+        break;
+      default:
+        free(name);
+        result = ST_BAD_VALUE;
+        goto out;
+    }
+
     INIT_VAR(rule_num);
 
     switch (pcl_type) {
@@ -5198,6 +5214,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
                                  interface,
                                  dest,
                                  rule_action,
+                                 rule_action_params,
                                  rule_params);
         break;
       case PCL_TYPE_MAC:
@@ -5208,6 +5225,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
                                   interface,
                                   dest,
                                   rule_action,
+                                  rule_action_params,
                                   rule_params);
         break;
       case PCL_TYPE_IPV6:
@@ -5218,6 +5236,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
                                    interface,
                                    dest,
                                    rule_action,
+                                   rule_action_params,
                                    rule_params);
         break;
       default:

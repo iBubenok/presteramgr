@@ -1427,6 +1427,7 @@ pcl_tcp_udp_port_cmp_set (int dev, struct port_cmp *port_cmp)
 static enum status
 set_pcl_action (uint16_t                 rule_ix,
                 pcl_rule_action_t        action,
+                void                     *rule_action_params,
                 pcl_rule_trap_action_t   trap_action,
                 CPSS_DXCH_PCL_ACTION_STC *act)
 {
@@ -1445,11 +1446,28 @@ set_pcl_action (uint16_t                 rule_ix,
       act->qos.qos.ingress.profileAssignIndex = GT_TRUE;
       act->qos.qos.ingress.profilePrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
 
+      act->actionStop = GT_TRUE;
       break;
     case PCL_RULE_ACTION_DENY:
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_DROP_HARD_E");
       act->pktCmd = CPSS_PACKET_CMD_DROP_HARD_E;
+      act->actionStop = GT_TRUE;
       break;
+
+    case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
+      DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
+      act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act->actionStop = GT_TRUE;
+      if (!rule_action_params)
+        return ST_BAD_VALUE;
+
+      break;
+    case PCL_RULE_ACTION_DENY_QOS_POLICY:
+      DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
+      act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act->actionStop = GT_TRUE;
+      break;
+
     default:
       DEBUG("%s: action: invalid (%d)\n", __FUNCTION__, action);
       return ST_BAD_VALUE;
@@ -1472,7 +1490,6 @@ set_pcl_action (uint16_t                 rule_ix,
       return ST_BAD_VALUE;
   };
 
-  act->actionStop = GT_TRUE;
   return ST_OK;
 }
 
@@ -1949,6 +1966,7 @@ pcl_ip_rule_set (char                 *name,
                  struct pcl_interface interface,
                  pcl_dest_t           dest,
                  pcl_rule_action_t    rule_action,
+                 void                 *rule_action_params,
                  struct ip_pcl_rule   *rule_params)
 {
   PRINT_SEPARATOR('=', 80);
@@ -2068,7 +2086,7 @@ pcl_ip_rule_set (char                 *name,
     if (!user_acl_fake_mode) {
       CPSS_DXCH_PCL_ACTION_STC act;
       memset(&act, 0, sizeof(act));
-      FR(set_pcl_action(rule_ix, rule_action, rule_params->trap_action, &act));
+      FR(set_pcl_action(rule_ix, rule_action, rule_action_params, rule_params->trap_action, &act));
 
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       memset(&rule, 0, sizeof(rule));
@@ -2132,6 +2150,7 @@ pcl_mac_rule_set (char                 *name,
                   struct pcl_interface interface,
                   pcl_dest_t           dest,
                   pcl_rule_action_t    rule_action,
+                  void                 *rule_action_params,
                   struct mac_pcl_rule  *rule_params)
 {
   PRINT_SEPARATOR('=', 80);
@@ -2213,7 +2232,7 @@ pcl_mac_rule_set (char                 *name,
     if (!user_acl_fake_mode) {
       CPSS_DXCH_PCL_ACTION_STC act;
       memset(&act, 0, sizeof(act));
-      FR(set_pcl_action(rule_ix, rule_action, rule_params->trap_action, &act));
+      FR(set_pcl_action(rule_ix, rule_action, rule_action_params, rule_params->trap_action, &act));
 
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       memset(&rule, 0, sizeof(rule));
@@ -2271,6 +2290,7 @@ pcl_ipv6_rule_set (char                 *name,
                    struct pcl_interface interface,
                    pcl_dest_t           dest,
                    pcl_rule_action_t    rule_action,
+                   void                 *rule_action_params,
                    struct ipv6_pcl_rule *rule_params)
 {
   PRINT_SEPARATOR('=', 80);
@@ -2390,7 +2410,7 @@ pcl_ipv6_rule_set (char                 *name,
     if (!user_acl_fake_mode) {
       CPSS_DXCH_PCL_ACTION_STC act;
       memset(&act, 0, sizeof(act));
-      FR(set_pcl_action(rule_ix, rule_action, rule_params->trap_action, &act));
+      FR(set_pcl_action(rule_ix, rule_action, rule_action_params, rule_params->trap_action, &act));
 
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       memset(&rule, 0, sizeof(rule));
@@ -2529,7 +2549,7 @@ pcl_default_rule_set (struct pcl_interface interface,
           result = ST_BAD_VALUE;
           goto out;
       }
-      FR(set_pcl_action(rule_ix, rule_action, PCL_RULE_TRAP_ACTION_NONE, &act));
+      FR(set_pcl_action(rule_ix, rule_action, NULL, PCL_RULE_TRAP_ACTION_NONE, &act));
 
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       memset(&rule, 0, sizeof(rule));
