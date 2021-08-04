@@ -5195,7 +5195,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
         break;
       case PCL_RULE_ACTION_DENY_QOS_POLICY:
       case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
-        INIT_PTR_SZ(rule_action_params, sizeof(struct rule_action_qos_policy));
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
         break;
       default:
         free(name);
