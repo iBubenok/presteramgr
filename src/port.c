@@ -942,12 +942,9 @@ port_start (void)
     CRP (cpssDxChPortDefaultUPSet (port->ldev, port->lport, 0));
     CPSS_QOS_ENTRY_STC qe = {
       .qosProfileId = 0,
-//      .assignPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E,
       .assignPrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E,
-//      .enableModifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E,
-      .enableModifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E,
-//      .enableModifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E
-      .enableModifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E
+      .enableModifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E,
+      .enableModifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E
     };
     CRP (cpssDxChCosPortQosConfigSet (port->ldev, port->lport, &qe));
     CRP (cpssDxChCosL2TrustModeVlanTagSelectSet

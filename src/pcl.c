@@ -1434,18 +1434,7 @@ set_pcl_action (uint16_t                 rule_ix,
   switch (action) {
     case PCL_RULE_ACTION_PERMIT:
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
-      DEBUG("%s: %s\n", __FUNCTION__, "PROFILE");
-
       act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-
-      act->actionStop = GT_TRUE;
-      act->qos.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
-      act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
-//      act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_KEEP_PREVIOUS_E;
-      act->qos.qos.ingress.profileIndex = 10;
-      act->qos.qos.ingress.profileAssignIndex = GT_TRUE;
-      act->qos.qos.ingress.profilePrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_HARD_E;
-
       act->actionStop = GT_TRUE;
       break;
     case PCL_RULE_ACTION_DENY:
@@ -1461,6 +1450,25 @@ set_pcl_action (uint16_t                 rule_ix,
       if (!rule_action_params)
         return ST_BAD_VALUE;
 
+      switch (((struct pcl_rule_action_qos_policy *)rule_action_params)->mark) {
+        case PCL_RULE_ACT_MARK_COS:
+          act->qos.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E;
+          act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+        break;
+        case PCL_RULE_ACT_MARK_DSCP:
+          act->qos.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+          act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_DISABLE_E;
+        break;
+        case PCL_RULE_ACT_MARK_BOTH:
+          act->qos.modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+          act->qos.modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+        break;
+        default:
+          return ST_BAD_VALUE;
+      }
+      act->qos.qos.ingress.profileIndex = ((struct pcl_rule_action_qos_policy *)rule_action_params)->qos_profile_id;
+      act->qos.qos.ingress.profileAssignIndex = GT_TRUE;
+      act->qos.qos.ingress.profilePrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E;
       break;
     case PCL_RULE_ACTION_DENY_QOS_POLICY:
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
