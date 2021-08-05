@@ -1184,6 +1184,7 @@ user_acl_init (struct user_acl_t **u)
   int i, d;
 
   (*u) = malloc(sizeof(struct user_acl_t));
+  memset(*u, 0, sizeof(struct user_acl_t));
 
   dstack_init(&(*u)->pcl_ids);
   int pcl_ids_count = (max_pcl_id - vlan_pcl_id_first) + 1;
@@ -1191,8 +1192,6 @@ user_acl_init (struct user_acl_t **u)
     uint16_t pcl_id = i + vlan_pcl_id_first;
     dstack_push_back((*u)->pcl_ids, &pcl_id, sizeof(pcl_id));
   }
-
-  memset((*u)->vlan_ipcl_id, 0, 4095);
 
   for_each_dev(d) {
     dstack_init(&(*u)->rules[d]);
