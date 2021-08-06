@@ -5166,11 +5166,13 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
   enum status            result;
   struct pcl_interface   interface;
   pcl_dest_t             dest;
+  pcl_action_type_t      action_type;
   uint16_t               rules_count;
   pcl_default_action_t   default_action;
 
   INIT_VAR(interface);
   INIT_VAR(dest);
+  INIT_VAR(action_type);
   INIT_VAR(default_action);
   INIT_VAR(rules_count);
 
@@ -5271,9 +5273,11 @@ DEFINE_HANDLER (CC_USER_ACL_RESET)
   enum status          result;
   struct pcl_interface interface;
   pcl_dest_t           dest;
+  pcl_action_type_t    action_type;
 
   INIT_VAR(interface);
   INIT_VAR(dest);
+  INIT_VAR(action_type);
 
   pcl_reset_rules(interface, dest);
 
