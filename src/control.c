@@ -5212,6 +5212,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
         INIT_PTR_SZ(rule_params, sizeof(struct ip_pcl_rule));
         result = pcl_ip_rule_set(name,
                                  name_len,
+                                 action_type,
                                  rule_num,
                                  interface,
                                  dest,
@@ -5223,6 +5224,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
         INIT_PTR_SZ(rule_params, sizeof(struct mac_pcl_rule));
         result = pcl_mac_rule_set(name,
                                   name_len,
+                                  action_type,
                                   rule_num,
                                   interface,
                                   dest,
@@ -5234,6 +5236,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
         INIT_PTR_SZ(rule_params, sizeof(struct ipv6_pcl_rule));
         result = pcl_ipv6_rule_set(name,
                                    name_len,
+                                   action_type,
                                    rule_num,
                                    interface,
                                    dest,
@@ -5279,7 +5282,7 @@ DEFINE_HANDLER (CC_USER_ACL_RESET)
   INIT_VAR(dest);
   INIT_VAR(action_type);
 
-  pcl_reset_rules(interface, dest);
+  pcl_reset_rules(interface, dest, action_type);
 
 out:
   report_status (ST_OK);

@@ -1126,6 +1126,7 @@ typedef uint8_t pcl_port_cmp_operator_t;
 
 struct rule_binding_key {
   char                 name[NAME_SZ];
+  pcl_action_type_t    acttype;
   pcl_rule_num_t       num;
   struct pcl_interface interface;
   pcl_dest_t           destination;
@@ -1969,6 +1970,7 @@ pcl_set_fake_mode_enabled (bool_t enable)
 enum status
 pcl_ip_rule_set (char                 *name,
                  uint8_t              name_len,
+                 pcl_action_type_t    action_type,
                  pcl_rule_num_t       rule_num,
                  struct pcl_interface interface,
                  pcl_dest_t           dest,
@@ -2005,6 +2007,7 @@ pcl_ip_rule_set (char                 *name,
 
   memset(bind_key.name, 0, NAME_SZ);
   memcpy(bind_key.name, name, name_len);
+  bind_key.acttype     = action_type;
   bind_key.num         = rule_num;
   bind_key.interface   = interface;
   bind_key.destination = dest;
@@ -2153,6 +2156,7 @@ out:
 enum status
 pcl_mac_rule_set (char                 *name,
                   uint8_t              name_len,
+                  pcl_action_type_t    action_type,
                   pcl_rule_num_t       rule_num,
                   struct pcl_interface interface,
                   pcl_dest_t           dest,
@@ -2189,6 +2193,7 @@ pcl_mac_rule_set (char                 *name,
 
   memset(bind_key.name, 0, NAME_SZ);
   memcpy(bind_key.name, name, name_len);
+  bind_key.acttype     = action_type;
   bind_key.num         = rule_num;
   bind_key.interface   = interface;
   bind_key.destination = dest;
@@ -2293,6 +2298,7 @@ out:
 enum status
 pcl_ipv6_rule_set (char                 *name,
                    uint8_t              name_len,
+                   pcl_action_type_t    action_type,
                    pcl_rule_num_t       rule_num,
                    struct pcl_interface interface,
                    pcl_dest_t           dest,
@@ -2329,6 +2335,7 @@ pcl_ipv6_rule_set (char                 *name,
 
   memset(bind_key.name, 0, NAME_SZ);
   memcpy(bind_key.name, name, name_len);
+  bind_key.acttype     = action_type;
   bind_key.num         = rule_num;
   bind_key.interface   = interface;
   bind_key.destination = dest;
@@ -2498,6 +2505,7 @@ pcl_default_rule_set (struct pcl_interface interface,
   int                     d;
 
   memset(bind_key.name, 0, NAME_SZ);
+  bind_key.acttype     = PCL_ACTION_TYPE_ACL;
   bind_key.num         = 0x00; /* default */
   bind_key.interface   = interface;
   bind_key.destination = dest;
@@ -2596,7 +2604,7 @@ out:
 }
 
 void
-pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest)
+pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest, pcl_action_type_t action_type)
 {
   PRINT_SEPARATOR('=', 80);
   DEBUG("\n"
@@ -2630,7 +2638,8 @@ pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest)
     struct rule_binding *bind, *tmp;
     HASH_ITER(hh, curr_acl->bindings[d], bind, tmp) {
       if (!memcmp(&bind->key.interface, &interface, sizeof(interface)) &&
-          bind->key.destination == dest) {
+          bind->key.destination == dest &&
+          bind->key.acttype == action_type) {
         dstack_push(curr_acl->rules[d], &bind->rule_ix, sizeof(bind->rule_ix));
         dstack_rev_sort2(curr_acl->rules[d], INT_CMP(uint16_t));
 
@@ -2707,6 +2716,7 @@ pcl_get_counter (struct pcl_interface interface,
 
   memset(bind_key.name, 0, NAME_SZ);
   memcpy(bind_key.name, name, name_len);
+  bind_key.acttype     = PCL_ACTION_TYPE_ACL;
   bind_key.num         = rule_num;
   bind_key.interface   = interface;
   bind_key.destination = dest;
@@ -2791,6 +2801,7 @@ pcl_clear_counter (struct pcl_interface interface,
 
   memset(bind_key.name, 0, NAME_SZ);
   memcpy(bind_key.name, name, name_len);
+  bind_key.acttype     = PCL_ACTION_TYPE_ACL;
   bind_key.num         = rule_num;
   bind_key.interface   = interface;
   bind_key.destination = dest;
