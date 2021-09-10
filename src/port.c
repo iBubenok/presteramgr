@@ -930,11 +930,11 @@ port_start (void)
          (port->ldev, port->lport, 0));
     CRP (cpssDxChIpPortRoutingEnable
          (port->ldev, port->lport,
-          CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
           GT_TRUE));
     CRP (cpssDxChIpPortRoutingEnable
          (port->ldev, port->lport,
-          CPSS_IP_MULTICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          CPSS_IP_MULTICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
           GT_TRUE));
 
     /* QoS initial setup. */

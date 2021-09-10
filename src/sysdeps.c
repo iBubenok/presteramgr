@@ -443,7 +443,7 @@ sysd_setup_ic (void)
            (d, dp[d][p], CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
       CRP (cpssDxChPortMruSet (d, dp[d][p], 12000));
       CRP (cpssDxChIpPortRoutingEnable
-           (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+           (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
             GT_FALSE));
 
       CRP (cpssDxChPortTxBindPortToDpSet
