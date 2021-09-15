@@ -178,7 +178,7 @@ control_init (void)
 
   pub_erps_sock  = zsock_new (ZMQ_PUB);
   assert (pub_erps_sock );
-  rc = zsock_bind (pub_erps_sock , PUB_SOCK_ERPS_EP);
+  rc = zsock_bind (pub_erps_sock, PUB_SOCK_ERPS_EP);
   assert (rc == 0);
 
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
@@ -1746,7 +1746,7 @@ DEFINE_HANDLER (CC_PORT_GET_STATE)
 
 DEFINE_HANDLER (CC_PORT_GET_TYPE)
 {
-  DEBUG("%s\n",__FUNCTION__ );
+  DEBUG("sbelo %s\n",__FUNCTION__ );
   port_id_t pid;
   port_type_t ptype;
   enum status result;
@@ -1770,6 +1770,8 @@ DEFINE_HANDLER (CC_PORT_GET_TYPE)
 
 DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 {
+  DEBUG("sbelo %s\n",__FUNCTION__ );
+
   port_id_t pid;
   stp_id_t stp_id;
   stp_state_t state;
@@ -1784,6 +1786,13 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
     goto out;
 
   result = POP_OPT_ARG (&stp_id);
+
+  DEBUG("sbelo %d\n", pid);
+  DEBUG("sbelo %d\n", stp_id);
+  DEBUG("sbelo %d\n", state);
+  /*role - root
+    state - discarding, бывают ещё forwarding */
+
   switch (result) {
   case ST_OK:
     result = port_set_stp_state (pid, stp_id, 0, state);
@@ -1805,11 +1814,14 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
 
 DEFINE_HANDLER (CC_PORT_GET_STP_STATE)
 {
+  DEBUG("sbelo %s\n",__FUNCTION__ );
   port_id_t pid;
   stp_id_t stp_id;
   enum port_stp_state port_state;
   stp_state_t state;
   enum status result;
+
+  DEBUG("sbelo %s\n",__FUNCTION__ );
 
   result = POP_ARG (&pid);
   if (result != ST_OK)
@@ -1836,6 +1848,7 @@ DEFINE_HANDLER (CC_PORT_GET_STP_STATE)
 
 DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
 {
+  DEBUG("sbelo %s\n",__FUNCTION__ );
   vif_id_t vif;
   stp_id_t stp_id;
   stp_state_t state;
@@ -1849,12 +1862,25 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
   if (result != ST_OK)
     goto out;
 
+  /*
+  discarding -> ?STP_STATE_DISCARDING; state - 1
+  learning   -> ?STP_STATE_LEARNING; state - 2
+  forwarding -> ?STP_STATE_FORWARDING; state - 3
+  _          -> ?STP_STATE_DISABLED state - 4
+  */
+
+  DEBUG("sbelo vif  %d\n", vif);
+  DEBUG("sbelo stp_id  %d\n", stp_id);
+  DEBUG("sbelo state  %d\n", state);
+
   result = POP_OPT_ARG (&stp_id);
   switch (result) {
   case ST_OK:
+    DEBUG("sbelo ST_OK\n");
     result = vif_set_stp_state (vif, stp_id, 0, state);
     break;
   case ST_DOES_NOT_EXIST:
+    DEBUG("sbelo ST_DOES_NOT_EXIST\n");
     stp_id = ALL_STP_IDS;
     result = vif_set_stp_state (vif, 0, 1, state);
     break;
@@ -1868,6 +1894,7 @@ DEFINE_HANDLER (CC_VIF_SET_STP_STATE)
 
 DEFINE_HANDLER (SC_INT_VIF_SET_STP_STATE)
 {
+  DEBUG("sbelo %s\n",__FUNCTION__ );
   zframe_t *frame = FIRST_ARG;
 
   if (!frame)
@@ -1954,6 +1981,7 @@ DEFINE_HANDLER (CC_VIF_BLOCK)
   enum status result;
   vif_id_t vif;
   struct port_block what;
+  DEBUG("sbelo - CC_VIF_BLOCK");
 
   result = POP_ARG (&vif);
   if (result != ST_OK)
@@ -1975,6 +2003,8 @@ DEFINE_HANDLER (CC_PORT_FDB_FLUSH)
   port_id_t pid;
   enum status result;
 
+  DEBUG("SBELO %s\n",__FUNCTION__);
+
   /* TODO: support flush for specific STP instance. */
 
   result = POP_ARG (&pid);
@@ -1995,6 +2025,8 @@ DEFINE_HANDLER (CC_VIF_FDB_FLUSH)
   struct mac_age_arg_vif arg;
   vif_id_t vif;
   // stp_id_t stp_id;
+
+  DEBUG("SBELO %s\n",__FUNCTION__);
 
   enum status result;
 
@@ -3361,7 +3393,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   register int conform2stp_state = 0;
   int check_source_mac = 0;
   struct vif *vif;
-  vid_t vid;  
+  vid_t vid;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
