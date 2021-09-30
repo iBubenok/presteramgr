@@ -3457,6 +3457,13 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (10):
+    DEBUG("Got DHCPv6 frame: code: %d, vid: %d, vif: %x",
+          frame->code, vid, vif->id);
+    hexdump ( &(frame->data), frame->len);
+    result = ST_OK;
+    goto out;
+
   case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
     if (! vlan_port_is_forwarding_on_vlan(pid, vid))
