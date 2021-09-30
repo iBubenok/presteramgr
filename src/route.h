@@ -13,12 +13,14 @@
 
 struct route_pfx {
   GT_IPADDR addr;
+  GT_IPV6ADDR addrv6;
   int alen;
 };
 
 struct route {
   struct route_pfx pfx;
   GT_IPADDR gw;
+  GT_IPV6ADDR gw_v6;
   vid_t vid;
 };
 
@@ -28,8 +30,12 @@ extern enum status route_cpss_lib_init (void);
 extern enum status route_start (void);
 extern enum status route_add (const struct route *);
 extern enum status route_del (const struct route *);
+extern enum status route_add_v6 (const struct route *);
+extern enum status route_del_v6 (const struct route *);
 extern enum status route_add_mgmt_ip (ip_addr_t);
 extern enum status route_del_mgmt_ip (ip_addr_t);
+extern enum status route_add_mgmt_ipv6 (ip_addr_v6_t);
+extern enum status route_del_mgmt_ipv6 (ip_addr_v6_t);
 extern enum status route_set_router_mac_addr (mac_addr_t);
 extern void route_update_table (const struct gw *, int);
 extern void route_handle_udaddr (uint32_t);

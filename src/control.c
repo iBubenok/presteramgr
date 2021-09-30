@@ -40,6 +40,7 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <netlink/socket.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -782,25 +783,49 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
 
+    ip_addr_t addr; 
+    ip_addr_v6_t addr_v6; 
     mac_op_rt(notif, am, sizeof(*am));
+    switch (am->type){
+      case AF_INET:             
+        memcpy (&addr, &am->addr, 4);
+        switch (am->op) {
+          case RIAO_ADD:
+            route_add_mgmt_ip (addr);
+            break;
+          case RIAO_DEL:
+            route_del_mgmt_ip (addr);
+            break;
+          default:
+            break;
+        }
+        break;
+        
+      case AF_INET6:   
+        memcpy (&addr_v6, &am->addr_v6, 16);
+        switch (am->op) {
+          case RIAO_ADD:
+            DEBUG ("route_add_mgmt_ipv6\n");
+            route_add_mgmt_ipv6 (addr_v6);
+            break;
+          case RIAO_DEL:
+            DEBUG ("route_del_mgmt_ipv6\n");
+            route_del_mgmt_ipv6 (addr_v6);
+            break;
+          default:
+            break;
+        }
+        return 0;
+        break;
 
-    ip_addr_t addr;
-    memcpy (&addr, &am->addr, 4);
-    switch (am->op) {
-    case RIAO_ADD:
-      route_add_mgmt_ip (addr);
-      break;
-    case RIAO_DEL:
-      route_del_mgmt_ip (addr);
-      break;
-    default:
-      break;
+      default:
+        break;
     }
     break;
 
   case RCN_ROUTE:
     if (stack_id != master_id) {
-DEBUG("RTBD DROP!!!!\n");
+    DEBUG("RTBD DROP!!!!\n");
       zmsg_destroy (&msg);
       return ST_OK;
     }
@@ -812,18 +837,44 @@ DEBUG("RTBD DROP!!!!\n");
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
+    // rt.pfx.addrv6.arIP = rm->dst_v6;
+    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
     rt.gw.u32Ip = rm->gw;
+    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
     rt.vid = rm->vid;
-    switch (rm->op) {
-    case RRTO_ADD:
-      route_add (&rt);
-      break;
-    case RRTO_DEL:
-      route_del (&rt);
-      break;
-    default:
-      break;
+    switch (rm->type)
+    {
+      case AF_INET:
+        switch (rm->op) {
+        case RRTO_ADD:
+          route_add (&rt);
+          break;
+        case RRTO_DEL:
+          route_del (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      case AF_INET6:
+        switch (rm->op) {
+        case RRTO_ADD:
+          DEBUG ("route_add_v6\n");
+          // route_add_v6 (&rt);
+          break;
+        case RRTO_DEL:
+          DEBUG ("route_del_v6\n");
+          // route_del_v6 (&rt);
+          break;
+        default:
+          break;
+        }
+        break;  
+      
+      default:
+        break;
     }
     break;
 

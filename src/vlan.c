@@ -281,13 +281,13 @@ __vlan_add (vid_t vid)
   vlan_info.ipv6IcmpToCpuEn       = GT_FALSE;
   vlan_info.ipCtrlToCpuEn         = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
   vlan_info.ipv4IpmBrgMode        = CPSS_BRG_IPM_GV_E;
-  vlan_info.ipv6IpmBrgMode        = CPSS_BRG_IPM_SGV_E;
+  vlan_info.ipv6IpmBrgMode        = CPSS_BRG_IPM_GV_E;
   vlan_info.ipv4IpmBrgEn          = GT_TRUE;
-  vlan_info.ipv6IpmBrgEn          = GT_FALSE;
+  vlan_info.ipv6IpmBrgEn          = GT_TRUE;
   vlan_info.ipv6SiteIdMode        = CPSS_IP_SITE_ID_INTERNAL_E;
   vlan_info.ipv4UcastRouteEn      = GT_TRUE;
   vlan_info.ipv4McastRouteEn      = GT_FALSE;
-  vlan_info.ipv6UcastRouteEn      = GT_FALSE;
+  vlan_info.ipv6UcastRouteEn      = GT_TRUE;
   vlan_info.ipv6McastRouteEn      = GT_FALSE;
   vlan_info.stgId                 = vlans[vid - 1].stp_id;
   vlan_info.autoLearnDisable      = GT_TRUE;
@@ -557,7 +557,7 @@ vlan_reconf_cpu (vid_t vid, bool_t cpu)
          (d, vid, &members, &tagging, &vlan_info, &valid, &tagging_cmd));
 
     if (cpu) {
-      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_E;
+      vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_IPV4_IPV6_E;
       vlan_info.unregIpv4BcastCmd  = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
     } else {
       vlan_info.ipCtrlToCpuEn      = CPSS_DXCH_BRG_IP_CTRL_NONE_E;
