@@ -500,6 +500,7 @@ DECLARE_HANDLER (CC_VIF_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_DHCPv6_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
 DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
@@ -683,6 +684,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
   HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_DHCPv6_TRAP_ENABLE),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
@@ -4907,6 +4909,21 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DHCPv6_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_dhcpv6_trap (enable);
 
  out:
   report_status (result);
