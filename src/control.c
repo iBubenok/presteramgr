@@ -3459,12 +3459,13 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
-  case CPU_CODE_USER_DEFINED (10):
-    DEBUG("Got DHCPv6 frame: code: %d, vid: %d, vif: %x",
-          frame->code, vid, vif->id);
-    hexdump ( &(frame->data), frame->len);
-    result = ST_OK;
-    goto out;
+  case CPU_CODE_USER_DEFINED (10):        /* DHCPv6 */
+    type = CN_DHCPv6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    break;
 
   case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
