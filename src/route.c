@@ -9,6 +9,7 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/generic/cpssHwInit/cpssHwInit.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 
 #include <net/if.h>
 
@@ -186,6 +187,18 @@ route_set_router_mac_addr (mac_addr_t addr)
 }
 
 enum status
+route_set_solicited_cmd (solicited_cmd_t cmd) {
+  CPSS_PACKET_CMD_ENT cpssCmd = cmd;
+
+  int d;
+  for_each_dev (d){
+    CRP (cpssDxChBrgGenIpV6SolicitedCmdSet(d, cpssCmd));
+  }
+
+  return ST_OK;
+}
+
+enum status
 route_start (void)
 {
   int d;
@@ -323,23 +336,21 @@ DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
-enum status
+ enum status
 route_add_v6 (const struct route *rt)
 {
-DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
-  fib_add (ntohl (rt->pfx.addr.u32Ip),
-           rt->pfx.alen,
-           rt->vid,
-           ntohl (rt->gw.u32Ip));
+  // fib_add (ntohl (rt->pfx.addr.u32Ip),
+  //          rt->pfx.alen,
+  //          rt->vid,
+  //          ntohl (rt->gw.u32Ip));
 
-  DEBUG ("add route to %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
-         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
-         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+  DEBUG ("add route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n",
+         IPv6_ARG(rt->pfx.addrv6.arIP),
          rt->pfx.alen,
-         rt->gw.arIP[0], rt->gw.arIP[1],
-         rt->gw.arIP[2], rt->gw.arIP[3]);
+         IPv6_ARG(rt->gw_v6.arIP));
 
   if (rt->pfx.alen == 0) {
     /* Default route. */
@@ -428,17 +439,17 @@ DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
-enum status
+ enum status
 route_del_v6 (const struct route *rt)
 {
-DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+DEBUG(">>>>route_del_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
-  if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
-    DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
-         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
-         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
-         rt->pfx.alen);
+  // if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
+  //   DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
+  //        rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+  //        rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+  //        rt->pfx.alen);
 
   return ST_OK;
 }

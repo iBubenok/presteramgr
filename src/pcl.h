@@ -48,6 +48,9 @@ extern bool_t is_free_rule_ix (port_id_t);
 /* ARP */
 extern enum status pcl_enable_arp_trap (int);
 
+/* IPv6 Neighbor Solicitation */
+extern enum status pcl_enable_solicited (port_id_t, bool_t, solicited_cmd_t);
+
 /* User ACL */
 typedef struct {
   uint8_t value[16];

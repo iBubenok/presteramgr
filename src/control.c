@@ -396,6 +396,8 @@ DECLARE_HANDLER (CC_VIF_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_SET_SOLICITED_CMD);
+DECLARE_HANDLER (CC_PORT_ENABLE_SOLICITED);
 DECLARE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT);
 DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
@@ -579,6 +581,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_SET_XG_SFP_MODE),
+  HANDLER (CC_PORT_SET_SOLICITED_CMD),
+  HANDLER (CC_PORT_ENABLE_SOLICITED),
   HANDLER (CC_PORT_IS_XG_SFP_PRESENT),
   HANDLER (CC_PORT_READ_XG_SFP_IDPROM),
   HANDLER (CC_PORT_DUMP_PHY_REG),
@@ -833,7 +837,6 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
-    mac_op_rt(notif, rm, sizeof(*rm));
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
@@ -862,11 +865,11 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
         switch (rm->op) {
         case RRTO_ADD:
           DEBUG ("route_add_v6\n");
-          // route_add_v6 (&rt);
+          route_add_v6 (&rt);
           break;
         case RRTO_DEL:
           DEBUG ("route_del_v6\n");
-          // route_del_v6 (&rt);
+          route_del_v6 (&rt);
           break;
         default:
           break;
@@ -2367,6 +2370,60 @@ DEFINE_HANDLER (CC_PORT_SET_XG_SFP_MODE)
  err:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PORT_SET_SOLICITED_CMD)
+{
+  enum status result;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = route_set_solicited_cmd (cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_SOLICITED)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t en;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&en, sizeof (en));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = pcl_enable_solicited (pid, en, cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT)
 {
