@@ -239,6 +239,9 @@ notify_send (zmsg_t **msg)
   zmsg_send (msg, inp_pub_sock);
 }
 
+/*  also from here are sent ndp frame */
+/*  ndp use frame: solicitation     - request
+                   advertisement    - reply */
 static inline void
 notify_send_arp (zmsg_t **msg)
 {
@@ -3271,7 +3274,7 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 
  out:
   report_status (result);
-}
+  }
 
 DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 {
@@ -3495,6 +3498,14 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -3617,6 +3628,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
