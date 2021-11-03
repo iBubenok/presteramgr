@@ -70,6 +70,7 @@ static int re_cnt = 0;
 int
 ret_add (const struct gw *gw, int def, struct gw *ret_key)
 {
+  DEBUG("sbelo ret_add\n");
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);

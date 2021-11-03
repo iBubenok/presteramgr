@@ -3506,6 +3506,29 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+    DEBUG("icmpv6 4- %02x\n", frame->data[20]);
+    DEBUG("NEIGHBOR_ADVERTISEMENT - %02x\n", frame->data[54]);
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      DEBUG("WORK?\n");
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+    }
+    else {
+      // kostyl
+      type = 666;
+    }
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -3569,6 +3592,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vid);
+    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vif->valid);
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -3629,6 +3654,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
     case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
