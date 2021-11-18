@@ -3655,6 +3655,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP:
     case CN_NDP_SOLICITATION_IPV6:
     case CN_NDP_ADVERTISEMENT_IPV6:
+      test_ndpc_request_addr(); /*sbelo for test*/
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:

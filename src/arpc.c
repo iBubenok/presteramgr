@@ -110,12 +110,46 @@ ndpc_request_addr (const struct gw_v6 *gw)
   ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_ADD);
 }
 
+/*sbelo*/
+void
+test_ndpc_request_addr()
+{
+  struct gw_v6 gw;
+  gw.vid = 16;
+  gw.addr.u32Ip[0] = 0xffffaaaa;
+  gw.addr.u32Ip[1] = 0xbbbbcccc;
+  gw.addr.u32Ip[2] = 0xffffaaaa;
+  gw.addr.u32Ip[3] = 0xbbbbcccc;
+
+  ndpc_ip_addr_op (&gw, NDPD_CC_IP_ADDR_ADD);
+}
+
+/*sbelo*/
+void
+test_ndpc_delete_addr()
+{
+  struct gw_v6 gw;
+  gw.vid = 16;
+  gw.addr.u32Ip[0] = 0xffffaaaa;
+  gw.addr.u32Ip[1] = 0xbbbbcccc;
+  gw.addr.u32Ip[2] = 0xffffaaaa;
+  gw.addr.u32Ip[3] = 0xbbbbcccc;
+
+  ndpc_ip_addr_op (&gw, NDPD_CC_IP_ADDR_DEL);
+}
+
 void
 arpc_release_addr (const struct gw *gw)
 {
   DEBUG("sbelo arpc_release_addr\n");
-
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_DEL);
+}
+
+void
+ndpc_release_addr (const struct gw_v6 *gw)
+{
+  DEBUG("sbelo arpc_release_addr\n");
+  ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_DEL);
 }
 
 void
@@ -137,13 +171,12 @@ DEBUG(">>>>arpc_set_mac_addr (%x, %d, " MAC_FMT ", %x)\n",
 }
 
 void
-ndpc_set_mac_addr (ndpd_ip_addr_t* ip,
-                   ndpd_vid_t vid,
+ndpc_set_mac_addr (ndp_ip_addr_t* ip,
+                   ndp_vid_t vid,
                    const uint8_t *mac,
-                   ndpd_vif_id_t vif)
+                   ndp_vif_id_t vif)
 {
-DEBUG(">>>>ndpc_set_mac_addr (, %d, " MAC_FMT ", %x)\n",
-    vid, MAC_ARG(mac), vif);
+  DEBUG(">>>>ndpc_set_mac_addr (, %d, " MAC_FMT ", %x)\n", vid, MAC_ARG(mac), vif);
   GT_IPV6ADDR ip_addr;
   GT_ETHERADDR mac_addr;
   // struct gw_v6 gw;
