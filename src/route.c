@@ -337,7 +337,7 @@ DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
- enum status
+enum status
 route_add_v6 (const struct route *rt)
 {
 DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",

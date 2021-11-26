@@ -13,7 +13,7 @@ struct gw {
   vid_t vid;
 };
 
-struct gw_ipv6 {
+struct gw_v6 {
   GT_IPV6ADDR addr;
   vid_t vid;
 };
