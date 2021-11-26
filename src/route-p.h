@@ -13,6 +13,11 @@ struct gw {
   vid_t vid;
 };
 
+struct gw_ipv6 {
+  GT_IPV6ADDR addr;
+  vid_t vid;
+};
+
 #define HASH_FIND_GW(head, findgw, out)                 \
   HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
 #define HASH_ADD_GW(head, gwfield, add)                 \

@@ -837,6 +837,7 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
+    mac_op_rt(notif, rm, sizeof(*rm));
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;

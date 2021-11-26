@@ -17,6 +17,7 @@
 #include <ret.h>
 #include <vlan.h>
 #include <fib.h>
+#include <fib_ipv6.h>
 #include <arpc.h>
 #include <sysdeps.h>
 #include <mcg.h>
@@ -342,10 +343,11 @@ route_add_v6 (const struct route *rt)
 DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
-  // fib_add (ntohl (rt->pfx.addr.u32Ip),
-  //          rt->pfx.alen,
-  //          rt->vid,
-  //          ntohl (rt->gw.u32Ip));
+  fib_ipv6_add (
+    rt->pfx.addrv6,
+    rt->pfx.alen,
+    rt->vid,
+    rt->gw_v6);
 
   DEBUG ("add route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n",
          IPv6_ARG(rt->pfx.addrv6.arIP),
@@ -424,6 +426,32 @@ route_del_fib_entry (struct fib_entry *e)
   DEBUG ("done\r\n");
 }
 
+void
+route_del_fib_ipv6_entry (struct fib_entry_ipv6 *e)
+{
+  GT_IPV6ADDR pfx, gwip;
+
+  pfx = fib_entry_ipv6_get_pfx (e);
+  gwip = fib_entry_ipv6_get_gw (e);
+
+  DEBUG ("delete route v6 prefix "IPv6_FMT"/%d via "IPv6_FMT"\r\n",
+         IPv6_ARG(pfx.arIP),
+         fib_entry_ipv6_get_len (e),
+         IPv6_ARG(gwip.arIP));
+
+
+  if (fib_entry_ipv6_get_len (e) != 0)
+    CRP (cpssDxChIpLpmIpv6UcPrefixDel (0, 0, pfx, fib_entry_ipv6_get_len (e)));
+
+  // if (fib_entry_get_len (e) != 0)
+  //   CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx, fib_entry_get_len (e)));
+
+  // route_unregister (fib_entry_get_pfx (e), fib_entry_get_len (e),
+  //                   fib_entry_get_gw (e), fib_entry_get_vid (e));
+
+  DEBUG ("done\r\n");
+}
+
 enum status
 route_del (const struct route *rt)
 {
@@ -442,14 +470,15 @@ DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
  enum status
 route_del_v6 (const struct route *rt)
 {
-DEBUG(">>>>route_del_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
-    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+DEBUG ("del route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n ",
+        IPv6_ARG(rt->pfx.addrv6.arIP),
+        rt->pfx.alen,
+        IPv6_ARG(rt->gw_v6.arIP));    
 
-  // if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
-  //   DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
-  //        rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
-  //        rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
-  //        rt->pfx.alen);
+  if (!fib_ipv6_del (rt->pfx.addrv6, rt->pfx.alen))
+    DEBUG ("prefix "IPv6_FMT"/%d not found\r\n",
+         IPv6_ARG(rt->pfx.addrv6.arIP),
+         rt->pfx.alen);
 
   return ST_OK;
 }
