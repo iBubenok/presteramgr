@@ -17,7 +17,7 @@ struct fib_entry_ipv6 {
   vid_t vid;
   int len;
   struct fib_entry_ipv6 *children;
-  struct gw_ipv6 ret_key;
+  struct gw_v6 ret_key;
   UT_hash_handle hh;
 };
 
@@ -45,7 +45,7 @@ fib_entry_ipv6_get_pfx (const struct fib_entry_ipv6 *e)
   return e->pfx;
 }
 
-struct gw_ipv6*
+struct gw_v6*
 fib_entry_ipv6_get_retkey_ptr (struct fib_entry_ipv6 *e) {
   return &e->ret_key;
 }

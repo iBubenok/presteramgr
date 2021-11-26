@@ -10,7 +10,7 @@ extern vid_t fib_entry_ipv6_get_vid (const struct fib_entry_ipv6 *);
 extern GT_IPV6ADDR fib_entry_ipv6_get_gw (const struct fib_entry_ipv6 *);
 extern int fib_entry_ipv6_get_len (const struct fib_entry_ipv6 *);
 extern GT_IPV6ADDR fib_entry_ipv6_get_pfx (const struct fib_entry_ipv6 *);
-extern struct gw_ipv6 *fib_entry_ipv6_get_retkey_ptr (struct fib_entry_ipv6 *);
+extern struct gw_v6 *fib_entry_ipv6_get_retkey_ptr (struct fib_entry_ipv6 *);
 
 extern void fib_ipv6_add (GT_IPV6ADDR, uint8_t, vid_t, GT_IPV6ADDR);
 extern int fib_ipv6_del (GT_IPV6ADDR, uint8_t);
