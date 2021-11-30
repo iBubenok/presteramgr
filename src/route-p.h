@@ -46,4 +46,12 @@ route_fill_gw (struct gw *gw, const GT_IPADDR *addr, vid_t vid)
   gw->vid = vid;
 }
 
+static inline void
+route_ipv6_fill_gw (struct gw_v6 *gw, const GT_IPV6ADDR *addr, vid_t vid)
+{
+  memset (gw, 0, sizeof (*gw));
+  gw->addr = *addr;
+  gw->vid = vid;
+}
+
 #endif /* __ROUTE_P_H__ */

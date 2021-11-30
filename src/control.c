@@ -3524,10 +3524,15 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_vif = 1;
       put_vid = 1;
     }
-    else {
-      // kostyl
-      type = 666;
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
     }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
     break;
 
   case CPU_CODE_IP_LL_MC_0_TM:
@@ -3656,7 +3661,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP:
     case CN_NDP_SOLICITATION_IPV6:
     case CN_NDP_ADVERTISEMENT_IPV6:
-      test_ndpc_request_addr(); /*sbelo for test*/
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:

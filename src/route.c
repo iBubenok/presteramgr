@@ -44,13 +44,25 @@ struct pfx_by_pfx {
   uint32_t udaddr;
   UT_hash_handle hh;
 };
+struct pfx_ipv6_by_pfx {
+  struct route_pfx pfx;
+  GT_IPV6ADDR udaddr;
+  UT_hash_handle hh;
+};
 
 struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
   UT_hash_handle hh;
 };
+
+struct pfxs_ipv6_by_gw {
+  struct gw_v6 gw;
+  struct pfx_ipv6_by_pfx *pfxs;
+  UT_hash_handle hh;
+};
 static struct pfxs_by_gw *pfxs_by_gw;
+static struct pfxs_ipv6_by_gw *pfxs_ipv6_by_gw;
 
 uint8_t route_mac_lsb;
 
@@ -251,6 +263,45 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t ud
     pbp->udaddr = udaddr;
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
+}
+
+static void
+route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, GT_IPV6ADDR udaddr)
+{
+  GT_IPV6ADDR ip;
+  struct gw_v6 gw;
+  struct route_pfx pfx;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp;
+
+  DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
+         IPv6_ARG(addr.arIP),
+         alen,
+         IPv6_ARG(gwaddr.arIP));
+
+  ip = gwaddr;
+  route_ipv6_fill_gw (&gw, &ip, vid);
+  HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
+  DEBUG("SUFIK___0 %p", pbg);
+  if (!pbg) {
+    pbg = calloc (1, sizeof (*pbg));
+    pbg->gw = gw;
+    HASH_ADD_GW (pfxs_ipv6_by_gw, gw, pbg);
+  }
+
+  DEBUG("SUFIK___1 %p", pbg);
+
+  pfx.addrv6 = addr;
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  DEBUG("SUFIK___2 %p", pbp);
+  if (!pbp) {
+    pbp = calloc (1, sizeof (*pbp));
+    pbp->pfx = pfx;
+    pbp->udaddr = udaddr;
+    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
+  }
+  DEBUG("SUFIK___3 %p", pbp);
 }
 
 static void
@@ -531,7 +582,7 @@ DEBUG(">>>>route_add_mgmt_ip (" IPv6_FMT ")\n", IPv6_ARG(addr));
 
   memcpy (ga.arIP, addr, 16);
   memset (&re, 0, sizeof (re));
-  re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+  re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
 
   rc = cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, ga, 128, &re, GT_TRUE, GT_TRUE);
 
@@ -642,6 +693,28 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen, struct 
   }
 }
 
+static void
+route_ipv6_request_mac_addr (GT_IPV6ADDR gwip, vid_t vid, GT_IPV6ADDR ip, int alen, struct gw_v6 *ret_key)
+{
+  struct gw_v6 gw;
+  GT_IPV6ADDR gwaddr;
+  int ix;
+
+  gwaddr = gwip;
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
+  ix = ret_ipv6_add (&gw, alen == 0, ret_key);
+  DEBUG ("route entry index %d\r\n", ix);
+  if ((ix >= 0) && (alen != 0)) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPV6ADDR addr;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = ix;
+    addr = ip;
+    CRP (cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE, GT_FALSE));
+  }
+}
+
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
@@ -678,6 +751,41 @@ DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
 }
 
 void
+route_handle_ipv6_udaddr (GT_IPV6ADDR daddr) {
+DEBUG(">>>>route_handle_ipv6_udaddr ("IPv6_FMT")\n", IPv6_ARG(daddr.arIP));
+  GT_IPV6ADDR rt;
+  int alen;
+  struct fib_entry_ipv6 *e;
+
+  e = fib_ipv6_route (daddr);
+  if (!e) {
+    // DEBUG ("can't route ipv6 for %d.%d.%d.%d\r\n",
+    //        (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
+    //        (daddr >> 8) & 0xFF, daddr & 0xFF);
+        DEBUG ("can't route ipv6 for "IPv6_FMT"\r\n",
+           IPv6_ARG(daddr.arIP));
+    return;
+  }
+  GT_IPV6ADDR ip0;
+  memset(&ip0, 0, sizeof(ip0));
+
+  rt = fib_entry_ipv6_get_gw (e);
+  if (memcmp(&rt, &ip0, 16))
+    alen = fib_entry_ipv6_get_len (e);
+  else {
+    rt = daddr;
+    alen = 128;
+  }
+//  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
+  route_ipv6_register (fib_entry_ipv6_get_pfx (e), alen, rt, fib_entry_ipv6_get_vid (e), daddr);
+  route_ipv6_request_mac_addr (rt, fib_entry_ipv6_get_vid (e), fib_entry_ipv6_get_pfx (e), alen, fib_entry_ipv6_get_retkey_ptr(e));
+
+  DEBUG ("got packet to "IPv6_FMT", gw "IPv6_FMT"\r\n",
+         IPv6_ARG(daddr.arIP),
+         IPv6_ARG(rt.arIP));
+}
+
+void
 route_handle_udt (const uint8_t *data, int len)
 {
   uint32_t daddr;
@@ -701,6 +809,32 @@ route_handle_udt (const uint8_t *data, int len)
 
   route_handle_udaddr (daddr);
 }
+
+void
+route_handle_ipv6_udt (const uint8_t *data, int len)
+{
+  GT_IPV6ADDR daddr;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x86) ||
+      (data[13] != 0xDD)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  memcpy(&daddr, data + 38, sizeof(daddr));
+
+  // if (master_id == stack_id) {
+  //   mac_op_udt(daddr);
+  // }
+
+  route_handle_ipv6_udaddr (daddr);
+}
+
 
 enum status
 route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,

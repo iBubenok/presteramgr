@@ -170,10 +170,7 @@ fib_ipv6_get (GT_IPV6ADDR addr, uint8_t len)
 struct fib_entry_ipv6 *
 fib_ipv6_unhash_child (GT_IPV6ADDR addr, uint8_t len) { /* you should free child yourself */
   GT_IPV6ADDR ip0;
-  ip0.u32Ip[0] = 0;
-  ip0.u32Ip[1] = 0;
-  ip0.u32Ip[2] = 0;
-  ip0.u32Ip[3] = 0;
+  memset(&ip0, 0, sizeof(ip0));
 
   assert (len == 32);
 
@@ -207,10 +204,7 @@ struct fib_entry_ipv6 *
 fib_ipv6_route (GT_IPV6ADDR addr)
 {
   GT_IPV6ADDR ip0;
-  ip0.u32Ip[0] = 0;
-  ip0.u32Ip[1] = 0;
-  ip0.u32Ip[2] = 0;
-  ip0.u32Ip[3] = 0;
+  memset(&ip0, 0, sizeof(ip0));
 
   int i;
   GT_IPV6ADDR pfx = addr;

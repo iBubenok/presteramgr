@@ -5,6 +5,7 @@
 
 extern enum status ret_init (void);
 extern int ret_add (const struct gw *, int, struct gw *);
+extern int ret_ipv6_add (const struct gw_v6 *, int, struct gw_v6 *);
 extern enum status ret_unref (const struct gw *, int);
 extern enum status ret_set_mac_addr (const struct gw *, const GT_ETHERADDR *, vif_id_t);
 extern int mcre_get (mcg_t, vid_t);

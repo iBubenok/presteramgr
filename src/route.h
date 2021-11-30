@@ -41,6 +41,7 @@ extern enum status route_set_solicited_cmd (solicited_cmd_t);
 extern void route_update_table (const struct gw *, int);
 extern void route_handle_udaddr (uint32_t);
 extern void route_handle_udt (const uint8_t *, int);
+extern void route_handle_ipv6_udt (const uint8_t *, int);
 extern enum status route_mc_add (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
 extern enum status route_mc_del (vid_t, const uint8_t *, const uint8_t *, mcg_t,
