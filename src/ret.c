@@ -189,12 +189,10 @@ ret_ipv6_add (const struct gw_v6 *gw, int def, struct gw_v6 *ret_key)
   re->gw = *gw;
   re->refc = 1;
   re->def = def;
-  // HASH_ADD_GW (ret_ipv6, gw, re);
+  HASH_ADD_GW (ret_ipv6, gw, re);
   memcpy(ret_key, gw, sizeof(struct gw_v6));
   ++re_cnt;
 
-  // arpc_request_addr (gw);
-  DEBUG("SUFIK_  vid %hd, "IPv6_FMT"", gw->vid, IPv6_ARG(gw->addr.arIP));
   ndpc_request_addr(gw);
 
  out:
@@ -329,6 +327,97 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id
   re->valid = 1;
 
   route_update_table (gw, idx);
+
+  return ST_OK;
+}
+
+enum status
+ret_ipv6_set_mac_addr (const struct gw_v6 *gw, const GT_ETHERADDR *addr, vif_id_t vif_id)
+{
+  struct re_ipv6 *re;
+  int idx;
+  int nh_idx;
+  int d;
+  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+  GT_STATUS rc;
+  struct vif *vif = vif_getn (vif_id);
+
+  if (!vif)
+    return ST_HEX;
+
+  HASH_FIND_GW (ret_ipv6, gw, re);
+  if (!re) {
+    return ST_DOES_NOT_EXIST;
+  }
+
+  if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+    vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+    rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+    rt.entry.regularEntry.nextHopVlanId = gw->vid;
+    rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
+    DEBUG ("write route entry");
+    for_each_dev (d)
+      rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
+    if (rc != ST_OK) {
+      return ST_HEX;
+    }
+
+    re->vif_id = vif_id;
+
+    if (re->def) {
+      DEBUG ("write default route entry");
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+    return ST_OK;
+  }
+
+
+  memcpy (&re->addr, addr, sizeof (*addr));
+  re->vif_id = vif_id;
+
+  nh_idx = nht_add (addr);
+  if (nh_idx < 0)
+    return ST_HEX;
+
+  idx = res_pop ();
+  if (idx < 0)
+    return ST_BAD_VALUE; /* FIXME: add overflow status value. */
+
+  memset (&rt, 0, sizeof (rt));
+  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+  rt.entry.regularEntry.nextHopARPPointer = nh_idx;
+  rt.entry.regularEntry.nextHopVlanId = gw->vid;
+  rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
+  DEBUG ("write route entry at %d\r\n", idx);
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
+
+  if (re->def) {
+    DEBUG ("write default route entry\r\n");
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
+
+  re->idx = idx;
+  memcpy (&re->addr, addr, sizeof (*addr));
+  re->nh_idx = nh_idx;
+  re->valid = 1;
+
+  route_ipv6_update_table (gw, idx);
 
   return ST_OK;
 }

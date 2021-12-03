@@ -120,7 +120,7 @@ arpc_release_addr (const struct gw *gw)
 void
 ndpc_release_addr (const struct gw_v6 *gw)
 {
-  DEBUG("sbelo arpc_release_addr\n");
+  DEBUG("sbelo ndpc_release_addr\n");
   ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_DEL);
 }
 
@@ -148,19 +148,13 @@ ndpc_set_mac_addr (const uint32_t* ip,
                    const uint8_t* mac,
                    ndp_vif_id_t vif)
 {
-  DEBUG("****************\n"
-        "****************\n"
-        "SET MAC ADDR\n"
-        "****************\n"
-        "****************\n");
-
   DEBUG(">>>>ndpc_set_mac_addr (, %d, " MAC_FMT ", %x)\n", vid, MAC_ARG(mac), vif);
   GT_IPV6ADDR ip_addr;
   GT_ETHERADDR mac_addr;
-  // struct gw_v6 gw;
+  struct gw_v6 gw;
 
-  memcpy (ip_addr.u32Ip, ip, 4);
-  // route_fill_gw (&gw, &ip_addr, vid);
+  memcpy (ip_addr.u32Ip, ip, 16);
+  route_ipv6_fill_gw (&gw, &ip_addr, vid);  
   memcpy (mac_addr.arEther, mac, 6);
-  // ret_set_mac_addr (&gw, &mac_addr, vif);
+  ret_ipv6_set_mac_addr(&gw, &mac_addr, vif);
 }

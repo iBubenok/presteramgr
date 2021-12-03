@@ -282,26 +282,21 @@ route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, 
   ip = gwaddr;
   route_ipv6_fill_gw (&gw, &ip, vid);
   HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
-  DEBUG("SUFIK___0 %p", pbg);
   if (!pbg) {
     pbg = calloc (1, sizeof (*pbg));
     pbg->gw = gw;
     HASH_ADD_GW (pfxs_ipv6_by_gw, gw, pbg);
   }
 
-  DEBUG("SUFIK___1 %p", pbg);
-
   pfx.addrv6 = addr;
   pfx.alen = alen;
   HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
-  DEBUG("SUFIK___2 %p", pbp);
   if (!pbp) {
     pbp = calloc (1, sizeof (*pbp));
     pbp->pfx = pfx;
     pbp->udaddr = udaddr;
     HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
   }
-  DEBUG("SUFIK___3 %p", pbp);
 }
 
 static void
@@ -449,6 +444,30 @@ route_update_table (const struct gw *gw, int idx)
              pbp->pfx.alen, idx);
       CRP (cpssDxChIpLpmIpv4UcPrefixAdd
            (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
+    }
+  }
+}
+
+void
+route_ipv6_update_table (const struct gw_v6 *gw, int idx)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp, *tmp;
+
+  HASH_FIND_GW (pfxs_ipv6_by_gw, gw, pbg);
+  if (!pbg)
+    return;
+
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = idx;
+  HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
+    if (pbp->pfx.alen != 0) {
+      DEBUG ("install prefix "IPv6_FMT"/%d via %d\r\n",
+             IPv6_ARG(pbp->pfx.addrv6.arIP),
+             pbp->pfx.alen, idx);
+      CRP (cpssDxChIpLpmIpv6UcPrefixAdd
+           (0, 0, pbp->pfx.addrv6, pbp->pfx.alen, &re, GT_TRUE, GT_FALSE));
     }
   }
 }
@@ -759,9 +778,6 @@ DEBUG(">>>>route_handle_ipv6_udaddr ("IPv6_FMT")\n", IPv6_ARG(daddr.arIP));
 
   e = fib_ipv6_route (daddr);
   if (!e) {
-    // DEBUG ("can't route ipv6 for %d.%d.%d.%d\r\n",
-    //        (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
-    //        (daddr >> 8) & 0xFF, daddr & 0xFF);
         DEBUG ("can't route ipv6 for "IPv6_FMT"\r\n",
            IPv6_ARG(daddr.arIP));
     return;

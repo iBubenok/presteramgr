@@ -103,7 +103,6 @@ fib_ipv6_add (GT_IPV6ADDR addr, uint8_t len, vid_t vid, GT_IPV6ADDR gw)
       HASH_ADD_INT (fib.e[len], addr, e);
     }
   }
-  fib_ipv6_dump();
 }
 
 extern void route_del_fib_ipv6_entry (struct fib_entry_ipv6 *);
@@ -145,7 +144,6 @@ fib_ipv6_del (GT_IPV6ADDR addr, uint8_t len)
       return 1;
     }
   }
-  fib_ipv6_dump();
 
   return 0;
 }
