@@ -13,6 +13,11 @@ struct gw {
   vid_t vid;
 };
 
+struct gw_v6 {
+  GT_IPV6ADDR addr;
+  vid_t vid;
+};
+
 #define HASH_FIND_GW(head, findgw, out)                 \
   HASH_FIND (hh, head, findgw, sizeof (struct gw), out)
 #define HASH_ADD_GW(head, gwfield, add)                 \
@@ -38,6 +43,14 @@ route_fill_gw (struct gw *gw, const GT_IPADDR *addr, vid_t vid)
 {
   memset (gw, 0, sizeof (*gw));
   gw->addr.u32Ip = addr->u32Ip;
+  gw->vid = vid;
+}
+
+static inline void
+route_ipv6_fill_gw (struct gw_v6 *gw, const GT_IPV6ADDR *addr, vid_t vid)
+{
+  memset (gw, 0, sizeof (*gw));
+  gw->addr = *addr;
   gw->vid = vid;
 }
 

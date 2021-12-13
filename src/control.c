@@ -247,9 +247,13 @@ notify_send (zmsg_t **msg)
   zmsg_send (msg, inp_pub_sock);
 }
 
+/*  also from here are sent ndp frame */
+/*  ndp use frame: solicitation     - request
+                   advertisement    - reply */
 static inline void
 notify_send_arp (zmsg_t **msg)
 {
+  DEBUG("notify_send_arp");
   zmsg_send (msg, pub_arp_sock);
 }
 
@@ -853,6 +857,7 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
+    mac_op_rt(notif, rm, sizeof(*rm));
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
@@ -922,6 +927,18 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+    break;
+  case NDPD_CN_IP_ADDR:
+    frame = zmsg_next (msg);
+    struct ndp_ip_addr_msg *iam_ndp =
+      (struct ndp_ip_addr_msg *) zframe_data (frame);
+
+    /*!!! Attention !!!*/
+    // mac_op_na(iam);
+    /*!!!!!!*/
+
+    ndpc_set_mac_addr
+      (&iam_ndp->ip_addr[0], iam_ndp->vid, &iam_ndp->mac_addr[0], iam_ndp->vif_id);
     break;
 
   default:
@@ -3287,7 +3304,7 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 
  out:
   report_status (result);
-}
+  }
 
 DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 {
@@ -3511,6 +3528,73 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    break;
+  
+  /* FIX THIS */
+  /* FIX THIS */
+  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+    DEBUG("icmpv6 4- %02x\n", frame->data[20]);
+    DEBUG("NEIGHBOR_ADVERTISEMENT - %02x\n", frame->data[54]);
+
+    // int i = 0;
+    // for (i =0; i < 86; i++)
+    // {
+    //   DEBUG("i = %d, data[] = %d\n", i, frame->data[i]);
+    // }
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      DEBUG("WORK?\n");
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+
+      /* FIX THIS */
+      /* FIX THIS */
+      /* FIX THIS */
+
+      zmsg_t *msg = make_notify_message (type);
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+
+      zmsg_addmem (msg, frame->data, frame->len);
+      
+      zframe_t* tmp_frame = zmsg_first(msg);
+      while(tmp_frame)
+      {
+        hexdump(zframe_data(tmp_frame), zframe_size(tmp_frame));
+        tmp_frame = zmsg_next(msg);
+      }
+
+      notify_send_arp (&msg);
+    }
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
+    }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -3582,6 +3666,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vid);
+    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vif->valid);
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -3641,6 +3727,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
+      DEBUG("SBELO SEND type=%d", type);
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
