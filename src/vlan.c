@@ -854,12 +854,12 @@ vlan_mc_route (vid_t vid, bool_t enable)
   for_each_dev (d) {
     if (enable) {
       CRP (cpssDxChBrgVlanIpMcRouteEnable
-           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
+           (d, vid, CPSS_IP_PROTOCOL_IPV4V6_E, GT_TRUE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4092, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
     } else {
       CRP (cpssDxChBrgVlanIpMcRouteEnable
-           (d, vid, CPSS_IP_PROTOCOL_IPV4_E, GT_FALSE));
+           (d, vid, CPSS_IP_PROTOCOL_IPV4V6_E, GT_FALSE));
       CRP (cpssDxChBrgVlanFloodVidxModeSet
            (d, vid, 4095, CPSS_DXCH_BRG_VLAN_FLOOD_VIDX_MODE_UNREG_MC_E));
     }

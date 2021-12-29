@@ -268,19 +268,21 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t ud
 static void
 route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, GT_IPV6ADDR udaddr)
 {
-  GT_IPV6ADDR ip;
+  // GT_IPV6ADDR ip;
   struct gw_v6 gw;
   struct route_pfx pfx;
   struct pfxs_ipv6_by_gw *pbg;
   struct pfx_ipv6_by_pfx *pbp;
+  memset(&gw, 0, sizeof(struct gw_v6));
+  memset(&pfx, 0, sizeof(struct route_pfx));
 
-  DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
-         IPv6_ARG(addr.arIP),
-         alen,
-         IPv6_ARG(gwaddr.arIP));
+  // DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
+  //        IPv6_ARG(addr.arIP),
+  //        alen,
+  //        IPv6_ARG(gwaddr.arIP));
 
-  ip = gwaddr;
-  route_ipv6_fill_gw (&gw, &ip, vid);
+  // ip = gwaddr;
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
   HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
   if (!pbg) {
     pbg = calloc (1, sizeof (*pbg));
@@ -338,6 +340,43 @@ route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 
   if (!pbg->pfxs) {
     HASH_DEL (pfxs_by_gw, pbg);
+    free (pbg);
+  }
+}
+
+static void
+route_ipv6_unregister (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid)
+{
+  struct gw_v6 gw;
+  struct route_pfx pfx;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp;
+  memset(&gw, 0, sizeof(struct gw_v6));
+  memset(&pfx, 0, sizeof(struct route_pfx));
+
+  DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
+        IPv6_ARG(addr.arIP),
+        alen,
+        IPv6_ARG(gwaddr.arIP));
+
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
+  HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
+  if (!pbg)
+    return;
+
+  pfx.addrv6 = addr;
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp)
+    return;
+
+  HASH_DEL (pbg->pfxs, pbp);
+  free (pbp);
+
+  ret_ipv6_unref (&gw, alen == 0);
+
+  if (!pbg->pfxs) {
+    HASH_DEL (pfxs_ipv6_by_gw, pbg);
     free (pbg);
   }
 }
@@ -513,11 +552,8 @@ route_del_fib_ipv6_entry (struct fib_entry_ipv6 *e)
   if (fib_entry_ipv6_get_len (e) != 0)
     CRP (cpssDxChIpLpmIpv6UcPrefixDel (0, 0, pfx, fib_entry_ipv6_get_len (e)));
 
-  // if (fib_entry_get_len (e) != 0)
-  //   CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx, fib_entry_get_len (e)));
-
-  // route_unregister (fib_entry_get_pfx (e), fib_entry_get_len (e),
-  //                   fib_entry_get_gw (e), fib_entry_get_vid (e));
+  route_ipv6_unregister (fib_entry_ipv6_get_pfx (e), fib_entry_ipv6_get_len (e),
+                fib_entry_ipv6_get_gw (e), fib_entry_ipv6_get_vid (e));
 
   DEBUG ("done\r\n");
 }
@@ -844,9 +880,9 @@ route_handle_ipv6_udt (const uint8_t *data, int len)
 
   memcpy(&daddr, data + 38, sizeof(daddr));
 
-  // if (master_id == stack_id) {
-  //   mac_op_udt(daddr);
-  // }
+  if (master_id == stack_id) {
+    mac_op_udt_ipv6(daddr);
+  }
 
   route_handle_ipv6_udaddr (daddr);
 }
@@ -1035,6 +1071,7 @@ route_reset_prefixes4gw(struct gw * gw) {
 void
 route_dump(void) {
   struct pfxs_by_gw *s, *t;
+  struct pfxs_ipv6_by_gw *s_v6, *t_v6;
   DEBUG("!!!! ROUTE DUMP  !!!!\n");
   HASH_ITER (hh, pfxs_by_gw, s, t) {
     DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
@@ -1046,6 +1083,18 @@ route_dump(void) {
     }
   }
   DEBUG("!!!! end GW DUMP!!!!\n\n");
+
+  DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
+  HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
+    DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
+    if (s_v6->pfxs) {
+      struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
+      HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
+        DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
+      }
+    }
+  }
+  DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
 /*struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
