@@ -84,7 +84,7 @@ ndpc_ip_addr_op (const struct gw_v6 *gw, arpd_command_t cmd) {
 
   /* Attention! */
   if (stack_id != master_id) {
-    // mac_op_opna(gw, cmd); // change
+    mac_op_opna_ipv6(gw, cmd); // change
     return;
   }
   zmsg_t *msg = zmsg_new ();

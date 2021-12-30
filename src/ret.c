@@ -145,7 +145,7 @@ ret_add (const struct gw *gw, int def, struct gw *ret_key)
 int
 ret_ipv6_add (const struct gw_v6 *gw, int def, struct gw_v6 *ret_key)
 {
-  DEBUG("sbelo ret_add\n");
+  DEBUG("sbelo ret_ipv6_add\n");
   struct re_ipv6 *re;
 
   HASH_FIND_GW (ret_ipv6, gw, re);
@@ -236,6 +236,46 @@ ret_unref (const struct gw *gw, int def)
       nht_unref (&re->addr);
     }
     arpc_release_addr (gw);
+    free (re);
+    --re_cnt;
+  }
+  DEBUG ("refc = %d\r\n", re->refc);
+
+  return ST_OK;
+}
+
+enum status
+ret_ipv6_unref (const struct gw_v6 *gw, int def)
+{
+  struct re_ipv6 *re;
+
+  HASH_FIND_GW (ret_ipv6, gw, re);
+  if (!re)
+    return ST_DOES_NOT_EXIST;
+
+  if (def) {
+    re->def = 0;
+    if (re->valid) {
+      CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+      int d;
+
+      DEBUG ("reset default route entry");
+      memset (&rt, 0, sizeof (rt));
+      rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+  }
+
+  if (--re->refc == 0) {
+    DEBUG ("last ref to " GW_FMT " dropped, deleting\r\n", GW_FMT_ARGS (gw));
+    HASH_DEL (ret_ipv6, re);
+    if (re->valid) {
+      res_push (re->idx);
+      nht_unref (&re->addr);
+    }
+    ndpc_release_addr (gw);
     free (re);
     --re_cnt;
   }
@@ -757,6 +797,7 @@ DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
 void
 ret_dump(void) {
   struct re *s, *t;
+  struct re_ipv6 *s_v6, *t_v6;
   DEBUG("!!!! RET DUMP %d  !!!!\n", re_cnt);
   DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
   HASH_ITER (hh, ret, s, t) {
@@ -765,6 +806,15 @@ ret_dump(void) {
         MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
   }
   DEBUG("!!!! end RET DUMP!!!!\n\n");
+
+  DEBUG("!!!! RET DUMP IPV6 %d  !!!!\n", re_cnt);
+  DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
+  HASH_ITER (hh, ret_ipv6, s_v6, t_v6) {
+    DEBUG(IPv6_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+        IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->valid, s_v6->def, s_v6->idx,
+        MAC_ARG(s_v6->addr.arEther), s_v6->nh_idx, s_v6->vif_id, s_v6->refc);
+  }
+  DEBUG("!!!! end RET DUMP IPV6!!!!\n\n");
 /*
 struct re {
   struct gw gw;

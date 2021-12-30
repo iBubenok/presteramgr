@@ -29,7 +29,7 @@
     (type *) ((char *) __mptr - offsetof (type, member));   \
   })
 
-#define IPv4_FMT "%d.%d.%d.%d"
+#define IPv4_FMT "%hhd.%hhd.%hhd.%hhd"
 #define IPv6_FMT "%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX:%02hhX%02hhX"
 #define IPv4_ARG(p) p[0], p[1], p[2], p[3]
 #define IPv6_ARG(p) p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]

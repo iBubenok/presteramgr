@@ -2921,6 +2921,9 @@ pcl_enable_solicited(port_id_t pi, bool_t enable, solicited_cmd_t cmd) {
   CPSS_PACKET_CMD_ENT cpssCmd = cmd;
     struct port *port = port_ptr (pi);
 
+    if (is_stack_port(port))
+      return ST_OK;
+
     if (enable) {
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       CPSS_DXCH_PCL_ACTION_STC act;  

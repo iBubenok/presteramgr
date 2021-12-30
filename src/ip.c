@@ -28,9 +28,9 @@ ip_start (void)
     CRP (cpssDxChBrgGenArpBcastToCpuCmdSet
          (d, CPSS_PACKET_CMD_MIRROR_TO_CPU_E));
     CRP (cpssDxChBrgGenIpLinkLocalMirrorToCpuEnable
-         (d, CPSS_IP_PROTOCOL_IPV4_E, GT_TRUE));
+         (d, CPSS_IP_PROTOCOL_IPV4V6_E, GT_TRUE));
     CRP (cpssDxChBrgGenIpLinkLocalProtMirrorToCpuEnable
-         (d, CPSS_IP_PROTOCOL_IPV4_E, 18, GT_TRUE));
+         (d, CPSS_IP_PROTOCOL_IPV4V6_E, 18, GT_TRUE));
   }
 
   return ST_OK;
