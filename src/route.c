@@ -9,6 +9,7 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/generic/cpssHwInit/cpssHwInit.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 
 #include <net/if.h>
 
@@ -186,6 +187,18 @@ route_set_router_mac_addr (mac_addr_t addr)
 }
 
 enum status
+route_set_solicited_cmd (solicited_cmd_t cmd) {
+  CPSS_PACKET_CMD_ENT cpssCmd = cmd;
+
+  int d;
+  for_each_dev (d){
+    CRP (cpssDxChBrgGenIpV6SolicitedCmdSet(d, cpssCmd));
+  }
+
+  return ST_OK;
+}
+
+enum status
 route_start (void)
 {
   int d;
@@ -323,6 +336,45 @@ DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
+ enum status
+route_add_v6 (const struct route *rt)
+{
+DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
+  // fib_add (ntohl (rt->pfx.addr.u32Ip),
+  //          rt->pfx.alen,
+  //          rt->vid,
+  //          ntohl (rt->gw.u32Ip));
+
+  DEBUG ("add route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n",
+         IPv6_ARG(rt->pfx.addrv6.arIP),
+         rt->pfx.alen,
+         IPv6_ARG(rt->gw_v6.arIP));
+
+  if (rt->pfx.alen == 0) {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  } else {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv6UcPrefixAdd
+         (0, 0, rt->pfx.addrv6, rt->pfx.alen, &re, GT_TRUE, GT_FALSE));
+  }
+
+  return ST_OK;
+}
+
 void
 route_update_table (const struct gw *gw, int idx)
 {
@@ -387,10 +439,25 @@ DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
+ enum status
+route_del_v6 (const struct route *rt)
+{
+DEBUG(">>>>route_del_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
+  // if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
+  //   DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
+  //        rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+  //        rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+  //        rt->pfx.alen);
+
+  return ST_OK;
+}
+
 enum status
 route_add_mgmt_ip (ip_addr_t addr)
 {
-DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")\n", IPv4_ARG(addr));
 
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
   GT_IPADDR ga;
@@ -401,20 +468,61 @@ DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
   re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, ga, 32, &re, GT_TRUE));
   switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
+  case GT_OK:
+    return ST_OK;
+  default:
+    return ST_HEX;
   }
 }
 
 enum status
 route_del_mgmt_ip (ip_addr_t addr)
 {
-DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")\n", IPv4_ARG(addr));
   GT_STATUS rc;
   GT_IPADDR ga;
 
   memcpy (ga.arIP, addr, 4);
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, ga, 32));
+  switch (rc) {
+  case GT_OK:        return ST_OK;
+  case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;
+  default:           return ST_HEX;
+  }
+}
+
+enum status
+route_add_mgmt_ipv6 (ip_addr_v6_t addr)
+{
+DEBUG(">>>>route_add_mgmt_ip (" IPv6_FMT ")\n", IPv6_ARG(addr));
+
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  GT_IPV6ADDR ga;
+  GT_STATUS rc;
+
+  memcpy (ga.arIP, addr, 16);
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+
+  rc = cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, ga, 128, &re, GT_TRUE, GT_TRUE);
+
+  switch (rc) {
+  case GT_OK:
+    return ST_OK;
+  default:
+    return ST_HEX;
+  }
+}
+
+enum status
+route_del_mgmt_ipv6 (ip_addr_v6_t addr)
+{
+DEBUG(">>>>route_del_mgmt_ip (" IPv6_FMT ")", IPv6_ARG(addr));
+  GT_STATUS rc;
+  GT_IPV6ADDR ga;
+
+  memcpy (ga.arIP, addr, 16);
+  rc = CRP (cpssDxChIpLpmIpv6UcPrefixDel (0, 0, ga, 128));
   switch (rc) {
   case GT_OK:        return ST_OK;
   case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;

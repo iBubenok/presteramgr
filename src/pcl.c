@@ -47,6 +47,8 @@ static uint16_t port_dhcptrap68_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_arp_inspector_trap_ix[NPORTS + 1] = {};
 
+static uint16_t port_solicited_trap_or_mirror_ix[NPORTS + 1] = {};
+
 static uint16_t per_port_ip_source_guard_rules_count = 10;
 static uint16_t port_ip_sourceguard_rule_start_ix[NPORTS + 1] = {};
 static uint16_t port_ip_sourceguard_drop_rule_ix[NPORTS + 1] = {};
@@ -106,6 +108,7 @@ initialize_vars (void)
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
     port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
+    port_solicited_trap_or_mirror_ix[pid]  = idx[port->ldev]++;
     port_ip_sourceguard_rule_start_ix[pid] = idx[port->ldev];
     idx[port->ldev] += per_port_ip_source_guard_rules_count;
     port_ip_sourceguard_drop_rule_ix[pid]  = idx[port->ldev]++;
@@ -2907,6 +2910,55 @@ pcl_enable_arp_trap (int enable) {
   return ST_OK;
 }
 
+
+enum status
+pcl_enable_solicited(port_id_t pi, bool_t enable, solicited_cmd_t cmd) {
+
+  CPSS_PACKET_CMD_ENT cpssCmd = cmd;
+    struct port *port = port_ptr (pi);
+
+    if (enable) {
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&mask, 0, sizeof (mask));
+      mask.ruleExtIpv6L4.common.pclId = 0xFFFF;
+      mask.ruleExtIpv6L4.commonExt.isIpv6 = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.ipProtocol = 0xFF;
+      memset (mask.ruleExtIpv6L4.dip.arIP, 0xFF, 16); ///
+      mask.ruleExtIpv6L4.dip.arIP[13] = 0x0;
+      mask.ruleExtIpv6L4.dip.arIP[14] = 0x0;
+      mask.ruleExtIpv6L4.dip.arIP[15] = 0x0;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtIpv6L4.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtIpv6L4.commonExt.isIpv6 = 0x1;
+      rule.ruleExtIpv6L4.commonExt.ipProtocol = 0x3A;
+      rule.ruleExtIpv6L4.dip.arIP[0] = 0xFF;
+      rule.ruleExtIpv6L4.dip.arIP[1] = 0x02;
+      rule.ruleExtIpv6L4.dip.arIP[11] = 0x1;
+      rule.ruleExtIpv6L4.dip.arIP[12] = 0xFF;
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = cpssCmd;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_IPV6_NEIGHBOR_SOLICITATION_E;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
+            port_solicited_trap_or_mirror_ix[pi],
+            0,
+            &mask,
+            &rule,
+            &act));
+    }
+    else {
+      CRP (cpssDxChPclRuleInvalidate
+             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_solicited_trap_or_mirror_ix[pi]));
+    }
+  return ST_OK;
+}
 
 enum status
 pcl_enable_lbd_trap (port_id_t pid, int enable)

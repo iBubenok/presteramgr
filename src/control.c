@@ -40,6 +40,7 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <netlink/socket.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -413,6 +414,8 @@ DECLARE_HANDLER (CC_VIF_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_SET_SOLICITED_CMD);
+DECLARE_HANDLER (CC_PORT_ENABLE_SOLICITED);
 DECLARE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT);
 DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
@@ -596,6 +599,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_SET_XG_SFP_MODE),
+  HANDLER (CC_PORT_SET_SOLICITED_CMD),
+  HANDLER (CC_PORT_ENABLE_SOLICITED),
   HANDLER (CC_PORT_IS_XG_SFP_PRESENT),
   HANDLER (CC_PORT_READ_XG_SFP_IDPROM),
   HANDLER (CC_PORT_DUMP_PHY_REG),
@@ -800,25 +805,49 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
 
-    mac_op_rt(notif, am, sizeof(*am));
-
     ip_addr_t addr;
-    memcpy (&addr, &am->addr, 4);
-    switch (am->op) {
-    case RIAO_ADD:
-      route_add_mgmt_ip (addr);
-      break;
-    case RIAO_DEL:
-      route_del_mgmt_ip (addr);
-      break;
-    default:
-      break;
+    ip_addr_v6_t addr_v6;
+    mac_op_rt(notif, am, sizeof(*am));
+    switch (am->type){
+      case AF_INET:
+        memcpy (&addr, &am->addr, 4);
+        switch (am->op) {
+          case RIAO_ADD:
+            route_add_mgmt_ip (addr);
+            break;
+          case RIAO_DEL:
+            route_del_mgmt_ip (addr);
+            break;
+          default:
+            break;
+        }
+        break;
+
+      case AF_INET6:
+        memcpy (&addr_v6, &am->addr_v6, 16);
+        switch (am->op) {
+          case RIAO_ADD:
+            DEBUG ("route_add_mgmt_ipv6\n");
+            route_add_mgmt_ipv6 (addr_v6);
+            break;
+          case RIAO_DEL:
+            DEBUG ("route_del_mgmt_ipv6\n");
+            route_del_mgmt_ipv6 (addr_v6);
+            break;
+          default:
+            break;
+        }
+        return 0;
+        break;
+
+      default:
+        break;
     }
     break;
 
   case RCN_ROUTE:
     if (stack_id != master_id) {
-DEBUG("RTBD DROP!!!!\n");
+    DEBUG("RTBD DROP!!!!\n");
       zmsg_destroy (&msg);
       return ST_OK;
     }
@@ -826,22 +855,47 @@ DEBUG("RTBD DROP!!!!\n");
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
-    mac_op_rt(notif, rm, sizeof(*rm));
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
+    // rt.pfx.addrv6.arIP = rm->dst_v6;
+    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
     rt.gw.u32Ip = rm->gw;
+    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
     rt.vid = rm->vid;
-    switch (rm->op) {
-    case RRTO_ADD:
-      route_add (&rt);
-      break;
-    case RRTO_DEL:
-      route_del (&rt);
-      break;
-    default:
-      break;
+    switch (rm->type)
+    {
+      case AF_INET:
+        switch (rm->op) {
+        case RRTO_ADD:
+          route_add (&rt);
+          break;
+        case RRTO_DEL:
+          route_del (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      case AF_INET6:
+        switch (rm->op) {
+        case RRTO_ADD:
+          DEBUG ("route_add_v6\n");
+          route_add_v6 (&rt);
+          break;
+        case RRTO_DEL:
+          DEBUG ("route_del_v6\n");
+          route_del_v6 (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      default:
+        break;
     }
     break;
 
@@ -2339,6 +2393,60 @@ DEFINE_HANDLER (CC_PORT_SET_XG_SFP_MODE)
  err:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PORT_SET_SOLICITED_CMD)
+{
+  enum status result;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = route_set_solicited_cmd (cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_SOLICITED)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t en;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&en, sizeof (en));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = pcl_enable_solicited (pid, en, cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT)
 {
