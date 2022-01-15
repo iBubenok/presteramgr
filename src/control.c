@@ -3779,22 +3779,21 @@ DEFINE_HANDLER (CC_VIF_SET_PVE_DST)
 {
   enum status result;
   vif_id_t vif;
-  port_id_t dpid;
+  vif_id_t dst;
   bool_t enable;
 
   result = POP_ARG (&vif);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&dpid);
+  result = POP_ARG (&dst);
   if (result != ST_OK)
     goto out;
 
   result = POP_ARG (&enable);
   if (result != ST_OK)
     goto out;
-
-  result = vif_set_pve_dst (vif, dpid, enable);
+  result = vif_set_pve_dst (vif, dst, enable);
 
  out:
   report_status (result);
