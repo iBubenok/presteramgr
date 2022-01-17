@@ -41,6 +41,7 @@
 #include <dev.h>
 #include <ipsg.h>
 #include <netlink/socket.h>
+#include <sflow.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -52,6 +53,7 @@ static void *control_packet_loop (void *);
 
 static void *pub_sock;
 static void *pub_arp_sock;
+static void *pub_sflow_sock;
 static void *pub_dhcp_sock;
 static void *pub_stack_sock;
 static void *cmd_sock;
@@ -165,6 +167,11 @@ control_init (void)
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
   assert (rc == 0);
 
+  pub_sflow_sock = zsock_new (ZMQ_PUB);
+  assert (pub_sflow_sock);
+  rc = zsock_bind (pub_sflow_sock, PUB_SOCK_SFLOW_EP);
+  assert (rc == 0);
+
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
   assert (pub_dhcp_sock);
   zsock_set_sndhwm(pub_dhcp_sock, hwm);
@@ -243,6 +250,12 @@ static inline void
 notify_send_arp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_arp_sock);
+}
+
+static inline void
+notify_send_sflow (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_sflow_sock);
 }
 
 static inline void
@@ -552,6 +565,11 @@ DECLARE_HANDLER (CC_GET_CH_REV);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
+DECLARE_HANDLER (CC_SFLOW_SET_ENABLE);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
+DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -737,7 +755,12 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_GET_CH_REV),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
-  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025),
+  HANDLER (CC_SFLOW_SET_ENABLE),
+  HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
+  HANDLER (CC_SFLOW_SET_RELOAD_MODE),
+  HANDLER (CC_SFLOW_SET_PORT_LIMIT),
+  HANDLER (CC_SFLOW_SET_DEFAULT)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -993,6 +1016,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   vif_id_t vifid;
   int is_vif_forwarding_on_vlan;
   vid_t vid = frame->vid;
+  int put_direction = 0;
+  sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
 
   vif_rlock();
 
@@ -1273,6 +1300,21 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
 
+  case CPU_CODE_EGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = EGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = INGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -1309,8 +1351,22 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     .vif = put_vif ? vif->id : 0
   };
 
-  put_pkt_info (msg, &info, type);
-  zmsg_addmem (msg, frame->data, frame->len);
+  switch (type) {
+    case CN_SAMPLED:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      if (put_direction)
+        zmsg_addmem (msg, &direction, sizeof direction);
+      if (put_len)
+        zmsg_addmem (msg, &len, sizeof len);
+      put_port_id (msg, pid);
+      break;
+    default:
+      put_pkt_info (msg, &info, type);
+      zmsg_addmem (msg, frame->data, frame->len);
+  }
 
   switch (type) {
     case CN_ARP_BROADCAST:
@@ -1320,6 +1376,9 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
+      break;
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
       break;
     default:
       notify_send (&msg);
@@ -3323,6 +3382,10 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   int check_source_mac = 0;
   struct vif *vif;
   vid_t vid;
+  int put_direction = 0;
+  sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3603,6 +3666,21 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     result = ST_OK;
     goto out;
 
+  case CPU_CODE_EGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = EGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = INGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -3638,8 +3716,22 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     .vif = put_vif ? vif->id : 0
   };
 
-  put_pkt_info (msg, &info, type);
-  zmsg_addmem (msg, frame->data, frame->len);
+  switch (type) {
+    case CN_SAMPLED:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      if (put_direction)
+        zmsg_addmem (msg, &direction, sizeof direction);
+      if (put_len)
+        zmsg_addmem (msg, &len, sizeof len);
+      put_port_id (msg, pid);
+      break;
+    default:
+      put_pkt_info (msg, &info, type);
+      zmsg_addmem (msg, frame->data, frame->len);
+  }
 
   switch (type) {
     case CN_ARP_BROADCAST:
@@ -3649,6 +3741,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
+      break;
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
       break;
     default:
       notify_send (&msg);
@@ -5743,3 +5838,139 @@ out:
   zmsg_addmem(reply, &val, sizeof(val));
   send_reply(reply);
 }
+
+/** @name sFlow functions */
+///@{
+/**
+ * @brief Global enable/disable flow sampling
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] enable true - enable, false - disable, type: bool_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_ENABLE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  bool_t enable;
+  enum status result;
+  sflow_type_t type;
+
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_enable(type, enable);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow ingress count mode
+ *
+ * @param[in] mode count mode, type: sflow_count_mode_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  sflow_count_mode_t mode;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_ingress_count_mode(mode);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow reload mode
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] mode reload mode, type: sflow_count_reload_mode_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_RELOAD_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  sflow_type_t type;
+  sflow_count_reload_mode_t mode;
+
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(type, mode);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow configuration on port
+ *
+ * @param[in] params port configuration, type: struct sflow_port_limit_info
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  struct sflow_port_limit_info params;
+
+  result = POP_ARG (& params);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_port_limit(
+      params.pid,
+      params.direction,
+      params.rate,
+      false);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set the default sFlow settngs
+ *
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+
+  result = sflow_set_enable(BOTH, false);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
+  if (result != ST_OK)
+    goto out;
+
+  port_id_t pid;
+  for (pid = 1; pid <= NPORTS; pid++) {
+    result = sflow_set_port_limit(pid, BOTH, 0, true);
+    if (result != ST_OK)
+      goto out;
+  }
+
+out:
+  report_status (result);
+}
+///@} /* End sFlow functions. */
