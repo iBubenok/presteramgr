@@ -3555,7 +3555,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
   struct pdsa_spec_frame *frame;
-  notification_t type;
+  notification_t type = 0;
   port_id_t pid;
   int put_vid = 0, put_vif = 0;
   uint16_t *etype;
@@ -3808,9 +3808,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
         tmp_frame = zmsg_next(msg);
       }
 
-      notify_send_arp (&msg);
+      notify_send_arp (&msg); */
     }
-    goto out; */
+//    goto out;
     break;
   case CPU_CODE_IPV6_UC_ROUTE_TM_1:
 
