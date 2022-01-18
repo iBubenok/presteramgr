@@ -111,6 +111,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_NEIGHBOR_SOLICITATION_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 3, &cce_rlim));
 
 /* allowing trapping IGMP packets bursts within 1 sec
@@ -137,6 +139,10 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_ROUTE_ENTRY_TRAP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IPV4_UC_ROUTE1_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_ROUTE_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_UC_ROUTE1_TRAP_E, &cce_rlim));     
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet

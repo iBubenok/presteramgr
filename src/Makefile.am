@@ -33,6 +33,7 @@ presteramgr_SOURCES =	\
 	env.c				\
 	pcl.c				\
 	fib.c				\
+	fib_ipv6.c			\
 	arpc.c				\
 	dgasp.c             \
 	dev.c               \

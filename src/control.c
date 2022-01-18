@@ -23,6 +23,7 @@
 #include <wnct.h>
 #include <mcg.h>
 #include <fib.h>
+#include <fib_ipv6.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -246,9 +247,13 @@ notify_send (zmsg_t **msg)
   zmsg_send (msg, inp_pub_sock);
 }
 
+/*  also from here are sent ndp frame */
+/*  ndp use frame: solicitation     - request
+                   advertisement    - reply */
 static inline void
 notify_send_arp (zmsg_t **msg)
 {
+  DEBUG("notify_send_arp");
   zmsg_send (msg, pub_arp_sock);
 }
 
@@ -574,8 +579,11 @@ DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
 DECLARE_HANDLER (SC_INT_NA_CMD);
+DECLARE_HANDLER (SC_INT_NA_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_OPNA_CMD);
+DECLARE_HANDLER (SC_INT_OPNA_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
+DECLARE_HANDLER (SC_INT_UDT_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
 DECLARE_HANDLER (SC_INT_VIF_SET_STP_STATE);
@@ -767,8 +775,11 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_UPDATE_STACK_CONF),
   HANDLER (SC_INT_RTBD_CMD),
   HANDLER (SC_INT_NA_CMD),
+  HANDLER (SC_INT_NA_IPV6_CMD),
   HANDLER (SC_INT_OPNA_CMD),
+  HANDLER (SC_INT_OPNA_IPV6_CMD),
   HANDLER (SC_INT_UDT_CMD),
+  HANDLER (SC_INT_UDT_IPV6_CMD),  
   HANDLER (SC_INT_CLEAR_RT_CMD),
   HANDLER (SC_INT_CLEAR_RE_CMD),
   HANDLER (SC_INT_VIF_SET_STP_STATE)
@@ -878,6 +889,7 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
+    mac_op_rt(notif, rm, sizeof(*rm));
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
@@ -947,6 +959,16 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+    break;
+  case NDPD_CN_IP_ADDR:
+    frame = zmsg_next (msg);
+    struct ndp_ip_addr_msg *iam_ndp =
+      (struct ndp_ip_addr_msg *) zframe_data (frame);
+
+    mac_op_na_ipv6(iam_ndp);
+
+    ndpc_set_mac_addr
+      (&iam_ndp->ip_addr[0], iam_ndp->vid, &iam_ndp->mac_addr[0], iam_ndp->vif_id);
     break;
 
   default:
@@ -1216,6 +1238,79 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+  // case CPU_CODE_USER_DEFINED (10):
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    goto out;
+    break;
+  
+  /* FIX THIS */
+  /* FIX THIS */
+  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+    result = ST_OK;
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+    DEBUG("icmpv6 4- %02x\n", frame->data[20]);
+    DEBUG("NEIGHBOR_ADVERTISEMENT - %02x\n", frame->data[54]);
+
+    // int i = 0;
+    // for (i =0; i < 86; i++)
+    // {
+    //   DEBUG("i = %d, data[] = %d\n", i, frame->data[i]);
+    // }
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      DEBUG("WORK?\n");
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+
+      /* FIX THIS */
+      /* FIX THIS */
+      /* FIX THIS */
+
+      zmsg_t *msg = make_notify_message (type);
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+
+      zmsg_addmem (msg, frame->data, frame->len);
+      
+      zframe_t* tmp_frame = zmsg_first(msg);
+      while(tmp_frame)
+      {
+        hexdump(zframe_data(tmp_frame), zframe_size(tmp_frame));
+        tmp_frame = zmsg_next(msg);
+      }
+
+      notify_send_arp (&msg);
+    }
+    goto out;
+    break;
+
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
+    }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -1372,6 +1467,8 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
@@ -1597,17 +1694,43 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   switch (notif) {
   case RCN_IP_ADDR:
     am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
-    ip_addr_t addr;
-    memcpy (&addr, &am->addr, 4);
-    switch (am->op) {
-    case RIAO_ADD:
-      route_add_mgmt_ip (addr);
-      break;
-    case RIAO_DEL:
-      route_del_mgmt_ip (addr);
-      break;
-    default:
-      break;
+    ip_addr_t addr; 
+    ip_addr_v6_t addr_v6; 
+    // mac_op_rt(notif, am, sizeof(*am));
+    switch (am->type){
+      case AF_INET:             
+        memcpy (&addr, &am->addr, 4);
+        switch (am->op) {
+          case RIAO_ADD:
+            route_add_mgmt_ip (addr);
+            break;
+          case RIAO_DEL:
+            route_del_mgmt_ip (addr);
+            break;
+          default:
+            break;
+        }
+        break;
+        
+      case AF_INET6:   
+        memcpy (&addr_v6, &am->addr_v6, 16);
+        switch (am->op) {
+          case RIAO_ADD:
+            DEBUG ("route_add_mgmt_ipv6\n");
+            route_add_mgmt_ipv6 (addr_v6);
+            break;
+          case RIAO_DEL:
+            DEBUG ("route_del_mgmt_ipv6\n");
+            route_del_mgmt_ipv6 (addr_v6);
+            break;
+          default:
+            break;
+        }
+        return;
+        break;
+
+      default:
+        break;
     }
     break;
 
@@ -1615,18 +1738,43 @@ DEBUG("===SC_INT_RTBD_CMD\n");
     rm = (struct rtbd_route_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
+    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
     rt.gw.u32Ip = rm->gw;
+    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
     rt.vid = rm->vid;
-    switch (rm->op) {
-    case RRTO_ADD:
-      route_add (&rt);
-      break;
-    case RRTO_DEL:
-      route_del (&rt);
-      break;
-    default:
-      break;
+    switch (rm->type)
+    {
+      case AF_INET:
+        switch (rm->op) {
+        case RRTO_ADD:
+          route_add (&rt);
+          break;
+        case RRTO_DEL:
+          route_del (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      case AF_INET6:
+        switch (rm->op) {
+        case RRTO_ADD:
+          DEBUG ("route_add_v6\n");
+          route_add_v6 (&rt);
+          break;
+        case RRTO_DEL:
+          DEBUG ("route_del_v6\n");
+          route_del_v6 (&rt);
+          break;
+        default:
+          break;
+        }
+        break;  
+      
+      default:
+        break;
     }
     break;
 
@@ -1647,6 +1795,18 @@ DEBUG("===SC_INT_NA_CMD\n");
     (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
 }
 
+DEFINE_HANDLER (SC_INT_NA_IPV6_CMD) {
+DEBUG("===SC_INT_NA_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct ndp_ip_addr_msg *iam =
+    (struct ndp_ip_addr_msg *) zframe_data (frame);
+  ndpc_set_mac_addr
+    (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+}
+
 DEFINE_HANDLER (SC_INT_OPNA_CMD) {
 DEBUG("===SC_INT_OPNA_CMD\n");
   zframe_t *frame = FIRST_ARG;
@@ -1658,6 +1818,17 @@ DEBUG("===SC_INT_OPNA_CMD\n");
   arpc_ip_addr_op (gw, cmd);
 }
 
+DEFINE_HANDLER (SC_INT_OPNA_IPV6_CMD) {
+DEBUG("===SC_INT_OPNA_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  arpd_command_t cmd = *((arpd_command_t *) zframe_data (frame));
+  struct gw_v6 *gw  = (struct gw_v6 *) ((arpd_command_t *) zframe_data (frame) + 1);
+  ndpc_ip_addr_op (gw, cmd);
+}
+
 DEFINE_HANDLER (SC_INT_UDT_CMD) {
 DEBUG("===SC_INT_UDT_CMD\n");
   zframe_t *frame = FIRST_ARG;
@@ -1665,6 +1836,15 @@ DEBUG("===SC_INT_UDT_CMD\n");
     return;
 
   route_handle_udaddr (*(uint32_t*)zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_UDT_IPV6_CMD) {
+// DEBUG("===SC_INT_UDT_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  route_handle_ipv6_udaddr (*(GT_IPV6ADDR*)zframe_data(frame));
 }
 
 DEFINE_HANDLER (SC_INT_CLEAR_RT_CMD) {
@@ -2584,6 +2764,7 @@ if (page >= 3000) {   //TODO remove BEGIN
     case 4000:
       nht_dump();
       fib_dump();
+      fib_ipv6_dump();
       ret_dump();
       route_dump();
       break;
@@ -3353,7 +3534,7 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 
  out:
   report_status (result);
-}
+  }
 
 DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 {
@@ -3581,6 +3762,69 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    goto out;
+    break;
+  
+  /* FIX THIS */
+  /* FIX THIS */
+  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+    result = ST_OK;
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      // DEBUG("WORK?\n");
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+
+      /* FIX THIS */
+      /* FIX THIS */
+      /* FIX THIS */
+/*
+      zmsg_t *msg = make_notify_message (type);
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+
+      zmsg_addmem (msg, frame->data, frame->len);
+      
+      zframe_t* tmp_frame = zmsg_first(msg);
+      while(tmp_frame)
+      {
+        tmp_frame = zmsg_next(msg);
+      }
+
+      notify_send_arp (&msg);
+    }
+    goto out; */
+    break;
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
+    }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -3640,10 +3884,12 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (6):
     result = ST_OK;
-    DEBUG("Packet on Port #%d trapped!\r\n", pid);
+//    DEBUG("Packet on Port #%d trapped!\r\n", pid);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+//    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vid);
+//    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vif->valid);
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -3737,6 +3983,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
+//      DEBUG("SBELO SEND type=%d", type);
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
@@ -3796,7 +4045,6 @@ DEFINE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR)
   mac_addr_t addr;
   enum status result;
 
-//  result = POP_ARG (&addr);
   result = pop_size (addr, __args, 6, 0);
   if (result != ST_OK)
     goto out;
