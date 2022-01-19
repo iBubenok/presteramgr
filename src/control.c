@@ -3965,6 +3965,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   switch (type) {
     case CN_SAMPLED:
+    case CN_DHCPV6_TRAP:
       if (put_vif)
         put_vif_id (msg, vif->id);
       if (put_vid)
