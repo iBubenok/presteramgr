@@ -49,7 +49,7 @@ struct vif {
   enum status (*set_comm) (struct vif *, port_comm_t);
   enum status (*set_customer_vid) (struct vif *, vid_t);
   enum status (*set_mode) (struct vif *, enum port_mode);
-  enum status (*set_pve_dst) (struct vif *, port_id_t, int);
+  enum status (*set_pve_dst) (struct vif *, vif_id_t, int);
   enum status (*set_protected) (struct vif *, bool_t);
   enum status (*set_native_vid) (struct vif *, vid_t);
   enum status (*set_trunk_vlans) (struct vif *, const uint8_t *);
@@ -168,7 +168,7 @@ VIF_DEF_PROC(set_access_vid, vid_t vid);
 VIF_DEF_PROC(set_comm, port_comm_t comm);
 VIF_DEF_PROC(set_customer_vid, vid_t vid);
 VIF_DEF_PROC(set_mode, enum port_mode mode);
-VIF_DEF_PROC(set_pve_dst, port_id_t dpid, int enable);
+VIF_DEF_PROC(set_pve_dst, vif_id_t dpid, int enable);
 VIF_DEF_PROC(set_protected, bool_t protected);
 VIF_DEF_PROC(set_native_vid, vid_t vid);
 VIF_DEF_PROC(set_trunk_vlans, const uint8_t *bmp);

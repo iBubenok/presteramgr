@@ -451,7 +451,7 @@ DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
     for_each_dev (d)
       CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
   } else {
-    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;    
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
 
     memset (&re, 0, sizeof (re));
     re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
@@ -605,7 +605,7 @@ DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")\n", IPv4_ARG(addr));
   switch (rc) {
   case GT_OK:
     return ST_OK;
-  default:  
+  default:
     return ST_HEX;
   }
 }
@@ -642,9 +642,9 @@ DEBUG(">>>>route_add_mgmt_ip (" IPv6_FMT ")\n", IPv6_ARG(addr));
   rc = cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, ga, 128, &re, GT_TRUE, GT_TRUE);
 
   switch (rc) {
-  case GT_OK: 
+  case GT_OK:
     return ST_OK;
-  default: 
+  default:
     return ST_HEX;
   }
 }

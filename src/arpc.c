@@ -33,8 +33,6 @@ arpc_start (void)
 
 void
 arpc_connect (void) {
-
-  DEBUG("sbelo arpc_connect\n");
   arpd_sock = zsock_new (ZMQ_PUSH);
   zsock_connect (arpd_sock, ARPD_COMMAND_EP);
   arpc_sock_ready = 1;
@@ -42,8 +40,6 @@ arpc_connect (void) {
 
 void
 arpc_send_set_mac_addr (const mac_addr_t addr) {
-  DEBUG("sbelo arpc_send_set_mac_addr\n");
-
   if (!arpc_sock_ready)
     return;
   zmsg_t *msg = zmsg_new ();
@@ -57,8 +53,6 @@ arpc_send_set_mac_addr (const mac_addr_t addr) {
 
 void
 arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd) {
-  DEBUG("sbelo arpc_ip_addr_op\n");
-
   if (!arpc_sock_ready)
     return;
   if (stack_id != master_id) {
@@ -78,13 +72,11 @@ arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd) {
 
 void
 ndpc_ip_addr_op (const struct gw_v6 *gw, arpd_command_t cmd) {
-  DEBUG("sbelo arpc_ip_addr_op\n");
   if (!arpc_sock_ready)
     return;
 
-  /* Attention! */
   if (stack_id != master_id) {
-    mac_op_opna_ipv6(gw, cmd); // change
+    mac_op_opna_ipv6(gw, cmd);
     return;
   }
   zmsg_t *msg = zmsg_new ();
@@ -99,28 +91,24 @@ ndpc_ip_addr_op (const struct gw_v6 *gw, arpd_command_t cmd) {
 void
 arpc_request_addr (const struct gw *gw)
 {
-  DEBUG("sbelo arpc_request_addr\n");
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_ADD);
 }
 
 void
 ndpc_request_addr (const struct gw_v6 *gw)
 {
-  DEBUG("sbelo ndpc_request_addr\n");
   ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_ADD);
 }
 
 void
 arpc_release_addr (const struct gw *gw)
 {
-  DEBUG("sbelo arpc_release_addr\n");
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_DEL);
 }
 
 void
 ndpc_release_addr (const struct gw_v6 *gw)
 {
-  DEBUG("sbelo ndpc_release_addr\n");
   ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_DEL);
 }
 

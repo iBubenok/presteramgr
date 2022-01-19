@@ -52,6 +52,10 @@ extern enum status pcl_enable_arp_trap (int);
 /* IPv6 Neighbor Solicitation */
 extern enum status pcl_enable_solicited (port_id_t, bool_t, solicited_cmd_t);
 
+/* sFlow */
+void pcl_enable_sflow_sampling();
+void pcl_get_sflow_count();
+
 /* User ACL */
 typedef struct {
   uint8_t value[16];
