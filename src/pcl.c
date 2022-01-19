@@ -2915,15 +2915,18 @@ pcl_enable_arp_trap (int enable) {
 }
 
 
-enum status 
+enum status
 pcl_enable_solicited(port_id_t pi, bool_t enable, solicited_cmd_t cmd) {
 
   CPSS_PACKET_CMD_ENT cpssCmd = cmd;
     struct port *port = port_ptr (pi);
 
+    if (is_stack_port(port))
+      return ST_OK;
+
     if (enable) {
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-      CPSS_DXCH_PCL_ACTION_STC act;  
+      CPSS_DXCH_PCL_ACTION_STC act;
 
       memset (&mask, 0, sizeof (mask));
       mask.ruleExtIpv6L4.common.pclId = 0xFFFF;
@@ -2934,7 +2937,7 @@ pcl_enable_solicited(port_id_t pi, bool_t enable, solicited_cmd_t cmd) {
       mask.ruleExtIpv6L4.dip.arIP[14] = 0x0;
       mask.ruleExtIpv6L4.dip.arIP[15] = 0x0;
 
-      memset (&rule, 0, sizeof (rule));      
+      memset (&rule, 0, sizeof (rule));
       rule.ruleExtIpv6L4.common.pclId = PORT_IPCL_ID (pi);
       rule.ruleExtIpv6L4.commonExt.isIpv6 = 0x1;
       rule.ruleExtIpv6L4.commonExt.ipProtocol = 0x3A;

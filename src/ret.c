@@ -64,12 +64,26 @@ struct re {
   int refc;
   UT_hash_handle hh;
 };
+
+struct re_ipv6 {
+  struct gw_v6 gw;
+  int valid;
+  int def;
+  uint16_t idx;
+  GT_ETHERADDR addr;
+  uint16_t nh_idx;
+  vif_id_t vif_id;
+  int refc;
+  UT_hash_handle hh;
+};
 static struct re *ret = NULL;
+static struct re_ipv6 *ret_ipv6 = NULL;
 static int re_cnt = 0;
 
 int
 ret_add (const struct gw *gw, int def, struct gw *ret_key)
 {
+  DEBUG("sbelo ret_add\n");
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);
@@ -128,6 +142,68 @@ ret_add (const struct gw *gw, int def, struct gw *ret_key)
   return -1;
 }
 
+int
+ret_ipv6_add (const struct gw_v6 *gw, int def, struct gw_v6 *ret_key)
+{
+  DEBUG("sbelo ret_ipv6_add\n");
+  struct re_ipv6 *re;
+
+  HASH_FIND_GW (ret_ipv6, gw, re);
+  if (re) {
+    if (!ret_key->addr.u32Ip || !ret_key->vid) {
+      ++re->refc;
+      memcpy(ret_key, gw, sizeof(struct gw));
+    }
+    if (def) {
+      re->def = 1;
+      if (re->valid) {
+        CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+//        struct port *port = port_ptr (re->pid);
+        struct vif *vif = vif_getn (re->vif_id);
+        if (!vif)
+          return re->idx;
+        int d;
+
+        memset (&rt, 0, sizeof (rt));
+        rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+        rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+        vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+        rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+        rt.entry.regularEntry.nextHopVlanId = gw->vid;
+        rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+        DEBUG ("write default route entry\r\n");
+        for_each_dev (d)
+          CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+      }
+    }
+    goto out;
+  }
+
+  if (re_cnt >= MAX_RE)
+    return ST_BAD_VALUE; /* FIXME: add overflow status value. */
+
+  re = calloc (1, sizeof (*re));
+  re->gw = *gw;
+  re->refc = 1;
+  re->def = def;
+  HASH_ADD_GW (ret_ipv6, gw, re);
+  memcpy(ret_key, gw, sizeof(struct gw_v6));
+  ++re_cnt;
+
+  ndpc_request_addr(gw);
+
+ out:
+  DEBUG ("refc = %d\r\n", re->refc);
+
+  if (re->valid)
+    return re->idx;
+
+  return -1;
+}
+
 enum status
 ret_unref (const struct gw *gw, int def)
 {
@@ -160,6 +236,46 @@ ret_unref (const struct gw *gw, int def)
       nht_unref (&re->addr);
     }
     arpc_release_addr (gw);
+    free (re);
+    --re_cnt;
+  }
+  DEBUG ("refc = %d\r\n", re->refc);
+
+  return ST_OK;
+}
+
+enum status
+ret_ipv6_unref (const struct gw_v6 *gw, int def)
+{
+  struct re_ipv6 *re;
+
+  HASH_FIND_GW (ret_ipv6, gw, re);
+  if (!re)
+    return ST_DOES_NOT_EXIST;
+
+  if (def) {
+    re->def = 0;
+    if (re->valid) {
+      CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+      int d;
+
+      DEBUG ("reset default route entry");
+      memset (&rt, 0, sizeof (rt));
+      rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+  }
+
+  if (--re->refc == 0) {
+    DEBUG ("last ref to " GW_FMT " dropped, deleting\r\n", GW_FMT_ARGS (gw));
+    HASH_DEL (ret_ipv6, re);
+    if (re->valid) {
+      res_push (re->idx);
+      nht_unref (&re->addr);
+    }
+    ndpc_release_addr (gw);
     free (re);
     --re_cnt;
   }
@@ -251,6 +367,97 @@ ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id
   re->valid = 1;
 
   route_update_table (gw, idx);
+
+  return ST_OK;
+}
+
+enum status
+ret_ipv6_set_mac_addr (const struct gw_v6 *gw, const GT_ETHERADDR *addr, vif_id_t vif_id)
+{
+  struct re_ipv6 *re;
+  int idx;
+  int nh_idx;
+  int d;
+  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+  GT_STATUS rc;
+  struct vif *vif = vif_getn (vif_id);
+
+  if (!vif)
+    return ST_HEX;
+
+  HASH_FIND_GW (ret_ipv6, gw, re);
+  if (!re) {
+    return ST_DOES_NOT_EXIST;
+  }
+
+  if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+    vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+    rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+    rt.entry.regularEntry.nextHopVlanId = gw->vid;
+    rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
+    DEBUG ("write route entry");
+    for_each_dev (d)
+      rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
+    if (rc != ST_OK) {
+      return ST_HEX;
+    }
+
+    re->vif_id = vif_id;
+
+    if (re->def) {
+      DEBUG ("write default route entry");
+      for_each_dev (d)
+        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+    }
+    return ST_OK;
+  }
+
+
+  memcpy (&re->addr, addr, sizeof (*addr));
+  re->vif_id = vif_id;
+
+  nh_idx = nht_add (addr);
+  if (nh_idx < 0)
+    return ST_HEX;
+
+  idx = res_pop ();
+  if (idx < 0)
+    return ST_BAD_VALUE; /* FIXME: add overflow status value. */
+
+  memset (&rt, 0, sizeof (rt));
+  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+//  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
+//  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
+//  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
+  rt.entry.regularEntry.nextHopARPPointer = nh_idx;
+  rt.entry.regularEntry.nextHopVlanId = gw->vid;
+  rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
+  DEBUG ("write route entry at %d\r\n", idx);
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
+
+  if (re->def) {
+    DEBUG ("write default route entry\r\n");
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  }
+
+  re->idx = idx;
+  memcpy (&re->addr, addr, sizeof (*addr));
+  re->nh_idx = nh_idx;
+  re->valid = 1;
+
+  route_ipv6_update_table (gw, idx);
 
   return ST_OK;
 }
@@ -590,6 +797,7 @@ DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
 void
 ret_dump(void) {
   struct re *s, *t;
+  struct re_ipv6 *s_v6, *t_v6;
   DEBUG("!!!! RET DUMP %d  !!!!\n", re_cnt);
   DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
   HASH_ITER (hh, ret, s, t) {
@@ -598,6 +806,15 @@ ret_dump(void) {
         MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
   }
   DEBUG("!!!! end RET DUMP!!!!\n\n");
+
+  DEBUG("!!!! RET DUMP IPV6 %d  !!!!\n", re_cnt);
+  DEBUG("gw IP        :vid,\tvalid, def,idx, MAC                    ,nh_idx, vifid, refc\n");
+  HASH_ITER (hh, ret_ipv6, s_v6, t_v6) {
+    DEBUG(IPv6_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
+        IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->valid, s_v6->def, s_v6->idx,
+        MAC_ARG(s_v6->addr.arEther), s_v6->nh_idx, s_v6->vif_id, s_v6->refc);
+  }
+  DEBUG("!!!! end RET DUMP IPV6!!!!\n\n");
 /*
 struct re {
   struct gw gw;

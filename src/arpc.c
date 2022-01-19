@@ -33,7 +33,6 @@ arpc_start (void)
 
 void
 arpc_connect (void) {
-
   arpd_sock = zsock_new (ZMQ_PUSH);
   zsock_connect (arpd_sock, ARPD_COMMAND_EP);
   arpc_sock_ready = 1;
@@ -41,7 +40,6 @@ arpc_connect (void) {
 
 void
 arpc_send_set_mac_addr (const mac_addr_t addr) {
-
   if (!arpc_sock_ready)
     return;
   zmsg_t *msg = zmsg_new ();
@@ -55,7 +53,6 @@ arpc_send_set_mac_addr (const mac_addr_t addr) {
 
 void
 arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd) {
-
   if (!arpc_sock_ready)
     return;
   if (stack_id != master_id) {
@@ -74,15 +71,45 @@ arpc_ip_addr_op (const struct gw *gw, arpd_command_t cmd) {
 }
 
 void
+ndpc_ip_addr_op (const struct gw_v6 *gw, arpd_command_t cmd) {
+  if (!arpc_sock_ready)
+    return;
+
+  if (stack_id != master_id) {
+    mac_op_opna_ipv6(gw, cmd);
+    return;
+  }
+  zmsg_t *msg = zmsg_new ();
+
+  zmsg_addmem (msg, &cmd, sizeof (cmd));
+  zmsg_addmem (msg, &gw->vid, sizeof (vid_t));
+  zmsg_addmem (msg, gw->addr.u32Ip, sizeof (GT_U32) * 4);
+
+  zmsg_send (&msg, arpd_sock);
+}
+
+void
 arpc_request_addr (const struct gw *gw)
 {
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_ADD);
 }
 
 void
+ndpc_request_addr (const struct gw_v6 *gw)
+{
+  ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_ADD);
+}
+
+void
 arpc_release_addr (const struct gw *gw)
 {
   arpc_ip_addr_op (gw, ARPD_CC_IP_ADDR_DEL);
+}
+
+void
+ndpc_release_addr (const struct gw_v6 *gw)
+{
+  ndpc_ip_addr_op (gw, NDPD_CC_IP_ADDR_DEL);
 }
 
 void
@@ -101,4 +128,21 @@ DEBUG(">>>>arpc_set_mac_addr (%x, %d, " MAC_FMT ", %x)\n",
   route_fill_gw (&gw, &ip_addr, vid);
   memcpy (mac_addr.arEther, mac, 6);
   ret_set_mac_addr (&gw, &mac_addr, vif);
+}
+
+void
+ndpc_set_mac_addr (const uint32_t* ip,
+                   ndp_vid_t vid,
+                   const uint8_t* mac,
+                   ndp_vif_id_t vif)
+{
+  DEBUG(">>>>ndpc_set_mac_addr (, %d, " MAC_FMT ", %x)\n", vid, MAC_ARG(mac), vif);
+  GT_IPV6ADDR ip_addr;
+  GT_ETHERADDR mac_addr;
+  struct gw_v6 gw;
+
+  memcpy (ip_addr.u32Ip, ip, 16);
+  route_ipv6_fill_gw (&gw, &ip_addr, vid);  
+  memcpy (mac_addr.arEther, mac, 6);
+  ret_ipv6_set_mac_addr(&gw, &mac_addr, vif);
 }
