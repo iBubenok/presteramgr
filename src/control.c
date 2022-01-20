@@ -3975,8 +3975,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       if (put_len)
         zmsg_addmem (msg, &len, sizeof len);
       put_port_id (msg, pid);
-      if (type != CN_SAMPLED)
-        zmsg_addmem (msg, frame->data, frame->len);
+      zmsg_addmem (msg, frame->data, frame->len);
       break;
     default:
       put_pkt_info (msg, &info, type);
