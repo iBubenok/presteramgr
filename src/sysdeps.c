@@ -162,6 +162,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, 4, 4000, 100));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 10, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
     cce_rlim.cpuCodeRateLimiterIndex = 5;

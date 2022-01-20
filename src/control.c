@@ -56,6 +56,7 @@ static void *pub_sock;
 static void *pub_arp_sock;
 static void *pub_sflow_sock;
 static void *pub_dhcp_sock;
+static void *pub_dhcpv6_sock;
 static void *pub_stack_sock;
 static void *cmd_sock;
 static void *pkt_sock;
@@ -180,6 +181,13 @@ control_init (void)
   rc = zsock_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
   assert (rc == 0);
 
+  pub_dhcpv6_sock = zsock_new (ZMQ_PUB);
+  assert (pub_dhcpv6_sock);
+  zsock_set_sndhwm(pub_dhcpv6_sock, hwm);
+  zsock_set_rcvhwm(pub_dhcpv6_sock, hwm);
+  rc = zsock_bind (pub_dhcpv6_sock, PUB_SOCK_DHCPV6_EP);
+  assert (rc == 0);
+
   pub_stack_sock = zsock_new (ZMQ_PUB);
   assert (pub_stack_sock);
   rc = zsock_bind (pub_stack_sock, PUB_SOCK_STACK_MAIL_EP);
@@ -266,6 +274,12 @@ static inline void
 notify_send_dhcp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_dhcp_sock);
+}
+
+static inline void
+notify_send_dhcpv6 (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_dhcpv6_sock);
 }
 
 static inline void
@@ -537,6 +551,7 @@ DECLARE_HANDLER (CC_VIF_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_DHCPV6_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
 DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
@@ -730,6 +745,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
   HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_DHCPV6_TRAP_ENABLE),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
@@ -3821,6 +3837,14 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (10):        /* DHCPv6 */
+    type = CN_DHCPV6_TRAP;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    break;
+
   case CPU_CODE_USER_DEFINED (2):
     result = ST_OK;
     if (! vlan_port_is_forwarding_on_vlan(pid, vid))
@@ -3941,6 +3965,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   switch (type) {
     case CN_SAMPLED:
+    case CN_DHCPV6_TRAP:
       if (put_vif)
         put_vif_id (msg, vif->id);
       if (put_vid)
@@ -3950,6 +3975,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       if (put_len)
         zmsg_addmem (msg, &len, sizeof len);
       put_port_id (msg, pid);
+      if (type != CN_SAMPLED)
+        zmsg_addmem (msg, frame->data, frame->len);
       break;
     default:
       put_pkt_info (msg, &info, type);
@@ -3966,6 +3993,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
+      break;
+    case CN_DHCPV6_TRAP:
+      notify_send_dhcpv6 (&msg);
       break;
     case CN_SAMPLED:
       notify_send_sflow(&msg);
@@ -5303,6 +5333,21 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DHCPV6_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_dhcpv6_trap (enable);
 
  out:
   report_status (result);

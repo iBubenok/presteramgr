@@ -26,6 +26,7 @@ extern enum status pcl_enable_lacp_trap (port_id_t, int);
 
 /* DHCP */
 extern enum status pcl_enable_dhcp_trap (int);
+extern enum status pcl_enable_dhcpv6_trap (int);
 
 /* VT */
 extern enum status pcl_setup_vt (port_id_t, vid_t, vid_t, int, int);
