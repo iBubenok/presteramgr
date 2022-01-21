@@ -32,6 +32,7 @@ extern enum status pcl_enable_erps_trap (port_id_t, int);
 
 /* DHCP */
 extern enum status pcl_enable_dhcp_trap (int);
+extern enum status pcl_enable_dhcpv6_trap (int);
 
 /* VT */
 extern enum status pcl_setup_vt (port_id_t, vid_t, vid_t, int, int);
@@ -53,6 +54,13 @@ extern bool_t is_free_rule_ix (port_id_t);
 
 /* ARP */
 extern enum status pcl_enable_arp_trap (int);
+
+/* IPv6 Neighbor Solicitation */
+extern enum status pcl_enable_solicited (port_id_t, bool_t, solicited_cmd_t);
+
+/* sFlow */
+void pcl_enable_sflow_sampling();
+void pcl_get_sflow_count();
 
 /* User ACL */
 typedef struct {
