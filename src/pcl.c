@@ -3174,7 +3174,7 @@ pcl_enable_cfm_trap (port_id_t pid, int enable)
     memset (&act, 0, sizeof (act));
     act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
     act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_BRIDGED_PACKET_FORWARD_E;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
 
     act.bypassIngressPipe = GT_TRUE;
 
@@ -3233,7 +3233,7 @@ pcl_enable_erps_trap (port_id_t pid, int enable)
     memset (&act, 0, sizeof (act));
     act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
     act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_BRIDGED_PACKET_FORWARD_E;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
 
     act.bypassIngressPipe = GT_TRUE;
 

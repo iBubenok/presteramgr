@@ -3614,6 +3614,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   sflow_type_t direction;
   int put_len = 0;
   uint16_t len;
+  char opcode;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3966,27 +3967,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
-
-//  XXX   XXX   XXX   XXX
-
-  case CPU_CODE_BRIDGED_F:
+  case CPU_CODE_USER_DEFINED (11):
     type = CN_BPDU;
-
-    zmsg_t *msg = zmsg_new ();
-    char opcode = frame->data[15];
-
-    zmsg_addmem (msg, &opcode, sizeof (opcode));
-    zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
-    zmsg_addmem (msg, frame->data, frame->len);
-
-    zmsg_send (&msg, pub_oam_sock);
-
-    zmsg_destroy (&msg);
-    result = ST_OK;
-    goto out;
     break;
-//  XXX   XXX   XXX   XXX
-
   case CPU_CODE_EGRESS_SAMPLED:
     type = CN_SAMPLED;
     direction = EGRESS;
@@ -4051,6 +4034,13 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_port_id (msg, pid);
       zmsg_addmem (msg, frame->data, frame->len);
       break;
+    case CN_BPDU:
+      zmsg_destroy(&msg);
+      msg = zmsg_new();
+      opcode = frame->data[15];
+      zmsg_addmem (msg, &opcode, sizeof (opcode));
+      zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+      zmsg_addmem (msg, frame->data, frame->len);
     default:
       put_pkt_info (msg, &info, type);
       zmsg_addmem (msg, frame->data, frame->len);
@@ -4063,6 +4053,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_NDP_SOLICITATION_IPV6:
     case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
+      break;
+    case CN_BPDU:
+      zmsg_send (&msg, pub_oam_sock);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
