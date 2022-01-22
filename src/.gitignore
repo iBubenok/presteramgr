@@ -10,4 +10,5 @@ fanctl
 sfpctl
 rtbd.h
 arpd.h
+erpsd.h
 /Makefile.in

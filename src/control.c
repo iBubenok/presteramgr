@@ -41,6 +41,7 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <erpsd.h>
 #include <netlink/socket.h>
 #include <sflow.h>
 
@@ -69,6 +70,9 @@ static void *sec_sock;
 static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
+static void *pub_oam_sock;
+
+// static void *info_dealer_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -169,6 +173,11 @@ control_init (void)
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
   assert (rc == 0);
 
+  pub_oam_sock = zsock_new (ZMQ_PUB);
+  assert (pub_oam_sock);
+  rc = zsock_bind (pub_oam_sock, PUB_SOCK_OAM_EP);
+  assert (rc == 0);
+
   pub_sflow_sock = zsock_new (ZMQ_PUB);
   assert (pub_sflow_sock);
   rc = zsock_bind (pub_sflow_sock, PUB_SOCK_SFLOW_EP);
@@ -217,6 +226,11 @@ control_init (void)
   assert (rtbd_sock);
   rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
   assert (rc == 0);
+
+  // info_dealer_sock = zsock_new (ZMQ_REP);
+  // assert (info_dealer_sock);
+  // rc = zsock_bind (info_dealer_sock, INFO_DEALER);
+  // assert (rc == 0);
 
   arpd_sock = zsock_new (ZMQ_PULL);
   assert (arpd_sock);
@@ -544,6 +558,8 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
 DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
+DECLARE_HANDLER (CC_PORT_ENABLE_CFM);
+DECLARE_HANDLER (CC_PORT_ENABLE_ERPS);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_VIF_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
@@ -738,6 +754,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_LLDP),
   HANDLER (CC_PORT_ENABLE_LACP),
+  HANDLER (CC_PORT_ENABLE_CFM),
+  HANDLER (CC_PORT_ENABLE_ERPS),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_VIF_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
@@ -993,6 +1011,41 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
   zmsg_destroy (&msg);
   return 0;
 }
+
+// static int
+// info_handler (zloop_t *loop, zsock_t* reader, void *dummy)
+// {
+//   command_t cmd;
+
+//   zmsg_t *msg = zmsg_recv (info_dealer_sock);
+//   zframe_t *frame = zmsg_first (msg);
+
+//   notification_t notif = *((notification_t *) zframe_data (frame));
+
+//   zmsg_t* reply = zmsg_new();
+
+//   switch (notif) {
+//     case GET_MAC:
+//       frame = zmsg_next(msg);
+//       vid_t vid = *((vid_t*) zframe_data(frame));
+
+//       mac_addr_t addr[ETH_ALEN];
+//       cmd = vlan_get_mac_addr (vid, addr[0]);
+
+//       zmsg_addmem (reply, &cmd, sizeof (cmd));
+//       zmsg_addmem (reply, addr, 6);
+
+//       zmsg_send (&reply, info_dealer_sock);
+//       zmsg_destroy(&reply);
+//       break;
+
+//     default:
+//       break;
+//   }
+
+//   zmsg_destroy (&msg);
+//   return 0;
+// }
 
 static void *
 control_loop (void *dummy)
@@ -1928,6 +1981,7 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
     goto out;
 
   result = POP_OPT_ARG (&stp_id);
+
   switch (result) {
   case ST_OK:
     result = port_set_stp_state (pid, stp_id, 0, state);
@@ -3560,6 +3614,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   sflow_type_t direction;
   int put_len = 0;
   uint16_t len;
+  char opcode;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3912,7 +3967,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
-
+  case CPU_CODE_USER_DEFINED (11):
+    type = CN_BPDU;
+    break;
   case CPU_CODE_EGRESS_SAMPLED:
     type = CN_SAMPLED;
     direction = EGRESS;
@@ -3977,6 +4034,13 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_port_id (msg, pid);
       zmsg_addmem (msg, frame->data, frame->len);
       break;
+    case CN_BPDU:
+      zmsg_destroy(&msg);
+      msg = zmsg_new();
+      opcode = frame->data[15];
+      zmsg_addmem (msg, &opcode, sizeof (opcode));
+      zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+      zmsg_addmem (msg, frame->data, frame->len);
     default:
       put_pkt_info (msg, &info, type);
       zmsg_addmem (msg, frame->data, frame->len);
@@ -3989,6 +4053,9 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     case CN_NDP_SOLICITATION_IPV6:
     case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
+      break;
+    case CN_BPDU:
+      zmsg_send (&msg, pub_oam_sock);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
@@ -4882,7 +4949,7 @@ DEFINE_HANDLER (CC_DIAG_READ_RET_CNT)
 DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
   zmsg_t *msg = zmsg_new ();
-  assert (msg);
+  assert (msg); 
   enum event_notification en = EN_BC_LS;
   zmsg_addmem (msg, &en, sizeof (en));
   zmsg_send (&msg, evtntf_sock);
@@ -5181,6 +5248,47 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
  out:
   report_status (result);
 }
+
+DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_cfm_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_ERPS)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_erps_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
 
 DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
 {
