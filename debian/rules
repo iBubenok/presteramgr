@@ -23,6 +23,12 @@ else
 WITH_RTBD := --with-rtbd=$(RTBD)
 endif
 
+ifeq ($(ERPSD),)
+WITH_ERPSD :=
+else
+WITH_ERPSD := --with-erpsd=$(ERPSD)
+endif
+
 ifeq ($(ARPD),)
 WITH_ARPD :=
 else
@@ -58,6 +64,7 @@ config.status: configure
 		$(WITH_LINUX_HEADERS) \
 		$(WITH_PSCP) \
 		$(WITH_RTBD) \
+		$(WITH_ERPSD) \
 		$(WITH_ARPD) \
 		$(WITH_STACKD)
 

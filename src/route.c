@@ -9,6 +9,7 @@
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIp.h>
 #include <cpss/dxCh/dxChxGen/ip/cpssDxChIpCtrl.h>
 #include <cpss/generic/cpssHwInit/cpssHwInit.h>
+#include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
 
 #include <net/if.h>
 
@@ -16,6 +17,7 @@
 #include <ret.h>
 #include <vlan.h>
 #include <fib.h>
+#include <fib_ipv6.h>
 #include <arpc.h>
 #include <sysdeps.h>
 #include <mcg.h>
@@ -42,13 +44,25 @@ struct pfx_by_pfx {
   uint32_t udaddr;
   UT_hash_handle hh;
 };
+struct pfx_ipv6_by_pfx {
+  struct route_pfx pfx;
+  GT_IPV6ADDR udaddr;
+  UT_hash_handle hh;
+};
 
 struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
   UT_hash_handle hh;
 };
+
+struct pfxs_ipv6_by_gw {
+  struct gw_v6 gw;
+  struct pfx_ipv6_by_pfx *pfxs;
+  UT_hash_handle hh;
+};
 static struct pfxs_by_gw *pfxs_by_gw;
+static struct pfxs_ipv6_by_gw *pfxs_ipv6_by_gw;
 
 uint8_t route_mac_lsb;
 
@@ -186,6 +200,18 @@ route_set_router_mac_addr (mac_addr_t addr)
 }
 
 enum status
+route_set_solicited_cmd (solicited_cmd_t cmd) {
+  CPSS_PACKET_CMD_ENT cpssCmd = cmd;
+
+  int d;
+  for_each_dev (d){
+    CRP (cpssDxChBrgGenIpV6SolicitedCmdSet(d, cpssCmd));
+  }
+
+  return ST_OK;
+}
+
+enum status
 route_start (void)
 {
   int d;
@@ -240,6 +266,42 @@ route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t ud
 }
 
 static void
+route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, GT_IPV6ADDR udaddr)
+{
+  // GT_IPV6ADDR ip;
+  struct gw_v6 gw;
+  struct route_pfx pfx;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp;
+  memset(&gw, 0, sizeof(struct gw_v6));
+  memset(&pfx, 0, sizeof(struct route_pfx));
+
+  // DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
+  //        IPv6_ARG(addr.arIP),
+  //        alen,
+  //        IPv6_ARG(gwaddr.arIP));
+
+  // ip = gwaddr;
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
+  HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
+  if (!pbg) {
+    pbg = calloc (1, sizeof (*pbg));
+    pbg->gw = gw;
+    HASH_ADD_GW (pfxs_ipv6_by_gw, gw, pbg);
+  }
+
+  pfx.addrv6 = addr;
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp) {
+    pbp = calloc (1, sizeof (*pbp));
+    pbp->pfx = pfx;
+    pbp->udaddr = udaddr;
+    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
+  }
+}
+
+static void
 route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 {
   GT_IPADDR ip;
@@ -278,6 +340,43 @@ route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
 
   if (!pbg->pfxs) {
     HASH_DEL (pfxs_by_gw, pbg);
+    free (pbg);
+  }
+}
+
+static void
+route_ipv6_unregister (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid)
+{
+  struct gw_v6 gw;
+  struct route_pfx pfx;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp;
+  memset(&gw, 0, sizeof(struct gw_v6));
+  memset(&pfx, 0, sizeof(struct route_pfx));
+
+  DEBUG ("register ipv6 pfx "IPv6_FMT"/%d gw "IPv6_FMT"\r\n",
+        IPv6_ARG(addr.arIP),
+        alen,
+        IPv6_ARG(gwaddr.arIP));
+
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
+  HASH_FIND_GW (pfxs_ipv6_by_gw, &gw, pbg);
+  if (!pbg)
+    return;
+
+  pfx.addrv6 = addr;
+  pfx.alen = alen;
+  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
+  if (!pbp)
+    return;
+
+  HASH_DEL (pbg->pfxs, pbp);
+  free (pbp);
+
+  ret_ipv6_unref (&gw, alen == 0);
+
+  if (!pbg->pfxs) {
+    HASH_DEL (pfxs_ipv6_by_gw, pbg);
     free (pbg);
   }
 }
@@ -323,6 +422,46 @@ DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
+enum status
+route_add_v6 (const struct route *rt)
+{
+DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+
+  fib_ipv6_add (
+    rt->pfx.addrv6,
+    rt->pfx.alen,
+    rt->vid,
+    rt->gw_v6);
+
+  DEBUG ("add route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n",
+         IPv6_ARG(rt->pfx.addrv6.arIP),
+         rt->pfx.alen,
+         IPv6_ARG(rt->gw_v6.arIP));
+
+  if (rt->pfx.alen == 0) {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  } else {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv6UcPrefixAdd
+         (0, 0, rt->pfx.addrv6, rt->pfx.alen, &re, GT_TRUE, GT_FALSE));
+  }
+
+  return ST_OK;
+}
+
 void
 route_update_table (const struct gw *gw, int idx)
 {
@@ -344,6 +483,30 @@ route_update_table (const struct gw *gw, int idx)
              pbp->pfx.alen, idx);
       CRP (cpssDxChIpLpmIpv4UcPrefixAdd
            (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
+    }
+  }
+}
+
+void
+route_ipv6_update_table (const struct gw_v6 *gw, int idx)
+{
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  struct pfxs_ipv6_by_gw *pbg;
+  struct pfx_ipv6_by_pfx *pbp, *tmp;
+
+  HASH_FIND_GW (pfxs_ipv6_by_gw, gw, pbg);
+  if (!pbg)
+    return;
+
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = idx;
+  HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
+    if (pbp->pfx.alen != 0) {
+      DEBUG ("install prefix "IPv6_FMT"/%d via %d\r\n",
+             IPv6_ARG(pbp->pfx.addrv6.arIP),
+             pbp->pfx.alen, idx);
+      CRP (cpssDxChIpLpmIpv6UcPrefixAdd
+           (0, 0, pbp->pfx.addrv6, pbp->pfx.alen, &re, GT_TRUE, GT_FALSE));
     }
   }
 }
@@ -372,6 +535,29 @@ route_del_fib_entry (struct fib_entry *e)
   DEBUG ("done\r\n");
 }
 
+void
+route_del_fib_ipv6_entry (struct fib_entry_ipv6 *e)
+{
+  GT_IPV6ADDR pfx, gwip;
+
+  pfx = fib_entry_ipv6_get_pfx (e);
+  gwip = fib_entry_ipv6_get_gw (e);
+
+  DEBUG ("delete route v6 prefix "IPv6_FMT"/%d via "IPv6_FMT"\r\n",
+         IPv6_ARG(pfx.arIP),
+         fib_entry_ipv6_get_len (e),
+         IPv6_ARG(gwip.arIP));
+
+
+  if (fib_entry_ipv6_get_len (e) != 0)
+    CRP (cpssDxChIpLpmIpv6UcPrefixDel (0, 0, pfx, fib_entry_ipv6_get_len (e)));
+
+  route_ipv6_unregister (fib_entry_ipv6_get_pfx (e), fib_entry_ipv6_get_len (e),
+                fib_entry_ipv6_get_gw (e), fib_entry_ipv6_get_vid (e));
+
+  DEBUG ("done\r\n");
+}
+
 enum status
 route_del (const struct route *rt)
 {
@@ -387,10 +573,26 @@ DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
   return ST_OK;
 }
 
+ enum status
+route_del_v6 (const struct route *rt)
+{
+DEBUG ("del route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n ",
+        IPv6_ARG(rt->pfx.addrv6.arIP),
+        rt->pfx.alen,
+        IPv6_ARG(rt->gw_v6.arIP));    
+
+  if (!fib_ipv6_del (rt->pfx.addrv6, rt->pfx.alen))
+    DEBUG ("prefix "IPv6_FMT"/%d not found\r\n",
+         IPv6_ARG(rt->pfx.addrv6.arIP),
+         rt->pfx.alen);
+
+  return ST_OK;
+}
+
 enum status
 route_add_mgmt_ip (ip_addr_t addr)
 {
-DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")\n", IPv4_ARG(addr));
 
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
   GT_IPADDR ga;
@@ -401,20 +603,61 @@ DEBUG(">>>>route_add_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
   re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, ga, 32, &re, GT_TRUE));
   switch (rc) {
-  case GT_OK: return ST_OK;
-  default:    return ST_HEX;
+  case GT_OK:
+    return ST_OK;
+  default:
+    return ST_HEX;
   }
 }
 
 enum status
 route_del_mgmt_ip (ip_addr_t addr)
 {
-DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")", IPv4_ARG(addr));
+DEBUG(">>>>route_del_mgmt_ip (" IPv4_FMT ")\n", IPv4_ARG(addr));
   GT_STATUS rc;
   GT_IPADDR ga;
 
   memcpy (ga.arIP, addr, 4);
   rc = CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, ga, 32));
+  switch (rc) {
+  case GT_OK:        return ST_OK;
+  case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;
+  default:           return ST_HEX;
+  }
+}
+
+enum status
+route_add_mgmt_ipv6 (ip_addr_v6_t addr)
+{
+DEBUG(">>>>route_add_mgmt_ip (" IPv6_FMT ")\n", IPv6_ARG(addr));
+
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  GT_IPV6ADDR ga;
+  GT_STATUS rc;
+
+  memcpy (ga.arIP, addr, 16);
+  memset (&re, 0, sizeof (re));
+  re.ipLttEntry.routeEntryBaseIndex = MGMT_IP_RE_IDX;
+
+  rc = cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, ga, 128, &re, GT_TRUE, GT_TRUE);
+
+  switch (rc) {
+  case GT_OK:
+    return ST_OK;
+  default:
+    return ST_HEX;
+  }
+}
+
+enum status
+route_del_mgmt_ipv6 (ip_addr_v6_t addr)
+{
+DEBUG(">>>>route_del_mgmt_ip (" IPv6_FMT ")", IPv6_ARG(addr));
+  GT_STATUS rc;
+  GT_IPV6ADDR ga;
+
+  memcpy (ga.arIP, addr, 16);
+  rc = CRP (cpssDxChIpLpmIpv6UcPrefixDel (0, 0, ga, 128));
   switch (rc) {
   case GT_OK:        return ST_OK;
   case GT_NOT_FOUND: return ST_DOES_NOT_EXIST;
@@ -505,6 +748,28 @@ route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen, struct 
   }
 }
 
+static void
+route_ipv6_request_mac_addr (GT_IPV6ADDR gwip, vid_t vid, GT_IPV6ADDR ip, int alen, struct gw_v6 *ret_key)
+{
+  struct gw_v6 gw;
+  GT_IPV6ADDR gwaddr;
+  int ix;
+
+  gwaddr = gwip;
+  route_ipv6_fill_gw (&gw, &gwaddr, vid);
+  ix = ret_ipv6_add (&gw, alen == 0, ret_key);
+  DEBUG ("route entry index %d\r\n", ix);
+  if ((ix >= 0) && (alen != 0)) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    GT_IPV6ADDR addr;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = ix;
+    addr = ip;
+    CRP (cpssDxChIpLpmIpv6UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE, GT_FALSE));
+  }
+}
+
 #define MIN_IPv4_PKT_LEN (12 + 2 + 20)
 
 void
@@ -541,6 +806,38 @@ DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
 }
 
 void
+route_handle_ipv6_udaddr (GT_IPV6ADDR daddr) {
+DEBUG(">>>>route_handle_ipv6_udaddr ("IPv6_FMT")\n", IPv6_ARG(daddr.arIP));
+  GT_IPV6ADDR rt;
+  int alen;
+  struct fib_entry_ipv6 *e;
+
+  e = fib_ipv6_route (daddr);
+  if (!e) {
+        DEBUG ("can't route ipv6 for "IPv6_FMT"\r\n",
+           IPv6_ARG(daddr.arIP));
+    return;
+  }
+  GT_IPV6ADDR ip0;
+  memset(&ip0, 0, sizeof(ip0));
+
+  rt = fib_entry_ipv6_get_gw (e);
+  if (memcmp(&rt, &ip0, 16))
+    alen = fib_entry_ipv6_get_len (e);
+  else {
+    rt = daddr;
+    alen = 128;
+  }
+//  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
+  route_ipv6_register (fib_entry_ipv6_get_pfx (e), alen, rt, fib_entry_ipv6_get_vid (e), daddr);
+  route_ipv6_request_mac_addr (rt, fib_entry_ipv6_get_vid (e), fib_entry_ipv6_get_pfx (e), alen, fib_entry_ipv6_get_retkey_ptr(e));
+
+  DEBUG ("got packet to "IPv6_FMT", gw "IPv6_FMT"\r\n",
+         IPv6_ARG(daddr.arIP),
+         IPv6_ARG(rt.arIP));
+}
+
+void
 route_handle_udt (const uint8_t *data, int len)
 {
   uint32_t daddr;
@@ -564,6 +861,32 @@ route_handle_udt (const uint8_t *data, int len)
 
   route_handle_udaddr (daddr);
 }
+
+void
+route_handle_ipv6_udt (const uint8_t *data, int len)
+{
+  GT_IPV6ADDR daddr;
+
+  if (len < MIN_IPv4_PKT_LEN) {
+    DEBUG ("frame length %d too small\r\n", len);
+    return;
+  }
+
+  if ((data[12] != 0x86) ||
+      (data[13] != 0xDD)) {
+    DEBUG ("invalid ethertype 0x%02X%02X\r\n", data[12], data[13]);
+    return;
+  }
+
+  memcpy(&daddr, data + 38, sizeof(daddr));
+
+  if (master_id == stack_id) {
+    mac_op_udt_ipv6(daddr);
+  }
+
+  route_handle_ipv6_udaddr (daddr);
+}
+
 
 enum status
 route_mc_add (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
@@ -748,6 +1071,7 @@ route_reset_prefixes4gw(struct gw * gw) {
 void
 route_dump(void) {
   struct pfxs_by_gw *s, *t;
+  struct pfxs_ipv6_by_gw *s_v6, *t_v6;
   DEBUG("!!!! ROUTE DUMP  !!!!\n");
   HASH_ITER (hh, pfxs_by_gw, s, t) {
     DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
@@ -759,6 +1083,18 @@ route_dump(void) {
     }
   }
   DEBUG("!!!! end GW DUMP!!!!\n\n");
+
+  DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
+  HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
+    DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
+    if (s_v6->pfxs) {
+      struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
+      HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
+        DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
+      }
+    }
+  }
+  DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
 /*struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
