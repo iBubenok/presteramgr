@@ -43,6 +43,8 @@ static uint16_t port_lldp_rule_ix[NPORTS + 1] = {};
 static uint16_t port_lacp_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_cfm_rule_ix[NPORTS + 1] = {};
+static uint16_t port_cfm_rule2_ix[NPORTS + 1] = {};
+static uint16_t port_cfm_rule6_ix[NPORTS + 1] = {};
 
 static uint16_t port_erps_rule_ix[NPORTS + 1] = {};
 
@@ -112,6 +114,8 @@ initialize_vars (void)
     port_lldp_rule_ix[pid]                 = idx[port->ldev]++;
     port_lacp_rule_ix[pid]                 = idx[port->ldev]++;
     port_cfm_rule_ix[pid]                  = idx[port->ldev]++;
+    port_cfm_rule2_ix[pid]                 = idx[port->ldev]++;
+    port_cfm_rule6_ix[pid]                 = idx[port->ldev]++;
     port_erps_rule_ix[pid]                 = idx[port->ldev]++;
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
@@ -3140,61 +3144,249 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
 }
 
 static char CFM_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x30 };
-static char CFM_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0 };
+static char CFM_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF8 };
 
 enum status
-pcl_enable_cfm_trap (port_id_t pid, int enable)
+pcl_enable_cfm_trap (cfm_level_t level, int enable)
 {
-  DEBUG("%s", __FUNCTION__);
-  struct port *port = port_ptr (pid);
-
-  if (!port)
-    return ST_BAD_VALUE;
+  port_id_t pid;
 
   if (enable) {
-    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-    CPSS_DXCH_PCL_ACTION_STC act;
+    for (pid = 1; pid <= nports ; pid++) {
+      struct port *port = port_ptr (pid);
 
-    memset (&mask, 0, sizeof (mask));
-    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
-    mask.ruleExtNotIpv6.etherType = 0xFFFF;
-    mask.ruleExtNotIpv6.l2Encap = 0xFF;
-    memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+      if (is_stack_port(port))
+        continue;
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
 
-    memset (&rule, 0, sizeof (rule));
-    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
-    rule.ruleExtNotIpv6.common.isL2Valid = 1;
-    mask.ruleExtNotIpv6.common.isTagged = 0;
-    rule.ruleExtNotIpv6.etherType = 0x8902;
-    rule.ruleExtNotIpv6.l2Encap = 1;
-    memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+      memset (&mask, 0, sizeof (mask));
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.common.isTagged = 0xFF;
+      mask.ruleExtNotIpv6.etherType = 0xFFFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+      //memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
 
-    memset (&act, 0, sizeof (act));
-    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-    act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      mask.ruleExtNotIpv6.common.isTagged = 0;
+      rule.ruleExtNotIpv6.etherType = 0x8902;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+      //memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
 
-    act.bypassIngressPipe = GT_TRUE;
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
 
-    act.bypassBridge = GT_TRUE;
+      act.bypassIngressPipe = GT_TRUE;
 
-    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
-    act.vlan.vlanId = 4095;
+      act.bypassBridge = GT_TRUE;
 
-    CRP (cpssDxChPclRuleSet
-         (port->ldev,
-          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          port_cfm_rule_ix [pid],
-          0,
-          &mask,
-          &rule,
-          &act));
-  } else
+      act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+      act.vlan.vlanId = 4095;
+
+      switch (level)
+      {
+        case 0:
+          CFM_MAC_MASK[5] = 0xF;
+          CFM_MAC[5] = 0;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 1:
+          CFM_MAC_MASK[5] = 0xE;
+          CFM_MAC[5] = 1;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 2:
+          CFM_MAC_MASK[5] = 0xF;
+          CFM_MAC[5] = 2;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+
+          CFM_MAC_MASK[5] = 0xE;
+          CFM_MAC[5] = 1;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule2_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 3:
+          CFM_MAC_MASK[5] = 0xC;
+          CFM_MAC[5] = 3;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 4:
+          CFM_MAC_MASK[5] = 0xF;
+          CFM_MAC[5] = 4;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+
+          CFM_MAC_MASK[5] = 0xC;
+          CFM_MAC[5] = 3;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule2_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 5:
+          CFM_MAC_MASK[5] = 0xE;
+          CFM_MAC[5] = 5;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+
+          CFM_MAC_MASK[5] = 0xC;
+          CFM_MAC[5] = 3;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule2_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 6:
+          CFM_MAC_MASK[5] = 0xF;
+          CFM_MAC[5] = 6;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+
+          CFM_MAC_MASK[5] = 0xE;
+          CFM_MAC[5] = 5;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule2_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+
+          CFM_MAC_MASK[5] = 0xC;
+          CFM_MAC[5] = 3;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule6_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+        case 7:
+          CFM_MAC_MASK[5] = 0x8;
+          CFM_MAC[5] = 7;
+          memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+          memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+          CRP (cpssDxChPclRuleSet
+              (port->ldev,
+                CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+                port_cfm_rule_ix [pid],
+                0,
+                &mask,
+                &rule,
+                &act));
+          break;
+      
+        default:
+          break;
+      }
+    }
+  } else {
+    for (pid = 1; pid <= nports; pid++) {
+      struct port *port = port_ptr (pid);
+
+      if (is_stack_port(port))
+        continue;
+
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_cfm_rule_ix[pid]));
-
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_cfm_rule2_ix[pid]));
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_cfm_rule6_ix[pid]));
+    }
+  }
   return ST_OK;
 }
 

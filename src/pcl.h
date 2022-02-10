@@ -25,7 +25,8 @@ extern enum status pcl_enable_lldp_trap (port_id_t, int);
 extern enum status pcl_enable_lacp_trap (port_id_t, int);
 
 /* CFM */
-extern enum status pcl_enable_cfm_trap (port_id_t, int);
+extern enum status pcl_enable_cfm_trap (cfm_level_t, int);
+
 
 /* ERPS */
 extern enum status pcl_enable_erps_trap (port_id_t, int);

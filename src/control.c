@@ -5295,10 +5295,10 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
 DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
 {
   enum status result;
-  port_id_t pid;
+  cfm_level_t level;
   bool_t enable;
 
-  result = POP_ARG (&pid);
+  result = POP_ARG (&level);
   if (result != ST_OK)
     goto out;
 
@@ -5306,7 +5306,7 @@ DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
   if (result != ST_OK)
     goto out;
 
-  result = pcl_enable_cfm_trap (pid, enable);
+  result = pcl_enable_cfm_trap (level, enable);
 
  out:
   report_status (result);
