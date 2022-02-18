@@ -235,7 +235,7 @@ static void *pub_sock;   /* notifications to control.c -> manager */
 static void fdb_new_addr_notification_send(port_id_t pid,
                                            uint8_t *mac,
                                            GT_U16 vlan)
-{
+{ DEBUG ("fdb_new_addr_notification_send\n");
   zmsg_t *msg = zmsg_new ();
   notification_t ntype = CN_NEW_ADDR;
 
@@ -255,7 +255,7 @@ static void fdb_mac_op_notification_send(mac_op_t type,
                                          port_id_t pid,
                                          uint8_t *mac,
                                          GT_U16 vlan)
-{
+{ DEBUG ("fdb_mac_op_notification_send\n");
   zmsg_t *msg = zmsg_new ();
   notification_t ntype = CN_MAC_OP;
 
@@ -1445,7 +1445,7 @@ fdb_upd_for_dev (int d)
 
 static int
 fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
-{
+{ DEBUG ("fdb_evt_handler\n");
   zmsg_t *msg = zmsg_recv (not_sock);
   zframe_t *frame = zmsg_first (msg);
   GT_U8 dev = *((GT_U8 *) zframe_data (frame));
@@ -1453,6 +1453,12 @@ fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 
   fdb_upd_for_dev (dev);
 
+  zmsg_t *msg2 = zmsg_new ();
+  notification_t ntype = CN_FDB_EVENT;
+  assert (msg2);
+  zmsg_addmem (msg2, &ntype, sizeof (ntype));
+  zmsg_send (&msg2, pub_sock);
+  zmsg_destroy (&msg2);
   return 0;
 }
 
@@ -1470,7 +1476,7 @@ fdb_upd_timer (zloop_t *loop, int timer_id, void *not_sock)
 
 static enum status
 fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
-{
+{ DEBUG ("fdb_ctl_handler\n");
   zmsg_t *msg = zmsg_recv (ctl_sock);
   zframe_t *frame = zmsg_first (msg);
   int cmd = *((int *) zframe_data (frame));
