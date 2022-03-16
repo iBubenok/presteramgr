@@ -1486,6 +1486,12 @@ fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 
   fdb_upd_for_dev (dev);
 
+  zmsg_t *msg2 = zmsg_new ();
+  notification_t ntype = CN_FDB_EVENT;
+  assert (msg2);
+  zmsg_addmem (msg2, &ntype, sizeof (ntype));
+  zmsg_send (&msg2, pub_sock);
+  zmsg_destroy (&msg2);
   return 0;
 }
 
