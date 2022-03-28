@@ -1176,6 +1176,10 @@ enum status
 port_set_stp_state (port_id_t pid, stp_id_t stp_id,
                     int all, enum port_stp_state state)
 {
+  DEBUG("********");
+  DEBUG("sbelo %s\n",__FUNCTION__ );
+  DEBUG("********");
+
   CPSS_STP_STATE_ENT cs;
   enum status result;
   struct port *port;
@@ -1668,6 +1672,7 @@ port_block (port_id_t pid, const struct port_block *what)
   struct port *port = port_ptr (pid);
   GT_STATUS rc;
 
+  DEBUG("SBELO PORT BLOCK");
   if (!port)
     return ST_BAD_VALUE;
 
