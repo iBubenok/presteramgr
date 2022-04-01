@@ -513,6 +513,59 @@ pcl_setup_rip(int d)
 }
 
 /******************************************************************************/
+/* VRRP MULTICAST MIRROR                                                      */
+/******************************************************************************/
+
+static uint8_t vrrp_dest_ip[4]      = {224, 0, 0, 18};
+static uint8_t vrrp_dest_ip_mask[4] = {255, 255, 255, 255};
+
+void
+pcl_setup_vrrp(int d)
+{
+  port_id_t pi;
+  for_each_port(pi) {
+    struct port *port = port_ptr (pi);
+    if (port->ldev != d)
+      continue;
+
+    if (is_stack_port(port))
+      return;
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
+
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
+
+    memcpy (&rule.ruleExtNotIpv6.dip, vrrp_dest_ip, 4);
+    memcpy (&mask.ruleExtNotIpv6.dip, vrrp_dest_ip_mask, 4);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          port_vrrp_rule_ix[pi],                            /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+  }
+}
+
+/******************************************************************************/
 /* IP SOURCE GUARD                                                            */
 /******************************************************************************/
 static int sg_trap_enabled[65 /* MAXPORTS */];
@@ -3261,52 +3314,6 @@ pcl_enable_erps_trap (port_id_t pid, int enable)
 }
 
 enum status
-pcl_enable_vrrp_trap (port_id_t pid, int enable)
-{
-  struct port *port = port_ptr (pid);
-
-  if (!port)
-    return ST_BAD_VALUE;
-
-  if (enable) {
-    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-    CPSS_DXCH_PCL_ACTION_STC act;
-
-    memset (&mask, 0, sizeof (mask));
-    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
-    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-    mask.ruleExtNotIpv6.common.isIp = 0xFF;
-    mask.ruleExtNotIpv6.commonExt.isIpv6  = 0xff;
-    mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xff;
-
-    memset (&rule, 0, sizeof (rule));
-    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
-    rule.ruleExtNotIpv6.common.isL2Valid = 1;
-    rule.ruleExtNotIpv6.common.isIp = 1;
-    rule.ruleExtNotIpv6.commonExt.isIpv6  = 0;
-    rule.ruleExtNotIpv6.commonExt.ipProtocol  = 112;
-
-    memset (&act, 0, sizeof (act));
-    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-    act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E;
-
-    CRP (cpssDxChPclRuleSet
-         (port->ldev,
-          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-          port_vrrp_rule_ix [pid],
-          0,
-          &mask,
-          &rule,
-          &act));
-  } else
-      CRP (cpssDxChPclRuleInvalidate
-           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_vrrp_rule_ix[pid]));
-
-  return ST_OK;
-}
-
-enum status
 pcl_enable_dhcp_trap (int enable)
 {
   port_id_t pi;
@@ -3816,6 +3823,7 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
   pcl_setup_rip(d);
+  pcl_setup_vrrp(d);
 
   return ST_OK;
 }
