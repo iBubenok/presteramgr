@@ -5289,7 +5289,6 @@ DEFINE_HANDLER (CC_PORT_ENABLE_ERPS)
   report_status (result);
 }
 
-
 DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
 {
   enum status result;
