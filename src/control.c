@@ -325,6 +325,7 @@ put_pkt_info (zmsg_t *msg, struct pkt_info *info, notification_t type)
 {
   switch (type)
   {
+    case CN_GVRP_PDU:
     case CN_OAMPDU:
       if (info->vif)
           put_vif_id (msg, info->vif);
