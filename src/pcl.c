@@ -3559,6 +3559,6 @@ pcl_cpss_lib_init (int d)
 
 static void
 pbr_set_ltt_entry (struct row_colum *row_colum, CPSS_DXCH_PCL_ACTION_STC *act)
-{       
+{
   act->redirect.data.routerLttIndex = (row_colum->row * 4) + row_colum->colum;
 }

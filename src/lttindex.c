@@ -31,7 +31,7 @@ int cmp(struct db_ltt_index *a, struct db_ltt_index *b){
   if (a->ix.row == b->ix.row && a->ix.colum > b->ix.colum) {
     return 1;
   }
-  return -1;   
+  return -1;
 
 }
 
@@ -39,7 +39,7 @@ void ltt_index_get(OUT struct row_colum *index){
   struct db_ltt_index *el = NULL, etmp, *add = NULL;
 
   etmp.ix.row = firstIndex;
-  etmp.ix.colum = 0; 
+  etmp.ix.colum = 0;
 
   do {
     DL_SEARCH(db_ltt_index,el,&etmp,cmp);
@@ -54,7 +54,7 @@ void ltt_index_get(OUT struct row_colum *index){
       // index->row = add->ix.row;
       return;
     }
-     next(&etmp);      
+     next(&etmp);
 
   } while (true);
 }

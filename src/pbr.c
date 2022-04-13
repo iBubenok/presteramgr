@@ -29,7 +29,7 @@ struct pbr_entry {
   vid_t vid;
   struct row_colum ltt_index;
   struct gw ret_key;
-  UT_hash_handle hh;  
+  UT_hash_handle hh;
 };
 
 static struct pbr_entry *pbr_entry = NULL;
@@ -71,14 +71,13 @@ enum status pbr_ltt_tcam_set(struct row_colum *ltt_index, ip_addr_t nextHop, str
       break;
     default:
       return ST_BAD_VALUE;
-      
   };
 
-  for (d = 0; d < dev_count; d++) {   
+  for (d = 0; d < dev_count; d++) {
     CPSS_DXCH_IP_LTT_ENTRY_STC ipLttEntry;
     memset(&ipLttEntry, 0, sizeof(CPSS_DXCH_IP_LTT_ENTRY_STC));
 
-    ipLttEntry.routeEntryBaseIndex = ix;    
+    ipLttEntry.routeEntryBaseIndex = ix;
     CRP (cpssDxChIpLttWrite(devs[d], ltt_index->row, ltt_index->colum, &ipLttEntry));
 
     // CPSS_DXCH_IPV4_PREFIX_STC   prefixPtr;
@@ -108,7 +107,7 @@ enum status pbr_route_set(struct row_colum *ltt_index, ip_addr_t nextHop, vid_t 
   GT_IPADDR gwaddr;
   int ix;
 
-  
+
   HASH_FIND(hh, pbr_entry, &interface, sizeof(interface), pe);
   if (!pe) {
     pe = calloc(1, sizeof(struct pbr_entry));
@@ -122,7 +121,7 @@ enum status pbr_route_set(struct row_colum *ltt_index, ip_addr_t nextHop, vid_t 
   memcpy(gwaddr.arIP, nextHop, 4);
   route_fill_gw (&gw, &gwaddr, vid);
   ix = ret_add (&gw, true, &pe->ret_key);
-  if (ix == -1) { 
+  if (ix == -1) {
     DEBUG("SUFIK\n");
     pbr_ltt_tcam_set(ltt_index, nextHop, interface, DEFAULT_UC_RE_IDX);
   }
