@@ -21,6 +21,7 @@
 #include <utlist.h>
 #include <trunk.h>
 #include <dstack.h>
+#include <lttindex.h>
 
 /******************************************************************************/
 /* Static variables                                                           */
@@ -1170,6 +1171,8 @@ static struct user_acl_t {
   struct port_cmp     *port_cmps[NDEVS];
 } *user_acl, *user_acl_fake, *curr_acl;
 
+static void
+pbr_set_ltt_entry (struct row_colum *row_colum, CPSS_DXCH_PCL_ACTION_STC *act);
 
 static void
 pcl_enable_vlan (vid_t, uint16_t);
@@ -1474,6 +1477,18 @@ set_pcl_action (uint16_t                 rule_ix,
       DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
       act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
       act->actionStop = GT_TRUE;
+      break;
+    case PCL_RULE_ACTION_DENY_PBR:
+      DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
+      act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act->redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_ROUTER_E;
+      pbr_set_ltt_entry(((struct row_colum *)rule_action_params), act);
+      break;
+    case PCL_RULE_ACTION_PERMIT_PBR:
+      DEBUG("%s: %s\n", __FUNCTION__, "CPSS_PACKET_CMD_FORWARD_E");
+      act->pktCmd = CPSS_PACKET_CMD_FORWARD_E;
+      act->redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_ROUTER_E;
+      pbr_set_ltt_entry((struct row_colum *)rule_action_params, act);
       break;
 
     default:
@@ -3540,4 +3555,10 @@ pcl_cpss_lib_init (int d)
   pcl_setup_rip(d);
 
   return ST_OK;
+}
+
+static void
+pbr_set_ltt_entry (struct row_colum *row_colum, CPSS_DXCH_PCL_ACTION_STC *act)
+{       
+  act->redirect.data.routerLttIndex = (row_colum->row * 4) + row_colum->colum;
 }

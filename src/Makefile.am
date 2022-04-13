@@ -31,6 +31,8 @@ presteramgr_SOURCES =	\
 	control-utils.c		\
 	monitor.c			\
 	env.c				\
+	pbr.c			        	\
+	lttindex.c	    		\
 	pcl.c				\
 	fib.c				\
 	arpc.c				\
