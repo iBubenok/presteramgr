@@ -37,6 +37,13 @@ AC_ARG_WITH([rtbd],
   [rtbd=/usr/include/rtbd])
 AC_SUBST([rtbd])
 
+AC_ARG_WITH([erpsd],
+  [AS_HELP_STRING([--with-erpsd=PATH],
+                  [specify the ERPSD templates location])],
+  [erpsd=`readlink -f $withval`],
+  [erpsd=/usr/include/erpsd])
+AC_SUBST([erpsd])
+
 AC_ARG_WITH([arpd],
   [AS_HELP_STRING([--with-arpd=PATH],
                   [specify the ARPD templates location])],

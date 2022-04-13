@@ -23,6 +23,7 @@
 #include <wnct.h>
 #include <mcg.h>
 #include <fib.h>
+#include <fib_ipv6.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -42,6 +43,9 @@
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
+#include <erpsd.h>
+#include <netlink/socket.h>
+#include <sflow.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -53,7 +57,9 @@ static void *control_packet_loop (void *);
 
 static void *pub_sock;
 static void *pub_arp_sock;
+static void *pub_sflow_sock;
 static void *pub_dhcp_sock;
+static void *pub_dhcpv6_sock;
 static void *pub_stack_sock;
 static void *cmd_sock;
 static void *pkt_sock;
@@ -66,6 +72,9 @@ static void *sec_sock;
 static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
+static void *pub_oam_sock;
+
+// static void *info_dealer_sock;
 
 static void *
 forwarder_thread (void *dummy)
@@ -166,11 +175,28 @@ control_init (void)
   rc = zsock_bind (pub_arp_sock, PUB_SOCK_ARP_EP);
   assert (rc == 0);
 
+  pub_oam_sock = zsock_new (ZMQ_PUB);
+  assert (pub_oam_sock);
+  rc = zsock_bind (pub_oam_sock, PUB_SOCK_OAM_EP);
+  assert (rc == 0);
+
+  pub_sflow_sock = zsock_new (ZMQ_PUB);
+  assert (pub_sflow_sock);
+  rc = zsock_bind (pub_sflow_sock, PUB_SOCK_SFLOW_EP);
+  assert (rc == 0);
+
   pub_dhcp_sock = zsock_new (ZMQ_PUB);
   assert (pub_dhcp_sock);
   zsock_set_sndhwm(pub_dhcp_sock, hwm);
   zsock_set_rcvhwm(pub_dhcp_sock, hwm);
   rc = zsock_bind (pub_dhcp_sock, PUB_SOCK_DHCP_EP);
+  assert (rc == 0);
+
+  pub_dhcpv6_sock = zsock_new (ZMQ_PUB);
+  assert (pub_dhcpv6_sock);
+  zsock_set_sndhwm(pub_dhcpv6_sock, hwm);
+  zsock_set_rcvhwm(pub_dhcpv6_sock, hwm);
+  rc = zsock_bind (pub_dhcpv6_sock, PUB_SOCK_DHCPV6_EP);
   assert (rc == 0);
 
   pub_stack_sock = zsock_new (ZMQ_PUB);
@@ -202,6 +228,11 @@ control_init (void)
   assert (rtbd_sock);
   rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
   assert (rc == 0);
+
+  // info_dealer_sock = zsock_new (ZMQ_REP);
+  // assert (info_dealer_sock);
+  // rc = zsock_bind (info_dealer_sock, INFO_DEALER);
+  // assert (rc == 0);
 
   arpd_sock = zsock_new (ZMQ_PULL);
   assert (arpd_sock);
@@ -240,6 +271,9 @@ notify_send (zmsg_t **msg)
   zmsg_send (msg, inp_pub_sock);
 }
 
+/*  also from here are sent ndp frame */
+/*  ndp use frame: solicitation     - request
+                   advertisement    - reply */
 static inline void
 notify_send_arp (zmsg_t **msg)
 {
@@ -247,9 +281,21 @@ notify_send_arp (zmsg_t **msg)
 }
 
 static inline void
+notify_send_sflow (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_sflow_sock);
+}
+
+static inline void
 notify_send_dhcp (zmsg_t **msg)
 {
   zmsg_send (msg, pub_dhcp_sock);
+}
+
+static inline void
+notify_send_dhcpv6 (zmsg_t **msg)
+{
+  zmsg_send (msg, pub_dhcpv6_sock);
 }
 
 static inline void
@@ -271,15 +317,34 @@ put_vif_id (zmsg_t *msg, vif_id_t vifid)
 }
 
 static inline void
-put_stp_id (zmsg_t *msg, stp_id_t stp_id)
-{
-  zmsg_addmem (msg, &stp_id, sizeof (stp_id));
-}
-
-static inline void
 put_vlan_id (zmsg_t *msg, vid_t vid)
 {
   zmsg_addmem (msg, &vid, sizeof (vid));
+}
+
+static inline void
+put_pkt_info (zmsg_t *msg, struct pkt_info *info, notification_t type)
+{
+  switch (type)
+  {
+    case CN_GVRP_PDU:
+    case CN_OAMPDU:
+      if (info->vif)
+          put_vif_id (msg, info->vif);
+      if (info->vid)
+          put_vlan_id (msg, info->vid);
+      put_port_id (msg, info->pid);
+      break;
+    default:
+      zmsg_addmem (msg, info, sizeof( *info));
+      break;
+  }
+}
+
+static inline void
+put_stp_id (zmsg_t *msg, stp_id_t stp_id)
+{
+  zmsg_addmem (msg, &stp_id, sizeof (stp_id));
 }
 
 static inline void
@@ -397,6 +462,8 @@ DECLARE_HANDLER (CC_VIF_SET_PROTECTED);
 DECLARE_HANDLER (CC_PORT_SET_IGMP_SNOOP);
 DECLARE_HANDLER (CC_PORT_SET_SFP_MODE);
 DECLARE_HANDLER (CC_PORT_SET_XG_SFP_MODE);
+DECLARE_HANDLER (CC_PORT_SET_SOLICITED_CMD);
+DECLARE_HANDLER (CC_PORT_ENABLE_SOLICITED);
 DECLARE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT);
 DECLARE_HANDLER (CC_PORT_READ_XG_SFP_IDPROM);
 DECLARE_HANDLER (CC_PORT_DUMP_PHY_REG);
@@ -495,6 +562,8 @@ DECLARE_HANDLER (CC_PORT_ENABLE_QUEUE);
 DECLARE_HANDLER (CC_PORT_ENABLE_LBD);
 DECLARE_HANDLER (CC_PORT_ENABLE_LLDP);
 DECLARE_HANDLER (CC_PORT_ENABLE_LACP);
+DECLARE_HANDLER (CC_PORT_ENABLE_CFM);
+DECLARE_HANDLER (CC_PORT_ENABLE_ERPS);
 DECLARE_HANDLER (CC_PORT_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_VIF_ENABLE_EAPOL);
 DECLARE_HANDLER (CC_PORT_EAPOL_AUTH);
@@ -502,6 +571,7 @@ DECLARE_HANDLER (CC_VIF_EAPOL_AUTH);
 DECLARE_HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE);
 DECLARE_HANDLER (CC_DHCP_TRAP_ENABLE);
+DECLARE_HANDLER (CC_DHCPV6_TRAP_ENABLE);
 DECLARE_HANDLER (CC_ROUTE_MC_ADD);
 DECLARE_HANDLER (CC_ROUTE_MC_DEL);
 DECLARE_HANDLER (CC_VLAN_IGMP_SNOOP);
@@ -536,12 +606,20 @@ DECLARE_HANDLER (CC_GET_CH_REV);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK);
 DECLARE_HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025);
+DECLARE_HANDLER (CC_SFLOW_SET_ENABLE);
+DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
+DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
+DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
 DECLARE_HANDLER (SC_INT_NA_CMD);
+DECLARE_HANDLER (SC_INT_NA_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_OPNA_CMD);
+DECLARE_HANDLER (SC_INT_OPNA_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_UDT_CMD);
+DECLARE_HANDLER (SC_INT_UDT_IPV6_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RT_CMD);
 DECLARE_HANDLER (SC_INT_CLEAR_RE_CMD);
 DECLARE_HANDLER (SC_INT_VIF_SET_STP_STATE);
@@ -583,6 +661,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_SET_IGMP_SNOOP),
   HANDLER (CC_PORT_SET_SFP_MODE),
   HANDLER (CC_PORT_SET_XG_SFP_MODE),
+  HANDLER (CC_PORT_SET_SOLICITED_CMD),
+  HANDLER (CC_PORT_ENABLE_SOLICITED),
   HANDLER (CC_PORT_IS_XG_SFP_PRESENT),
   HANDLER (CC_PORT_READ_XG_SFP_IDPROM),
   HANDLER (CC_PORT_DUMP_PHY_REG),
@@ -681,6 +761,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_ENABLE_LBD),
   HANDLER (CC_PORT_ENABLE_LLDP),
   HANDLER (CC_PORT_ENABLE_LACP),
+  HANDLER (CC_PORT_ENABLE_CFM),
+  HANDLER (CC_PORT_ENABLE_ERPS),
   HANDLER (CC_PORT_ENABLE_EAPOL),
   HANDLER (CC_VIF_ENABLE_EAPOL),
   HANDLER (CC_PORT_EAPOL_AUTH),
@@ -688,6 +770,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_PORT_FDB_NEW_ADDR_NOTIFY_ENABLE),
   HANDLER (CC_PORT_FDB_ADDR_OP_NOTIFY_ENABLE),
   HANDLER (CC_DHCP_TRAP_ENABLE),
+  HANDLER (CC_DHCPV6_TRAP_ENABLE),
   HANDLER (CC_VLAN_MC_ROUTE),
   HANDLER (CC_ROUTE_MC_ADD),
   HANDLER (CC_ROUTE_MC_DEL),
@@ -722,15 +805,23 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_GET_CH_REV),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_START),
   HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025_CHECK),
-  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025)
+  HANDLER (CC_DIAG_DUMP_XG_PORT_QT2025),
+  HANDLER (CC_SFLOW_SET_ENABLE),
+  HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
+  HANDLER (CC_SFLOW_SET_RELOAD_MODE),
+  HANDLER (CC_SFLOW_SET_PORT_LIMIT),
+  HANDLER (CC_SFLOW_SET_DEFAULT)
 };
 
 static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_UPDATE_STACK_CONF),
   HANDLER (SC_INT_RTBD_CMD),
   HANDLER (SC_INT_NA_CMD),
+  HANDLER (SC_INT_NA_IPV6_CMD),
   HANDLER (SC_INT_OPNA_CMD),
+  HANDLER (SC_INT_OPNA_IPV6_CMD),
   HANDLER (SC_INT_UDT_CMD),
+  HANDLER (SC_INT_UDT_IPV6_CMD),  
   HANDLER (SC_INT_CLEAR_RT_CMD),
   HANDLER (SC_INT_CLEAR_RE_CMD),
   HANDLER (SC_INT_VIF_SET_STP_STATE)
@@ -790,25 +881,49 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_ip_addr_msg *am = (struct rtbd_ip_addr_msg *) zframe_data (frame);
 
-    mac_op_rt(notif, am, sizeof(*am));
-
     ip_addr_t addr;
-    memcpy (&addr, &am->addr, 4);
-    switch (am->op) {
-    case RIAO_ADD:
-      route_add_mgmt_ip (addr);
-      break;
-    case RIAO_DEL:
-      route_del_mgmt_ip (addr);
-      break;
-    default:
-      break;
+    ip_addr_v6_t addr_v6;
+    mac_op_rt(notif, am, sizeof(*am));
+    switch (am->type){
+      case AF_INET:
+        memcpy (&addr, &am->addr, 4);
+        switch (am->op) {
+          case RIAO_ADD:
+            route_add_mgmt_ip (addr);
+            break;
+          case RIAO_DEL:
+            route_del_mgmt_ip (addr);
+            break;
+          default:
+            break;
+        }
+        break;
+
+      case AF_INET6:
+        memcpy (&addr_v6, &am->addr_v6, 16);
+        switch (am->op) {
+          case RIAO_ADD:
+            DEBUG ("route_add_mgmt_ipv6\n");
+            route_add_mgmt_ipv6 (addr_v6);
+            break;
+          case RIAO_DEL:
+            DEBUG ("route_del_mgmt_ipv6\n");
+            route_del_mgmt_ipv6 (addr_v6);
+            break;
+          default:
+            break;
+        }
+        return 0;
+        break;
+
+      default:
+        break;
     }
     break;
 
   case RCN_ROUTE:
     if (stack_id != master_id) {
-DEBUG("RTBD DROP!!!!\n");
+    DEBUG("RTBD DROP!!!!\n");
       zmsg_destroy (&msg);
       return ST_OK;
     }
@@ -820,18 +935,44 @@ DEBUG("RTBD DROP!!!!\n");
 
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
+    // rt.pfx.addrv6.arIP = rm->dst_v6;
+    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
     rt.gw.u32Ip = rm->gw;
+    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
     rt.vid = rm->vid;
-    switch (rm->op) {
-    case RRTO_ADD:
-      route_add (&rt);
-      break;
-    case RRTO_DEL:
-      route_del (&rt);
-      break;
-    default:
-      break;
+    switch (rm->type)
+    {
+      case AF_INET:
+        switch (rm->op) {
+        case RRTO_ADD:
+          route_add (&rt);
+          break;
+        case RRTO_DEL:
+          route_del (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      case AF_INET6:
+        switch (rm->op) {
+        case RRTO_ADD:
+          DEBUG ("route_add_v6\n");
+          route_add_v6 (&rt);
+          break;
+        case RRTO_DEL:
+          DEBUG ("route_del_v6\n");
+          route_del_v6 (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      default:
+        break;
     }
     break;
 
@@ -861,6 +1002,16 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     arpc_set_mac_addr
       (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
     break;
+  case NDPD_CN_IP_ADDR:
+    frame = zmsg_next (msg);
+    struct ndp_ip_addr_msg *iam_ndp =
+      (struct ndp_ip_addr_msg *) zframe_data (frame);
+
+    mac_op_na_ipv6(iam_ndp);
+
+    ndpc_set_mac_addr
+      (&iam_ndp->ip_addr[0], iam_ndp->vid, &iam_ndp->mac_addr[0], iam_ndp->vif_id);
+    break;
 
   default:
     break;
@@ -869,6 +1020,41 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
   zmsg_destroy (&msg);
   return 0;
 }
+
+// static int
+// info_handler (zloop_t *loop, zsock_t* reader, void *dummy)
+// {
+//   command_t cmd;
+
+//   zmsg_t *msg = zmsg_recv (info_dealer_sock);
+//   zframe_t *frame = zmsg_first (msg);
+
+//   notification_t notif = *((notification_t *) zframe_data (frame));
+
+//   zmsg_t* reply = zmsg_new();
+
+//   switch (notif) {
+//     case GET_MAC:
+//       frame = zmsg_next(msg);
+//       vid_t vid = *((vid_t*) zframe_data(frame));
+
+//       mac_addr_t addr[ETH_ALEN];
+//       cmd = vlan_get_mac_addr (vid, addr[0]);
+
+//       zmsg_addmem (reply, &cmd, sizeof (cmd));
+//       zmsg_addmem (reply, addr, 6);
+
+//       zmsg_send (&reply, info_dealer_sock);
+//       zmsg_destroy(&reply);
+//       break;
+
+//     default:
+//       break;
+//   }
+
+//   zmsg_destroy (&msg);
+//   return 0;
+// }
 
 static void *
 control_loop (void *dummy)
@@ -929,6 +1115,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   vif_id_t vifid;
   int is_vif_forwarding_on_vlan;
   vid_t vid = frame->vid;
+  int put_direction = 0;
+  sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
 
   vif_rlock();
 
@@ -1125,6 +1315,57 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+  // case CPU_CODE_USER_DEFINED (10):
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    goto out;
+    break;
+  
+  /* FIX THIS */
+  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+    result = ST_OK;
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+
+      zmsg_t *msg = make_notify_message (type);
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+
+      zmsg_addmem (msg, frame->data, frame->len);
+      
+      notify_send_arp (&msg);
+    }
+    goto out;
+    break;
+
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
+    }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -1209,6 +1450,21 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     result = ST_OK;
     goto out;
 
+  case CPU_CODE_EGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = EGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = INGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
     goto out;
@@ -1235,22 +1491,46 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vifid);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
-  zmsg_addmem (msg, frame->data, frame->len);
+  struct pkt_info info = {
+    .tagged = frame->tagged,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
+
+  switch (type) {
+    case CN_SAMPLED:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      if (put_direction)
+        zmsg_addmem (msg, &direction, sizeof direction);
+      if (put_len)
+        zmsg_addmem (msg, &len, sizeof len);
+      put_port_id (msg, pid);
+      break;
+    default:
+      put_pkt_info (msg, &info, type);
+      zmsg_addmem (msg, frame->data, frame->len);
+  }
 
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
+      break;
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
       break;
     default:
       notify_send (&msg);
@@ -1469,17 +1749,43 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   switch (notif) {
   case RCN_IP_ADDR:
     am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
-    ip_addr_t addr;
-    memcpy (&addr, &am->addr, 4);
-    switch (am->op) {
-    case RIAO_ADD:
-      route_add_mgmt_ip (addr);
-      break;
-    case RIAO_DEL:
-      route_del_mgmt_ip (addr);
-      break;
-    default:
-      break;
+    ip_addr_t addr; 
+    ip_addr_v6_t addr_v6; 
+    // mac_op_rt(notif, am, sizeof(*am));
+    switch (am->type){
+      case AF_INET:             
+        memcpy (&addr, &am->addr, 4);
+        switch (am->op) {
+          case RIAO_ADD:
+            route_add_mgmt_ip (addr);
+            break;
+          case RIAO_DEL:
+            route_del_mgmt_ip (addr);
+            break;
+          default:
+            break;
+        }
+        break;
+        
+      case AF_INET6:   
+        memcpy (&addr_v6, &am->addr_v6, 16);
+        switch (am->op) {
+          case RIAO_ADD:
+            DEBUG ("route_add_mgmt_ipv6\n");
+            route_add_mgmt_ipv6 (addr_v6);
+            break;
+          case RIAO_DEL:
+            DEBUG ("route_del_mgmt_ipv6\n");
+            route_del_mgmt_ipv6 (addr_v6);
+            break;
+          default:
+            break;
+        }
+        return;
+        break;
+
+      default:
+        break;
     }
     break;
 
@@ -1487,18 +1793,43 @@ DEBUG("===SC_INT_RTBD_CMD\n");
     rm = (struct rtbd_route_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
     struct route rt;
     rt.pfx.addr.u32Ip = rm->dst;
+    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
     rt.gw.u32Ip = rm->gw;
+    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
     rt.vid = rm->vid;
-    switch (rm->op) {
-    case RRTO_ADD:
-      route_add (&rt);
-      break;
-    case RRTO_DEL:
-      route_del (&rt);
-      break;
-    default:
-      break;
+    switch (rm->type)
+    {
+      case AF_INET:
+        switch (rm->op) {
+        case RRTO_ADD:
+          route_add (&rt);
+          break;
+        case RRTO_DEL:
+          route_del (&rt);
+          break;
+        default:
+          break;
+        }
+        break;
+
+      case AF_INET6:
+        switch (rm->op) {
+        case RRTO_ADD:
+          DEBUG ("route_add_v6\n");
+          route_add_v6 (&rt);
+          break;
+        case RRTO_DEL:
+          DEBUG ("route_del_v6\n");
+          route_del_v6 (&rt);
+          break;
+        default:
+          break;
+        }
+        break;  
+      
+      default:
+        break;
     }
     break;
 
@@ -1519,6 +1850,18 @@ DEBUG("===SC_INT_NA_CMD\n");
     (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
 }
 
+DEFINE_HANDLER (SC_INT_NA_IPV6_CMD) {
+DEBUG("===SC_INT_NA_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  struct ndp_ip_addr_msg *iam =
+    (struct ndp_ip_addr_msg *) zframe_data (frame);
+  ndpc_set_mac_addr
+    (iam->ip_addr, iam->vid, &iam->mac_addr[0], iam->vif_id);
+}
+
 DEFINE_HANDLER (SC_INT_OPNA_CMD) {
 DEBUG("===SC_INT_OPNA_CMD\n");
   zframe_t *frame = FIRST_ARG;
@@ -1530,6 +1873,17 @@ DEBUG("===SC_INT_OPNA_CMD\n");
   arpc_ip_addr_op (gw, cmd);
 }
 
+DEFINE_HANDLER (SC_INT_OPNA_IPV6_CMD) {
+DEBUG("===SC_INT_OPNA_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  arpd_command_t cmd = *((arpd_command_t *) zframe_data (frame));
+  struct gw_v6 *gw  = (struct gw_v6 *) ((arpd_command_t *) zframe_data (frame) + 1);
+  ndpc_ip_addr_op (gw, cmd);
+}
+
 DEFINE_HANDLER (SC_INT_UDT_CMD) {
 DEBUG("===SC_INT_UDT_CMD\n");
   zframe_t *frame = FIRST_ARG;
@@ -1537,6 +1891,15 @@ DEBUG("===SC_INT_UDT_CMD\n");
     return;
 
   route_handle_udaddr (*(uint32_t*)zframe_data(frame));
+}
+
+DEFINE_HANDLER (SC_INT_UDT_IPV6_CMD) {
+// DEBUG("===SC_INT_UDT_IPV6_CMD\n");
+  zframe_t *frame = FIRST_ARG;
+  if (!frame)
+    return;
+
+  route_handle_ipv6_udaddr (*(GT_IPV6ADDR*)zframe_data(frame));
 }
 
 DEFINE_HANDLER (SC_INT_CLEAR_RT_CMD) {
@@ -1627,6 +1990,7 @@ DEFINE_HANDLER (CC_PORT_SET_STP_STATE)
     goto out;
 
   result = POP_OPT_ARG (&stp_id);
+
   switch (result) {
   case ST_OK:
     result = port_set_stp_state (pid, stp_id, 0, state);
@@ -2325,6 +2689,60 @@ DEFINE_HANDLER (CC_PORT_SET_XG_SFP_MODE)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_SET_SOLICITED_CMD)
+{
+  enum status result;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = route_set_solicited_cmd (cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+
+  return;
+
+ err:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_SOLICITED)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t en;
+  solicited_cmd_t cmd;
+
+  result = POP_ARG_SZ (&pid, sizeof (pid));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&en, sizeof (en));
+  if (result != ST_OK)
+    goto err;
+
+  result = POP_ARG_SZ (&cmd, sizeof (cmd));
+  if (result != ST_OK)
+    goto err;
+
+  result = pcl_enable_solicited (pid, en, cmd);
+  if (result != ST_OK)
+    goto err;
+
+  zmsg_t *reply = make_reply (ST_OK);
+  send_reply (reply);
+  return;
+
+ err:
+  report_status (result);
+}
+
+
 DEFINE_HANDLER (CC_PORT_IS_XG_SFP_PRESENT)
 {
   enum status result;
@@ -2402,6 +2820,7 @@ if (page >= 3000) {   //TODO remove BEGIN
     case 4000:
       nht_dump();
       fib_dump();
+      fib_ipv6_dump();
       ret_dump();
       route_dump();
       break;
@@ -3171,7 +3590,7 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
 
  out:
   report_status (result);
-}
+  }
 
 DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
 {
@@ -3192,7 +3611,7 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
 {
   enum status result;
   struct pdsa_spec_frame *frame;
-  notification_t type;
+  notification_t type = 0;
   port_id_t pid;
   int put_vid = 0, put_vif = 0;
   uint16_t *etype;
@@ -3200,6 +3619,11 @@ DEFINE_HANDLER (CC_INT_SPEC_FRAME_FORWARD)
   int check_source_mac = 0;
   struct vif *vif;
   vid_t vid;
+  int put_direction = 0;
+  sflow_type_t direction;
+  int put_len = 0;
+  uint16_t len;
+  char opcode;
 
   if (ARGS_SIZE != 1) {
     result = ST_BAD_FORMAT;
@@ -3395,6 +3819,69 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     break;
 
+  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+    type = CN_NDP_SOLICITATION_IPV6;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    goto out;
+    break;
+  
+  /* FIX THIS */
+  /* FIX THIS */
+  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+    result = ST_OK;
+    #define ICMPV6 0x3a
+    #define NEIGHBOR_ADVERTISEMENT 0x88
+
+
+    if (frame->data[20] == ICMPV6 &&
+        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+    {
+      // DEBUG("WORK?\n");
+      type = CN_NDP_ADVERTISEMENT_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+
+      /* FIX THIS */
+      /* FIX THIS */
+      /* FIX THIS */
+/*
+      zmsg_t *msg = make_notify_message (type);
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      put_port_id (msg, pid);
+
+      zmsg_addmem (msg, frame->data, frame->len);
+      
+      zframe_t* tmp_frame = zmsg_first(msg);
+      while(tmp_frame)
+      {
+        tmp_frame = zmsg_next(msg);
+      }
+
+      notify_send_arp (&msg); */
+    }
+//    goto out;
+    break;
+  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+
+ 
+    result = ST_OK;
+    if (! vif_is_forwarding_on_vlan(vif, vid)) {
+//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+      goto out;
+    }
+    route_handle_ipv6_udt (frame->data, frame->len);
+    goto out;
+    break;
+
   case CPU_CODE_IP_LL_MC_0_TM:
     type = CN_VRRP;
     conform2stp_state = 1;
@@ -3408,6 +3895,14 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (1):
     type = CN_DHCP_TRAP;
+    conform2stp_state = 1;
+    check_source_mac = 1;
+    put_vif = 1;
+    put_vid = 1;
+    break;
+
+  case CPU_CODE_USER_DEFINED (10):        /* DHCPv6 */
+    type = CN_DHCPV6_TRAP;
     conform2stp_state = 1;
     check_source_mac = 1;
     put_vif = 1;
@@ -3454,10 +3949,12 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
 
   case CPU_CODE_USER_DEFINED (6):
     result = ST_OK;
-    DEBUG("Packet on Port #%d trapped!\r\n", pid);
+//    DEBUG("Packet on Port #%d trapped!\r\n", pid);
     goto out;
 
   case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+//    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vid);
+//    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vif->valid);
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -3479,6 +3976,23 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     stack_handle_mail (pid, frame->data, frame->len);
     result = ST_OK;
     goto out;
+  case CPU_CODE_USER_DEFINED (11):
+    type = CN_BPDU;
+    break;
+  case CPU_CODE_EGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = EGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
+  case CPU_CODE_INGRESS_SAMPLED:
+    type = CN_SAMPLED;
+    direction = INGRESS;
+    len = frame->len;
+    put_direction = 1;
+    put_len = 1;
+    break;
 
   default:
     DEBUG ("spec frame code %02X not supported\n", frame->code);
@@ -3505,22 +4019,61 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   }
 
   zmsg_t *msg = make_notify_message (type);
-  if (put_vif)
-    put_vif_id (msg, vif->id);
-  if (put_vid)
-    put_vlan_id (msg, vid);
-  put_port_id (msg, pid);
 
-  zmsg_addmem (msg, frame->data, frame->len);
+  struct pkt_info info = {
+    .tagged = frame->tagged,
+    .pcp = frame->tagged ? frame->up : 7,
+    .cfi = frame->tagged ? frame->cfi : 0,
+    .pid = pid,
+    .vid = put_vid ? vid : 0,
+    .vif = put_vif ? vif->id : 0
+  };
+
+  switch (type) {
+    case CN_SAMPLED:
+    case CN_DHCPV6_TRAP:
+      if (put_vif)
+        put_vif_id (msg, vif->id);
+      if (put_vid)
+        put_vlan_id (msg, vid);
+      if (put_direction)
+        zmsg_addmem (msg, &direction, sizeof direction);
+      if (put_len)
+        zmsg_addmem (msg, &len, sizeof len);
+      put_port_id (msg, pid);
+      zmsg_addmem (msg, frame->data, frame->len);
+      break;
+    case CN_BPDU:
+      zmsg_destroy(&msg);
+      msg = zmsg_new();
+      opcode = frame->data[15];
+      zmsg_addmem (msg, &opcode, sizeof (opcode));
+      zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+      zmsg_addmem (msg, frame->data, frame->len);
+    default:
+      put_pkt_info (msg, &info, type);
+      zmsg_addmem (msg, frame->data, frame->len);
+  }
 
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
     case CN_ARP:
+    case CN_NDP_SOLICITATION_IPV6:
+    case CN_NDP_ADVERTISEMENT_IPV6:
       notify_send_arp (&msg);
+      break;
+    case CN_BPDU:
+      zmsg_send (&msg, pub_oam_sock);
       break;
     case CN_DHCP_TRAP:
       notify_send_dhcp (&msg);
+      break;
+    case CN_DHCPV6_TRAP:
+      notify_send_dhcpv6 (&msg);
+      break;
+    case CN_SAMPLED:
+      notify_send_sflow(&msg);
       break;
     default:
       notify_send (&msg);
@@ -3573,7 +4126,6 @@ DEFINE_HANDLER (CC_ROUTE_SET_ROUTER_MAC_ADDR)
   mac_addr_t addr;
   enum status result;
 
-//  result = POP_ARG (&addr);
   result = pop_size (addr, __args, 6, 0);
   if (result != ST_OK)
     goto out;
@@ -3651,22 +4203,21 @@ DEFINE_HANDLER (CC_VIF_SET_PVE_DST)
 {
   enum status result;
   vif_id_t vif;
-  port_id_t dpid;
+  vif_id_t dst;
   bool_t enable;
 
   result = POP_ARG (&vif);
   if (result != ST_OK)
     goto out;
 
-  result = POP_ARG (&dpid);
+  result = POP_ARG (&dst);
   if (result != ST_OK)
     goto out;
 
   result = POP_ARG (&enable);
   if (result != ST_OK)
     goto out;
-
-  result = vif_set_pve_dst (vif, dpid, enable);
+  result = vif_set_pve_dst (vif, dst, enable);
 
  out:
   report_status (result);
@@ -4427,7 +4978,7 @@ DEFINE_HANDLER (CC_DIAG_READ_RET_CNT)
 DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
   zmsg_t *msg = zmsg_new ();
-  assert (msg);
+  assert (msg); 
   enum event_notification en = EN_BC_LS;
   zmsg_addmem (msg, &en, sizeof (en));
   zmsg_send (&msg, evtntf_sock);
@@ -4727,6 +5278,46 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_cfm_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_PORT_ENABLE_ERPS)
+{
+  enum status result;
+  port_id_t pid;
+  bool_t enable;
+
+  result = POP_ARG (&pid);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_erps_trap (pid, enable);
+
+ out:
+  report_status (result);
+}
+
 DEFINE_HANDLER (CC_PORT_ENABLE_EAPOL)
 {
   enum status result;
@@ -4877,6 +5468,21 @@ DEFINE_HANDLER (CC_DHCP_TRAP_ENABLE)
     goto out;
 
   result = pcl_enable_dhcp_trap (enable);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_DHCPV6_TRAP_ENABLE)
+{
+  enum status result;
+  bool_t enable;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = pcl_enable_dhcpv6_trap (enable);
 
  out:
   report_status (result);
@@ -5791,3 +6397,139 @@ out:
   zmsg_addmem(reply, &val, sizeof(val));
   send_reply(reply);
 }
+
+/** @name sFlow functions */
+///@{
+/**
+ * @brief Global enable/disable flow sampling
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] enable true - enable, false - disable, type: bool_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_ENABLE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  bool_t enable;
+  enum status result;
+  sflow_type_t type;
+
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&enable);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_enable(type, enable);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow ingress count mode
+ *
+ * @param[in] mode count mode, type: sflow_count_mode_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  sflow_count_mode_t mode;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_ingress_count_mode(mode);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow reload mode
+ *
+ * @param[in] type sampling direction, type: sflow_type_t
+ * @param[in] mode reload mode, type: sflow_count_reload_mode_t
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_RELOAD_MODE)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  sflow_type_t type;
+  sflow_count_reload_mode_t mode;
+
+  result = POP_ARG (&type);
+  if (result != ST_OK)
+    goto out;
+
+  result = POP_ARG (&mode);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(type, mode);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set sFlow configuration on port
+ *
+ * @param[in] params port configuration, type: struct sflow_port_limit_info
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_PORT_LIMIT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+  struct sflow_port_limit_info params;
+
+  result = POP_ARG (& params);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_port_limit(
+      params.pid,
+      params.direction,
+      params.rate,
+      false);
+
+out:
+  report_status (result);
+}
+
+/**
+ * @brief Set the default sFlow settngs
+ *
+ */
+DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
+{
+  DEBUG("%s\n",__FUNCTION__);
+
+  enum status result;
+
+  result = sflow_set_enable(BOTH, false);
+  if (result != ST_OK)
+    goto out;
+
+  result = sflow_set_reload_mode(BOTH, RELOAD_CONTINUOUS);
+  if (result != ST_OK)
+    goto out;
+
+  port_id_t pid;
+  for (pid = 1; pid <= NPORTS; pid++) {
+    result = sflow_set_port_limit(pid, BOTH, 0, true);
+    if (result != ST_OK)
+      goto out;
+  }
+
+out:
+  report_status (result);
+}
+///@} /* End sFlow functions. */

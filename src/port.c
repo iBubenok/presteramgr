@@ -7,6 +7,7 @@
 #include <sysdeps.h>
 #include <variant.h>
 #include <vif.h>
+#include <trunk.h>
 #include <port.h>
 #include <control.h>
 #include <data.h>
@@ -930,11 +931,11 @@ port_start (void)
          (port->ldev, port->lport, 0));
     CRP (cpssDxChIpPortRoutingEnable
          (port->ldev, port->lport,
-          CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
           GT_TRUE));
     CRP (cpssDxChIpPortRoutingEnable
          (port->ldev, port->lport,
-          CPSS_IP_MULTICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+          CPSS_IP_MULTICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
           GT_TRUE));
 
     /* QoS initial setup. */
@@ -1175,6 +1176,10 @@ enum status
 port_set_stp_state (port_id_t pid, stp_id_t stp_id,
                     int all, enum port_stp_state state)
 {
+  DEBUG("********");
+  DEBUG("sbelo %s\n",__FUNCTION__ );
+  DEBUG("********");
+
   CPSS_STP_STATE_ENT cs;
   enum status result;
   struct port *port;
@@ -1667,6 +1672,7 @@ port_block (port_id_t pid, const struct port_block *what)
   struct port *port = port_ptr (pid);
   GT_STATUS rc;
 
+  DEBUG("SBELO PORT BLOCK");
   if (!port)
     return ST_BAD_VALUE;
 
@@ -2248,11 +2254,14 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   uint16_t mode_val, reg_val;
   struct port *port = port_ptr (pid);
 
-  if (!port) {
+  if (!port ||
+      (port->type != PTYPE_FIBER &&
+       port->type != PTYPE_COMBO)) {
     return ST_BAD_VALUE;
   }
 
-  /*
+
+  /* FIXME: this comment is obsolete!
     The value that we should put into register to switch to 100 Mbps fiber mode
     is the same for both fiber and combo ports. However, the value for 1000 Mbps
     on fiber ports should be 0x0002 which means QSGMII to 1000BASE-X; for combo
@@ -2263,74 +2272,15 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
     doesn't with the 0x0003 value.
   */
 
-  uint16_t mode_100mbps = 0x0003;
-  uint16_t mode_1000mbps = 0x0002;
-
-#if defined (VARIANT_ARLAN_3424FE) || defined (VARIANT_ARLAN_3424PFE)
-  if (pid > 24) {
-    mode_1000mbps = 0x0007;
-  }
-
-  else {
-    return GT_BAD_PARAM;
-  }
-#elif defined (VARIANT_SM_12F)
-  if (pid >= 15) {
-    mode_1000mbps = 0x0007;
-  }
-
-  else {
-    return GT_BAD_PARAM;
-  }
-#elif defined (VARIANT_GE)
-  switch (env_hw_subtype()) {
-    case HWST_ARLAN_3424GE_F:
-    case HWST_ARLAN_3424GE_F_S:
-      if (pid >= 25) {
-        return GT_BAD_PARAM;
-      }
-    break;
-
-    case HWST_ARLAN_3424GE_U:
-      if (pid <= 12 || pid >= 25) {
-        return GT_BAD_PARAM;
-      }
-    break;
-
-    case HWST_ARLAN_3250GE_FSR:
-      if (pid > 48)
-        return GT_BAD_PARAM;
-      break;
-
-    case HWST_ARLAN_3250GE_SR:
-      return GT_BAD_PARAM;
-      break;
-
-    case HWST_ARLAN_3250GE_USR:
-      if ((pid < 25) || (pid > 48))
-        return GT_BAD_PARAM;
-      break;
-
-
-    default:
-      if (pid == 23 || pid == 24) {
-        mode_1000mbps = 0x0007;
-      }
-
-      else {
-        return GT_BAD_PARAM;
-      }
-    break;
-  }
-#endif
-
   switch (mode) {
-    case PSM_100: mode_val = mode_100mbps; break;
-    case PSM_1000: mode_val = mode_1000mbps; break;
-    default: return ST_BAD_VALUE;
+  case PSM_100:   mode_val = 0x0003; break;
+  case PSM_1000X: mode_val = 0x0007; break;
+  case PSM_1000T: mode_val = 0x0006; break;
+  default: return ST_BAD_VALUE;
   }
 
   phy_lock();
+
 #if defined (VARIANT_FE)
   rc = CRP (cpssDxChPhyPortAddrSet
        (port->ldev, port->lport, 0x10 + (port->lport - 24) * 2));
@@ -2461,19 +2411,8 @@ port_set_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   CRP (cpssDxChPortInbandAutoNegEnableSet
          (port->ldev, port->lport, GT_TRUE));
 
-  /*
-    If requested port is fiber, we should return on page 1
-  */
-  if (mode_1000mbps == 0x0002) {
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x16, 0x0001));
-  }
-
-  /* else if combo return to page 0 */
-  else {
-    CRP (cpssDxChPhyPortSmiRegisterWrite
-         (port->ldev, port->lport, 0x16, 0x0000));
-  }
+  CRP (cpssDxChPhyPortSmiRegisterWrite
+       (port->ldev, port->lport, 0x16, 0x0000));
 
   /*
     then reset either copper or fiber (page 0 is copper, page 1 is fiber).
@@ -2548,7 +2487,7 @@ port_set_xg_sfp_mode (port_id_t pid, enum port_sfp_mode mode)
   struct port *port = port_ptr (pid);
 
   /* PHY must be configured first */
-  if (mode == PSM_1000) {
+  if (mode == PSM_1000X) {
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0x0000, 1, 0x8000);
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC300, 1, 0x0000);
     cpssXsmiPortGroupRegisterWrite (port->ldev, 1, port->lport, 0xC302, 1, 0x0004);
@@ -3764,11 +3703,12 @@ port_set_mru (uint16_t mru)
 }
 
 enum status
-port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
+port_set_pve_dst (port_id_t spid, vif_id_t dstvid, int enable)
 {
   struct port *src = port_ptr (spid);
+  GT_BOOL is_trunk;
   GT_STATUS rc;
-
+  GT_U8 dpid, dev;
   if (!src)
     return ST_BAD_VALUE;
 
@@ -3776,20 +3716,36 @@ port_set_pve_dst (port_id_t spid, port_id_t dpid, int enable)
     return ST_BAD_STATE;
 
   if (enable) {
-    struct port *dst = port_ptr (dpid);
-
-    if (!dst)
+	struct vif *dest = vif_getn (dstvid);
+    if (!dest)
       return ST_BAD_VALUE;
 
-    if (is_stack_port (dst))
-      return ST_BAD_STATE;
+    struct vif_id* dstvifid = (struct vif_id*) &dstvid;
+    if (dstvifid->type == VIFT_PC) {
+      struct trunk *dsttrunk = (struct trunk*) dest;
+      dpid = (GT_U8)dsttrunk->id;
+      dev = dstvifid->dev;
+      is_trunk = 1;
+    } else {
+      struct port *dstport = port_ptr (dstvifid->num);
+      if (is_stack_port (dstport))
+        return ST_BAD_STATE;
+      if (dest->islocal) {
+        dpid = dstport->lport;
+        dev = dstvifid->dev;
+      } else {
+        dpid = dest->remote.hw_port;
+        dev =  dest->remote.hw_dev;
+      }
+      is_trunk = 0;
+    }
 
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
-              (src->ldev, src->lport, !!enable,
-               dst->lport, phys_dev (dst->ldev), GT_FALSE));
+             (src->ldev, src->lport, !!enable,
+              dpid, dev, is_trunk));
   } else {
     rc = CRP (cpssDxChBrgPrvEdgeVlanPortEnable
-              (src->ldev, src->lport, !!enable, 0, 0, GT_FALSE));
+              (src->ldev, src->lport, !!enable, 0, 0, 0));
   }
 
   switch (rc) {

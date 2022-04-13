@@ -43,10 +43,20 @@ static uint16_t port_lldp_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_lacp_rule_ix[NPORTS + 1] = {};
 
+static uint16_t port_cfm_rule_ix[NPORTS + 1] = {};
+
+static uint16_t port_erps_rule_ix[NPORTS + 1] = {};
+
+static uint16_t port_vrrp_rule_ix[NPORTS + 1] = {};
+
 static uint16_t port_dhcptrap67_rule_ix[NPORTS + 1] = {};
 static uint16_t port_dhcptrap68_rule_ix[NPORTS + 1] = {};
+static uint16_t port_dhcptrap546_rule_ix[NPORTS + 1] = {};
+static uint16_t port_dhcptrap547_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_arp_inspector_trap_ix[NPORTS + 1] = {};
+
+static uint16_t port_solicited_trap_or_mirror_ix[NPORTS + 1] = {};
 
 static uint16_t per_port_ip_source_guard_rules_count = 10;
 static uint16_t port_ip_sourceguard_rule_start_ix[NPORTS + 1] = {};
@@ -104,9 +114,15 @@ initialize_vars (void)
     port_lbd_rule_ix[pid]                  = idx[port->ldev]++;
     port_lldp_rule_ix[pid]                 = idx[port->ldev]++;
     port_lacp_rule_ix[pid]                 = idx[port->ldev]++;
+    port_cfm_rule_ix[pid]                  = idx[port->ldev]++;
+    port_erps_rule_ix[pid]                 = idx[port->ldev]++;
+    port_vrrp_rule_ix[pid]                 = idx[port->ldev]++;
     port_dhcptrap67_rule_ix[pid]           = idx[port->ldev]++;
     port_dhcptrap68_rule_ix[pid]           = idx[port->ldev]++;
+    port_dhcptrap546_rule_ix[pid]          = idx[port->ldev]++;
+    port_dhcptrap547_rule_ix[pid]          = idx[port->ldev]++;
     port_arp_inspector_trap_ix[pid]        = idx[port->ldev]++;
+    port_solicited_trap_or_mirror_ix[pid]  = idx[port->ldev]++;
     port_ip_sourceguard_rule_start_ix[pid] = idx[port->ldev];
     idx[port->ldev] += per_port_ip_source_guard_rules_count;
     port_ip_sourceguard_drop_rule_ix[pid]  = idx[port->ldev]++;
@@ -490,6 +506,59 @@ pcl_setup_rip(int d)
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
           port_ip_rip_mirror_rule_ix[pi],                   /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+  }
+}
+
+/******************************************************************************/
+/* VRRP MULTICAST MIRROR                                                      */
+/******************************************************************************/
+
+static uint8_t vrrp_dest_ip[4]      = {224, 0, 0, 18};
+static uint8_t vrrp_dest_ip_mask[4] = {255, 255, 255, 255};
+
+void
+pcl_setup_vrrp(int d)
+{
+  port_id_t pi;
+  for_each_port(pi) {
+    struct port *port = port_ptr (pi);
+    if (port->ldev != d)
+      continue;
+
+    if (is_stack_port(port))
+      return;
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
+
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
+
+    memcpy (&rule.ruleExtNotIpv6.dip, vrrp_dest_ip, 4);
+    memcpy (&mask.ruleExtNotIpv6.dip, vrrp_dest_ip_mask, 4);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          port_vrrp_rule_ix[pi],                            /* ruleIndex      */
           0,                                                /* ruleOptionsBmp */
           &mask,                                            /* maskPtr        */
           &rule,                                            /* patternPtr     */
@@ -2973,6 +3042,58 @@ pcl_enable_arp_trap (int enable) {
 
 
 enum status
+pcl_enable_solicited(port_id_t pi, bool_t enable, solicited_cmd_t cmd) {
+
+  CPSS_PACKET_CMD_ENT cpssCmd = cmd;
+    struct port *port = port_ptr (pi);
+
+    if (is_stack_port(port))
+      return ST_OK;
+
+    if (enable) {
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&mask, 0, sizeof (mask));
+      mask.ruleExtIpv6L4.common.pclId = 0xFFFF;
+      mask.ruleExtIpv6L4.commonExt.isIpv6 = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.ipProtocol = 0xFF;
+      memset (mask.ruleExtIpv6L4.dip.arIP, 0xFF, 16); ///
+      mask.ruleExtIpv6L4.dip.arIP[13] = 0x0;
+      mask.ruleExtIpv6L4.dip.arIP[14] = 0x0;
+      mask.ruleExtIpv6L4.dip.arIP[15] = 0x0;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtIpv6L4.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtIpv6L4.commonExt.isIpv6 = 0x1;
+      rule.ruleExtIpv6L4.commonExt.ipProtocol = 0x3A;
+      rule.ruleExtIpv6L4.dip.arIP[0] = 0xFF;
+      rule.ruleExtIpv6L4.dip.arIP[1] = 0x02;
+      rule.ruleExtIpv6L4.dip.arIP[11] = 0x1;
+      rule.ruleExtIpv6L4.dip.arIP[12] = 0xFF;
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = cpssCmd;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_IPV6_NEIGHBOR_SOLICITATION_E;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
+            port_solicited_trap_or_mirror_ix[pi],
+            0,
+            &mask,
+            &rule,
+            &act));
+    }
+    else {
+      CRP (cpssDxChPclRuleInvalidate
+             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_solicited_trap_or_mirror_ix[pi]));
+    }
+  return ST_OK;
+}
+
+enum status
 pcl_enable_lbd_trap (port_id_t pid, int enable)
 {
   struct port *port = port_ptr (pid);
@@ -3138,6 +3259,124 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
   return ST_OK;
 }
 
+static char CFM_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x30 };
+static char CFM_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0 };
+
+enum status
+pcl_enable_cfm_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memcpy(mask.ruleExtNotIpv6.macDa.arEther, CFM_MAC_MASK, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    mask.ruleExtNotIpv6.common.isTagged = 0;
+    rule.ruleExtNotIpv6.etherType = 0x8902;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, CFM_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_cfm_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_cfm_rule_ix[pid]));
+
+  return ST_OK;
+}
+
+static char ERPS_MAC[6] = { 0x01, 0x19, 0xa7, 0x00, 0x00, 0x00 };
+static char ERPS_MAC_MASK[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0 };
+
+enum status
+pcl_enable_erps_trap (port_id_t pid, int enable)
+{
+  DEBUG("%s", __FUNCTION__);
+  struct port *port = port_ptr (pid);
+
+  if (!port)
+    return ST_BAD_VALUE;
+
+  if (enable) {
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isTagged = 0xFF;
+    mask.ruleExtNotIpv6.etherType = 0xFFFF;
+    mask.ruleExtNotIpv6.l2Encap = 0xFF;
+    memcpy(mask.ruleExtNotIpv6.macDa.arEther, ERPS_MAC_MASK, 6);
+
+    memset (&rule, 0, sizeof (rule));
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pid);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    mask.ruleExtNotIpv6.common.isTagged = 0;
+    rule.ruleExtNotIpv6.etherType = 0x8902;
+    rule.ruleExtNotIpv6.l2Encap = 1;
+    memcpy(rule.ruleExtNotIpv6.macDa.arEther, ERPS_MAC, 6);
+
+    memset (&act, 0, sizeof (act));
+    act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 11;
+
+    act.bypassIngressPipe = GT_TRUE;
+
+    act.bypassBridge = GT_TRUE;
+
+    act.vlan.modifyVlan = CPSS_PACKET_ATTRIBUTE_ASSIGN_FOR_ALL_E;
+    act.vlan.vlanId = 4095;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_erps_rule_ix [pid],
+          0,
+          &mask,
+          &rule,
+          &act));
+  } else
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_erps_rule_ix[pid]));
+
+  return ST_OK;
+}
+
 enum status
 pcl_enable_dhcp_trap (int enable)
 {
@@ -3243,6 +3482,101 @@ pcl_enable_dhcp_trap (int enable)
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_dhcptrap68_rule_ix[pi]));
     }
+  }
+
+  return ST_OK;
+}
+
+enum status
+pcl_enable_dhcpv6_trap (int enable)
+{
+  port_id_t pi;
+
+  if (enable) {
+    for (pi = 1; pi <= nports ; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+        continue;
+
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 10;
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtIpv6L4.common.isL2Valid      = 0xFF;
+      mask.ruleExtIpv6L4.common.isIp           = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.isIpv6      = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.ipProtocol  = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.l4Byte2     = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.l4Byte3     = 0xFF;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtIpv6L4.common.isL2Valid      = 1;
+      rule.ruleExtIpv6L4.common.isIp           = 1;
+      rule.ruleExtIpv6L4.commonExt.isIpv6      = 1;
+      rule.ruleExtIpv6L4.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtIpv6L4.commonExt.l4Byte2     = 2;
+      rule.ruleExtIpv6L4.commonExt.l4Byte3     = 0x22;
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            port_dhcptrap546_rule_ix[pi],
+            0,
+            &mask,
+            &rule,
+            &act));
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 10;
+
+      memset (&mask, 0, sizeof (mask));
+
+      mask.ruleExtIpv6L4.common.isL2Valid      = 0xFF;
+      mask.ruleExtIpv6L4.common.isIp           = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.isIpv6      = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.ipProtocol  = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.l4Byte2     = 0xFF;
+      mask.ruleExtIpv6L4.commonExt.l4Byte3     = 0xFF;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtIpv6L4.common.isL2Valid      = 1;
+      rule.ruleExtIpv6L4.common.isIp           = 1;
+      rule.ruleExtIpv6L4.commonExt.isIpv6      = 1;
+      rule.ruleExtIpv6L4.commonExt.ipProtocol  = 17; /* UDP */
+      rule.ruleExtIpv6L4.commonExt.l4Byte2     = 2;
+      rule.ruleExtIpv6L4.commonExt.l4Byte3     = 0x23;
+
+
+      CRP (cpssDxChPclRuleSet
+           (port->ldev,
+            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+            port_dhcptrap547_rule_ix[pi],
+            0,
+            &mask,
+            &rule,
+            &act));
+    }
+  } else {
+      for (pi = 1; pi <= nports; pi++) {
+        struct port *port = port_ptr (pi);
+
+        if (is_stack_port(port))
+          continue;
+
+        CRP (cpssDxChPclRuleInvalidate
+             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_dhcptrap546_rule_ix[pi]));
+        CRP (cpssDxChPclRuleInvalidate
+             (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_dhcptrap547_rule_ix[pi]));
+      }
   }
 
   return ST_OK;
@@ -3553,6 +3887,7 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
   pcl_setup_rip(d);
+  pcl_setup_vrrp(d);
 
   return ST_OK;
 }

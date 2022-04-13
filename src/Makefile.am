@@ -35,6 +35,7 @@ presteramgr_SOURCES =	\
 	lttindex.c	    		\
 	pcl.c				\
 	fib.c				\
+	fib_ipv6.c			\
 	arpc.c				\
 	dgasp.c             \
 	dev.c               \
@@ -46,11 +47,12 @@ presteramgr_SOURCES =	\
 	sec.c               \
 	mll.c     \
 	vif.c \
-	ipsg.c
+	ipsg.c 				\
+	sflow.c
 
-nodist_presteramgr_SOURCES = control-proto.h rtbd.h arpd.h stackd.h
-BUILT_SOURCES = control-proto.h rtbd.h arpd.h stackd.h
-CLEANFILES = control-proto.h rtbd.h arpd.h stackd.h
+nodist_presteramgr_SOURCES = control-proto.h rtbd.h erpsd.h arpd.h stackd.h
+BUILT_SOURCES = control-proto.h rtbd.h erpsd.h arpd.h stackd.h
+CLEANFILES = control-proto.h rtbd.h erpsd.h arpd.h stackd.h
 presteramgr_LDADD = @cpss@/compilation_root/cpssDrvLib.a \
 	@cpss@/compilation_root/cpssLinuxBind.a
 
@@ -79,6 +81,9 @@ presterarst: Makefile presterarst.in
 	ecgen -lc -o$@ $<
 
 %.h: @rtbd@/%.ecg
+	ecgen -lc -o$@ $<
+
+%.h: @erpsd@/%.ecg
 	ecgen -lc -o$@ $<
 
 %.h: @arpd@/%.ecg

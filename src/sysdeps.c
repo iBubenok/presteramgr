@@ -111,6 +111,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_ARP_REPLY_TO_ME_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_NEIGHBOR_SOLICITATION_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 3, &cce_rlim));
 
 /* allowing trapping IGMP packets bursts within 1 sec
@@ -138,6 +140,10 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_IPV4_UC_ROUTE1_TRAP_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_ROUTE_TRAP_E, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_IPV6_UC_ROUTE1_TRAP_E, &cce_rlim));     
+    CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_BRIDGED_PACKET_FORWARD_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CONTROL_SRC_DST_MAC_TRAP_E, &cce_rlim));
@@ -156,6 +162,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, 4, 4000, 100));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 1, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 10, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
     cce_rlim.cpuCodeRateLimiterIndex = 5;
@@ -443,7 +451,7 @@ sysd_setup_ic (void)
            (d, dp[d][p], CPSS_PORT_DIRECTION_BOTH_E, 0x0F, GT_TRUE));
       CRP (cpssDxChPortMruSet (d, dp[d][p], 12000));
       CRP (cpssDxChIpPortRoutingEnable
-           (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4_E,
+           (d, dp[d][p], CPSS_IP_UNICAST_E, CPSS_IP_PROTOCOL_IPV4V6_E,
             GT_FALSE));
 
       CRP (cpssDxChPortTxBindPortToDpSet

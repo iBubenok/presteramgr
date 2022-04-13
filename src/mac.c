@@ -49,8 +49,11 @@ enum fdb_ctl_cmd {
   FCC_FDBMAN_HANDLE_PKT,
   FCC_FDBMAN_SEND_RT,
   FCC_FDBMAN_SEND_NA,
+  FCC_FDBMAN_SEND_NA_IPV6,
   FCC_FDBMAN_SEND_OPNA,
+  FCC_FDBMAN_SEND_OPNA_IPV6,
   FCC_FDBMAN_SEND_UDT,
+  FCC_FDBMAN_SEND_UDT_IPV6,
   FCC_FDBMAN_SEND_VIF_LS,
   FCC_VIF_SET_STP_STATE
 };
@@ -84,8 +87,11 @@ enum fdbman_cmd {
   FMC_MASTER_MACOP,
   FMC_MASTER_RT,
   FMC_MASTER_NA,
+  FMC_MASTER_NA_IPV6,
   FMC_OPNA,
+  FMC_OPNA_IPV6,
   FMC_MASTER_UDT,
+  FMC_MASTER_UDT_IPV6,
   FMC_MASTER_CLEAR_ROUTING,
   FMC_VIF_LS,
   FMC_VIFLS_GET,
@@ -117,10 +123,16 @@ fdbman_cmd_to_string(enum fdbman_cmd cmd) {
       return "FMC_MASTER_RT";
     case FMC_MASTER_NA:
       return "FMC_MASTER_NA";
+    case FMC_MASTER_NA_IPV6:
+      return "FMC_MASTER_NA_IPV6";
     case FMC_OPNA:
       return "FMC_OPNA";
+    case FMC_OPNA_IPV6:
+      return "FMC_OPNA_IPV6";
     case FMC_MASTER_UDT:
       return "FMC_MASTER_UDT";
+    case FMC_MASTER_UDT_IPV6:
+      return "FMC_MASTER_UDT_IPV6";
     case FMC_MASTER_CLEAR_ROUTING:
       return "FMC_MASTER_CLEAR_ROUTING";
     case FMC_VIF_LS:
@@ -203,8 +215,11 @@ static devsbmp_t fdbman_devsbmp;
 
 static void fdbman_send_rtbd(const void *arg, int len, devsbmp_t bmp);
 static void fdbman_send_na(const struct arpd_ip_addr_msg *arg);
+static void fdbman_send_na_ipv6(const struct ndp_ip_addr_msg *arg);
 static void fdbman_send_opna(void *arg);
+static void fdbman_send_opna_ipv6(void *arg);
 static void fdbman_send_udt(uint32_t daddr, devsbmp_t bmp);
+static void fdbman_send_udt_ipv6(GT_IPV6ADDR daddr, devsbmp_t bmp);
 static void fdbman_send_clear_routing (devsbmp_t newdevs_bmp);
 static void fdbman_send_vif_ls(const struct vif_link_state_header *arg);
 static void fdbman_vif_set_stp_state(const struct mac_vif_set_stp_state_args *arg);
@@ -466,6 +481,11 @@ mac_op_na (struct arpd_ip_addr_msg *msg) {
 }
 
 enum status
+mac_op_na_ipv6 (struct ndp_ip_addr_msg *msg) {
+  return fdb_actl_control (FCC_FDBMAN_SEND_NA_IPV6, msg, sizeof (*msg));
+}
+
+enum status
 mac_op_opna (const struct gw *gw, arpd_command_t cmd) {
   uint8_t buf[sizeof(cmd) + sizeof(*gw)];
   *(arpd_command_t*)buf = cmd;
@@ -474,8 +494,21 @@ mac_op_opna (const struct gw *gw, arpd_command_t cmd) {
 }
 
 enum status
+mac_op_opna_ipv6 (const struct gw_v6 *gw, arpd_command_t cmd) {
+  uint8_t buf[sizeof(cmd) + sizeof(*gw)];
+  *(arpd_command_t*)buf = cmd;
+  memcpy(buf + sizeof(cmd), gw, sizeof(*gw));
+  return fdb_actl_control (FCC_FDBMAN_SEND_OPNA_IPV6, buf, sizeof(cmd) + sizeof(*gw));
+}
+
+enum status
 mac_op_udt (uint32_t daddr) {
   return fdb_actl_control (FCC_FDBMAN_SEND_UDT, &daddr, sizeof (daddr));
+}
+
+enum status
+mac_op_udt_ipv6 (GT_IPV6ADDR daddr) {
+  return fdb_actl_control (FCC_FDBMAN_SEND_UDT_IPV6, &daddr, sizeof (daddr));
 }
 
 enum status
@@ -1453,6 +1486,12 @@ fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 
   fdb_upd_for_dev (dev);
 
+  zmsg_t *msg2 = zmsg_new ();
+  notification_t ntype = CN_FDB_EVENT;
+  assert (msg2);
+  zmsg_addmem (msg2, &ntype, sizeof (ntype));
+  zmsg_send (&msg2, pub_sock);
+  zmsg_destroy (&msg2);
   return 0;
 }
 
@@ -1556,11 +1595,20 @@ fdb_ctl_handler (zloop_t *loop, zsock_t *reader, void *ctl_sock)
   case FCC_FDBMAN_SEND_NA:
     fdbman_send_na((struct arpd_ip_addr_msg *) arg);
     break;
+  case FCC_FDBMAN_SEND_NA_IPV6:
+    fdbman_send_na_ipv6((struct ndp_ip_addr_msg *) arg);
+    break;
   case FCC_FDBMAN_SEND_OPNA:
     fdbman_send_opna(arg);
     break;
+  case FCC_FDBMAN_SEND_OPNA_IPV6:
+    fdbman_send_opna_ipv6(arg);
+    break;  
   case FCC_FDBMAN_SEND_UDT:
     fdbman_send_udt(*(uint32_t*)arg, ALL_DEVS);
+    break;
+  case FCC_FDBMAN_SEND_UDT_IPV6:
+    fdbman_send_udt_ipv6(*(GT_IPV6ADDR*)arg, ALL_DEVS);
     break;
   case FCC_FDBMAN_SEND_VIF_LS:
     fdbman_send_vif_ls((struct vif_link_state_header *) arg);
@@ -1643,6 +1691,27 @@ fdbman_send_na(const struct arpd_ip_addr_msg *arg) {
 }
 
 static void
+fdbman_send_na_ipv6(const struct ndp_ip_addr_msg *arg) {
+// DEBUG(">>>fdbman_send_na(ip: %x, vid==%d, vif=%x, " MAC_FMT "\n",
+//    "mac==%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n",
+    // arg->ip_addr ,arg->vid, arg->vif_id, MAC_ARG(arg->mac_addr));
+//    arg->mac[0],arg->mac[1],arg->mac[2],arg->mac[3],arg->mac[4],arg->mac[5],arg->mac[6],arg->mac[7]);
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_MASTER_NA_IPV6;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = ALL_DEVS;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, arg, sizeof(*arg));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(*arg);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_opna(void *arg) {
 // DEBUG(">>>fdbman_send_opna()\n");
   static uint8_t buf[TIPC_MSG_MAX_LEN];
@@ -1661,6 +1730,24 @@ fdbman_send_opna(void *arg) {
 }
 
 static void
+fdbman_send_opna_ipv6(void *arg) {
+// DEBUG(">>>fdbman_send_opna_ipv6()\n");
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_OPNA_IPV6;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = ALL_DEVS;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, arg, sizeof(arpd_command_t) + sizeof(struct gw_v6));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(arpd_command_t) + sizeof(struct gw_v6);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
 fdbman_send_udt(uint32_t daddr, devsbmp_t bmp) {
 // DEBUG(">>>fdbman_send_udt(%x)\n", daddr);
   static uint8_t buf[TIPC_MSG_MAX_LEN];
@@ -1669,6 +1756,24 @@ fdbman_send_udt(uint32_t daddr, devsbmp_t bmp) {
   fdb_msg->version = PTI_FDB_VERSION;
   fdb_msg->stack_id = stack_id;
   fdb_msg->command = FMC_MASTER_UDT;
+  fdb_msg->nfdb = 0;
+  fdb_msg->devsbmp = bmp;
+  fdb_msg->serial = fdbman_serial;
+  memcpy(fdb_msg->data, &daddr, sizeof(daddr));
+  size_t msglen = sizeof(struct pti_fdbr_msg) + sizeof(daddr);
+
+  fdbman_send_pkt(buf, msglen);
+}
+
+static void
+fdbman_send_udt_ipv6(GT_IPV6ADDR daddr, devsbmp_t bmp) {
+// DEBUG(">>>fdbman_send_udt_ipv6(%x)\n", daddr);
+  static uint8_t buf[TIPC_MSG_MAX_LEN];
+  struct pti_fdbr_msg *fdb_msg = (struct pti_fdbr_msg *) buf;
+
+  fdb_msg->version = PTI_FDB_VERSION;
+  fdb_msg->stack_id = stack_id;
+  fdb_msg->command = FMC_MASTER_UDT_IPV6;
   fdb_msg->nfdb = 0;
   fdb_msg->devsbmp = bmp;
   fdb_msg->serial = fdbman_serial;
@@ -2002,6 +2107,14 @@ fdbman_handle_msg_na(struct pti_fdbr_msg *msg, uint32_t len) {
 }
 
 static void
+fdbman_handle_msg_na_ipv6(struct pti_fdbr_msg *msg, uint32_t len) {
+  if (! (msg->devsbmp & (1 << stack_id)))
+    return;
+  struct ndp_ip_addr_msg *arg = (struct ndp_ip_addr_msg *) msg->data;
+  fdbman_send_control_cmd(SC_INT_NA_IPV6_CMD, arg, sizeof(*arg));
+}
+
+static void
 fdbman_handle_msg_opna(struct pti_fdbr_msg *msg, uint32_t len) {
   void *arg = msg->data;
   size_t msglen = len - sizeof(struct pti_fdbr_msg);
@@ -2010,11 +2123,27 @@ fdbman_handle_msg_opna(struct pti_fdbr_msg *msg, uint32_t len) {
 }
 
 static void
+fdbman_handle_msg_opna_ipv6(struct pti_fdbr_msg *msg, uint32_t len) {
+  void *arg = msg->data;
+  size_t msglen = len - sizeof(struct pti_fdbr_msg);
+// DEBUG(">>>fdbman_handle_msg_opna(%d, len == %d)\n", *((arpd_command_t*)arg), len);
+  fdbman_send_control_cmd(SC_INT_OPNA_IPV6_CMD, arg, msglen);
+}
+
+static void
 fdbman_handle_msg_udt(struct pti_fdbr_msg *msg, uint32_t len) {
   uint32_t daddr;
   memcpy(&daddr, msg->data, sizeof(daddr));
 // DEBUG(">>>fdbman_handle_msg_udt(%x)\n", daddr);
   fdbman_send_control_cmd(SC_INT_UDT_CMD, &daddr, sizeof(daddr));
+}
+
+static void
+fdbman_handle_msg_udt_ipv6(struct pti_fdbr_msg *msg, uint32_t len) {
+  GT_IPV6ADDR daddr;
+  memcpy(&daddr, msg->data, sizeof(daddr));
+// DEBUG(">>>fdbman_handle_msg_udt(%x)\n", daddr);
+  fdbman_send_control_cmd(SC_INT_UDT_IPV6_CMD, &daddr, sizeof(daddr));
 }
 
 static void
@@ -2390,8 +2519,18 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
       }
       fdbman_handle_msg_na(msg, len);
       break;
+    case FMC_MASTER_NA_IPV6:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_NA_IPV6 data block\n", msg->stack_id);
+        break;
+      }
+      fdbman_handle_msg_na_ipv6(msg, len);
+      break;
     case FMC_OPNA:
       fdbman_handle_msg_opna(msg, len);
+      break;
+    case FMC_OPNA_IPV6:
+      fdbman_handle_msg_opna_ipv6(msg, len);
       break;
     case FMC_MASTER_UDT:
       if (msg->stack_id != fdbman_master) {
@@ -2399,6 +2538,13 @@ fdbman_handle_pkt (const void *pkt, uint32_t len) {
         break;
       }
       fdbman_handle_msg_udt(msg, len);
+      break;
+    case FMC_MASTER_UDT_IPV6:
+      if (msg->stack_id != fdbman_master) {
+        DEBUG("ERROR: fdbman:  recieved alien:%d FMC_MASTER_UDT_IPV6 data block\n", msg->stack_id);
+        break;
+      }
+      fdbman_handle_msg_udt_ipv6(msg, len);
       break;
     case FMC_MASTER_CLEAR_ROUTING:
       fdbman_handle_msg_clear_routing(msg, len);
