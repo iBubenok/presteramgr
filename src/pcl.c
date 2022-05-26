@@ -65,8 +65,6 @@ static uint16_t port_ip_ospf_mirror_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_ip_rip_mirror_rule_ix[NPORTS + 1] = {};
 
-static uint16_t port_ipv6_ospfv3_mirror_rule_ix[NPORTS + 1] = {};
-
 static uint16_t port_ipv6_ripng_mirror_rule_ix[NPORTS + 1] = {};
 
 static uint16_t vt_stack_entries = 300;
@@ -131,7 +129,6 @@ initialize_vars (void)
     port_ip_sourceguard_drop_rule_ix[pid]  = idx[port->ldev]++;
     port_ip_ospf_mirror_rule_ix[pid]       = idx[port->ldev]++;
     port_ip_rip_mirror_rule_ix[pid]        = idx[port->ldev]++;
-    port_ipv6_ospfv3_mirror_rule_ix[pid]   = idx[port->ldev]++;
     port_ipv6_ripng_mirror_rule_ix[pid]    = idx[port->ldev]++;
   }
 
@@ -525,7 +522,6 @@ pcl_setup_rip(int d)
 void
 pcl_setup_ripng(int d) 
 {
-
   port_id_t pi;
   for_each_port(pi) {
     struct port *port = port_ptr (pi);
@@ -566,58 +562,6 @@ pcl_setup_ripng(int d)
           &rule,
           &act));
     }
-  
-}
-
-/******************************************************************************/
-/* OSPFv3 MULTICAST MIRROR                                                      */
-/******************************************************************************/
-
-void
-pcl_setup_ospfv3(int d) 
-{
-
-  port_id_t pi;
-  for_each_port(pi) {
-    struct port *port = port_ptr (pi);
-    if (port->ldev != d)
-      continue;
-
-    if (is_stack_port(port))
-      return;
-
-    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
-    CPSS_DXCH_PCL_ACTION_STC act;
-
-    memset (&mask, 0, sizeof (mask));
-    mask.ruleExtIpv6L4.common.pclId = 0xFFFF;
-    mask.ruleExtIpv6L4.commonExt.isL4Valid = 0xFF;
-    mask.ruleExtIpv6L4.commonExt.isIpv6 = 0xFF;
-    memset (mask.ruleExtIpv6L4.dip.arIP, 0xFF, 16);
-
-    memset (&rule, 0, sizeof (rule));
-    rule.ruleExtIpv6L4.common.pclId = PORT_IPCL_ID (pi);
-    rule.ruleExtIpv6L4.commonExt.isL4Valid = 1;
-    rule.ruleExtIpv6L4.commonExt.isIpv6 = 1;
-    rule.ruleExtIpv6L4.dip.arIP[0] = 0xFF;
-    rule.ruleExtIpv6L4.dip.arIP[1] = 0x02;
-    rule.ruleExtIpv6L4.dip.arIP[15] = 0x05;
-
-    memset (&act, 0, sizeof (act));
-    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
-    act.actionStop = GT_TRUE;
-    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 13;
-
-    CRP (cpssDxChPclRuleSet
-         (port->ldev,
-          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_IPV6_L4_E,
-          port_ipv6_ospfv3_mirror_rule_ix[pi],
-          0,
-          &mask,
-          &rule,
-          &act));
-    }
-  
 }
 
 /******************************************************************************/
@@ -3933,7 +3877,6 @@ pcl_cpss_lib_init (int d)
   pcl_setup_rip(d);
   pcl_setup_vrrp(d);
   pcl_setup_ripng(d);
-  pcl_setup_ospfv3(d);
 
   return ST_OK;
 }
