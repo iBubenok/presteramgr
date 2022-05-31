@@ -17,9 +17,14 @@ struct route_pfx {
   int alen;
 };
 
+struct route_pbr {
+
+};
+
 struct route {
   struct route_pfx pfx;
-  GT_IPADDR gw;
+  uint8_t gw_count;
+  struct gw gw[8];
   GT_IPV6ADDR gw_v6;
   vid_t vid;
 };
@@ -49,7 +54,12 @@ extern enum status route_mc_add (vid_t, const uint8_t *, const uint8_t *, mcg_t,
 extern enum status route_mc_del (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
 extern void *route_get_udaddrs(void);
-extern void route_reset_prefixes4gw(struct gw *);
+extern void route_reset_prefixes4gw(uint32_t, int);
 extern void route_dump(void);
+
+// synchronization
+extern void route_mutex_init();
+extern void route_mutex_lock();
+extern void route_mutex_unlock();
 
 #endif /* __ROUTE_H__ */

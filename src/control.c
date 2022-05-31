@@ -868,6 +868,7 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 
   zframe_t *frame = zmsg_first (msg);
   rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  int i = 0;
   switch (notif) {
   case RCN_IP_ADDR:
     frame = zmsg_next (msg);
@@ -923,25 +924,36 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
     frame = zmsg_next (msg);
     struct rtbd_route_msg *rm = (struct rtbd_route_msg *) zframe_data (frame);
 
-    mac_op_rt(notif, rm, sizeof(*rm));
+    mac_op_rt(notif, rm, sizeof(*rm) + rm->gw_count * sizeof(struct rtbd_hexthop_data));
 
     struct route rt;
-    rt.pfx.addr.u32Ip = rm->dst;
-    // rt.pfx.addrv6.arIP = rm->dst_v6;
-    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
-    rt.gw.u32Ip = rm->gw;
-    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
-    rt.vid = rm->vid;
     switch (rm->type)
     {
       case AF_INET:
+        rt.pfx.addr.u32Ip = rm->dst.v4;
+        rt.gw_count = rm->gw_count;
+        for (i = 0; i < rm->gw_count; i++)
+        {
+          rt.gw[i].addr.u32Ip = rm->gw[i].gw.v4;
+          rt.gw[i].vid = rm->gw[i].vid;
+        }
         switch (rm->op) {
         case RRTO_ADD:
+          route_mutex_lock();
           route_add (&rt);
+          route_mutex_unlock();
           break;
         case RRTO_DEL:
+          route_mutex_lock();
           route_del (&rt);
+          route_mutex_unlock();
+          break;
+        case RRTO_CHANGE:
+          route_mutex_lock();
+          route_del (&rt);
+          route_add (&rt);
+          route_mutex_unlock();
           break;
         default:
           break;
@@ -949,6 +961,9 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
         break;
 
       case AF_INET6:
+        memcpy (&rt.pfx.addrv6.arIP, &rm->dst.v6, 16);
+        memcpy (&rt.gw_v6.arIP, &rm->gw[0].gw.v6, 16);
+        rt.vid = rm->gw[0].vid;
         switch (rm->op) {
         case RRTO_ADD:
           DEBUG ("route_add_v6\n");
@@ -1738,6 +1753,7 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   struct rtbd_ip_addr_msg *am;
   struct rtbd_route_msg *rm;
   rtbd_notif_t notif = *((rtbd_notif_t *) zframe_data (frame));
+  int i = 0;
   switch (notif) {
   case RCN_IP_ADDR:
     am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
@@ -1784,21 +1800,33 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   case RCN_ROUTE:
     rm = (struct rtbd_route_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
     struct route rt;
-    rt.pfx.addr.u32Ip = rm->dst;
-    memcpy (&rt.pfx.addrv6.arIP, &rm->dst_v6, 16);
     rt.pfx.alen = rm->dst_len;
-    rt.gw.u32Ip = rm->gw;
-    memcpy (&rt.gw_v6.arIP, &rm->gw_v6, 16);
-    rt.vid = rm->vid;
     switch (rm->type)
     {
       case AF_INET:
+        rt.pfx.addr.u32Ip = rm->dst.v4;
+        rt.gw_count = rm->gw_count;
+        for (i = 0; i < rm->gw_count; i++)
+        {
+          rt.gw[i].addr.u32Ip = rm->gw[i].gw.v4;
+          rt.gw[i].vid = rm->gw[i].vid;
+        }
         switch (rm->op) {
         case RRTO_ADD:
+          route_mutex_lock();
           route_add (&rt);
+          route_mutex_unlock();
           break;
         case RRTO_DEL:
+          route_mutex_lock();
           route_del (&rt);
+          route_mutex_unlock();
+          break;
+        case RRTO_CHANGE:
+          route_mutex_lock();
+          route_del (&rt);
+          route_add (&rt);
+          route_mutex_unlock();
           break;
         default:
           break;
@@ -1806,6 +1834,9 @@ DEBUG("===SC_INT_RTBD_CMD\n");
         break;
 
       case AF_INET6:
+        memcpy (&rt.pfx.addrv6.arIP, &rm->dst.v6, 16);
+        memcpy (&rt.gw_v6.arIP, &rm->gw[0].gw.v6, 16);
+        rt.vid = rm->gw[0].vid;
         switch (rm->op) {
         case RRTO_ADD:
           DEBUG ("route_add_v6\n");
@@ -2811,7 +2842,7 @@ if (page >= 3000) {   //TODO remove BEGIN
   switch (page){
     case 4000:
       nht_dump();
-      fib_dump();
+      // fib_dump();
       fib_ipv6_dump();
       ret_dump();
       route_dump();
@@ -3578,7 +3609,9 @@ DEFINE_HANDLER (CC_INT_ROUTE_ADD_PREFIX)
   if (result != ST_OK)
     goto out;
 
+  route_mutex_lock();
   result = route_add (&rt);
+  route_mutex_unlock();
 
  out:
   report_status (result);
@@ -3593,7 +3626,9 @@ DEFINE_HANDLER (CC_INT_ROUTE_DEL_PREFIX)
   if (result != ST_OK)
     goto out;
 
+  route_mutex_lock();
   result = route_del (&rt);
+  route_mutex_unlock();
 
  out:
   report_status (result);

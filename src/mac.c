@@ -469,7 +469,7 @@ enum status mac_vif_set_stp_state (struct vif *vif,
 
 enum status
 mac_op_rt (rtbd_notif_t notif, void *msg, int len) {
-  static uint8_t buf[sizeof(struct rtbd_route_msg) + sizeof(notif) + 16];
+  static uint8_t buf[sizeof(struct rtbd_route_msg) + 8 * sizeof(struct rtbd_hexthop_data) + sizeof(notif) + 16];
   memcpy (buf, &notif, sizeof (notif));
   memcpy (buf + sizeof(notif), msg, len);
   return fdb_actl_control (FCC_FDBMAN_SEND_RT, buf, sizeof (notif) + len);
@@ -2203,10 +2203,13 @@ DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   struct rtbd_route_msg *rt = (struct rtbd_route_msg *)((uint32_t*)p + 1);
   int i;
   for (i = 0; i < nr; i++) {
-    *((rtbd_notif_t*)&rt[i] - 1) = RCN_ROUTE;
-    size_t msglen = sizeof(struct rtbd_route_msg) + sizeof(rtbd_notif_t);
-    fdbman_send_rtbd((rtbd_notif_t*)&rt[i] - 1, msglen, nbmp);
+    *((rtbd_notif_t*)rt - 1) = RCN_ROUTE;
+    size_t msglen = sizeof(struct rtbd_route_msg) + (rt->gw_count * sizeof(struct rtbd_hexthop_data))+ sizeof(rtbd_notif_t);
+    fdbman_send_rtbd((rtbd_notif_t*)rt - 1, msglen, nbmp);
+ 
+    rt = (struct rtbd_route_msg *)&rt->gw[rt->gw_count];
   }
+
   free(p);
 
   p = fdbman_execute_control_cmd(CC_INT_GET_UDADDRS_CMD, &dummy, sizeof(dummy));
@@ -2216,6 +2219,7 @@ DEBUG (">>>>fdbman_sync_routing(%hx) %hx\n", nbmp, nbmp);
   for (i = 0; i < nr; i++) {
     fdbman_send_udt(udaddr[i], nbmp);
   }
+
   free(p);
 
 DEBUG("<<<<fdbman_sync_routing");

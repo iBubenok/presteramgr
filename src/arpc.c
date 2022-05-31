@@ -14,6 +14,7 @@
 #include <mac.h>
 #include <debug.h>
 #include <utils.h>
+#include <route.h>
 
 #include <sys/types.h>
 #include <fcntl.h>
@@ -121,13 +122,22 @@ arpc_set_mac_addr (arpd_ip_addr_t ip,
 DEBUG(">>>>arpc_set_mac_addr (%x, %d, " MAC_FMT ", %x)\n",
     ip, vid, MAC_ARG(mac), vif);
   GT_IPADDR ip_addr;
-  GT_ETHERADDR mac_addr;
+  GT_ETHERADDR mac_addr, mac_addr2;
   struct gw gw;
 
+  memset(mac_addr2.arEther, 0, 6);
   ip_addr.u32Ip = ip;
   route_fill_gw (&gw, &ip_addr, vid);
   memcpy (mac_addr.arEther, mac, 6);
-  ret_set_mac_addr (&gw, &mac_addr, vif);
+
+  route_mutex_lock();
+  if (!memcmp(mac_addr.arEther, mac_addr2.arEther, 6)) {
+    ret_unset_mac_addr (&gw);
+  }
+  else {
+    ret_set_mac_addr (&gw, &mac_addr, vif);
+  }
+  route_mutex_unlock();
 }
 
 void

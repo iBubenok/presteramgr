@@ -24,6 +24,7 @@ presteramgr_SOURCES =	\
 	log.c				\
 	mcg.c				\
 	ip.c				\
+	ret_group.c				\
 	route.c				\
 	nht.c				\
 	ret.c				\
