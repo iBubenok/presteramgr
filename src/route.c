@@ -41,29 +41,18 @@
 #define HASH_ADD_GW(head, gwfield, add)                 \
   HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
-struct pfx_by_pfx {
-  struct route_pfx pfx;
-  uint32_t udaddr;
-  UT_hash_handle hh;
-};
 struct pfx_ipv6_by_pfx {
   struct route_pfx pfx;
   GT_IPV6ADDR udaddr;
   UT_hash_handle hh;
 };
 
-struct pfxs_by_gw {
-  struct gw gw;
-  struct pfx_by_pfx *pfxs;
-  UT_hash_handle hh;
-};
 
 struct pfxs_ipv6_by_gw {
   struct gw_v6 gw;
   struct pfx_ipv6_by_pfx *pfxs;
   UT_hash_handle hh;
 };
-static struct pfxs_by_gw *pfxs_by_gw;
 static struct pfxs_ipv6_by_gw *pfxs_ipv6_by_gw;
 
 uint8_t route_mac_lsb;
@@ -385,31 +374,6 @@ route_add_v6 (const struct route *rt)
   }
 
   return ST_OK;
-}
-
-void
-route_update_table (const struct gw *gw, int idx)
-{
-  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp, *tmp;
-
-  HASH_FIND_GW (pfxs_by_gw, gw, pbg);
-  if (!pbg)
-    return;
-
-  memset (&re, 0, sizeof (re));
-  re.ipLttEntry.routeEntryBaseIndex = idx;
-  HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
-    if (pbp->pfx.alen != 0) {
-      DEBUG ("install prefix %d.%d.%d.%d/%d via %d\r\n",
-             pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
-             pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
-             pbp->pfx.alen, idx);
-      CRP (cpssDxChIpLpmIpv4UcPrefixAdd
-           (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
-    }
-  }
 }
 
 void
@@ -929,31 +893,10 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
 
 void *
 route_get_udaddrs(void) {
-  uint32_t n = 0;
-  struct pfxs_by_gw *s, *t;
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        n++;
-      }
-    }
-  }
-
-  void *r = malloc(sizeof(n) + sizeof(uint32_t) * n);
+  void  *r = fib_get_routes_addr(true);
   if (!r)
     return NULL;
 
-  *(uint32_t*)r = n;
-  uint32_t *r1 = (uint32_t*)r + 1;
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        *r1++ = s1->udaddr;
-      }
-    }
-  }
   return r;
 }
 
@@ -970,40 +913,40 @@ route_reset_prefixes4gw(uint32_t addr, int alen) {
     route_mutex_unlock();
 }
 
-void
-route_dump(void) {
-  struct pfxs_by_gw *s, *t;
-  struct pfxs_ipv6_by_gw *s_v6, *t_v6;
-  DEBUG("!!!! ROUTE DUMP  !!!!\n");
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
-      }
-    }
-  }
-  DEBUG("!!!! end GW DUMP!!!!\n\n");
+// void
+// route_dump(void) {
+//   struct pfxs_by_gw *s, *t;
+//   struct pfxs_ipv6_by_gw *s_v6, *t_v6;
+//   DEBUG("!!!! ROUTE DUMP  !!!!\n");
+//   HASH_ITER (hh, pfxs_by_gw, s, t) {
+//     DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
+//     if (s->pfxs) {
+//       struct pfx_by_pfx *s1,*t1;
+//       HASH_ITER (hh, s->pfxs, s1, t1) {
+//         DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
+//       }
+//     }
+//   }
+//   DEBUG("!!!! end GW DUMP!!!!\n\n");
 
-  DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
-  HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
-    DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
-    if (s_v6->pfxs) {
-      struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
-      HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
-        DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
-      }
-    }
-  }
-  DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
+//   DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
+//   HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
+//     DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
+//     if (s_v6->pfxs) {
+//       struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
+//       HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
+//         DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
+//       }
+//     }
+//   }
+//   DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
 /*struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
   UT_hash_handle hh;
 };*/
 
-}
+// }
 
 pthread_mutex_t route_mutex;
 pthread_mutex_t queue_mutex;

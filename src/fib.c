@@ -434,6 +434,50 @@ fib_get_routes(void) {
   return r;
 }
 
+void *
+fib_get_routes_addr(bool_t is_enable_routing) {
+  // fib_dump();
+  int i;
+  uint32_t fib_n = 0;
+  struct fib_entry *s, *t;
+
+  for (i = 0; i < 32; i++) {
+//    n += HASH_COUNT(fib.e[i]);
+    HASH_ITER (hh, fib.e[i], s, t) {
+      if (is_enable_routing){
+        if (s->group_id) {
+          fib_n++;
+        }
+      } else {
+        fib_n++;
+      }
+    }
+  }
+
+  void *r = malloc(sizeof(fib_n) + sizeof(uint32_t) * fib_n);
+  if (!r)
+    return NULL;
+
+  *(uint32_t*)r = fib_n;
+  uint32_t *addrs = (uint32_t*)r + 1;
+  for (i = 0; i < 32; i++) {
+    HASH_ITER (hh, fib.e[i], s, t) {
+      if (is_enable_routing){
+        if (s->group_id) {
+          *addrs = ntohl(s->addr);
+          addrs++;
+        }
+      } else {
+          *addrs = ntohl(s->addr);
+          addrs++;
+      }
+    }
+  }
+
+
+  return r;
+}
+
 // void
 // fib_dump(void){
 //   struct fib_entry *s, *t;

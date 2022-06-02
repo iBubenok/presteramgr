@@ -2845,7 +2845,7 @@ if (page >= 3000) {   //TODO remove BEGIN
       // fib_dump();
       fib_ipv6_dump();
       ret_dump();
-      route_dump();
+      // route_dump();
       break;
     case 4001:
       for (i = 1; i < NPORTS; i++) {

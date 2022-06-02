@@ -43,7 +43,6 @@ extern enum status route_add_mgmt_ipv6 (ip_addr_v6_t);
 extern enum status route_del_mgmt_ipv6 (ip_addr_v6_t);
 extern enum status route_set_router_mac_addr (mac_addr_t);
 extern enum status route_set_solicited_cmd (solicited_cmd_t);
-extern void route_update_table (const struct gw *, int);
 extern void route_ipv6_update_table (const struct gw_v6 *, int);
 extern void route_handle_udaddr (uint32_t);
 extern void route_handle_ipv6_udaddr (GT_IPV6ADDR);
@@ -55,7 +54,7 @@ extern enum status route_mc_del (vid_t, const uint8_t *, const uint8_t *, mcg_t,
                                  vid_t);
 extern void *route_get_udaddrs(void);
 extern void route_reset_prefixes4gw(uint32_t, int);
-extern void route_dump(void);
+// extern void route_dump(void);
 
 // synchronization
 extern void route_mutex_init();
