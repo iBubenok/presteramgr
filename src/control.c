@@ -38,6 +38,8 @@
 #include <trunk.h>
 #include <gif.h>
 #include <pcl.h>
+#include <pbr.h>
+#include <lttindex.h>
 #include <ip.h>
 #include <dev.h>
 #include <ipsg.h>
@@ -488,6 +490,7 @@ DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_COS);
 DECLARE_HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP);
 DECLARE_HANDLER (CC_QOS_SET_DSCP_PRIO);
 DECLARE_HANDLER (CC_QOS_SET_COS_PRIO);
+DECLARE_HANDLER (CC_QOS_PROFILE_MANAGE);
 DECLARE_HANDLER (CC_GVRP_ENABLE);
 DECLARE_HANDLER (CC_MCG_CREATE);
 DECLARE_HANDLER (CC_MCG_DELETE);
@@ -586,6 +589,8 @@ DECLARE_HANDLER (CC_USER_ACL_RESET);
 DECLARE_HANDLER (CC_USER_ACL_FAKE_MODE);
 DECLARE_HANDLER (CC_USER_ACL_GET_COUNTER);
 DECLARE_HANDLER (CC_USER_ACL_CLEAR_COUNTER);
+DECLARE_HANDLER (CC_POLICY_BASED_ROUTING_SET);
+DECLARE_HANDLER (CC_POLICY_BASED_ROUTING_RESET);
 DECLARE_HANDLER (CC_PCL_TEST_START);
 DECLARE_HANDLER (CC_PCL_TEST_ITER);
 DECLARE_HANDLER (CC_PCL_TEST_STOP);
@@ -684,6 +689,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_QOS_SET_PORT_MLS_QOS_TRUST_DSCP),
   HANDLER (CC_QOS_SET_DSCP_PRIO),
   HANDLER (CC_QOS_SET_COS_PRIO),
+  HANDLER (CC_QOS_PROFILE_MANAGE),
   HANDLER (CC_GVRP_ENABLE),
   HANDLER (CC_MCG_CREATE),
   HANDLER (CC_MCG_DELETE),
@@ -783,6 +789,8 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_USER_ACL_FAKE_MODE),
   HANDLER (CC_USER_ACL_GET_COUNTER),
   HANDLER (CC_USER_ACL_CLEAR_COUNTER),
+  HANDLER (CC_POLICY_BASED_ROUTING_SET),
+  HANDLER (CC_POLICY_BASED_ROUTING_RESET),
   HANDLER (CC_PCL_TEST_START),
   HANDLER (CC_PCL_TEST_ITER),
   HANDLER (CC_PCL_TEST_STOP),
@@ -4297,6 +4305,26 @@ DEFINE_HANDLER (CC_QOS_SET_WRTD)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_QOS_PROFILE_MANAGE)
+{
+  enum status result;
+  struct qos_profile_mgmt qpm_cmd;
+  qos_profile_id_t qp_id;
+  zmsg_t *reply;
+
+  result = POP_ARG (&qpm_cmd);
+  if (result != ST_OK)
+    goto out;
+
+  result = qos_profile_manage (&qpm_cmd, &qp_id);
+
+ out:
+  reply = make_reply (result);
+  if (result == ST_OK && qpm_cmd.cmd == QOS_PROFILE_ADD)
+    zmsg_addmem (reply, &qp_id, sizeof (qp_id));
+  send_reply (reply);
+}
+
 DEFINE_HANDLER (CC_PORT_TDR_TEST_START)
 {
   enum status result;
@@ -5785,11 +5813,13 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
   enum status            result;
   struct pcl_interface   interface;
   pcl_dest_t             dest;
+  pcl_action_type_t      action_type;
   uint16_t               rules_count;
   pcl_default_action_t   default_action;
 
   INIT_VAR(interface);
   INIT_VAR(dest);
+  INIT_VAR(action_type);
   INIT_VAR(default_action);
   INIT_VAR(rules_count);
 
@@ -5799,6 +5829,7 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
     uint8_t           name_len;
     char              *name = NULL;
     pcl_rule_action_t rule_action;
+    void              *rule_action_params = NULL;
     pcl_rule_num_t    rule_num;
     void              *rule_params = NULL;
 
@@ -5806,6 +5837,21 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
     INIT_VAR(name_len);
     INIT_PTR_SZ(name, name_len);
     INIT_VAR(rule_action);
+
+    switch (rule_action) {
+      case PCL_RULE_ACTION_DENY:
+      case PCL_RULE_ACTION_PERMIT:
+        break;
+      case PCL_RULE_ACTION_DENY_QOS_POLICY:
+      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+        break;
+      default:
+        free(name);
+        result = ST_BAD_VALUE;
+        goto out;
+    }
+
     INIT_VAR(rule_num);
 
     switch (pcl_type) {
@@ -5813,30 +5859,36 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
         INIT_PTR_SZ(rule_params, sizeof(struct ip_pcl_rule));
         result = pcl_ip_rule_set(name,
                                  name_len,
+                                 action_type,
                                  rule_num,
                                  interface,
                                  dest,
                                  rule_action,
+                                 rule_action_params,
                                  rule_params);
         break;
       case PCL_TYPE_MAC:
         INIT_PTR_SZ(rule_params, sizeof(struct mac_pcl_rule));
         result = pcl_mac_rule_set(name,
                                   name_len,
+                                  action_type,
                                   rule_num,
                                   interface,
                                   dest,
                                   rule_action,
+                                  rule_action_params,
                                   rule_params);
         break;
       case PCL_TYPE_IPV6:
         INIT_PTR_SZ(rule_params, sizeof(struct ipv6_pcl_rule));
         result = pcl_ipv6_rule_set(name,
                                    name_len,
+                                   action_type,
                                    rule_num,
                                    interface,
                                    dest,
                                    rule_action,
+                                   rule_action_params,
                                    rule_params);
         break;
       default:
@@ -5871,11 +5923,13 @@ DEFINE_HANDLER (CC_USER_ACL_RESET)
   enum status          result;
   struct pcl_interface interface;
   pcl_dest_t           dest;
+  pcl_action_type_t    action_type;
 
   INIT_VAR(interface);
   INIT_VAR(dest);
+  INIT_VAR(action_type);
 
-  pcl_reset_rules(interface, dest);
+  pcl_reset_rules(interface, dest, action_type);
 
 out:
   report_status (ST_OK);
@@ -5948,6 +6002,135 @@ DEFINE_HANDLER (CC_USER_ACL_CLEAR_COUNTER)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_POLICY_BASED_ROUTING_SET)
+{
+  enum status            result = ST_OK;
+  struct pcl_interface   interface;
+  pcl_dest_t             dest;
+  ip_addr_t              nextHop;
+  vid_t                  vid;
+  pcl_action_type_t      action_type;
+  uint16_t               rules_count;
+  struct row_colum       ltt_index;
+  ltt_index_get(&ltt_index);
+
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+  INIT_VAR(nextHop);
+  INIT_VAR(vid);
+  INIT_VAR(action_type);
+  INIT_VAR(rules_count);
+
+  int i;
+  for (i = 0; i < rules_count; i++) {
+    pcl_type_t        pcl_type;
+    uint8_t           name_len;
+    char              *name = NULL;
+    pcl_rule_action_t rule_action;
+    void              *rule_action_params = NULL;
+    pcl_rule_num_t    rule_num;
+    void              *rule_params = NULL;
+
+    INIT_VAR(pcl_type);
+    INIT_VAR(name_len);
+    INIT_PTR_SZ(name, name_len);
+    INIT_VAR(rule_action);
+
+    switch (rule_action) {
+      case PCL_RULE_ACTION_DENY:
+      case PCL_RULE_ACTION_PERMIT:
+        break;
+      case PCL_RULE_ACTION_DENY_QOS_POLICY:
+      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+        break;
+      case PCL_RULE_ACTION_DENY_PBR:
+      case PCL_RULE_ACTION_PERMIT_PBR:
+        rule_action_params = &ltt_index;
+        break;
+      default:
+        free(name);
+        result = ST_BAD_VALUE;
+        ltt_index_del(&ltt_index);
+        goto out;
+    }
+
+    INIT_VAR(rule_num);
+
+
+    switch (pcl_type) {
+      case PCL_TYPE_IP:
+        INIT_PTR_SZ(rule_params, sizeof(struct ip_pcl_rule));
+        result = pcl_ip_rule_set(name,
+                                 name_len,
+                                 action_type,
+                                 rule_num,
+                                 interface,
+                                 dest,
+                                 rule_action,
+                                 rule_action_params,
+                                 rule_params);
+
+        break;
+      case PCL_TYPE_MAC:
+        INIT_PTR_SZ(rule_params, sizeof(struct mac_pcl_rule));
+        // result = pcl_mac_rule_set(name,
+        //                           name_len,
+        //                           action_type,
+        //                           rule_num,
+        //                           interface,
+        //                           dest,
+        //                           rule_action,
+        //                           rule_action_params,
+        //                           rule_params);
+        break;
+      case PCL_TYPE_IPV6:
+        INIT_PTR_SZ(rule_params, sizeof(struct ipv6_pcl_rule));
+        // result = pcl_ipv6_rule_set(name,
+        //                            name_len,
+        //                            action_type,
+        //                            rule_num,
+        //                            interface,
+        //                            dest,
+        //                            rule_action,
+        //                            rule_action_params,
+        //                            rule_params);
+        break;
+      default:
+        result = ST_BAD_VALUE;
+    };
+
+    free(name);
+    free(rule_params);
+
+    if (result != ST_OK) {
+      ltt_index_del(&ltt_index);
+      goto out;
+    }
+  }
+  pbr_route_set(&ltt_index, nextHop, vid, interface);
+out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_POLICY_BASED_ROUTING_RESET)
+{
+  enum status          result = GT_OK;
+  struct pcl_interface interface;
+  pcl_dest_t           dest;
+  pcl_action_type_t    action_type;
+
+  INIT_VAR(interface);
+  INIT_VAR(dest);
+  INIT_VAR(action_type);
+
+  pcl_reset_rules(interface, dest, action_type);
+  pbr_route_unset(interface);
+
+out:
+  report_status (ST_OK);
 }
 
 DEFINE_HANDLER (CC_PCL_TEST_START)

@@ -10,6 +10,7 @@
 
 #include <control-proto.h>
 #include <route-p.h>
+#include <pbr.h>
 
 struct route_pfx {
   GT_IPADDR addr;
@@ -18,7 +19,8 @@ struct route_pfx {
 };
 
 struct route_pbr {
-
+  struct row_colum ltt_index;
+  struct pcl_interface interface;
 };
 
 struct route {

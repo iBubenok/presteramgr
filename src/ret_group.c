@@ -12,6 +12,8 @@
 #include <ret.h>
 #include <debug.h>
 #include <ret_group.h>
+#include <sysdeps.h>
+#include <port.h>
 
 
 struct re_idx {
@@ -40,6 +42,27 @@ struct re_group {
 
 static struct list_int *group_id = NULL;
 static struct re_group *re_group = NULL;
+
+#define FR(term)                   \
+  if ((term) != ST_OK) {  \
+    DEBUG("\nError: %s\n", #term); \
+    return ST_BAD_VALUE;           \
+  }
+
+static enum status
+get_port_ptr (uint16_t pid, struct port** port)
+{
+  (*port) = port_ptr(pid);
+  if (!(*port)) {
+    DEBUG("%s: port: %d - invalid port_ptr (NULL)\n", __FUNCTION__, pid);
+    return ST_BAD_VALUE;
+  }
+  if (is_stack_port(*port)) {
+    DEBUG("%s: port: %d - is stack port\n", __FUNCTION__, pid);
+    return ST_BAD_VALUE;
+  }
+  return ST_OK;
+}
 
 int ret_group_list_int_cmp(struct list_int *a, struct list_int *b) {
   
@@ -100,6 +123,17 @@ int list_route_pfx_pbr_cmp_pfx(struct list_route_pfx_pbr *a, struct list_route_p
   if (a->val.data.pfx.addr.u32Ip == b->val.data.pfx.addr.u32Ip && a->val.data.pfx.alen == b->val.data.pfx.alen) 
     return 0;
   else 
+    return 1;
+}
+
+int list_route_pfx_pbr_cmp_pbr(struct list_route_pfx_pbr *a, struct list_route_pfx_pbr *b) {
+  if (a->val.type != ROUTE_PBR || b->val.type != ROUTE_PBR) return 1;
+  if (a->val.data.pbr.ltt_index.row == b->val.data.pbr.ltt_index.row
+  && a->val.data.pbr.ltt_index.colum == b->val.data.pbr.ltt_index.colum
+  && a->val.data.pbr.interface.num == b->val.data.pbr.interface.num
+  && a->val.data.pbr.interface.type == b->val.data.pbr.interface.type)
+    return 0;
+  else
     return 1;
 }
 
@@ -231,6 +265,167 @@ int ret_group_add(int gw_count, struct gw *gw, uint32_t ip, int alen) {
   return group_add->group_id;
 }
 
+enum status ret_group_ltt_tcam_set(struct route_pbr *pbr, struct re_group *group) {
+  int devs[NDEVS];
+  int dev_count = 0;
+  int d;
+  struct port *port = NULL;
+  switch (pbr->interface.type) {
+    case PCL_INTERFACE_TYPE_VLAN:
+      dev_count = NDEVS;
+      for_each_dev(d) { devs[d] = d; };
+      break;
+    case PCL_INTERFACE_TYPE_PORT:
+      FR(get_port_ptr(pbr->interface.num, &port));
+      dev_count = 1;
+      devs[0]   = port->ldev;
+      break;
+    default:
+      return ST_BAD_VALUE;
+  };
+
+  for (d = 0; d < dev_count; d++) {
+    CPSS_DXCH_IP_LTT_ENTRY_STC ipLttEntry;
+    memset(&ipLttEntry, 0, sizeof(CPSS_DXCH_IP_LTT_ENTRY_STC));
+
+    ipLttEntry.routeEntryBaseIndex = group->first_idx;
+    ipLttEntry.numOfPaths = group->numOfPaths;
+    if (group->numOfPaths == -1) {
+      ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+      ipLttEntry.numOfPaths = 0;
+    }
+    CRP (cpssDxChIpLttWrite(devs[d], pbr->ltt_index.row, pbr->ltt_index.colum, &ipLttEntry));
+
+    // CPSS_DXCH_IPV4_PREFIX_STC   prefixPtr;
+    // CPSS_DXCH_IPV4_PREFIX_STC   maskPtr;
+
+    // prefixPtr.vrId = 0;
+    // prefixPtr.isMcSource = GT_FALSE;
+    // // prefixPtr.ipAddr.u32Ip = nextHop;
+    // memcpy(prefixPtr.ipAddr.arIP, nextHop,4);
+
+    // maskPtr.vrId = 0;
+    // maskPtr.isMcSource = GT_FALSE;
+    // maskPtr.ipAddr.u32Ip = 0xFFFFFFFF;
+    // // rc = cpssDxChIpv4PrefixSet(devs[d], ltt_index->row, ltt_index->colum, &prefixPtr, &maskPtr);
+    // // DEBUG("SUFIK %u\n", rc);
+    // CRP (cpssDxChIpv4PrefixSet(devs[d], ltt_index->row, ltt_index->colum, &prefixPtr, &maskPtr));
+  }
+  return ST_OK;
+}
+
+int ret_group_add_pbr(int gw_count, struct gw *gw, struct pbr_entry *pe ) {
+  struct re *ret = NULL;
+  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+  struct re_group *el, *tmp, *group_add;
+  struct list_route_pfx_pbr *out, elt, *add = NULL;
+  struct list_re_idx *re_idx_add;
+  // GT_IPADDR addr;
+  int idxs[8];
+  // addr.u32Ip = htonl(ip);
+  memset(&elt, 0, sizeof(struct list_route_pfx_pbr));
+  memset(&re, 0, sizeof(re));
+  HASH_ITER(hh, re_group, el, tmp) {
+    bool_t result = compare_lists(gw_count, gw, el->re_idx);
+    if (result) {
+      elt.val.type = ROUTE_PBR;
+      elt.val.data.pbr.ltt_index = *pbr_get_ltt_index(pe);
+      elt.val.data.pbr.interface = *pbr_get_interface(pe);
+
+      // elt.val.data.pfx.addr = addr;
+      // elt.val.data.pfx.alen = alen;
+      DL_SEARCH(el->pfx_pbr, out, &elt, list_route_pfx_pbr_cmp_pbr);
+      if (!out) {
+        add = calloc(1, sizeof(struct list_route_pfx_pbr));
+        add->val.type = ROUTE_PBR;
+        add->val.data.pbr.ltt_index = *pbr_get_ltt_index(pe);
+        add->val.data.pbr.interface = *pbr_get_interface(pe);
+        // add->val.data.pfx.addr.u32Ip = htonl(ip);
+        // add->val.data.pfx.alen = alen;
+        DL_APPEND(el->pfx_pbr, add);
+        out = add;
+      }
+
+      // DL_SORT(re_group->re_idx, list_re_idx_cmp_sort);
+      // DL_FOREACH(re_group->re_idx, re_idx_el) {
+      //   if (re_idx_el->)
+      // }
+      re.ipLttEntry.routeEntryBaseIndex = el->first_idx;
+      re.ipLttEntry.numOfPaths = el->numOfPaths;
+      if (el->numOfPaths == -1) {
+        re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+        re.ipLttEntry.numOfPaths = 0;
+      }
+      // CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+      //      (0, 0, addr, alen, &re, GT_TRUE));
+      ret_group_ltt_tcam_set(&out->val.data.pbr, re_group);
+      return el->group_id;
+    }
+  }
+
+  group_add = calloc(1, sizeof(struct re_group));
+  group_add->group_id = get_new_group_id();
+  group_add->re_count = gw_count;
+
+  add = calloc(1, sizeof(struct list_route_pfx_pbr));
+  add->val.type = ROUTE_PBR;
+  add->val.data.pbr.ltt_index = *pbr_get_ltt_index(pe);
+  add->val.data.pbr.interface = *pbr_get_interface(pe);
+  // add->val.data.pfx.addr = addr;
+  // add->val.data.pfx.alen = alen;
+  DL_APPEND(group_add->pfx_pbr, add);
+
+  if (!res_pop(gw_count, idxs)) {
+    DEBUG("res_pop gw_count %d \n", gw_count);
+  }
+  group_add->first_idx = idxs[0];
+
+  int i = 0;
+  int start = 0;
+  int end = gw_count - 1;
+  for (i = 0; i < gw_count; i++) {
+    re_idx_add = calloc(1, sizeof(struct list_re_idx));
+    //
+    re_idx_add->val.gw.addr.u32Ip = gw[i].addr.u32Ip;
+    re_idx_add->val.gw.vid = gw[i].vid;
+    // ret_add();
+    ret = ret_add(&gw[i], group_add->group_id);
+
+    if (ret == NULL) {
+      DEBUG("ret = NULL \n");
+    }
+    if (ret != NULL && ret_get_valid(ret)){
+      re_idx_add->val.idx = idxs[start];
+      start++;
+      ret_set_re_to_idx(ret, re_idx_add->val.idx);
+    }
+    if (ret != NULL && !ret_get_valid(ret)) {
+      re_idx_add->val.idx = idxs[end];
+      re_idx_add->val.idx = DROP_RE_IDX;
+      end--;
+    }
+    DL_APPEND(group_add->re_idx, re_idx_add);
+  }
+  group_add->numOfPaths = start - 1;
+
+  re.ipLttEntry.routeEntryBaseIndex = group_add->first_idx;
+  re.ipLttEntry.numOfPaths = group_add->numOfPaths;
+  if (group_add->numOfPaths == -1) {
+    re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+    re.ipLttEntry.numOfPaths = 0;
+  }
+  // CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+  //       (0, 0, addr, alen, &re, GT_TRUE));
+  ret_group_ltt_tcam_set(&add->val.data.pbr, group_add);
+  HASH_ADD(hh, re_group, group_id, sizeof(int), group_add);
+
+  for (i = 0; i < gw_count; i++) {
+    ret_arpc_request_addr(&gw[i]);
+  }
+
+  return group_add->group_id;
+}
+
 // struct fib_entry;
 
 void ret_group_del_2(struct re_group *re_group) {
@@ -258,6 +453,22 @@ void ret_group_remove_pfx(struct list_route_pfx_pbr **head, uint32_t pfx, int al
   }
 }
 
+void ret_group_remove_pbr(struct list_route_pfx_pbr **head, struct pbr_entry *pe) {
+  struct list_route_pfx_pbr *prx_del, pfx_elt;
+
+  pfx_elt.val.type = ROUTE_PBR;
+  pfx_elt.val.data.pbr.interface = *pbr_get_interface(pe);
+  pfx_elt.val.data.pbr.ltt_index = *pbr_get_ltt_index(pe);
+  // pfx_elt.val.data.pfx.addr.u32Ip = htonl(pfx);
+  // pfx_elt.val.data.pfx.alen = alen;
+
+  DL_SEARCH(*head, prx_del, &pfx_elt, list_route_pfx_pbr_cmp_pbr);
+  if (prx_del) {
+    DL_DELETE(*head, prx_del);
+    free(prx_del);
+  }
+}
+
 void ret_group_del(int group_id, uint32_t pfx, int alen, bool_t is_children) {
   struct re_group *re_group_out;
   HASH_FIND(hh, re_group, &group_id, sizeof(int), re_group_out);
@@ -268,6 +479,20 @@ void ret_group_del(int group_id, uint32_t pfx, int alen, bool_t is_children) {
         HASH_DELETE(hh, re_group, re_group_out);
         free(re_group_out);
       }   
+  }
+}
+
+void ret_group_del_pbr(struct pbr_entry *pe) {
+  struct re_group *re_group_out;
+  int group_id = pbr_get_group_id(pe);
+  HASH_FIND(hh, re_group, &group_id, sizeof(int), re_group_out);
+  if (re_group_out) {
+      ret_group_remove_pbr(&re_group_out->pfx_pbr, pe);
+      if (!re_group_out->pfx_pbr) {
+        ret_group_del_2(re_group_out);
+        HASH_DELETE(hh, re_group, re_group_out);
+        free(re_group_out);
+      }
   }
 }
 
@@ -285,6 +510,9 @@ void ret_group_update_lpm_table(struct re_group *re_group) {
     if (out->val.type == ROUTE_PFX) { 
       CRP (cpssDxChIpLpmIpv4UcPrefixAdd
             (0, 0, out->val.data.pfx.addr, out->val.data.pfx.alen, &re, GT_TRUE));
+    }
+    if (out->val.type == ROUTE_PBR) {
+      ret_group_ltt_tcam_set(&out->val.data.pbr, re_group);
     }
   } 
 }
