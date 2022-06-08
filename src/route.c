@@ -25,8 +25,10 @@
 #include <stack.h>
 #include <debug.h>
 #include <utils.h>
+#include <ret_group.h>
 
 #include <uthash.h>
+#include <utlist.h>
 
 
 #define HASH_FIND_PFX(head, findpfx, out)                       \
@@ -39,29 +41,18 @@
 #define HASH_ADD_GW(head, gwfield, add)                 \
   HASH_ADD (hh, head, gwfield, sizeof (struct gw), add)
 
-struct pfx_by_pfx {
-  struct route_pfx pfx;
-  uint32_t udaddr;
-  UT_hash_handle hh;
-};
 struct pfx_ipv6_by_pfx {
   struct route_pfx pfx;
   GT_IPV6ADDR udaddr;
   UT_hash_handle hh;
 };
 
-struct pfxs_by_gw {
-  struct gw gw;
-  struct pfx_by_pfx *pfxs;
-  UT_hash_handle hh;
-};
 
 struct pfxs_ipv6_by_gw {
   struct gw_v6 gw;
   struct pfx_ipv6_by_pfx *pfxs;
   UT_hash_handle hh;
 };
-static struct pfxs_by_gw *pfxs_by_gw;
 static struct pfxs_ipv6_by_gw *pfxs_ipv6_by_gw;
 
 uint8_t route_mac_lsb;
@@ -174,6 +165,9 @@ cpss_lib_init (void)
 
     devs[0] = d;
     CRP (cpssDxChIpLpmDBDevListAdd (lpmDbId, devs, 1));
+
+    CRP (cpssDxChIpEcmpUcRpfCheckEnableSet(d, GT_TRUE));
+
   }
 
   rc = CRP (cpssDxChIpLpmVirtualRouterAdd (lpmDbId, 0, &vrConfigInfo));
@@ -225,45 +219,6 @@ route_start (void)
   return ST_OK;
 }
 
-static void
-route_register (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid, uint32_t udaddr)
-{
-  GT_IPADDR ip;
-  struct gw gw;
-  struct route_pfx pfx;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp;
-
-  DEBUG ("register pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
-         (addr >> 24) & 0xFF,
-         (addr >> 16) & 0xFF,
-         (addr >> 8) & 0xFF,
-         addr & 0xFF,
-         alen,
-         (gwaddr >> 24) & 0xFF,
-         (gwaddr >> 16) & 0xFF,
-         (gwaddr >> 8) & 0xFF,
-         gwaddr & 0xFF);
-
-  ip.u32Ip = htonl (gwaddr);
-  route_fill_gw (&gw, &ip, vid);
-  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
-  if (!pbg) {
-    pbg = calloc (1, sizeof (*pbg));
-    pbg->gw = gw;
-    HASH_ADD_GW (pfxs_by_gw, gw, pbg);
-  }
-
-  pfx.addr.u32Ip = htonl (addr);
-  pfx.alen = alen;
-  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
-  if (!pbp) {
-    pbp = calloc (1, sizeof (*pbp));
-    pbp->pfx = pfx;
-    pbp->udaddr = udaddr;
-    HASH_ADD_PFX (pbg->pfxs, pfx, pbp);
-  }
-}
 
 static void
 route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, GT_IPV6ADDR udaddr)
@@ -301,48 +256,6 @@ route_ipv6_register (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid, 
   }
 }
 
-static void
-route_unregister (uint32_t addr, int alen, uint32_t gwaddr, vid_t vid)
-{
-  GT_IPADDR ip;
-  struct gw gw;
-  struct route_pfx pfx;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp;
-
-  DEBUG ("unregister pfx %d.%d.%d.%d/%d gw %d.%d.%d.%d\r\n",
-         (addr >> 24) & 0xFF,
-         (addr >> 16) & 0xFF,
-         (addr >> 8) & 0xFF,
-         addr & 0xFF,
-         alen,
-         (gwaddr >> 24) & 0xFF,
-         (gwaddr >> 16) & 0xFF,
-         (gwaddr >> 8) & 0xFF,
-         gwaddr & 0xFF);
-
-  ip.u32Ip = htonl (gwaddr);
-  route_fill_gw (&gw, &ip, vid);
-  HASH_FIND_GW (pfxs_by_gw, &gw, pbg);
-  if (!pbg)
-    return;
-
-  pfx.addr.u32Ip = htonl (addr);
-  pfx.alen = alen;
-  HASH_FIND_PFX (pbg->pfxs, &pfx, pbp);
-  if (!pbp)
-    return;
-
-  HASH_DEL (pbg->pfxs, pbp);
-  free (pbp);
-
-  ret_unref (&gw, alen == 0);
-
-  if (!pbg->pfxs) {
-    HASH_DEL (pfxs_by_gw, pbg);
-    free (pbg);
-  }
-}
 
 static void
 route_ipv6_unregister (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid)
@@ -384,20 +297,21 @@ route_ipv6_unregister (GT_IPV6ADDR addr, int alen, GT_IPV6ADDR gwaddr, vid_t vid
 enum status
 route_add (const struct route *rt)
 {
-DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
-    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
-  fib_add (ntohl (rt->pfx.addr.u32Ip),
-           rt->pfx.alen,
-           rt->vid,
-           ntohl (rt->gw.u32Ip));
 
-  DEBUG ("add route to %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
+  DEBUG("route_add %hhu \n", rt->gw_count);
+
+  fib_add(
+    ntohl (rt->pfx.addr.u32Ip),
+    rt->pfx.alen,
+    rt->gw_count,
+    rt->gw);
+
+  DEBUG ("add route to %hhu.%hhu.%hhu.%hhu/%u via count %hhu\r\n",
          rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
          rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
          rt->pfx.alen,
-         rt->gw.arIP[0], rt->gw.arIP[1],
-         rt->gw.arIP[2], rt->gw.arIP[3]);
+         rt->gw_count);
 
   if (rt->pfx.alen == 0) {
     /* Default route. */
@@ -425,8 +339,8 @@ DEBUG(">>>>route_add(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
 enum status
 route_add_v6 (const struct route *rt)
 {
-DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
-    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+// DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+//     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
   fib_ipv6_add (
     rt->pfx.addrv6,
@@ -463,31 +377,6 @@ DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
 }
 
 void
-route_update_table (const struct gw *gw, int idx)
-{
-  CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-  struct pfxs_by_gw *pbg;
-  struct pfx_by_pfx *pbp, *tmp;
-
-  HASH_FIND_GW (pfxs_by_gw, gw, pbg);
-  if (!pbg)
-    return;
-
-  memset (&re, 0, sizeof (re));
-  re.ipLttEntry.routeEntryBaseIndex = idx;
-  HASH_ITER (hh, pbg->pfxs, pbp, tmp) {
-    if (pbp->pfx.alen != 0) {
-      DEBUG ("install prefix %d.%d.%d.%d/%d via %d\r\n",
-             pbp->pfx.addr.arIP[0], pbp->pfx.addr.arIP[1],
-             pbp->pfx.addr.arIP[2], pbp->pfx.addr.arIP[3],
-             pbp->pfx.alen, idx);
-      CRP (cpssDxChIpLpmIpv4UcPrefixAdd
-           (0, 0, pbp->pfx.addr, pbp->pfx.alen, &re, GT_TRUE));
-    }
-  }
-}
-
-void
 route_ipv6_update_table (const struct gw_v6 *gw, int idx)
 {
   CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
@@ -512,25 +401,27 @@ route_ipv6_update_table (const struct gw_v6 *gw, int idx)
 }
 
 void
-route_del_fib_entry (struct fib_entry *e)
+route_del_fib_entry (struct fib_entry *e, bool_t is_children)
 {
-  GT_IPADDR pfx, gwip;
+  GT_IPADDR pfx;
+  uint32_t addr_pfx = fib_entry_get_pfx (e);
+  int len = fib_entry_get_len (e);
+  int group_id = fib_entry_get_group_id(e);
 
-  pfx.u32Ip = htonl (fib_entry_get_pfx (e));
-  gwip.u32Ip = htonl (fib_entry_get_gw (e));
+  ret_group_del(group_id, addr_pfx, len, is_children);
 
-  DEBUG ("delete prefix %d.%d.%d.%d/%d via %d.%d.%d.%d\r\n",
-         pfx.arIP[0], pfx.arIP[1],
-         pfx.arIP[2], pfx.arIP[3],
-         fib_entry_get_len (e),
-         gwip.arIP[0], gwip.arIP[1],
-         gwip.arIP[2], gwip.arIP[3]);
 
-  if (fib_entry_get_len (e) != 0)
+  pfx.u32Ip = htonl (addr_pfx);
+
+  if (fib_entry_get_len (e) != 0) {
     CRP (cpssDxChIpLpmIpv4UcPrefixDel (0, 0, pfx, fib_entry_get_len (e)));
-
-  route_unregister (fib_entry_get_pfx (e), fib_entry_get_len (e),
-                    fib_entry_get_gw (e), fib_entry_get_vid (e));
+  }
+  if (fib_entry_get_len (e) == 0) {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = DEFAULT_UC_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, pfx, fib_entry_get_len (e), &re, GT_TRUE));
+  }
 
   DEBUG ("done\r\n");
 }
@@ -561,8 +452,8 @@ route_del_fib_ipv6_entry (struct fib_entry_ipv6 *e)
 enum status
 route_del (const struct route *rt)
 {
-DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
-    ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
+// DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
+//     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
   if (!fib_del (ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen))
     DEBUG ("prefix %d.%d.%d.%d/%d not found\r\n",
@@ -670,6 +561,7 @@ route_cpss_lib_init (void)
 {
   ret_init ();
   cpss_lib_init ();
+  route_mutex_init();
 
   return ST_OK;
 }
@@ -701,51 +593,45 @@ route_prefix_set_drop (uint32_t ip, int len)
 }
 
 static void
-route_prefix_set_trap (uint32_t ip, int len)
+route_request_mac_addr (struct list_uint32 *gwip, struct list_vid *vid, uint32_t ip, int alen, struct list_gw *ret_key, struct fib_entry *fib)
 {
-DEBUG(">>>>route_prefix_set_trap (%x, %d)\n", ip, len);
-  if (len) {
-    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-    GT_IPADDR addr;
-
-    addr.u32Ip = htonl (ip);
-    memset (&re, 0, sizeof (re));
-    re.ipLttEntry.routeEntryBaseIndex = TRAP_RE_IDX;
-    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, len, &re, GT_TRUE));
-  } else {
-    /* Default route. */
-    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-    int d;
-
-    memset (&rt, 0, sizeof (rt));
-    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
-    for_each_dev (d)
-      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  // struct gw gw;
+  // GT_IPADDR gwaddr;
+  // int ix;
+  struct gw gw_arr[8];
+  struct gw *ret_key_arr[8];
+  struct list_uint32 *gwip_el = NULL;
+  int gwip_len;
+  struct list_vid *vid_el = NULL;
+  int vid_len;
+  struct list_gw *ret_key_el = NULL;
+  int ret_key_len;
+  int i = 0;
+  uint8_t *a;
+  DL_FOREACH(gwip, gwip_el) {
+    a = (uint8_t *)&gwip_el->val;
+    gw_arr[i].addr.u32Ip = htonl (gwip_el->val);
+    i++;
   }
-}
+  gwip_len = i;
 
-static void
-route_request_mac_addr (uint32_t gwip, vid_t vid, uint32_t ip, int alen, struct gw *ret_key)
-{
-  struct gw gw;
-  GT_IPADDR gwaddr;
-  int ix;
-
-  gwaddr.u32Ip = htonl (gwip);
-  route_fill_gw (&gw, &gwaddr, vid);
-  ix = ret_add (&gw, alen == 0, ret_key);
-  DEBUG ("route entry index %d\r\n", ix);
-  if ((ix >= 0) && (alen != 0)) {
-    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
-    GT_IPADDR addr;
-
-    memset (&re, 0, sizeof (re));
-    re.ipLttEntry.routeEntryBaseIndex = ix;
-    addr.u32Ip = htonl (ip);
-    CRP (cpssDxChIpLpmIpv4UcPrefixAdd (0, 0, addr, alen, &re, GT_TRUE));
+  i = 0;
+  DL_FOREACH(vid, vid_el) {
+    gw_arr[i].vid = vid_el->val;
+    i++;
   }
+  vid_len = i;
+
+  i = 0;
+  DL_FOREACH(ret_key, ret_key_el){
+    ret_key_arr[i] = &ret_key_el->val;
+    i++;
+  }
+  ret_key_len = i;
+
+  int group_id = ret_group_add(gwip_len, gw_arr, ip, alen);
+
+  fib_entry_set_group_id (fib, group_id);
 }
 
 static void
@@ -774,11 +660,13 @@ route_ipv6_request_mac_addr (GT_IPV6ADDR gwip, vid_t vid, GT_IPV6ADDR ip, int al
 
 void
 route_handle_udaddr (uint32_t daddr) {
-DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
-  uint32_t rt;
-  int alen;
+  DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
+  // uint32_t rt;
+  struct list_uint32 *rt = NULL;
+  struct list_vid *vid = NULL;
+  struct list_gw *ret_key = NULL;
+  int alen = 32;
   struct fib_entry *e;
-
   e = fib_route (daddr);
   if (!e) {
     DEBUG ("can't route for %d.%d.%d.%d\r\n",
@@ -787,22 +675,23 @@ DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
     return;
   }
 
-  rt = fib_entry_get_gw (e);
-  if (rt)
-    alen = fib_entry_get_len (e);
-  else {
-    rt = daddr;
-    alen = 32;
-  }
-//  route_prefix_set_drop (fib_entry_get_pfx (e), alen);
-  route_register (fib_entry_get_pfx (e), alen, rt, fib_entry_get_vid (e), daddr);
-  route_request_mac_addr (rt, fib_entry_get_vid (e), fib_entry_get_pfx (e), alen, fib_entry_get_retkey_ptr(e));
+  if (fib_entry_get_group_id(e)) return;
 
-  DEBUG ("got packet to %d.%d.%d.%d, gw %d.%d.%d.%d\r\n",
-         (daddr >> 24) & 0xFF, (daddr >> 16) & 0xFF,
-         (daddr >> 8) & 0xFF, daddr & 0xFF,
-         (rt >> 24) & 0xFF, (rt >> 16) & 0xFF,
-         (rt >> 8) & 0xFF, rt & 0xFF);
+  rt = fib_entry_get_gw (e);
+
+  vid = fib_entry_get_vid (e);
+
+  ret_key = fib_entry_get_retkey_ptr(e);
+  if (rt){
+    alen = fib_entry_get_len (e);
+  }
+  else {
+    // rt = daddr;
+    // alen = 32;
+  }
+
+  route_request_mac_addr (rt, vid, fib_entry_get_pfx (e), alen, ret_key, e);
+
 }
 
 void
@@ -1004,101 +893,104 @@ route_mc_del (vid_t vid, const uint8_t *dst, const uint8_t *src, mcg_t via,
 
 void *
 route_get_udaddrs(void) {
-  uint32_t n = 0;
-  struct pfxs_by_gw *s, *t;
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        n++;
-      }
-    }
-  }
-
-  void *r = malloc(sizeof(n) + sizeof(uint32_t) * n);
+  void  *r = fib_get_routes_addr(true);
   if (!r)
     return NULL;
 
-  *(uint32_t*)r = n;
-  uint32_t *r1 = (uint32_t*)r + 1;
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        *r1++ = s1->udaddr;
-      }
-    }
-  }
   return r;
 }
 
 void
-route_reset_prefixes4gw(struct gw * gw) {
-  struct pfxs_by_gw *s;
-  struct pfx_by_pfx *s1,*t1;
-
-  HASH_FIND_GW (pfxs_by_gw, gw, s);
-  if (!s) {
-    DEBUG("GW: %x/%d not found. exiting\n", ntohl(gw->addr.u32Ip), gw->vid);
-    return;
-  }
-  HASH_ITER (hh, s->pfxs, s1, t1) {
-    struct route_pfx cache_pfx;
-    memcpy(&cache_pfx, &s1->pfx, sizeof(cache_pfx));
-
-    if (!s1->pfx.alen) { /* default route */
-      route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
-      route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
-    }
-    else {
-      if (s1->pfx.alen == 32) {
-        struct fib_entry *f = fib_unhash_child(ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen);
-        if (!f) {
-          DEBUG("connected fib child not found. next_iter\n");
-          continue;
-        }
-        route_del_fib_entry (f);
-        free(f);
-      }
-      else {
-        route_unregister (ntohl(s1->pfx.addr.u32Ip), s1->pfx.alen, ntohl(gw->addr.u32Ip), gw->vid);
-        route_prefix_set_trap (ntohl(cache_pfx.addr.u32Ip), cache_pfx.alen);
-      }
-    }
-  }
+route_reset_prefixes4gw(uint32_t addr, int alen) {
+  struct fib_entry *fib;
+  struct route rt;
+  fib = fib_get(ntohl(addr), alen);
+  if (fib)
+    fib_to_route(fib, &rt);
+    route_mutex_lock();
+    route_del(&rt);
+    route_add(&rt);
+    route_mutex_unlock();
 }
 
-void
-route_dump(void) {
-  struct pfxs_by_gw *s, *t;
-  struct pfxs_ipv6_by_gw *s_v6, *t_v6;
-  DEBUG("!!!! ROUTE DUMP  !!!!\n");
-  HASH_ITER (hh, pfxs_by_gw, s, t) {
-    DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
-    if (s->pfxs) {
-      struct pfx_by_pfx *s1,*t1;
-      HASH_ITER (hh, s->pfxs, s1, t1) {
-        DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
-      }
-    }
-  }
-  DEBUG("!!!! end GW DUMP!!!!\n\n");
+// void
+// route_dump(void) {
+//   struct pfxs_by_gw *s, *t;
+//   struct pfxs_ipv6_by_gw *s_v6, *t_v6;
+//   DEBUG("!!!! ROUTE DUMP  !!!!\n");
+//   HASH_ITER (hh, pfxs_by_gw, s, t) {
+//     DEBUG(IPv4_FMT ":%3d, %p\n",  IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->pfxs);
+//     if (s->pfxs) {
+//       struct pfx_by_pfx *s1,*t1;
+//       HASH_ITER (hh, s->pfxs, s1, t1) {
+//         DEBUG("\t"IPv4_FMT "/%2d, %x, %p\n",  IPv4_ARG(s1->pfx.addr.arIP), s1->pfx.alen, s1->udaddr, s1);
+//       }
+//     }
+//   }
+//   DEBUG("!!!! end GW DUMP!!!!\n\n");
 
-  DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
-  HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
-    DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
-    if (s_v6->pfxs) {
-      struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
-      HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
-        DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
-      }
-    }
-  }
-  DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
+//   DEBUG("!!!! ROUTE DUMP IPV6  !!!!\n");
+//   HASH_ITER (hh, pfxs_ipv6_by_gw, s_v6, t_v6) {
+//     DEBUG(IPv6_FMT ":%3d, %p\n",  IPv6_ARG(s_v6->gw.addr.arIP), s_v6->gw.vid, s_v6->pfxs);
+//     if (s_v6->pfxs) {
+//       struct pfx_ipv6_by_pfx *s1_v6,*t1_v6;
+//       HASH_ITER (hh, s_v6->pfxs, s1_v6, t1_v6) {
+//         DEBUG("\t"IPv6_FMT "/%2d, "IPv6_FMT", %p\n",  IPv6_ARG(s1_v6->pfx.addrv6.arIP), s1_v6->pfx.alen, IPv6_ARG(s1_v6->udaddr.arIP), s1_v6);
+//       }
+//     }
+//   }
+//   DEBUG("!!!! end GW DUMP IPV6!!!!\n\n");
 /*struct pfxs_by_gw {
   struct gw gw;
   struct pfx_by_pfx *pfxs;
   UT_hash_handle hh;
 };*/
 
+// }
+
+pthread_mutex_t route_mutex;
+pthread_mutex_t queue_mutex;
+
+struct list_queue {
+  pthread_t tid;
+  struct list_queue *next;
+};
+
+struct list_queue *head = NULL;
+
+// int list_queue_cmp(struct list_queue *a, struct list_queue *b) {
+//   return !pthread_equal(a->tid, b->tid);
+// }
+
+void route_mutex_init() {
+  pthread_mutex_init(&route_mutex, NULL);
+  pthread_mutex_init(&queue_mutex, NULL);
+}
+
+void route_mutex_lock() {
+  struct list_queue *add = NULL, *del = NULL;
+  pthread_mutex_lock(&queue_mutex);
+  add = calloc(1, sizeof(struct list_queue));
+  add->tid = pthread_self();
+  LL_APPEND(head, add);
+  pthread_mutex_unlock(&queue_mutex);
+
+  back:
+    pthread_mutex_lock(&route_mutex);
+
+    pthread_mutex_lock(&queue_mutex);
+    if (!pthread_equal(head->tid, pthread_self())) {
+      pthread_mutex_unlock(&queue_mutex);
+      pthread_mutex_unlock(&route_mutex);
+      goto back;
+    }
+    del = head;
+    LL_DELETE(head, del);
+    free(del);
+
+    pthread_mutex_unlock(&queue_mutex);
+}
+
+void route_mutex_unlock(){
+  pthread_mutex_unlock(&route_mutex);
 }

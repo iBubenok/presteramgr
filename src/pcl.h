@@ -145,28 +145,34 @@ pcl_set_fake_mode_enabled (bool_t);
 extern enum status
 pcl_ip_rule_set (char                 *name,
                  uint8_t              name_len,
+                 pcl_action_type_t    action_type,
                  pcl_rule_num_t       rule_num,
                  struct pcl_interface interface,
                  pcl_dest_t           dest,
                  pcl_rule_action_t    rule_action,
+                 void                 *rulse_action_params,
                  struct ip_pcl_rule   *rule_params);
 
 extern enum status
 pcl_mac_rule_set (char                 *name,
                   uint8_t              name_len,
+                  pcl_action_type_t    action_type,
                   pcl_rule_num_t       rule_num,
                   struct pcl_interface interface,
                   pcl_dest_t           dest,
                   pcl_rule_action_t    rule_action,
+                  void                 *rulse_action_params,
                   struct mac_pcl_rule  *rule_params);
 
 extern enum status
 pcl_ipv6_rule_set (char                 *name,
                    uint8_t              name_len,
+                   pcl_action_type_t    action_type,
                    pcl_rule_num_t       rule_num,
                    struct pcl_interface interface,
                    pcl_dest_t           dest,
                    pcl_rule_action_t    rule_action,
+                   void                 *rulse_action_params,
                    struct ipv6_pcl_rule *rule_params);
 
 extern enum status
@@ -190,6 +196,6 @@ pcl_clear_counter (struct pcl_interface interface,
                    pcl_rule_num_t       rule_num);
 
 extern void
-pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest);
+pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest, pcl_action_type_t action_type);
 
 #endif /* __PCL_H__ */

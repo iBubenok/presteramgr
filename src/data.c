@@ -148,12 +148,12 @@ data_encode_fdb_addrs_vif (zmsg_t *msg, vid_t vid, vif_id_t vif_target) {
     struct vif *vif;
 
 if (fdb[i].valid ) { // TODO remove operator & block
-  DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
-        "%hX,  %s\n",
-        i, fdb[i].me.key.entryType, fdb[i].me.dstInterface.type, MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther),
-        fdb[i].me.dstInterface.devPort.devNum, fdb[i].me.dstInterface.devPort.portNum,
-        fdb[i].me.dstInterface.trunkId, fdb[i].me.key.key.macVlan.vlanId, fdb[i].pc_aging_status,
-        (fdb[i].me.userDefined == 0)? "UNUSED" : (fdb[i].me.userDefined == 1)? "FOREIGN" : (fdb[i].me.userDefined == 2)? "DYNAMIC" : (fdb[i].me.userDefined == 3)? "STATIC" : (fdb[i].me.userDefined == 4)? "OWN": "UNKNOWN" );
+  // DEBUG("%04x: eType==%hhu, dst.type==%hhu, " MAC_FMT ", %hhu:%hhu:%hhu, Vid==%03x, "
+  //       "%hX,  %s\n",
+  //       i, fdb[i].me.key.entryType, fdb[i].me.dstInterface.type, MAC_ARG(fdb[i].me.key.key.macVlan.macAddr.arEther),
+  //       fdb[i].me.dstInterface.devPort.devNum, fdb[i].me.dstInterface.devPort.portNum,
+  //       fdb[i].me.dstInterface.trunkId, fdb[i].me.key.key.macVlan.vlanId, fdb[i].pc_aging_status,
+  //       (fdb[i].me.userDefined == 0)? "UNUSED" : (fdb[i].me.userDefined == 1)? "FOREIGN" : (fdb[i].me.userDefined == 2)? "DYNAMIC" : (fdb[i].me.userDefined == 3)? "STATIC" : (fdb[i].me.userDefined == 4)? "OWN": "UNKNOWN" );
 }
 
 /*  GT_BOOL fvalid = 0xff, fskip=0xff, faged=0xff; //TODO remove block
