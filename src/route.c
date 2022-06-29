@@ -337,6 +337,48 @@ route_add (const struct route *rt)
 }
 
 enum status
+route_add_change (const struct route *rt)
+{
+
+
+  DEBUG("route_add_change %hhu \n", rt->gw_count);
+
+  fib_add(
+    ntohl (rt->pfx.addr.u32Ip),
+    rt->pfx.alen,
+    rt->gw_count,
+    rt->gw);
+
+  DEBUG ("add route to %hhu.%hhu.%hhu.%hhu/%u via count %hhu\r\n",
+         rt->pfx.addr.arIP[0], rt->pfx.addr.arIP[1],
+         rt->pfx.addr.arIP[2], rt->pfx.addr.arIP[3],
+         rt->pfx.alen,
+         rt->gw_count);
+
+  if (rt->pfx.alen == 0) {
+    /* Default route. */
+    CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+    int d;
+
+    memset (&rt, 0, sizeof (rt));
+    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    rt.entry.regularEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_1_E;
+    for_each_dev (d)
+      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+  } else {
+    CPSS_DXCH_IP_TCAM_ROUTE_ENTRY_INFO_UNT re;
+
+    memset (&re, 0, sizeof (re));
+    re.ipLttEntry.routeEntryBaseIndex = DROP_RE_IDX;
+    CRP (cpssDxChIpLpmIpv4UcPrefixAdd
+         (0, 0, rt->pfx.addr, rt->pfx.alen, &re, GT_TRUE));
+  }
+
+  return ST_OK;
+}
+
+enum status
 route_add_v6 (const struct route *rt)
 {
 // DEBUG(">>>>route_add_v6(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
@@ -452,6 +494,7 @@ route_del_fib_ipv6_entry (struct fib_entry_ipv6 *e)
 enum status
 route_del (const struct route *rt)
 {
+  DEBUG("route_del " IPv4_FMT "/%d \n", IPv4_ARG(((uint8_t *)&rt->pfx.addr)), rt->pfx.alen);
 // DEBUG(">>>>route_del(pfx.addr== %x, pfx.alen== %d, vid== %d, gw== %x)\n",
 //     ntohl (rt->pfx.addr.u32Ip), rt->pfx.alen, rt->vid, ntohl (rt->gw.u32Ip));
 
@@ -476,6 +519,26 @@ DEBUG ("del route v6 to " IPv6_FMT "/%d via "IPv6_FMT"\r\n ",
     DEBUG ("prefix "IPv6_FMT"/%d not found\r\n",
          IPv6_ARG(rt->pfx.addrv6.arIP),
          rt->pfx.alen);
+
+  return ST_OK;
+}
+
+enum status
+route_change(const struct route *rt) {
+  struct fib_entry *fib = NULL;
+  int group_id = 0;
+  fib = fib_get(ntohl(rt->pfx.addr.u32Ip), rt->pfx.alen);
+  if (fib) {
+    group_id = fib_entry_get_group_id(fib);
+  }
+  route_del(rt);
+  if (group_id) {
+    route_add_change(rt);
+    route_handle_udaddr(ntohl(rt->pfx.addr.u32Ip));
+
+  } else {
+    route_add(rt);
+  }
 
   return ST_OK;
 }
@@ -660,7 +723,7 @@ route_ipv6_request_mac_addr (GT_IPV6ADDR gwip, vid_t vid, GT_IPV6ADDR ip, int al
 
 void
 route_handle_udaddr (uint32_t daddr) {
-  DEBUG(">>>>route_handle_udaddr (%x)\n", daddr);
+  DEBUG(">>>>route_handle_udaddr ("IPv4_FMT")\n", IPv4_ARG(((uint8_t *)&daddr)));
   // uint32_t rt;
   struct list_uint32 *rt = NULL;
   struct list_vid *vid = NULL;
@@ -748,7 +811,9 @@ route_handle_udt (const uint8_t *data, int len)
     mac_op_udt(daddr);
   }
 
+  route_mutex_lock();
   route_handle_udaddr (daddr);
+  route_mutex_unlock();
 }
 
 void
