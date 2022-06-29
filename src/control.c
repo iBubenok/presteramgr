@@ -959,8 +959,7 @@ rtbd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
           break;
         case RRTO_CHANGE:
           route_mutex_lock();
-          route_del (&rt);
-          route_add (&rt);
+          route_change(&rt);
           route_mutex_unlock();
           break;
         default:
@@ -1832,8 +1831,7 @@ DEBUG("===SC_INT_RTBD_CMD\n");
           break;
         case RRTO_CHANGE:
           route_mutex_lock();
-          route_del (&rt);
-          route_add (&rt);
+          route_change(&rt);
           route_mutex_unlock();
           break;
         default:
@@ -1921,7 +1919,10 @@ DEBUG("===SC_INT_UDT_CMD\n");
   if (!frame)
     return;
 
+  route_mutex_lock();
   route_handle_udaddr (*(uint32_t*)zframe_data(frame));
+  route_mutex_unlock();
+
 }
 
 DEFINE_HANDLER (SC_INT_UDT_IPV6_CMD) {
