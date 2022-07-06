@@ -268,7 +268,7 @@ fib_ipv6_get_routes(void) {
       n++;
   }
 
-  void *r = malloc(sizeof(n) + sizeof(struct rtbd_route_msg) * n);
+  void *r = malloc(sizeof(n) + (sizeof(struct rtbd_route_msg) + sizeof(struct rtbd_hexthop_data)) * n);
   if (!r)
     return NULL;
 
@@ -277,10 +277,12 @@ fib_ipv6_get_routes(void) {
   for (i = 0; i < 32; i++) {
     HASH_ITER (hh, fib.e[i], s, t) {
       r1->op = RRTO_ADD;
-      r1->vid = s->vid;
-      memcpy(&r1->dst_v6, &s->pfx.arIP, 16);
-      memcpy(&r1->dst_v6, &s->gw.arIP, 16);
+      // r1->vid = s->vid;
+      memcpy(&r1->dst.v6, &s->pfx.arIP, 16);
+      // memcpy(&r1->gw.v6, &s->gw.arIP, 16);
       r1->dst_len = s->len;
+      memcpy(r1->gw[0].gw.v6, &s->gw.arIP, 16);
+      r1->gw[0].vid = s->vid;
       r1++;
     }
   }

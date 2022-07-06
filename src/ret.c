@@ -10,6 +10,7 @@
 #include <control-proto.h>
 #include <nht.h>
 #include <ret.h>
+#include <ret_group.h>
 #include <arpc.h>
 #include <port.h>
 #include <vif.h>
@@ -20,8 +21,9 @@
 #include <sysdeps.h>
 #include <mll.h>
 #include <utils.h>
-
 #include <uthash.h>
+#include <utlist.h>
+#include <time.h>
 
 
 #define MAX_RE (4096 - FIRST_REGULAR_RE_IDX)
@@ -33,23 +35,78 @@ struct stack {
 
 static struct stack res;
 
-static inline int
-res_pop (void)
-{
-  if (res.sp >= MAX_RE - 1)
-    return -1;
+struct list_int *ret_indexes_used = NULL;
 
-  return res.data[res.sp++];
+int ret_list_int_cmp(struct list_int *a, struct list_int *b) {
+  if (a->val == b->val) return 0;
+  if (a->val > b->val)  return 1;
+  return -1;
+};
+
+bool_t
+res_pop (IN int count, OUT int *ids)
+{
+  int i;
+  int _count = 0;
+  int _ids[8];
+  struct list_int *out, elt, *add;
+
+  if (!(0 < count && count < 9)) return false;
+  if (ids == NULL) return false;
+
+  for(i = FIRST_REGULAR_RE_IDX; i < 4096; i++) {
+    elt.val = i;
+    DL_SEARCH(ret_indexes_used, out, &elt, ret_list_int_cmp);
+    if (!out) {
+      _ids[_count] = elt.val;
+      _count++;
+      if (count == _count) break;
+    }
+    else {
+      _count = 0;
+    }
+  }
+
+  if (count != _count) return false;
+
+  for (i = 0; i < _count; i++) {
+    add = calloc (1, sizeof(struct list_int));
+    add->val = _ids[i];
+    ids[i] = _ids[i];
+    DL_APPEND(ret_indexes_used, add);
+  }
+  return true;
 }
 
-static inline int
-res_push (uint16_t re)
+bool_t
+res_push (IN int count, OUT int *ids)
 {
-  if (res.sp == 0)
-    return -1;
+  int i;
+  struct list_int *out_del, elt;
+  if (!(0 < count && count < 9)) return false;
+  if (ids == NULL) return false;
 
-  res.data[--res.sp] = re;
-  return 0;
+  for (i = 0; i < count; i++) {
+    elt.val = ids[i];
+    DL_SEARCH(ret_indexes_used, out_del, &elt, ret_list_int_cmp);
+    if (out_del) {
+      DL_DELETE(ret_indexes_used, out_del);
+      free(out_del);
+    }
+  }
+  return true;
+}
+
+bool_t res_push_count_first(int count, int first) {
+  if (!(0 < count && count < 9)) return false;
+  // if (ids == NULL) return false;
+  int _ids[8];
+  int i = 0;
+  for (i = 0; i < count; i++) {
+    _ids[i] = first + i;
+  }
+
+  return res_push(count, _ids);
 }
 
 
@@ -61,6 +118,7 @@ struct re {
   GT_ETHERADDR addr;
   uint16_t nh_idx;
   vif_id_t vif_id;
+  struct list_int *group_ids;
   int refc;
   UT_hash_handle hh;
 };
@@ -80,66 +138,51 @@ static struct re *ret = NULL;
 static struct re_ipv6 *ret_ipv6 = NULL;
 static int re_cnt = 0;
 
-int
-ret_add (const struct gw *gw, int def, struct gw *ret_key)
+
+void ret_add_group_to_list(struct list_int **head, int group_id) {
+  struct list_int *out, elt, *add;
+  elt.val = group_id;
+  DL_SEARCH(*head, out, &elt, ret_list_int_cmp);
+  if (!out) {
+    add = calloc(1, sizeof(struct list_int));
+    add->val = group_id;
+    DL_APPEND(*head,add);
+  }
+}
+
+struct re *
+ret_add (const struct gw *gw, int group_id)
 {
-  DEBUG("sbelo ret_add\n");
+
   struct re *re;
 
   HASH_FIND_GW (ret, gw, re);
   if (re) {
-    if (!ret_key->addr.u32Ip || !ret_key->vid) {
-      ++re->refc;
-      memcpy(ret_key, gw, sizeof(struct gw));
-    }
-    if (def) {
-      re->def = 1;
-      if (re->valid) {
-        CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-//        struct port *port = port_ptr (re->pid);
-        struct vif *vif = vif_getn (re->vif_id);
-        if (!vif)
-          return re->idx;
-        int d;
-
-        memset (&rt, 0, sizeof (rt));
-        rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-        rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-        vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
-//        rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-//        rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-//        rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
-        rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
-        rt.entry.regularEntry.nextHopVlanId = gw->vid;
-        rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
-        DEBUG ("write default route entry\r\n");
-        for_each_dev (d)
-          CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
-      }
-    }
+    ret_add_group_to_list(&re->group_ids, group_id);
     goto out;
   }
 
-  if (re_cnt >= MAX_RE)
-    return ST_BAD_VALUE; /* FIXME: add overflow status value. */
 
   re = calloc (1, sizeof (*re));
   re->gw = *gw;
   re->refc = 1;
-  re->def = def;
+  ret_add_group_to_list(&re->group_ids, group_id);
   HASH_ADD_GW (ret, gw, re);
-  memcpy(ret_key, gw, sizeof(struct gw));
+
   ++re_cnt;
 
-  arpc_request_addr (gw);
+
 
  out:
   DEBUG ("refc = %d\r\n", re->refc);
 
-  if (re->valid)
-    return re->idx;
 
-  return -1;
+
+  return re;
+}
+
+void ret_arpc_request_addr(struct gw *gw){
+  arpc_request_addr (gw);
 }
 
 int
@@ -204,8 +247,18 @@ ret_ipv6_add (const struct gw_v6 *gw, int def, struct gw_v6 *ret_key)
   return -1;
 }
 
+void ret_remove_group_from_list(struct list_int **head, int group_id) {
+  struct list_int *out_del, elt;
+  elt.val = group_id;
+  DL_SEARCH(*head, out_del, &elt, ret_list_int_cmp);
+  if (out_del) {
+    DL_DELETE(*head,out_del);
+    free(out_del);
+  }
+}
+
 enum status
-ret_unref (const struct gw *gw, int def)
+ret_unref (const struct gw *gw, int group_id)
 {
   struct re *re;
 
@@ -213,26 +266,14 @@ ret_unref (const struct gw *gw, int def)
   if (!re)
     return ST_DOES_NOT_EXIST;
 
-  if (def) {
-    re->def = 0;
-    if (re->valid) {
-      CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-      int d;
+  ret_remove_group_from_list(&re->group_ids, group_id);
 
-      DEBUG ("reset default route entry");
-      memset (&rt, 0, sizeof (rt));
-      rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-      rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-      for_each_dev (d)
-        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
-    }
-  }
 
-  if (--re->refc == 0) {
+
+  if (!re->group_ids) {
     DEBUG ("last ref to " GW_FMT " dropped, deleting\r\n", GW_FMT_ARGS (gw));
     HASH_DEL (ret, re);
     if (re->valid) {
-      res_push (re->idx);
       nht_unref (&re->addr);
     }
     arpc_release_addr (gw);
@@ -272,7 +313,8 @@ ret_ipv6_unref (const struct gw_v6 *gw, int def)
     DEBUG ("last ref to " GW_FMT " dropped, deleting\r\n", GW_FMT_ARGS (gw));
     HASH_DEL (ret_ipv6, re);
     if (re->valid) {
-      res_push (re->idx);
+      int idx = re->idx;
+      res_push (1, &idx);
       nht_unref (&re->addr);
     }
     ndpc_release_addr (gw);
@@ -288,85 +330,92 @@ enum status
 ret_set_mac_addr (const struct gw *gw, const GT_ETHERADDR *addr, vif_id_t vif_id)
 {
   struct re *re;
-  int idx, nh_idx, d;
-  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
-  GT_STATUS rc;
+  int nh_idx;
+  struct list_int *group_id;
   struct vif *vif = vif_getn (vif_id);
 
-  if (!vif)
+  if (!vif) {
     return ST_HEX;
-
+  }
   HASH_FIND_GW (ret, gw, re);
-  if (!re)
+  if (!re) {
+    struct re *el, *tmp;
+    HASH_ITER(hh,ret,el,tmp) {
+      if (!memcmp(&el->gw, gw, sizeof(*gw))) {
+        re = el;
+      }
+      if (el->gw.addr.u32Ip == gw->addr.u32Ip && el->gw.vid == gw->vid) {
+        re = el;
+      }
+    }
+  }
+
+  if (!re) {
     return ST_DOES_NOT_EXIST;
+  }
 
-  if (re->valid && !memcmp (&re->addr, addr, sizeof (*addr))) {
-    memset (&rt, 0, sizeof (rt));
-    rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-    rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-    vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
-//    rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-//    rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-//    rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
-    rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
-    rt.entry.regularEntry.nextHopVlanId = gw->vid;
-    rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
 
-    DEBUG ("write route entry");
-    for_each_dev (d)
-      rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, re->idx, &rt, 1));
-    if (rc != ST_OK)
-      return ST_HEX;
 
+  if (re->valid
+      && !memcmp (&re->addr, addr, sizeof (*addr))
+      && re->vif_id == vif_id)
+  {
+    DEBUG("no changed\n");
+  }
+  else {
+    // gw changed
+    bool_t is_changed_valid = false;
+
+    if (!re->valid) {
+      is_changed_valid = true;
+    }
+    re->valid = 1;
+    memcpy (&re->addr, addr, sizeof (*addr));
     re->vif_id = vif_id;
 
-    if (re->def) {
-      DEBUG ("write default route entry");
-      for_each_dev (d)
-        CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
+    nh_idx = nht_add (addr);
+    if (nh_idx < 0) {
+      return ST_HEX;
+    }
+    re->nh_idx = nh_idx;
+    DL_FOREACH(re->group_ids, group_id) {
+      ret_group_gw_changed(group_id->val, re, is_changed_valid);
+    }
+  }
+  return ST_OK;
+}
+
+enum status
+ret_unset_mac_addr (const struct gw *gw) {
+  struct re *re;
+  struct list_int *group_id;
+  HASH_FIND_GW (ret, gw, re);
+
+
+
+  if (!re) {
+
+    return ST_DOES_NOT_EXIST;
+  }
+
+  if (re->valid) {
+    bool_t is_changed_valid = false;
+    if (re->valid) {
+      is_changed_valid = true;
     }
 
-    return ST_OK;
+    re->valid = false;
+    nht_unref(&re->addr);
+    DL_FOREACH(re->group_ids, group_id) {
+      ret_group_gw_changed(group_id->val, re, is_changed_valid);
+    }
+
+
+  }
+  else {
+    DEBUG("ret_unset_mac_addr\n");
   }
 
-  memcpy (&re->addr, addr, sizeof (*addr));
-  re->vif_id = vif_id;
-
-  nh_idx = nht_add (addr);
-  if (nh_idx < 0)
-    return ST_HEX;
-
-  idx = res_pop ();
-  if (idx < 0)
-    return ST_BAD_VALUE; /* FIXME: add overflow status value. */
-
-  memset (&rt, 0, sizeof (rt));
-  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
-  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
-  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
-//  rt.entry.regularEntry.nextHopInterface.type = CPSS_INTERFACE_PORT_E;
-//  rt.entry.regularEntry.nextHopInterface.devPort.devNum = phys_dev (port->ldev);
-//  rt.entry.regularEntry.nextHopInterface.devPort.portNum = port->lport;
-  rt.entry.regularEntry.nextHopARPPointer = nh_idx;
-  rt.entry.regularEntry.nextHopVlanId = gw->vid;
-  rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
-
-  DEBUG ("write route entry at %d\r\n", idx);
-  for_each_dev (d)
-    rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
-
-  if (re->def) {
-    DEBUG ("write default route entry\r\n");
-    for_each_dev (d)
-      CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &rt, 1));
-  }
-
-  re->idx = idx;
-  memcpy (&re->addr, addr, sizeof (*addr));
-  re->nh_idx = nh_idx;
-  re->valid = 1;
-
-  route_update_table (gw, idx);
 
   return ST_OK;
 }
@@ -427,8 +476,8 @@ ret_ipv6_set_mac_addr (const struct gw_v6 *gw, const GT_ETHERADDR *addr, vif_id_
   if (nh_idx < 0)
     return ST_HEX;
 
-  idx = res_pop ();
-  if (idx < 0)
+  // idx = res_pop ();
+  if (!res_pop (1, &idx))
     return ST_BAD_VALUE; /* FIXME: add overflow status value. */
 
   memset (&rt, 0, sizeof (rt));
@@ -520,8 +569,8 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
 
   DEBUG ("Popping new idx...\n");
 
-  idx = res_pop ();
-  if (idx == -1)
+  // idx = res_pop ();
+  if (!res_pop (1, &idx))
     goto err;
 
   DEBUG ("New idx = %d. Adding first node\n", idx);
@@ -577,7 +626,7 @@ mcre_new (const uint8_t *dst, const uint8_t *src, mcg_t mcg, vid_t vid,
  err_mll:
   mll_put (mll_idx);
  err_res:
-  res_push (idx);
+  res_push (1, &idx);
  err:
   return NULL;
 }
@@ -590,7 +639,7 @@ mcre_del (struct mcre *re)
   DEBUG ("Delete mcre. MLL: %d, RE: %d\n", re->mll_idx, re->idx);
 
   mll_put (re->mll_idx);
-  res_push (re->idx);
+  res_push (1, &re->idx);
 
   free (re);
 }
@@ -720,7 +769,7 @@ mcre_del_node (int idx, mcg_t via, vid_t vid, vid_t src_vid)
 
     HASH_DEL (mcret, re);
 
-    res_push (re->idx);
+    res_push (1, &re->idx);
 
     free (re);
 
@@ -782,6 +831,9 @@ void
 ret_clear_devs_res(devsbmp_t dbmp) {
 DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
   struct re *s, *t;
+  struct list_route_pfx_pbr *pfx_pbr = NULL, *pfx_pbr_el = NULL, *pfx_pbr_tmp = NULL;
+  struct list_int *el = NULL;
+  struct re_group *group = NULL;
   HASH_ITER (hh, ret, s, t) {
     if (in_range (((struct vif_id *)&s->vif_id)->type, VIFT_FE, VIFT_XG)
         && ((1 << ((struct vif_id *)&s->vif_id)->dev) & dbmp)) {
@@ -789,10 +841,39 @@ DEBUG(">>>>ret_clear_devs_res(%x)", dbmp);
       DEBUG(IPv4_FMT ":%3d,\t%d, %d, %3d, " MAC_FMT ", %3d, %08x, %03d\n",
           IPv4_ARG(s->gw.addr.arIP), s->gw.vid, s->valid, s->def, s->idx,
           MAC_ARG(s->addr.arEther), s->nh_idx, s->vif_id, s->refc);
-      route_reset_prefixes4gw (&s->gw);
+      // route_reset_prefixes4gw (&s->gw);
+      DL_FOREACH(s->group_ids, el) {
+        group = ret_group_get(el->val);
+        if (group) {
+          ret_group_copy_pfx_pbr(&pfx_pbr, group);
+        }
+      }
     }
   }
+
+
+  DL_FOREACH_SAFE(pfx_pbr, pfx_pbr_el, pfx_pbr_tmp) {
+    if (pfx_pbr_el->val.type == ROUTE_PFX) {
+      route_reset_prefixes4gw(pfx_pbr_el->val.data.pfx.addr.u32Ip, pfx_pbr_el->val.data.pfx.alen);
+    }
+    DL_DELETE(pfx_pbr, pfx_pbr_el);
+    free(pfx_pbr_el);
+  }
+
 }
+
+int ret_get_valid(const struct re *re){
+  return re->valid;
+}
+
+void ret_set_valid(struct re *re, int valid){
+  re->valid = valid;
+}
+
+struct gw *ret_get_gw(const struct re *re) {
+  return (struct gw *)&re->gw;
+}
+
 
 void
 ret_dump(void) {
@@ -828,4 +909,35 @@ struct re {
   UT_hash_handle hh;
 };
 */
+}
+
+void ret_set_re_to_idx(const struct re *re, int idx) {
+  // if (re == NULL) return;
+  int d;
+  CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
+  GT_STATUS rc;
+
+  struct vif *vif = vif_getn (re->vif_id);
+  if (!vif)
+    return;
+
+  memset (&rt, 0, sizeof (rt));
+  rt.type = CPSS_DXCH_IP_UC_ROUTE_ENTRY_E;
+  rt.entry.regularEntry.cmd = CPSS_PACKET_CMD_ROUTE_E;
+  vif->fill_cpss_if(vif, &rt.entry.regularEntry.nextHopInterface);
+  rt.entry.regularEntry.nextHopARPPointer = re->nh_idx;
+  rt.entry.regularEntry.nextHopVlanId = re->gw.vid;
+  rt.entry.regularEntry.ttlHopLimitDecEnable = GT_TRUE;
+
+  for_each_dev (d)
+    rc = CRP (cpssDxChIpUcRouteEntriesWrite (d, idx, &rt, 1));
+}
+
+void ret_set_re_to_idx_gw(const struct gw *gw, int idx) {
+  struct re *re = NULL;
+
+  HASH_FIND_GW (ret, gw, re);
+  if (re) {
+    ret_set_re_to_idx(re, idx);
+  }
 }

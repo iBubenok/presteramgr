@@ -7,6 +7,9 @@
 #include <cpss/generic/port/cpssPortTx.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortTx.h>
 
+#include <cpss/dxCh/dxChxGen/config/private/prvCpssDxChInfo.h>
+// PRV_CPSS_DXCH2_QOS_PROFILE_NUM_MAX_CNS 128
+
 #include <presteramgr.h>
 #include <debug.h>
 #include <qos.h>
@@ -19,6 +22,55 @@ int mls_qos_trust = 0;
 const uint8_t qos_default_wrr_weights[8] = {
   1, 2, 4, 8, 16, 32, 64, 128
 };
+
+#define QSP_FIRST_REGULAR_IDX (QSP_BASE_TC + QSP_NUM_TC)
+#define QSP_MAX \
+  (PRV_CPSS_DXCH2_QOS_PROFILE_NUM_MAX_CNS /*xCat 128 */  - QSP_FIRST_REGULAR_IDX)
+
+struct stack {
+  int sp;
+  qos_profile_id_t data[QSP_MAX];
+};
+
+static struct stack res;
+
+static inline int
+res_pop (void)
+{
+  if (res.sp >= QSP_MAX)
+    return -1;
+
+  return res.data[res.sp++];
+}
+
+static inline int
+res_push (uint16_t re)
+{
+  if (res.sp == 0)
+    return -1;
+
+  res.data[--res.sp] = re;
+  return 0;
+}
+
+static inline int
+res_chk_avail (int n) {
+  return (QSP_MAX - res.sp >= n)? 1 : 0;
+}
+
+#define HASH_FIND_QP(findqp, out)                 \
+    HASH_FIND (hh, qpdb, findqp, sizeof (qos_profile_id_t), out)
+#define HASH_ADD_QP(gwfield, add)                 \
+    HASH_ADD (hh, qpdb, gwfield, sizeof (qos_profile_id_t), add)
+
+struct qpentry {
+  qos_profile_id_t id;
+  int refc;
+  UT_hash_handle hh;
+};
+
+struct qpentry *qpdb = NULL;
+
 
 static enum status
 __qos_set_prioq_num (int num, int prof)
@@ -113,6 +165,25 @@ qos_start (void)
     for_each_dev (d)
       CRP (cpssDxChCosProfileEntrySet (d, i, &prof));
   }
+
+  for (i = 0; i < QSP_MAX; i++)
+    res.data[i] = i + QSP_FIRST_REGULAR_IDX;
+  res.sp = 0;
+
+
+  CPSS_DXCH_COS_PROFILE_STC prof = {
+    .dropPrecedence = CPSS_DP_GREEN_E,
+    .userPriority = 0,
+    .trafficClass = 1,
+    .dscp = 46,
+    .exp = 0
+  };
+
+  for_each_dev (d)
+    CRP (cpssDxChCosProfileEntrySet (d, 10, &prof));
+
+CRP(cpssDxChCosProfileEntryGet(0, 10, &prof));
+DEBUG(".dropPrecedence %d: .userPriority %d: .trafficClass %d: .dscp .exp %d, %d\r\n", prof.dropPrecedence, prof.userPriority, prof.trafficClass, prof.dscp, prof.exp);
 
   for_each_dev (d)
     CRP (cpssDxChPortTxWrrGlobalParamSet
@@ -211,6 +282,64 @@ qos_set_wrtd (int enable)
   }
 
   return st;
+}
+
+enum status
+qos_profile_manage (struct qos_profile_mgmt * qpm, qos_profile_id_t *id) {
+  int rep, d;
+  CPSS_DXCH_COS_PROFILE_STC prof;
+  struct qpentry *qpe;
+
+DEBUG(">>>>qos_profile_manage(qpm(cmd %d, id %d, tc %d, dscp %d, cos %d, exp %d), *id %d )\n",
+    qpm->cmd, qpm->id ,qpm->tc ,qpm->dscp ,qpm->cos ,qpm->exp, *id);
+  switch (qpm->cmd) {
+    case QOS_PROFILE_ADD:
+      if ((rep = res_pop()) < 0) return ST_BUSY;
+DEBUG("====qos_profile_manage(add) rep %d\n", rep);
+      *id = rep;
+
+      qpe = (struct qpentry*) malloc (sizeof(*qpe));
+      qpe->id = rep;
+      qpe->refc = 1;
+      HASH_ADD_QP(id, qpe);
+
+      prof.dropPrecedence = CPSS_DP_GREEN_E;
+      prof.userPriority = qpm->cos;
+      prof.trafficClass = qpm->tc;
+      prof.dscp = qpm->dscp;
+      prof.exp = qpm->exp;
+      for_each_dev (d)
+        CRP (cpssDxChCosProfileEntrySet (d, rep, &prof));
+      return ST_OK;
+
+    case QOS_PROFILE_DEL:
+      HASH_FIND_QP(&qpm->id, qpe);
+DEBUG("====qos_profile_manage(del) qpe %p\n", qpe);
+      if (!qpe) return ST_DOES_NOT_EXIST;
+      HASH_DELETE(hh, qpdb, qpe);
+      if (res_push(qpe->id) < 0) return ST_HEX;
+      free(qpe);
+DEBUG("====qos_profile_manage(del) OK\n");
+      return ST_OK;
+    case QOS_PROFILE_SET:
+      HASH_FIND_QP(&qpm->id, qpe);
+DEBUG("====qos_profile_manage(set) qpe %p\n", qpe);
+      if (!qpe) return ST_DOES_NOT_EXIST;
+      prof.dropPrecedence = CPSS_DP_GREEN_E;
+      prof.userPriority = qpm->cos;
+      prof.trafficClass = qpm->tc;
+      prof.dscp = qpm->dscp;
+      prof.exp = qpm->exp;
+      for_each_dev (d)
+        CRP (cpssDxChCosProfileEntrySet (d, qpm->id, &prof));
+      return ST_OK;
+
+    case QOS_PROFILE_CHK_AVAIL:
+      if (res_chk_avail(qpm->num)) return ST_OK;
+      return ST_BUSY;
+    default:
+      return ST_BAD_VALUE;
+  }
 }
 
 void *

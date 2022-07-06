@@ -11,11 +11,41 @@
 struct gw {
   GT_IPADDR addr;
   vid_t vid;
-};
+}__attribute__ ((packed)) ;
 
 struct gw_v6 {
   GT_IPV6ADDR addr;
   vid_t vid;
+};
+
+struct list_uint32 {
+    uint32_t val;
+    struct list_uint32 *prev; /* needed for a doubly-linked list only */
+    struct list_uint32 *next; /* needed for singly- or doubly-linked lists */
+};
+
+struct list_uint16 {
+    uint16_t val;
+    struct list_uint32 *prev; /* needed for a doubly-linked list only */
+    struct list_uint32 *next; /* needed for singly- or doubly-linked lists */
+};
+
+struct list_int {
+    int val;
+    struct list_int *prev; /* needed for a doubly-linked list only */
+    struct list_int *next; /* needed for singly- or doubly-linked lists */
+};
+
+struct list_vid {
+    vid_t val;
+    struct list_vid *prev; /* needed for a doubly-linked list only */
+    struct list_vid *next; /* needed for singly- or doubly-linked lists */
+};
+
+struct list_gw {
+    struct gw val;
+    struct list_gw *prev; /* needed for a doubly-linked list only */
+    struct list_gw *next; /* needed for singly- or doubly-linked lists */
 };
 
 #define HASH_FIND_GW(head, findgw, out)                 \
