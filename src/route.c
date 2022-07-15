@@ -723,7 +723,7 @@ route_ipv6_request_mac_addr (GT_IPV6ADDR gwip, vid_t vid, GT_IPV6ADDR ip, int al
 
 void
 route_handle_udaddr (uint32_t daddr) {
-  DEBUG(">>>>route_handle_udaddr ("IPv4_FMT")\n", IPv4_ARG(((uint8_t *)&daddr)));
+  // DEBUG(">>>>route_handle_udaddr ("IPv4_FMT")\n", IPv4_ARG(((uint8_t *)&daddr)));
   // uint32_t rt;
   struct list_uint32 *rt = NULL;
   struct list_vid *vid = NULL;
