@@ -4128,6 +4128,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       opcode = frame->data[15];
       zmsg_addmem (msg, &opcode, sizeof (opcode));
       zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+      if (opcode == 1)
+        zmsg_addmem (msg, &vif->id, sizeof (vif_id_t));
       zmsg_addmem (msg, frame->data, frame->len);
     default:
       put_pkt_info (msg, &info, type);
