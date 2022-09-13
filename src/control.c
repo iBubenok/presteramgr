@@ -73,6 +73,7 @@ static void *fdb_sock;
 static void *stack_cmd_sock;
 static void *evtntf_sock;
 static void *pub_oam_sock;
+static void *info_dealer_sock;
 
 // static void *info_dealer_sock;
 
@@ -227,6 +228,11 @@ control_init (void)
   rtbd_sock = zsock_new (ZMQ_PULL);
   assert (rtbd_sock);
   rc = zsock_connect (rtbd_sock, RTBD_NOTIFY_EP);
+  assert (rc == 0);
+
+  info_dealer_sock = zsock_new (ZMQ_REP);
+  assert (info_dealer_sock);
+  rc = zsock_bind (info_dealer_sock, INFO_DEALER);
   assert (rc == 0);
 
   // info_dealer_sock = zsock_new (ZMQ_REP);
@@ -1035,6 +1041,41 @@ arpd_handler (zloop_t *loop, zsock_t* reader, void *dummy)
   return 0;
 }
 
+static int
+info_handler (zloop_t *loop, zsock_t* reader, void *dummy)
+{
+  command_t cmd;
+
+  zmsg_t *msg = zmsg_recv (info_dealer_sock);
+  zframe_t *frame = zmsg_first (msg);
+
+  notification_t notif = *((notification_t *) zframe_data (frame));
+
+  zmsg_t* reply = zmsg_new();
+
+  switch (notif) {
+    case GET_MAC:
+      frame = zmsg_next(msg);
+      vid_t vid = *((vid_t*) zframe_data(frame));
+
+      mac_addr_t addr[ETH_ALEN];
+      cmd = vlan_get_mac_addr (vid, addr[0]);
+
+      zmsg_addmem (reply, &cmd, sizeof (cmd));
+      zmsg_addmem (reply, addr, 6);
+
+      zmsg_send (&reply, info_dealer_sock);
+      zmsg_destroy(&reply);
+      break;
+
+    default:
+      break;
+  }
+
+  zmsg_destroy (&msg);
+  return 0;
+}
+
 // static int
 // info_handler (zloop_t *loop, zsock_t* reader, void *dummy)
 // {
@@ -1091,6 +1132,8 @@ control_loop (void *dummy)
   zloop_reader (loop, rtbd_sock, rtbd_handler, NULL);
 
   zloop_reader (loop, arpd_sock, arpd_handler, NULL);
+
+  zloop_reader (loop, info_dealer_sock, info_handler, NULL);
 
   zloop_reader (loop, fdb_sock, fdb_handler, NULL);
 
@@ -4085,6 +4128,8 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       opcode = frame->data[15];
       zmsg_addmem (msg, &opcode, sizeof (opcode));
       zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+      if (opcode == 1)
+        zmsg_addmem (msg, &vif->id, sizeof (vif_id_t));
       zmsg_addmem (msg, frame->data, frame->len);
     default:
       put_pkt_info (msg, &info, type);
@@ -5317,10 +5362,10 @@ DEFINE_HANDLER (CC_PORT_ENABLE_LACP)
 DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
 {
   enum status result;
-  port_id_t pid;
+  cfm_level_t level;
   bool_t enable;
 
-  result = POP_ARG (&pid);
+  result = POP_ARG (&level);
   if (result != ST_OK)
     goto out;
 
@@ -5328,7 +5373,7 @@ DEFINE_HANDLER (CC_PORT_ENABLE_CFM)
   if (result != ST_OK)
     goto out;
 
-  result = pcl_enable_cfm_trap (pid, enable);
+  result = pcl_enable_cfm_trap (level, enable);
 
  out:
   report_status (result);
