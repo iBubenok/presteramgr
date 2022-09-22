@@ -202,6 +202,55 @@ if (fdb[i].valid ) { // TODO remove operator & block
 }
 
 void
+data_encode_fdb_addrs_vif_id (zmsg_t *msg, vid_t vid, vif_id_t vif_target) {
+  GT_U32 i;
+  uint16_t sec_id = 0;
+  uint16_t stat_id = 0;
+  uint16_t dyn_id = 0;
+  struct {
+    struct mac_entry_id me;
+  } __attribute__ ((packed)) tmp;
+  tmp.me.secure_id = sec_id;
+  tmp.me.static_id = stat_id;
+  tmp.me.dynamic_id = dyn_id;
+
+  for (i = 0; i < FDB_MAX_ADDRS; i++) {
+    struct vif *vif;
+
+if (fdb[i].valid )
+    if (fdb[i].valid &&
+        fdb[i].me.key.entryType == CPSS_MAC_ENTRY_EXT_TYPE_MAC_ADDR_E &&
+        (vid == ALL_VLANS || fdb[i].me.key.key.macVlan.vlanId == vid) &&
+        ((fdb[i].me.dstInterface.type == CPSS_INTERFACE_PORT_E
+          && fdb[i].me.dstInterface.devPort.portNum != CPSS_CPU_PORT_NUM_CNS
+          && (vif = vif_by_hw(fdb[i].me.dstInterface.devPort.devNum,
+                              fdb[i].me.dstInterface.devPort.portNum)))
+         || (fdb[i].me.dstInterface.type == CPSS_INTERFACE_TRUNK_E
+             && (vif = vif_by_trunkid(fdb[i].me.dstInterface.trunkId))))
+         && (vif_target == ALL_VIFS || vif_target == vif->id)
+        && fdb[i].me.key.key.macVlan.vlanId != 4095) {
+
+      if (fdb[i].secure)
+      {
+        sec_id = sec_id + 1;
+        tmp.me.secure_id = sec_id;
+      } 
+      else if (fdb[i].me.isStatic)
+      {
+        stat_id = stat_id + 1;
+        tmp.me.static_id = stat_id;
+      }
+      else
+      {
+        dyn_id = dyn_id + 1;
+        tmp.me.dynamic_id = dyn_id;
+      }
+    }
+  }
+  zmsg_addmem (msg, &tmp, sizeof (tmp));
+}
+
+void
 data_encode_vct_cable_status (struct vct_cable_status *d,
                               const CPSS_VCT_CABLE_STATUS_STC *s,
                               int fe)
