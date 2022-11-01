@@ -3603,14 +3603,12 @@ pcl_enable_pppoe_trap (bool_t enable)
       memset (&mask, 0, sizeof (mask));
       mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
       mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
-      mask.ruleExtNotIpv6.common.isTagged = 0xFF;
       mask.ruleExtNotIpv6.etherType = 0xFFFF;
       mask.ruleExtNotIpv6.l2Encap = 0xFF;
 
       memset (&rule, 0, sizeof (rule));
       rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
       rule.ruleExtNotIpv6.common.isL2Valid = 1;
-      rule.ruleExtNotIpv6.common.isTagged = 0;
       rule.ruleExtNotIpv6.etherType = 0x8863;
       rule.ruleExtNotIpv6.l2Encap = 1;
 
