@@ -84,6 +84,149 @@ static uint16_t user_acl_max[NDEVS] = {};
 #define for_each_port(p) for (p = 1; p <= nports; p++)
 
 /******************************************************************************/
+/*                            INDEX BOOK                                      */
+/******************************************************************************/
+
+/** Index Book отвечает за порядок расположения acl-правил в таблице.
+ *
+ * Index Book соблюдает следующий порядок расположения acl-правил:
+ *
+ * 1. acl правила
+ * 2. qos правила
+ * 3. pbr правила
+ *
+ * Порядок работы
+ * --------------
+ *
+ * 1. В самом начале необходимо инициализировать журнал индексов (IxBook),
+ * указав начальный индекс и их кол-во:
+ *
+ *     IxBook ixbook;
+ *     ix_book_init(ixbook, start, size);
+ *
+ * 2. Перед добавление правила в таблицу, получить индекс для добавляемого
+ * правила, указав тип добавляемого правила (acl, qos или pbr):
+ *
+ *     IxBook_Index index;
+ *     ix_book_take(&index, dev_num, action_type);
+ *
+ * При выдаче индекса функция ix_book_take() руководствуется такой логикой:
+ * - acl правило добавляется после последнего acl правила, перед qos правилами
+ * - qos правило добавляется после последнего qos правила, после acl правил,
+ *   перед pbr правилами
+ * - pbr правило добавляется после последнего pbr правила, после acl и qos
+ *   правил
+ * - если правил еще нет, правило добавляется в начало
+ *
+ * 3. После удаления правила из таблицы, необходимо вернуть индекс удаленного
+ * правила обратно:
+ *
+ *     ix_book_return(dev_num, index);
+ *
+ * При возврате индекса функция ix_book_return() смещает все после расположенные
+ * правила на одно место назад, устраняя образовавшееся при удалении правила
+ * окно в порядке правил.
+ */
+
+/* ix_book types */
+
+/* Тип для хранения индекса правила rule_ix */
+typedef uint16_t IxBook_Index;
+
+/// Статусы возвращаемые функциями для работы с журналом индексов.
+typedef enum index_book_status {
+    IX_BOOK_STATUS_OK,        ///< успех
+    IX_BOOK_STATUS_BAD_ARG,   ///< неверный индекс или тип правила
+    IX_BOOK_STATUS_NO_INDEXES ///< выделенный пул индексов закончился
+} IxBook_Status;
+
+/// Журнал учёта индексов.
+typedef struct index_book {
+    IxBook_Index start;   ///< номер первого индекса для выдачи
+    IxBook_Index end;     ///< номер последнего индекса для выдачи + 1
+    IxBook_Index acl_end; ///< следующий индекс для acl-правила
+    IxBook_Index qos_end; ///< следующий индекс для qos-правила
+    IxBook_Index pbr_end; ///< следующи индекс для pbr-правила
+} IxBook;
+
+/* public ix_book functions */
+
+/**
+ * Инициализировать журнал индексов.
+ *
+ * @param[in] ixbook журнал индексов
+ * @param[in] start  начальный индекс
+ * @param[in] size   размер пула с индексами
+ */
+static void
+ix_book_init(IxBook *ixbook, IxBook_Index start, IxBook_Index size);
+
+/**
+ * Выдаёт индекс для нового правила в зависимости от типа действия.
+ * Под капотом может производить перераспределение правил в таблице, чтобы
+ * освободить место для нового правила.
+ *
+ * Дано => Добавляем правило pbr2 => Получаем index 3
+ * 1|acl|                            1|acl |
+ * 2|pbr|                            2|pbr |
+ * 3|qos|                            3|pbr2|
+ *                                   4|qos |
+ *
+ * @param[out] index       сюда сохраняется выдаваемый индекс
+ * @param[in]  dev_num     номер устройства (1, 2 и т.п.)
+ * @param[in]  action_type тип действия (acl, qos или route)
+ *
+ * @return
+ *     - IX_BOOK_STATUS_OK         - в случае успеха
+ *     - IX_BOOK_STATUS_BAD_ARG    - если передан неизвестный action_type
+ *     - IX_BOOK_STATUS_NO_INDEXES - если пул индексов исчерпан
+ */
+static IxBook_Status
+ix_book_take(IxBook_Index *index, int dev_num, pcl_action_type_t action_type);
+
+/**
+ * Принимает индекс удалённого правила. Под капотом производит перераспределение
+ * правил в таблице, чтобы убрать окно возникшее в индексах после удаления
+ * правила.
+ *
+ * Дано => Удаляем правило pbr с индексом 2 => Получаем
+ * 1|acl |                                     1|acl |
+ * 2|pbr |                                     2|pbr2|
+ * 3|pbr2|                                     3|qos |
+ * 4|qos |
+ *
+ * @param[in]  dev_num номер устройства (1, 2 и т.п.)
+ * @param[in]  index   индекс удалённогоо правила
+ *
+ * @return
+ *     - IX_BOOK_STATUS_OK         - в случае успеха
+ *     - IX_BOOK_STATUS_BAD_ARG    - если передан индекс не входящий в пул
+ */
+static IxBook_Status
+ix_book_return(int dev_num, IxBook_Index index);
+
+/* private ix_book functions */
+
+static IxBook_Status
+ix_book_action_acl_take(IxBook_Index *index, IxBook *ixbook, int dev_num);
+static IxBook_Status
+ix_book_action_qos_take(IxBook_Index *index, IxBook *ixbook, int dev_num);
+static IxBook_Status
+ix_book_action_pbr_take(IxBook_Index *index, IxBook *ixbook, int dev_num);
+
+static IxBook_Status
+ix_book_action_acl_return(IxBook *ixbook, int dev_num, IxBook_Index index);
+static IxBook_Status
+ix_book_action_qos_return(IxBook *ixbook, int dev_num, IxBook_Index index);
+static IxBook_Status
+ix_book_action_pbr_return(IxBook *ixbook, int dev_num, IxBook_Index index);
+
+static void
+ix_book_move_rule(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix);
+static void
+ix_book_edit_ix_in_binding(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix);
+
+/******************************************************************************/
 /* Initialization                                                             */
 /******************************************************************************/
 static inline void
@@ -1291,6 +1434,7 @@ static struct user_acl_t {
   struct dstack       *pcl_ids;
   uint16_t            vlan_ipcl_id[4095];
 
+  struct index_book    index_book[NDEVS];
   struct dstack       *rules[NDEVS];
   struct rule_binding *bindings[NDEVS];
 
@@ -1325,11 +1469,9 @@ user_acl_init (struct user_acl_t **u)
   }
 
   for_each_dev(d) {
-    dstack_init(&(*u)->rules[d]);
-    for (i = 0; i < user_acl_stack_entries; i++) {
-      uint16_t rule_num = i + user_acl_start_ix[d];
-      dstack_push_back((*u)->rules[d], &rule_num, sizeof(rule_num));
-    }
+    ix_book_init(&(*u)->index_book[d],
+                 user_acl_start_ix[d],
+                 user_acl_stack_entries);
 
     (*u)->bindings[d]  = NULL;
 
@@ -1386,11 +1528,9 @@ pcl_add_rule_ix (int dev, struct rule_binding_key *key, uint16_t *rule_ix)
     return ST_BAD_VALUE;
   }
 
-  if (!curr_acl->rules[dev]->count) {
+  if (ix_book_take(rule_ix, dev, key->acttype) != IX_BOOK_STATUS_OK) {
     return ST_BAD_VALUE;
   }
-
-  dstack_pop(curr_acl->rules[dev], rule_ix, NULL);
 
   struct rule_binding *bind = malloc(sizeof(struct rule_binding));
   bind->key     = *key;
@@ -2043,10 +2183,11 @@ pcl_set_fake_mode_enabled (bool_t enable)
   if (enable) {
     dstack_copy(&user_acl_fake->pcl_ids, user_acl->pcl_ids);
     memcpy(user_acl_fake->vlan_ipcl_id, user_acl->vlan_ipcl_id, 4095);
+    memcpy(user_acl_fake->index_book,
+           user_acl->index_book, sizeof(user_acl->index_book));
 
     int d;
     for_each_dev(d) {
-      dstack_copy(&user_acl_fake->rules[d], user_acl->rules[d]);
       {
         struct rule_binding *iter, *tmp, *bind;
         HASH_ITER(hh, user_acl_fake->bindings[d], iter, tmp) {
@@ -2782,8 +2923,6 @@ pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest, pcl_action_typ
       if (!memcmp(&bind->key.interface, &interface, sizeof(interface)) &&
           bind->key.destination == dest &&
           bind->key.acttype == action_type) {
-        dstack_push(curr_acl->rules[d], &bind->rule_ix, sizeof(bind->rule_ix));
-        dstack_rev_sort2(curr_acl->rules[d], INT_CMP(uint16_t));
 
         struct port_cmp *port_cmp, *tmp;
         HASH_ITER(hh, curr_acl->port_cmps[d], port_cmp, tmp) {
@@ -2803,7 +2942,12 @@ pcl_reset_rules (struct pcl_interface interface, pcl_dest_t dest, pcl_action_typ
           }
         }
 
-        inactivate_rule(d, CPSS_PCL_RULE_SIZE_EXT_E, bind->rule_ix);
+        if (!user_acl_fake_mode) {
+            inactivate_rule(d, CPSS_PCL_RULE_SIZE_EXT_E, bind->rule_ix);
+        }
+        if (ix_book_return(d, bind->rule_ix) != IX_BOOK_STATUS_OK) {
+            ERR("ix_book_return() is failed for %d", bind->rule_ix);
+        }
 
         CPSS_DXCH_CNC_COUNTER_STC pcl_counter;
         memset(&pcl_counter, 0, sizeof(pcl_counter));
@@ -4198,4 +4342,240 @@ static void
 pbr_set_ltt_entry (struct row_colum *row_colum, CPSS_DXCH_PCL_ACTION_STC *act)
 {
   act->redirect.data.routerLttIndex = (row_colum->row * 4) + row_colum->colum;
+}
+
+/******************************************************************************/
+/*                            INDEX BOOK                                      */
+/******************************************************************************/
+
+/* public */
+
+static void
+ix_book_init(IxBook *ixbook, IxBook_Index start, IxBook_Index size)
+{
+    // Argument start must be greater than zero, otherwise there will be an
+    // infinite loop in action_xxx_take functions due to unsigned integer type!
+    if (start == 0) {
+        start = 2000;
+        ERR("%s\n", "start must be greater than zero");
+    }
+
+    ixbook->start = start;
+    ixbook->end = start + size;
+    ixbook->acl_end = start;
+    ixbook->qos_end = start;
+    ixbook->pbr_end = start;
+
+    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+}
+
+static IxBook_Status
+ix_book_take(IxBook_Index *index, int dev_num, pcl_action_type_t action_type)
+{
+/* return IX_BOOK_STATUS_OK; */
+    IxBook *ixbook = &(curr_acl->index_book[dev_num]);
+    DEBUG ("%s: rustam ixbook = %p", __FUNCTION__, ixbook);
+    DEBUG ("%s: rustam is fake = %d", __FUNCTION__, user_acl_fake_mode);
+
+    IxBook_Status rv = IX_BOOK_STATUS_OK;
+    switch (action_type) {
+    case PCL_ACTION_TYPE_ACL:
+        rv = ix_book_action_acl_take(index, ixbook, dev_num); break;
+    case PCL_ACTION_TYPE_POLICY_QOS:
+        rv = ix_book_action_qos_take(index, ixbook, dev_num); break;
+    case PCL_ACTION_TYPE_POLICY_ROUTE:
+        rv = ix_book_action_pbr_take(index, ixbook, dev_num); break;
+    default:
+        ERR("%s\n", "invalid value for action_type");
+        rv = IX_BOOK_STATUS_BAD_ARG;
+    }
+
+    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+
+    return rv;
+}
+
+static IxBook_Status
+ix_book_return(int dev_num, IxBook_Index index)
+{
+/* return IX_BOOK_STATUS_OK; */
+    IxBook *ixbook = &(curr_acl->index_book[dev_num]);
+    DEBUG ("%s: rustam ixbook = %p", __FUNCTION__, ixbook);
+    DEBUG ("%s: rustam is fake = %d", __FUNCTION__, user_acl_fake_mode);
+
+    IxBook_Status rv = IX_BOOK_STATUS_OK;
+    if (index < ixbook->acl_end) {
+        rv = ix_book_action_acl_return(ixbook, dev_num, index);
+    }
+    else if (index < ixbook->qos_end) {
+        rv = ix_book_action_qos_return(ixbook, dev_num, index);
+    }
+    else if (index < ixbook->pbr_end) {
+        rv = ix_book_action_pbr_return(ixbook, dev_num, index);
+    }
+    else {
+        rv = IX_BOOK_STATUS_BAD_ARG;
+        ERR("invalid value for index (%d)\n", index);
+    }
+
+    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+
+    return rv;
+}
+
+/* private */
+
+static IxBook_Status
+ix_book_action_acl_take(IxBook_Index *index, IxBook *ixbook, int dev_num)
+{
+    if (ixbook->pbr_end == ixbook->end) {
+        return IX_BOOK_STATUS_NO_INDEXES;
+    }
+
+    IxBook_Index last_element_index = ixbook->pbr_end - 1;
+    int i;
+    for (i = last_element_index; i >= ixbook->acl_end; --i) {
+        ix_book_move_rule(dev_num, i, i + 1);
+    }
+
+    *index = ixbook->acl_end;
+
+    ixbook->acl_end++;
+    ixbook->qos_end++;
+    ixbook->pbr_end++;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static IxBook_Status
+ix_book_action_qos_take(IxBook_Index *index, IxBook *ixbook, int dev_num)
+{
+    if (ixbook->pbr_end == ixbook->end) {
+        return IX_BOOK_STATUS_NO_INDEXES;
+    }
+
+    IxBook_Index last_element_index = ixbook->pbr_end - 1;
+    int i;
+    for (i = last_element_index; i >= ixbook->qos_end; --i) {
+        ix_book_move_rule(dev_num, i, i + 1);
+    }
+
+    *index = ixbook->qos_end;
+
+    ixbook->qos_end++;
+    ixbook->pbr_end++;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static IxBook_Status
+ix_book_action_pbr_take(IxBook_Index *index, IxBook *ixbook, int dev_num)
+{
+    if (ixbook->pbr_end == ixbook->end) {
+        return IX_BOOK_STATUS_NO_INDEXES;
+    }
+
+    *index = ixbook->pbr_end;
+
+    ixbook->pbr_end++;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static IxBook_Status
+ix_book_action_acl_return(IxBook *ixbook, int dev_num, IxBook_Index index)
+{
+    if (index < ixbook->start || index >= ixbook->acl_end) {
+        ERR("%s\n", "invalid value for index");
+        return IX_BOOK_STATUS_BAD_ARG;
+    }
+
+    IxBook_Index last_element_index = ixbook->pbr_end - 1;
+    IxBook_Index i;
+    for (i = index; i < last_element_index; ++i) {
+        ix_book_move_rule(dev_num, i + 1, i);
+    }
+
+    ixbook->acl_end--;
+    ixbook->qos_end--;
+    ixbook->pbr_end--;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static IxBook_Status
+ix_book_action_qos_return(IxBook *ixbook, int dev_num, IxBook_Index index)
+{
+    if (index < ixbook->acl_end || index >= ixbook->qos_end) {
+        ERR("%s\n", "invalid value for index");
+        return IX_BOOK_STATUS_BAD_ARG;
+    }
+
+    IxBook_Index last_element_index = ixbook->pbr_end - 1;
+    IxBook_Index i;
+    for (i = index; i < last_element_index; ++i) {
+        ix_book_move_rule(dev_num, i + 1, i);
+    }
+
+    ixbook->qos_end--;
+    ixbook->pbr_end--;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static IxBook_Status
+ix_book_action_pbr_return(IxBook *ixbook, int dev_num, IxBook_Index index)
+{
+    if (index < ixbook->qos_end || index >= ixbook->pbr_end) {
+        ERR("%s\n", "invalid value for index");
+        return IX_BOOK_STATUS_BAD_ARG;
+    }
+
+    IxBook_Index last_element_index = ixbook->pbr_end - 1;
+    IxBook_Index i;
+    for (i = index; i < last_element_index; ++i) {
+        ix_book_move_rule(dev_num, i + 1, i);
+    }
+
+    ixbook->pbr_end--;
+
+    return IX_BOOK_STATUS_OK;
+}
+
+static void
+ix_book_move_rule(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix)
+{
+    if (!user_acl_fake_mode) {
+        cpssDxChPclRuleCopy(dev_num, CPSS_PCL_RULE_SIZE_EXT_E, old_ix, new_ix);
+        cpssDxChPclRuleInvalidate(dev_num, CPSS_PCL_RULE_SIZE_EXT_E, old_ix);
+        DEBUG ("%s: rustam move rule from %d to %d", __FUNCTION__, old_ix, new_ix);
+    }
+    ix_book_edit_ix_in_binding(dev_num, old_ix, new_ix);
+}
+
+static void
+ix_book_edit_ix_in_binding(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix)
+{
+    struct rule_binding *item;
+    struct rule_binding *tmp;
+
+    HASH_ITER(hh, curr_acl->bindings[dev_num], item, tmp) {
+        if (item->rule_ix == old_ix) {
+            item->rule_ix = new_ix;
+            DEBUG ("%s: rustam move %s from %d to %d", __FUNCTION__,
+                    item->key.name, old_ix, new_ix);
+        }
+    }
 }
