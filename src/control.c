@@ -1178,8 +1178,6 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   result = ST_BAD_VALUE;
-  DEBUG ("CPU_CODE_USER_DEFINED (12): %u, frame->code: %u\n", CPU_CODE_USER_DEFINED (12), frame->code);
-
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
@@ -1423,6 +1421,8 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (12):
     type = CN_PPPOE;
+    put_vif = 1;
+    put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (9):
@@ -4076,7 +4076,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     .vid = put_vid ? vid : 0,
     .vif = put_vif ? vif->id : 0
   };
-  DEBUG ("vid: %u\n", vid);
   switch (type) {
     case CN_SAMPLED:
     case CN_DHCPV6_TRAP:

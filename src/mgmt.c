@@ -93,6 +93,7 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
   switch (frame->code) {
   case CPU_CODE_USER_DEFINED (7):
   case CPU_CODE_USER_DEFINED (8):
+  case CPU_CODE_USER_DEFINED (12):
     control_spec_frame(frame);
     return;
   default: {
