@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
@@ -24,6 +25,7 @@
 #include <mcg.h>
 #include <fib.h>
 #include <fib_ipv6.h>
+#include <flex_link.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -619,6 +621,9 @@ DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
 DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
+DECLARE_HANDLER (CC_FLEX_LINK_ADD);
+DECLARE_HANDLER (CC_FLEX_LINK_DEL);
+DECLARE_HANDLER (CC_FLEX_LINK_GET);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -820,7 +825,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
   HANDLER (CC_SFLOW_SET_RELOAD_MODE),
   HANDLER (CC_SFLOW_SET_PORT_LIMIT),
-  HANDLER (CC_SFLOW_SET_DEFAULT)
+  HANDLER (CC_SFLOW_SET_DEFAULT),
+  HANDLER (CC_FLEX_LINK_ADD),
+  HANDLER (CC_FLEX_LINK_DEL),
+  HANDLER (CC_FLEX_LINK_GET)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -6672,4 +6680,116 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 out:
   report_status (result);
 }
+
 ///@} /* End sFlow functions. */
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_ADD)
+{
+    // get primary link port number
+    uint8_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // get backup link port number
+    uint8_t backup;
+    result = POP_ARG (&backup);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get backup link", __FUNCTION__);
+        return;
+    }
+
+    // add flex-link
+    if (flex_link_add(primary, backup) != FLEX_LINK_OK) {
+        report_status(ST_MALLOC_ERROR);
+        DEBUG ("%s: can't add flex-link", __FUNCTION__);
+        return;
+    }
+
+    // get link state and activate flex-link
+    struct port_link_state primary_state;
+    if (port_get_state(primary, &primary_state) != ST_OK) {
+        report_status(ST_BAD_STATE);
+        DEBUG ("%s: can't get primary link state", __FUNCTION__);
+        return;
+    }
+    flex_link_handle_link_change(primary, primary_state.link);
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_DEL)
+{
+    // get primary link port number to delete
+    uint8_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status (result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // del flex-link
+    if (flex_link_del(primary) != FLEX_LINK_OK) {
+        report_status(ST_BAD_VALUE);
+        DEBUG ("%s: can't delete flex-link", __FUNCTION__);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_GET)
+{
+    // get first flex-link
+    const FlexLink *flex_link = flex_link_get();
+    if (!flex_link) {
+        report_status(ST_OK); // no flex-links
+        return;
+    }
+
+    // make reply
+    zmsg_t *reply = make_reply(ST_OK);
+    while (flex_link) {
+        struct {
+            uint8_t primary_port;  // primary link port number
+            uint8_t primary_state; // primary link state (1 - up; 0 - down)
+            uint8_t backup_port;   // backup link port number
+            uint8_t backup_state;  // backup link state (1 - up; 0 - down)
+        } msg;
+
+        msg.primary_port = flex_link->iface_primary;
+        msg.backup_port  = flex_link->iface_backup;
+
+        // get primary link state
+        struct port_link_state primary_state;
+        if (port_get_state(flex_link->iface_primary, &primary_state) != ST_OK) {
+            DEBUG ("%s: can't get primary port state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.primary_state = primary_state.link;
+
+        // get backup link state
+        struct port_link_state backup_state;
+        if (port_get_state(flex_link->iface_backup, &backup_state) != ST_OK) {
+            DEBUG ("%s: can't get backup port state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.backup_state = backup_state.link;
+
+        zmsg_addmem(reply, &msg, sizeof(msg));
+
+        flex_link = flex_link_next();
+    }
+
+    send_reply (reply);
+}

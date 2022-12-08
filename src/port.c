@@ -20,6 +20,7 @@
 #include <mac.h>
 #include <sec.h>
 #include <dgasp.h>
+#include <flex_link.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -508,6 +509,7 @@ phy_handle_link_change (struct port *port, int link_up, int fiber_used)
     return ST_DOES_NOT_EXIST;
 
   notify_port_state (vif->id, port->id, &attrs);
+  flex_link_handle_link_change(port->id, link_up);
 
   port_lock ();
 
