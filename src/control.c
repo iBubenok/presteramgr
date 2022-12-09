@@ -604,6 +604,7 @@ DECLARE_HANDLER (CC_PCL_TEST_STOP);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
+DECLARE_HANDLER (CC_PPPOE_ENABLE);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
@@ -805,6 +806,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
+  HANDLER (CC_PPPOE_ENABLE),
   HANDLER (CC_ARPD_SOCK_CONNECT),
   HANDLER (CC_STACK_SET_MASTER),
   HANDLER (CC_LOAD_BALANCE_MODE),
@@ -1221,7 +1223,6 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   result = ST_BAD_VALUE;
-
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
@@ -1461,6 +1462,12 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (4):
     type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (12):
+    type = CN_PPPOE;
+    put_vif = 1;
+    put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (9):
@@ -4092,6 +4099,11 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (11):
     type = CN_BPDU;
     break;
+  case CPU_CODE_USER_DEFINED (12):
+    type = CN_PPPOE;
+    put_vif = 1;
+    put_vid = 1;
+    break;
   case CPU_CODE_EGRESS_SAMPLED:
     type = CN_SAMPLED;
     direction = EGRESS;
@@ -4141,7 +4153,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     .vid = put_vid ? vid : 0,
     .vif = put_vif ? vif->id : 0
   };
-
   switch (type) {
     case CN_SAMPLED:
     case CN_DHCPV6_TRAP:
@@ -6302,6 +6313,22 @@ DEFINE_HANDLER (CC_VRRP_SET_MAC)
 
  out:
   report_status (result);
+}
+
+DEFINE_HANDLER (CC_PPPOE_ENABLE)
+{
+  enum status result;
+  bool_t enabled;
+
+  result = POP_ARG (&enabled);
+  if (result != ST_OK)
+    goto out;
+  DEBUG ("DEFINE_HANDLER (CC_PPPOE_ENABLE): enabled: %u\n", enabled);
+
+  result = pcl_enable_pppoe_trap (enabled);
+
+  out:
+   report_status (result);
 }
 
 DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
