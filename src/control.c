@@ -831,7 +831,7 @@ static cmd_handler_t stack_handlers[] = {
   HANDLER (SC_INT_OPNA_CMD),
   HANDLER (SC_INT_OPNA_IPV6_CMD),
   HANDLER (SC_INT_UDT_CMD),
-  HANDLER (SC_INT_UDT_IPV6_CMD),  
+  HANDLER (SC_INT_UDT_IPV6_CMD),
   HANDLER (SC_INT_CLEAR_RT_CMD),
   HANDLER (SC_INT_CLEAR_RE_CMD),
   HANDLER (SC_INT_VIF_SET_STP_STATE)
@@ -1384,7 +1384,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_vid = 1;
     goto out;
     break;
-  
+
   /* FIX THIS */
   case CPU_CODE_IPV6_UC_ROUTE_TM_0:
     result = ST_OK;
@@ -1408,14 +1408,14 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       put_port_id (msg, pid);
 
       zmsg_addmem (msg, frame->data, frame->len);
-      
+
       notify_send_arp (&msg);
     }
     goto out;
     break;
 
   case CPU_CODE_IPV6_UC_ROUTE_TM_1:
- 
+
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -1464,7 +1464,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     type = CN_LLDP_MCAST;
     break;
 
-  case CPU_CODE_USER_DEFINED (12):
+  case CPU_CODE_USER_DEFINED (13):
     type = CN_PPPOE;
     put_vif = 1;
     put_vid = 1;
@@ -1816,11 +1816,11 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   switch (notif) {
   case RCN_IP_ADDR:
     am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
-    ip_addr_t addr; 
-    ip_addr_v6_t addr_v6; 
+    ip_addr_t addr;
+    ip_addr_v6_t addr_v6;
     // mac_op_rt(notif, am, sizeof(*am));
     switch (am->type){
-      case AF_INET:             
+      case AF_INET:
         memcpy (&addr, &am->addr, 4);
         switch (am->op) {
           case RIAO_ADD:
@@ -1833,8 +1833,8 @@ DEBUG("===SC_INT_RTBD_CMD\n");
             break;
         }
         break;
-        
-      case AF_INET6:   
+
+      case AF_INET6:
         memcpy (&addr_v6, &am->addr_v6, 16);
         switch (am->op) {
           case RIAO_ADD:
@@ -1907,8 +1907,7 @@ DEBUG("===SC_INT_RTBD_CMD\n");
         default:
           break;
         }
-        break;  
-      
+        break;
       default:
         break;
     }
@@ -3947,7 +3946,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     goto out;
     break;
-  
+
   /* FIX THIS */
   /* FIX THIS */
   case CPU_CODE_IPV6_UC_ROUTE_TM_0:
@@ -3978,7 +3977,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_port_id (msg, pid);
 
       zmsg_addmem (msg, frame->data, frame->len);
-      
+
       zframe_t* tmp_frame = zmsg_first(msg);
       while(tmp_frame)
       {
@@ -3991,7 +3990,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
   case CPU_CODE_IPV6_UC_ROUTE_TM_1:
 
- 
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -4099,7 +4097,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (11):
     type = CN_BPDU;
     break;
-  case CPU_CODE_USER_DEFINED (12):
+  case CPU_CODE_USER_DEFINED (13):
     type = CN_PPPOE;
     put_vif = 1;
     put_vid = 1;
@@ -5104,7 +5102,7 @@ DEFINE_HANDLER (CC_DIAG_READ_RET_CNT)
 DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
   zmsg_t *msg = zmsg_new ();
-  assert (msg); 
+  assert (msg);
   enum event_notification en = EN_BC_LS;
   zmsg_addmem (msg, &en, sizeof (en));
   zmsg_send (&msg, evtntf_sock);

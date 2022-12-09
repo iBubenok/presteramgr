@@ -3858,7 +3858,7 @@ pcl_enable_pppoe_trap (bool_t enable)
       memset (&act, 0, sizeof (act));
       act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
       act.actionStop = GT_TRUE;
-      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 12;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 13;
 
       CRP (cpssDxChPclRuleSet
          (port->ldev,
