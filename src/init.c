@@ -105,6 +105,7 @@
 #include <ipsg.h>
 
 int just_reset = 0;
+int fault = 0;
 
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
@@ -701,11 +702,7 @@ do_reset (void)
 
   DEBUG ("*** reset requested\r\n");
 
-#if defined (VARIANT_ARLAN_3448GE)
-  for (i = NDEVS-1; i >= 0; i--) {
-#else
   for_each_dev (i) {
-#endif
     pci_find_dev (&dev_info[i]);
 
     DEBUG ("doing phase1 config\n");
@@ -754,6 +751,36 @@ init_cpss (void)
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
 
+  if (fault) {
+    system("echo '' > /var/tmp/chip");
+    for_each_dev(i) {
+      int hw_dev_num = sysd_hw_dev_num (i);
+      dev_set_map(i, hw_dev_num);
+    }
+    for_each_dev (i) {
+      pci_find_dev (&dev_info[i]);
+/*
+      char str[80];
+      sprintf (str, "echo 'CHIP-REV: ( %08x %08x %08x %08x )' >> /var/tmp/chip",
+        dev_info[i].chip_revision[0],
+        dev_info[i].chip_revision[1],
+        dev_info[i].chip_revision[2],
+        dev_info[i].chip_revision[3]);
+      system(str);
+*/
+      /* 3448GE-US 000dd763 000011ab 0000000c 8000ffff */
+      /* 3448GE-S  000dd763 000011ab 00000000 0000ffff */
+      if (dev_info[i].chip_revision[1] != 0x000011AB) {
+        system("echo 1 > /var/tmp/fault");
+        system("sync");
+        exit (1);
+      }
+    }
+    system("echo 0 > /var/tmp/fault");
+    system("sync");
+    exit (0);
+  }
+
   if (just_reset) {
     do_reset ();
     return GT_OK;
@@ -769,25 +796,16 @@ DEBUG ("===================================\n");
   stack_init ();
 
   for_each_dev (i) {
-      pci_find_dev (&dev_info[i]);
-DEBUG ("Device: %d; DEV-ID: %08x; INT-NUM: %d; CHIP-REV: ( %08x %08x %08x %08x )\n",
-        i, dev_info[i].dev_id, (int)dev_info[i].int_num, dev_info[i].chip_revision[0], dev_info[i].chip_revision[1], dev_info[i].chip_revision[2], dev_info[i].chip_revision[3]);
+    pci_find_dev (&dev_info[i]);
 
-    if ((dev_info[i].chip_revision[1] != 0x000011AB)
-        || (dev_info[i].chip_revision[2] != 0x0000000C)
-        || (dev_info[i].chip_revision[3] != 0x8000FFFF))
-      bug = 1;
-/*
-    if ((dev_info[i].chip_revision[1] != 0x000011ab)
-        || (dev_info[i].chip_revision[2] != 0x0000000c)
-        || (dev_info[i].chip_revision[3] != 0x8000ffff))
-      bug = 1;
+    DEBUG ("Device: %d; DEV-ID: %08x; INT-NUM: %d; CHIP-REV: ( %08x %08x %08x %08x )\n",
+        i, dev_info[i].dev_id,
+        (int)dev_info[i].int_num,
+        dev_info[i].chip_revision[0],
+        dev_info[i].chip_revision[1],
+        dev_info[i].chip_revision[2],
+        dev_info[i].chip_revision[3]);
 
-    if ((dev_info[i].chip_revision[1] != 0x000011ab)
-        || (dev_info[i].chip_revision[2] != 0x00000000)
-        || (dev_info[i].chip_revision[3] != 0x0002FFFF))
-      bug = 1;
-*/
     if (sysd_override_serdes_ref_clock) {
       DEBUG ("overriding SERDES reference clock with %d\n",
              sysd_serdes_ref_clock);
@@ -844,7 +862,7 @@ DEBUG ("Device: %d; DEV-ID: %08x; INT-NUM: %d; CHIP-REV: ( %08x %08x %08x %08x )
   DEBUG ("IP library init done\n");
 
 #if defined (VARIANT_GE)
-    if (qt2025_phy_load_fw() != ST_OK) bug = 2;
+    qt2025_phy_load_fw();
 #endif /* VARIANT_GE */
 
   port_disable_all ();
@@ -881,40 +899,14 @@ DEBUG ("Device: %d; DEV-ID: %08x; INT-NUM: %d; CHIP-REV: ( %08x %08x %08x %08x )
         devinfo.genDevInfo.existingPorts.ports[1]
         );
   }
-#if 1
-  if (bug > 0) {
-    system("reboot.sh");
-    system("cat /logs/presteramgr-logs/0");
-#if 1
-    system("echo b > /proc/sysrq-trigger");
-#else
-    FILE *fin = fopen("/data/manager/config/rebooted", "r");
-    int rebooted = 0;
-    fscanf(fin, "%d", &rebooted);
-    DEBUG("rebooted: %d\n", rebooted);
-    fclose(fin);
 
-    if (rebooted >= 5) {
-      for (i = 1; i < NPORTS + 1; i++) {
-          port_set_phy_reg(i, 3, 25, 65535); /*smctl:set_phy_reg(1,3,25,65535).*/
-      }
-      system("echo 0 > /data/manager/config/rebooted");
-      //exit(1);
-    } else {
-      system("echo b > /proc/sysrq-trigger");
-    }
-#endif
-  } else {
-    system("echo 0 > /data/manager/config/rebooted");
-  }
-#endif
   return GT_OK;
 }
 
 void
 cpss_start (void)
 {
-  INFO ("init environment");
+  DEBUG ("init environment");
   env_init ();
 
   if (osWrapperOpen (NULL) != GT_OK) {
