@@ -555,9 +555,17 @@ mac_set_aging_time (aging_time_t time)
   GT_STATUS rc;
   int d;
 
+  if (time == 0) {
+    for_each_dev (d) {
+      CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
+    }
+    return ST_OK;
+  }
+
   for_each_dev (d) {
     rc = CRP (cpssDxChBrgFdbAgingTimeoutSet (d, time));
     ON_GT_ERROR (rc) break;
+    CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITH_REMOVAL_E));
   }
 
   switch (rc) {
@@ -1458,9 +1466,13 @@ fdb_upd_for_dev (int d)
       case CPSS_AA_E:
         if (fdbman_state == FST_MEMBER)
           mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
-        else
-          if (fdb_old_addr (d, &fdb_addrs[i]) == ST_OK)
-            mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
+        else {
+          CPSS_FDB_ACTION_MODE_ENT s_act_mode;
+          CRP (cpssDxChBrgFdbActionModeGet (d, &s_act_mode));
+          if (s_act_mode == CPSS_FDB_ACTION_AGE_WITH_REMOVAL_E)
+            if (fdb_old_addr (d, &fdb_addrs[i]) == ST_OK)
+              mac_form_fdbr(&fdb_addrs[i].macEntry, PTI_FDB_OP_DEL, &fdbr[idx++]);
+        }
         break;
       default:
         // DEBUG("fdb_upd_for_dev(): UNRESOLVED!!!! fdb_addrs[i].updType==%u  \n", fdb_addrs[i].updType);
@@ -2785,7 +2797,8 @@ mac_start (void)
     CRP (cpssDxChBrgFdbActionActiveVlanSet (d, 0, 0));
     CRP (cpssDxChBrgFdbActionActiveInterfaceSet (d, 0, 0, 0, 0));
     CRP (cpssDxChBrgFdbStaticDelEnable (d, GT_FALSE));
-    CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
+    // CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITHOUT_REMOVAL_E));
+    CRP (cpssDxChBrgFdbActionModeSet (d, CPSS_FDB_ACTION_AGE_WITH_REMOVAL_E));
     CRP (cpssDxChBrgFdbMacTriggerModeSet (d, CPSS_ACT_AUTO_E));
     CRP (cpssDxChBrgFdbActionsEnableSet (d, GT_TRUE));
 
