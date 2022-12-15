@@ -576,6 +576,59 @@ mac_set_aging_time (aging_time_t time)
   }
 }
 
+aging_time_t
+get_max_aging_time(int devNum)
+{
+  GT_STATUS rc;
+  aging_time_t max_time = 0;
+  int time;
+
+  for (time = 300; time <= 3825; time++)
+  {
+    max_time = time - 1;
+    rc = cpssDxChBrgFdbAgingTimeoutSet (devNum, time);
+    ON_GT_ERROR (rc) break;
+  }
+  
+  return max_time;
+}
+
+enum status
+mac_check_aging_time (aging_time_t time, aging_time_t* max_time)
+{
+  GT_STATUS rc;
+  int d;
+  aging_time_t g_time;
+  aging_time_t *g_time_ptr = &g_time;
+  bool_t bad_param = false;
+
+  if (time == 0) return ST_OK;
+  
+  for_each_dev (d) {
+    cpssDxChBrgFdbAgingTimeoutGet(d, g_time_ptr);
+    rc = cpssDxChBrgFdbAgingTimeoutSet (d, time);
+    
+    if ( ( rc != GT_OK) && ( rc != GT_BAD_PARAM ) ) break;
+    
+    if ( rc == GT_BAD_PARAM ) {
+      *max_time = get_max_aging_time(d); 
+      time = *max_time;
+      bad_param = true;
+    }
+
+    cpssDxChBrgFdbAgingTimeoutSet (d, g_time);
+
+    if ( bad_param ) rc = GT_BAD_PARAM;
+  }
+
+  switch (rc) {
+  case GT_OK:        return ST_OK;
+  case GT_BAD_PARAM: return ST_BAD_VALUE;
+  case GT_HW_ERROR:  return ST_HW_ERROR;
+  default:           return ST_HEX;
+  }
+}
+
 enum status
 mac_set_master (uint8_t stid, serial_t serial, devsbmp_t dbmp) {
   struct set_master_info minfo;
