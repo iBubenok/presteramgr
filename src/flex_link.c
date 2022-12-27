@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 #include "log.h"
-#include "vif.h" // для vif_shutdown()
 
 static FlexLinkList *flex_link_head = NULL;
 static FlexLinkList *flex_link_curr = NULL;
@@ -16,18 +15,21 @@ static FlexLinkList *flex_link_curr = NULL;
  *
  * @param[in] port номер канала у которого изменилось состояние (1, 2 и т.п.)
  * @param[in] new_link_state новое состояние канала (1 - поднят, 0 - опущен)
+ * @param[in] shutdown указатель на функции отключения интерфейса
  */
 void
-flex_link_handle_link_change(uint8_t port, uint8_t new_link_state)
+flex_link_handle_link_change(vif_id_t vif_id,
+                             uint8_t new_link_state,
+                             FlexLinkShutdown shutdown)
 {
     FlexLinkList *item = flex_link_head;
 
     while (item) {
-        if (port == item->data.iface_primary && new_link_state == 0) {
-            vif_shutdown(item->data.iface_backup,  0);
+        if (vif_id == item->data.primary && new_link_state == 0) {
+            shutdown(item->data.backup,  0);
         }
-        else if (port == item->data.iface_primary && new_link_state == 1) {
-            vif_shutdown(item->data.iface_backup,  1);
+        else if (vif_id == item->data.primary && new_link_state == 1) {
+            shutdown(item->data.backup,  1);
         }
 
         item = item->next;
@@ -44,15 +46,15 @@ flex_link_handle_link_change(uint8_t port, uint8_t new_link_state)
  * @return в случае успеха возвращает FLEX_LINK_OK, иначе FLEX_LINK_BAD_ALLOC
  */
 FlexLinkState
-flex_link_add(uint8_t primary, uint8_t backup)
+flex_link_add(vif_id_t primary, vif_id_t backup)
 {
     FlexLinkList *new = malloc(sizeof(*new));
     if (!new) {
         return FLEX_LINK_BAD_ALLOC;
     }
 
-    new->data.iface_primary = primary;
-    new->data.iface_backup  = backup;
+    new->data.primary = primary;
+    new->data.backup  = backup;
     new->next = flex_link_head;
     flex_link_head = new;
 
@@ -68,23 +70,19 @@ flex_link_add(uint8_t primary, uint8_t backup)
  * @return в случае успеха возвращает FLEX_LINK_OK, иначе FLEX_LINK_NOT_FOUND
  */
 FlexLinkState
-flex_link_del(uint8_t primary)
+flex_link_del(vif_id_t primary)
 {
     FlexLinkList *item = flex_link_head;
     FlexLinkList *prev = NULL;
 
     while (item) {
-        if (item->data.iface_primary == primary) {
+        if (item->data.primary == primary) {
             if (!prev) {
                 flex_link_head = item->next;
             }
             else {
                 prev->next = item->next;
             }
-
-            // deactivate flex-link
-            vif_shutdown(item->data.iface_primary,  0);
-            vif_shutdown(item->data.iface_backup,  0);
 
             free(item);
 

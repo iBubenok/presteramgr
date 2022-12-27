@@ -133,6 +133,7 @@ extern enum status vif_get_hw_port (struct hw_port *, vif_type_t, uint8_t, uint8
 extern struct vif* vif_get_by_gif(uint8_t, uint8_t, uint8_t);
 extern enum status vif_get_hw_port_by_index (struct hw_port *, uint8_t, uint8_t);
 extern enum status vif_get_hw_ports (struct vif_def *);
+enum status vif_get_state(vif_id_t vif_id, struct port_link_state *state);
 extern enum status vif_set_hw_ports (uint8_t, uint8_t, const struct vif_def *);
 extern void vif_set_trunk_members (trunk_id_t, int, struct trunk_member *, void *);
 extern enum status vif_set_link_status(vif_id_t, struct port_link_state *, void *);

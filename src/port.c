@@ -429,6 +429,7 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC
   zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
 
+  flex_link_handle_link_change(vifid, ps.link, vif_shutdown);
   vif_set_link_status(vifid, &ps, not_sock);
 }
 
@@ -509,7 +510,6 @@ phy_handle_link_change (struct port *port, int link_up, int fiber_used)
     return ST_DOES_NOT_EXIST;
 
   notify_port_state (vif->id, port->id, &attrs);
-  flex_link_handle_link_change(port->id, link_up);
 
   port_lock ();
 

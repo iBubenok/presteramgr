@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <ipsg.h>
+#include <flex_link.h>
 
 #include <cpssdefs.h>
 #include <cpss/dxCh/dxChxGen/networkIf/cpssDxChNetIf.h>
@@ -419,8 +420,22 @@ vif_get_hw_port_by_index (struct hw_port *hp, uint8_t dev, uint8_t num)
   return ST_OK;
 }
 
+enum status
+vif_get_state(vif_id_t vif_id, struct port_link_state *state)
+{
+    struct vif *vif = vif_getn(vif_id);
+    if (!vif) {
+        return ST_DOES_NOT_EXIST;
+    }
+
+    *state = vif->state;
+
+    return ST_OK;
+}
+
 static void
 notify_port_state (vif_id_t vifid, port_id_t pid, const struct port_link_state *ps, void *sock) {
+  flex_link_handle_link_change(vifid, ps->link, vif_shutdown);
   zmsg_t *msg = zmsg_new ();
   assert (msg);
   enum event_notification en = EN_LS;
