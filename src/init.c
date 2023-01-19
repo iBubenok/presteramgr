@@ -737,7 +737,6 @@ init_cpss (void)
   GT_STATUS rc;
   CPSS_PP_DEVICE_TYPE dev_type;
   int i;
-  int bug = 0;
 
   rc = extDrvEthRawSocketModeSet (GT_TRUE);
   if (rc != GT_OK)
