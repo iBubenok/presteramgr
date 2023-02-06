@@ -599,22 +599,22 @@ netif_lib_init (int d)
 }
 
 static GT_STATUS
-policer_lib_init (int d)
+policer_lib_init (int devNum)
 {
   GT_STATUS rc;
 
-  if (PRV_CPSS_DXCH_PP_MAC (d)->fineTuning.featureInfo.iplrSecondStageSupported
+  if (PRV_CPSS_DXCH_PP_MAC (devNum)->fineTuning.featureInfo.iplrSecondStageSupported
       != GT_TRUE) {
     DEBUG ("policer_lib_init: doing nothing\n");
     return GT_OK;
   }
 
-  RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (d,
+  RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (devNum,
                                                 CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
                                                 GT_FALSE)),
        cpssDxCh3PolicerMeteringEnableSet);
 
-  RCC ((rc = cpssDxChPolicerCountingModeSet (d,
+  RCC ((rc = cpssDxChPolicerCountingModeSet (devNum,
                                              CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
                                              CPSS_DXCH_POLICER_COUNTING_DISABLE_E)),
        cpssDxChPolicerCountingModeSet);
