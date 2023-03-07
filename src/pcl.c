@@ -70,7 +70,7 @@ static uint16_t port_ip_rip_mirror_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_ipv6_ripng_mirror_rule_ix[NPORTS + 1] = {};
 static uint16_t port_pppoe_rule_ix[NPORTS + 1] = {};
-
+static uint16_t port_ip_pim_mirror_rule_ix[NPORTS + 1] = {};
 static uint16_t vt_stack_entries = 300;
 static uint16_t vt_stack_first_entry[NDEVS] = {};
 static uint16_t vt_stack_max[NDEVS] = {};
@@ -137,6 +137,7 @@ initialize_vars (void)
     port_ip_rip_mirror_rule_ix[pid]        = idx[port->ldev]++;
     port_ipv6_ripng_mirror_rule_ix[pid]    = idx[port->ldev]++;
     port_pppoe_rule_ix[pid]                = idx[port->ldev]++;
+    port_ip_pim_mirror_rule_ix[pid]        = idx[port->ldev]++;
   }
 
   for_each_dev(dev) {
@@ -462,6 +463,55 @@ pcl_setup_ospf(int d)
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
           port_ip_ospf_mirror_rule_ix[pi],                  /* ruleIndex      */
+          0,                                                /* ruleOptionsBmp */
+          &mask,                                            /* maskPtr        */
+          &rule,                                            /* patternPtr     */
+          &act));                                           /* actionPtr      */
+  }
+}
+
+/******************************************************************************/
+/* PIM MULTICAST MIRROR                                                      */
+/******************************************************************************/
+
+void
+pcl_setup_pim(int d)
+{
+  port_id_t pi;
+  for_each_port(pi) {
+    struct port *port = port_ptr (pi);
+    if (port->ldev != d)
+      continue;
+
+    if (is_stack_port(port))
+      return;
+
+    CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+    CPSS_DXCH_PCL_ACTION_STC act;
+
+    memset (&mask, 0, sizeof (mask));
+    memset (&rule, 0, sizeof (rule));
+    memset (&act, 0, sizeof (act));
+
+    mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+    mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+    mask.ruleExtNotIpv6.common.isIp = 0xFF;
+    mask.ruleExtNotIpv6.commonExt.ipProtocol  = 0xFF;
+
+    rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+    rule.ruleExtNotIpv6.common.isL2Valid = 1;
+    rule.ruleExtNotIpv6.common.isIp = 1;
+    rule.ruleExtNotIpv6.commonExt.ipProtocol  = 0x67; /* PIM */
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
+    act.actionStop = GT_TRUE;
+    act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 14;
+
+    CRP (cpssDxChPclRuleSet
+         (port->ldev,                                       /* devNum         */
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
+          port_ip_pim_mirror_rule_ix[pi],                  /* ruleIndex      */
           0,                                                /* ruleOptionsBmp */
           &mask,                                            /* maskPtr        */
           &rule,                                            /* patternPtr     */
@@ -4187,6 +4237,7 @@ pcl_cpss_lib_init (int d)
     pcl_setup_stackmail_trap (stack_sec_port->id);
 
   pcl_setup_ospf(d);
+  pcl_setup_pim(d);
   pcl_setup_rip(d);
   pcl_setup_vrrp(d);
   pcl_setup_ripng(d);

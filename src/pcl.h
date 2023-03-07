@@ -31,6 +31,9 @@ extern enum status pcl_enable_cfm_trap (cfm_level_t, int);
 /* ERPS */
 extern enum status pcl_enable_erps_trap (port_id_t, int);
 
+/* PIM */
+extern enum status pcl_enable_pim_trap (bool_t);
+
 /* PPPoE */
 extern enum status pcl_enable_pppoe_trap (bool_t);
 
