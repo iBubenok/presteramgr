@@ -486,6 +486,7 @@ DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
+DECLARE_HANDLER (CC_MAC_CHECK_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_LIST_VIF_ID);
@@ -687,6 +688,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
+  HANDLER (CC_MAC_CHECK_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_LIST_VIF_ID),
@@ -2510,6 +2512,29 @@ DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
     goto out;
 
   result = mac_set_aging_time (time);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_CHECK_AGING_TIME)
+{
+  enum status result;
+  aging_time_t time, max_time;
+
+  result = POP_ARG (&time);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_check_aging_time (time, &max_time);
+
+  if (result == ST_BAD_VALUE) {
+    zmsg_t *reply = make_reply (ST_OK);
+    // zmsg_t *reply = make_reply (ST_BAD_VALUE);
+    zmsg_addmem (reply, &max_time, sizeof (max_time));
+    send_reply (reply);
+    return;
+  }
 
  out:
   report_status (result);
