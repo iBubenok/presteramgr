@@ -20,6 +20,7 @@
 #include <mac.h>
 #include <sec.h>
 #include <dgasp.h>
+#include <flex_link.h>
 
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortCtrl.h>
 #include <cpss/dxCh/dxChxGen/port/cpssDxChPortStat.h>
@@ -428,6 +429,7 @@ notify_port_state (vif_id_t vifid, port_id_t pid, const CPSS_PORT_ATTRIBUTES_STC
   zmsg_addmem (msg, &ps, sizeof (ps));
   zmsg_send (&msg, not_sock);
 
+  flex_link_handle_link_change(vifid, ps.link, vif_shutdown);
   vif_set_link_status(vifid, &ps, not_sock);
 }
 

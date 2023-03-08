@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
@@ -24,6 +25,7 @@
 #include <mcg.h>
 #include <fib.h>
 #include <fib_ipv6.h>
+#include <flex_link.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -620,6 +622,9 @@ DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
 DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
+DECLARE_HANDLER (CC_FLEX_LINK_ADD);
+DECLARE_HANDLER (CC_FLEX_LINK_DEL);
+DECLARE_HANDLER (CC_FLEX_LINK_GET);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -822,7 +827,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
   HANDLER (CC_SFLOW_SET_RELOAD_MODE),
   HANDLER (CC_SFLOW_SET_PORT_LIMIT),
-  HANDLER (CC_SFLOW_SET_DEFAULT)
+  HANDLER (CC_SFLOW_SET_DEFAULT),
+  HANDLER (CC_FLEX_LINK_ADD),
+  HANDLER (CC_FLEX_LINK_DEL),
+  HANDLER (CC_FLEX_LINK_GET)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -6697,4 +6705,119 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 out:
   report_status (result);
 }
+
 ///@} /* End sFlow functions. */
+
+/******************************************************************************/
+/*                            FLEX-LINKS FUNCTIONS                            */
+/******************************************************************************/
+
+DEFINE_HANDLER (CC_FLEX_LINK_ADD)
+{
+    // get primary vif id
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // get backup vif id
+    vif_id_t backup;
+    result = POP_ARG (&backup);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get backup link", __FUNCTION__);
+        return;
+    }
+
+    // add flex-link
+    if (flex_link_add(primary, backup) != FLEX_LINK_OK) {
+        report_status(ST_MALLOC_ERROR);
+        DEBUG ("%s: can't add flex-link", __FUNCTION__);
+        return;
+    }
+
+    // get link state and activate flex-link
+    struct port_link_state primary_state;
+    if (vif_get_state(primary, &primary_state) != ST_OK) {
+        report_status(ST_BAD_STATE);
+        DEBUG ("%s: can't get primary link state", __FUNCTION__);
+        return;
+    }
+    flex_link_handle_link_change(primary, primary_state.link, vif_shutdown);
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_DEL)
+{
+    // get primary vif id to delete flex-link
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status (result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // del flex-link
+    if (flex_link_del(primary) != FLEX_LINK_OK) {
+        report_status(ST_BAD_VALUE);
+        DEBUG ("%s: can't delete flex-link", __FUNCTION__);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_GET)
+{
+    // get first flex-link
+    const FlexLink *flex_link = flex_link_get();
+    if (!flex_link) {
+        report_status(ST_OK); // no flex-links
+        return;
+    }
+
+    // make reply
+    zmsg_t *reply = make_reply(ST_OK);
+    while (flex_link) {
+        struct __attribute__((packed)) {
+            vif_id_t vif_primary;  // primary vif
+            vif_id_t vif_backup;   // backup vif
+            uint8_t state_primary; // primary vif state (1 - up; 0 - down)
+            uint8_t state_backup;  // backup vif state (1 - up; 0 - down)
+        } msg;
+
+        msg.vif_primary = flex_link->primary;
+        msg.vif_backup  = flex_link->backup;
+
+        // get primary link state
+        struct port_link_state state_primary;
+        if (vif_get_state(flex_link->primary, &state_primary) != ST_OK) {
+            DEBUG ("%s: can't get primary vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_primary = state_primary.link;
+
+        // get backup link state
+        struct port_link_state state_backup;
+        if (vif_get_state(flex_link->backup, &state_backup) != ST_OK) {
+            DEBUG ("%s: can't get backup vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_backup = state_backup.link;
+
+        zmsg_addmem(reply, &msg, sizeof(msg));
+
+        flex_link = flex_link_next();
+    }
+
+    send_reply(reply);
+}
