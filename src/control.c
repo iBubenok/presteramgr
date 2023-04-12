@@ -48,6 +48,7 @@
 #include <erpsd.h>
 #include <netlink/socket.h>
 #include <sflow.h>
+#include <policer.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -625,6 +626,10 @@ DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
 DECLARE_HANDLER (CC_FLEX_LINK_ADD);
 DECLARE_HANDLER (CC_FLEX_LINK_DEL);
 DECLARE_HANDLER (CC_FLEX_LINK_GET);
+DECLARE_HANDLER (CC_POLICE_ADD);
+DECLARE_HANDLER (CC_POLICE_DEL);
+DECLARE_HANDLER (CC_POLICE_SHOW);
+DECLARE_HANDLER (CC_POLICE_CHK_AVAIL);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -831,6 +836,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_FLEX_LINK_ADD),
   HANDLER (CC_FLEX_LINK_DEL),
   HANDLER (CC_FLEX_LINK_GET)
+  HANDLER (CC_POLICE_ADD),
+  HANDLER (CC_POLICE_DEL),
+  HANDLER (CC_POLICE_SHOW),
+  HANDLER (CC_POLICE_CHK_AVAIL)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -5964,9 +5973,10 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
       case PCL_RULE_ACTION_DENY:
       case PCL_RULE_ACTION_PERMIT:
         break;
-      case PCL_RULE_ACTION_DENY_QOS_POLICY:
-      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
-        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+      case PCL_RULE_ACTION_DENY_POLICY:
+      case PCL_RULE_ACTION_PERMIT_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_policy));
+        struct pcl_rule_action_policy* tmp = rule_action_params;
         break;
       default:
         free(name);
@@ -6019,6 +6029,10 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
 
     free(name);
     free(rule_params);
+    if (rule_action_params != NULL) {
+        free(rule_action_params);
+        rule_action_params = NULL;
+    }
 
     if (result != ST_OK) {
       goto out;
@@ -6164,9 +6178,9 @@ DEFINE_HANDLER (CC_POLICY_BASED_ROUTING_SET)
       case PCL_RULE_ACTION_DENY:
       case PCL_RULE_ACTION_PERMIT:
         break;
-      case PCL_RULE_ACTION_DENY_QOS_POLICY:
-      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
-        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+      case PCL_RULE_ACTION_DENY_POLICY:
+      case PCL_RULE_ACTION_PERMIT_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_policy));
         break;
       case PCL_RULE_ACTION_DENY_PBR:
       case PCL_RULE_ACTION_PERMIT_PBR:
@@ -6820,4 +6834,148 @@ DEFINE_HANDLER (CC_FLEX_LINK_GET)
     }
 
     send_reply(reply);
+}
+
+/******************************************************************************/
+/*                              TRAFFIC POLICING                              */
+/******************************************************************************/
+
+DEFINE_HANDLER (CC_POLICE_ADD)
+{
+    // получаем policer_params от manager'а
+    struct policer_params policer_params;
+    enum status result = POP_ARG(&policer_params);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_params: %d", result);
+        report_status(ST_BAD_VALUE);
+        return;
+    }
+
+    // создаём policer
+    uint32_t policer_ix;
+    policer_status_t policer_rv =
+                        policer_create(&policer_ix, &policer_params);
+    if (policer_rv != POLICER_OK) {
+        DEBUG("policer_create() is failed: %d", policer_rv);
+        report_status(ST_BAD_REQUEST);
+        return;
+    }
+
+
+    zmsg_t *reply = make_reply(ST_OK);
+    zmsg_addmem(reply, &policer_ix, sizeof(policer_ix));
+    send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_POLICE_SHOW)
+{
+    // get policer index from manager
+    uint32_t policer_index = 0;
+    enum status result = POP_ARG(&policer_index);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_index: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get policer params from packet processor
+    policer_stat_t stat;
+    memset(&stat, 0, sizeof(stat));
+    policer_status_t rv = policer_get_params(&stat, policer_index, dest);
+    if (rv != POLICER_OK) {
+        DEBUG("policer_get_params() is failed: %d", rv);
+        report_status(ST_BAD_VALUE);
+        return;
+    }
+
+    // send answer
+    struct policer_info msg;
+    memcpy(&msg, &stat, sizeof(msg));
+
+    zmsg_t *reply = make_reply(ST_OK);
+    zmsg_addmem(reply, &msg, sizeof(msg));
+    send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_POLICE_CHK_AVAIL)
+{
+    enum status result = ST_OK;
+
+    // get quantity from manager
+    uint32_t quantity = 0;
+    result = POP_ARG(&quantity);
+    if (result != ST_OK) {
+        DEBUG("failed to get quantity: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // check available policers
+    int available = policer_available(dest);
+    if (available < quantity) {
+        report_status(ST_BUSY);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+DEFINE_HANDLER (CC_POLICE_DEL)
+{
+    enum status result = ST_OK;
+
+    // get policer index from manager
+    uint32_t policer_index = 0;
+    result = POP_ARG(&policer_index);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_index: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // освобождаем policer index
+    policer_status_t policer_rv = policer_delete(policer_index, dest);
+    if (policer_rv != POLICER_OK) {
+        DEBUG("policer_delete() is failed: %d", policer_rv);
+        if (policer_rv == POLICER_NOT_IN_RANGE) {
+            result = ST_BAD_VALUE;
+        }
+        else if (policer_rv == POLICER_NOT_IN_USE) {
+            result = ST_DOES_NOT_EXIST;
+        }
+        else { // unknow error
+            result = ST_NOT_IMPLEMENTED;
+        }
+        report_status(result);
+        return;
+    }
+
+    report_status(ST_OK);
 }
