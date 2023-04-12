@@ -48,7 +48,7 @@
 #include <cpss/dxCh/dxChxGen/mirror/cpssDxChMirror.h>
 
 /* Policer library. */
-#include <cpss/dxCh/dxChxGen/policer/cpssDxChPolicer.h>
+#include <cpss/dxCh/dxCh3/policer/cpssDxCh3Policer.h>
 
 #include <cpss/dxCh/dxChxGen/cscd/cpssDxChCscd.h>
 #include <cpss/dxCh/dxChxGen/bridge/cpssDxChBrgGen.h>
@@ -609,15 +609,78 @@ policer_lib_init (int devNum)
     return GT_OK;
   }
 
+  // clear counters data for all stages
+  rc = cpssDxChPolicerCountingWriteBackCacheFlush(devNum,
+                                           CPSS_DXCH_POLICER_STAGE_INGRESS_0_E);
+  RCC(rc, cpssDxChPolicerCountingWriteBackCacheFlush);
+
+  rc = cpssDxChPolicerCountingWriteBackCacheFlush(devNum,
+                                           CPSS_DXCH_POLICER_STAGE_EGRESS_E);
+  RCC(rc, cpssDxChPolicerCountingWriteBackCacheFlush);
+
+  // set policer memory size mode
+  rc = cpssDxChPolicerMemorySizeModeSet(devNum,
+                                        CPSS_DXCH_POLICER_MEMORY_CTRL_MODE_0_E);
+  RCC(rc, cpssDxChPolicerMemorySizeModeSet);
+
+  // set counting mode (disable/billing/policy/vlan)
+  rc = cpssDxChPolicerCountingModeSet(devNum,
+                                      CPSS_DXCH_POLICER_STAGE_INGRESS_0_E,
+                                      CPSS_DXCH_POLICER_COUNTING_BILLING_IPFIX_E);
+  RCC(rc, cpssDxChPolicerCountingModeSet);
+
+  rc = cpssDxChPolicerCountingModeSet(devNum,
+                                      CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                      CPSS_DXCH_POLICER_COUNTING_BILLING_IPFIX_E);
+  RCC(rc, cpssDxChPolicerCountingModeSet);
+
+  // set meter mode (flow or port)
+  rc = cpssDxChPolicerStageMeterModeSet(devNum,
+                                     CPSS_DXCH_POLICER_STAGE_INGRESS_0_E,
+                                     CPSS_DXCH_POLICER_STAGE_METER_MODE_FLOW_E);
+  RCC(rc, cpssDxChPolicerStageMeterModeSet);
+
+  rc = cpssDxChPolicerStageMeterModeSet(devNum,
+                                     CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                     CPSS_DXCH_POLICER_STAGE_METER_MODE_FLOW_E);
+  RCC(rc, cpssDxChPolicerStageMeterModeSet);
+
+  // set meter resolution (bytes or packets)
+  rc = cpssDxCh3PolicerMeterResolutionSet(devNum,
+                                   CPSS_DXCH_POLICER_STAGE_INGRESS_0_E,
+                                   CPSS_DXCH3_POLICER_METER_RESOLUTION_BYTES_E);
+  RCC(rc, cpssDxCh3PolicerMeterResolutionSet);
+
+  rc = cpssDxCh3PolicerMeterResolutionSet(devNum,
+                                   CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                   CPSS_DXCH3_POLICER_METER_RESOLUTION_BYTES_E);
+  RCC(rc, cpssDxCh3PolicerMeterResolutionSet);
+
+  // set counting color mode (conformance level or drop precedence)
+  rc = cpssDxCh3PolicerCountingColorModeSet(devNum,
+                                           CPSS_DXCH_POLICER_STAGE_INGRESS_0_E,
+                                           CPSS_DXCH3_POLICER_COLOR_COUNT_CL_E);
+  RCC(rc, cpssDxCh3PolicerCountingColorModeSet);
+
+  rc = cpssDxCh3PolicerCountingColorModeSet(devNum,
+                                           CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                           CPSS_DXCH3_POLICER_COLOR_COUNT_CL_E);
+  RCC(rc, cpssDxCh3PolicerCountingColorModeSet);
+
+  // enable egress qos update
+  rc = cpssDxChPolicerEgressQosUpdateEnableSet(devNum, GT_FALSE);
+  RCC(rc, cpssDxChPolicerEgressQosUpdateEnableSet);
+
+  // enable metering per device
   RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (devNum,
-                                                CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
-                                                GT_FALSE)),
+                                                CPSS_DXCH_POLICER_STAGE_INGRESS_0_E,
+                                                GT_TRUE)),
        cpssDxCh3PolicerMeteringEnableSet);
 
-  RCC ((rc = cpssDxChPolicerCountingModeSet (devNum,
-                                             CPSS_DXCH_POLICER_STAGE_INGRESS_1_E,
-                                             CPSS_DXCH_POLICER_COUNTING_DISABLE_E)),
-       cpssDxChPolicerCountingModeSet);
+  RCC ((rc = cpssDxCh3PolicerMeteringEnableSet (devNum,
+                                                CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                                GT_TRUE)),
+       cpssDxCh3PolicerMeteringEnableSet);
 
   return GT_OK;
 }
