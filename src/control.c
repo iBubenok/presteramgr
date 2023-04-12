@@ -5976,7 +5976,6 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
       case PCL_RULE_ACTION_DENY_POLICY:
       case PCL_RULE_ACTION_PERMIT_POLICY:
         INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_policy));
-        struct pcl_rule_action_policy* tmp = rule_action_params;
         break;
       default:
         free(name);
