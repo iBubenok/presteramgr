@@ -1777,7 +1777,6 @@ set_pcl_action (uint16_t                 rule_ix,
       act->redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_ROUTER_E;
       pbr_set_ltt_entry((struct row_colum *)rule_action_params, act);
       break;
-
     default:
       DEBUG("%s: action: invalid (%d)\n", __FUNCTION__, action);
       return ST_BAD_VALUE;
@@ -3725,7 +3724,7 @@ pcl_enable_cfm_trap (cfm_level_t level, int enable)
                 &rule,
                 &act));
           break;
-      
+
         default:
           break;
       }
