@@ -1526,10 +1526,13 @@ pcl_add_rule_ix (int dev, struct rule_binding_key *key, uint16_t *rule_ix)
             tmp);
 
   if (tmp) {
+    DEBUG("%s: HASH_FIND is failed: tmp = %p", __FUNCTION__, tmp);
     return ST_BAD_VALUE;
   }
 
-  if (ix_book_take(rule_ix, dev, key->acttype) != IX_BOOK_STATUS_OK) {
+  IxBook_Status ix_book_rc = ix_book_take(rule_ix, dev, key->acttype);
+  if (ix_book_rc != IX_BOOK_STATUS_OK) {
+    DEBUG("%s: ix_book_take is failed: rc = %d", __FUNCTION__, ix_book_rc);
     return ST_BAD_VALUE;
   }
 
@@ -4403,20 +4406,19 @@ ix_book_init(IxBook *ixbook, IxBook_Index start, IxBook_Index size)
     ixbook->qos_end = start;
     ixbook->pbr_end = start;
 
-    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
-    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
-    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
-    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
-    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+    DEBUG ("%s: ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
 }
 
 static IxBook_Status
 ix_book_take(IxBook_Index *index, int dev_num, pcl_action_type_t action_type)
 {
-/* return IX_BOOK_STATUS_OK; */
     IxBook *ixbook = &(curr_acl->index_book[dev_num]);
-    DEBUG ("%s: rustam ixbook = %p", __FUNCTION__, ixbook);
-    DEBUG ("%s: rustam is fake = %d", __FUNCTION__, user_acl_fake_mode);
+    DEBUG ("%s: ixbook       = %p", __FUNCTION__, ixbook);
+    DEBUG ("%s: is fake mode = %d", __FUNCTION__, user_acl_fake_mode);
 
     IxBook_Status rv = IX_BOOK_STATUS_OK;
     switch (action_type) {
@@ -4431,11 +4433,11 @@ ix_book_take(IxBook_Index *index, int dev_num, pcl_action_type_t action_type)
         rv = IX_BOOK_STATUS_BAD_ARG;
     }
 
-    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
-    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
-    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
-    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
-    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+    DEBUG ("%s: ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
 
     return rv;
 }
@@ -4443,10 +4445,9 @@ ix_book_take(IxBook_Index *index, int dev_num, pcl_action_type_t action_type)
 static IxBook_Status
 ix_book_return(int dev_num, IxBook_Index index)
 {
-/* return IX_BOOK_STATUS_OK; */
     IxBook *ixbook = &(curr_acl->index_book[dev_num]);
-    DEBUG ("%s: rustam ixbook = %p", __FUNCTION__, ixbook);
-    DEBUG ("%s: rustam is fake = %d", __FUNCTION__, user_acl_fake_mode);
+    DEBUG ("%s: ixbook       = %p", __FUNCTION__, ixbook);
+    DEBUG ("%s: is fake mode = %d", __FUNCTION__, user_acl_fake_mode);
 
     IxBook_Status rv = IX_BOOK_STATUS_OK;
     if (index < ixbook->acl_end) {
@@ -4463,11 +4464,11 @@ ix_book_return(int dev_num, IxBook_Index index)
         ERR("invalid value for index (%d)\n", index);
     }
 
-    DEBUG ("%s: rustam ixbook.start   = %d", __FUNCTION__, ixbook->start);
-    DEBUG ("%s: rustam ixbook.end     = %d", __FUNCTION__, ixbook->end);
-    DEBUG ("%s: rustam ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
-    DEBUG ("%s: rustam ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
-    DEBUG ("%s: rustam ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
+    DEBUG ("%s: ixbook.start   = %d", __FUNCTION__, ixbook->start);
+    DEBUG ("%s: ixbook.end     = %d", __FUNCTION__, ixbook->end);
+    DEBUG ("%s: ixbook.acl_end = %d", __FUNCTION__, ixbook->acl_end);
+    DEBUG ("%s: ixbook.qos_end = %d", __FUNCTION__, ixbook->qos_end);
+    DEBUG ("%s: ixbook.pbr_end = %d", __FUNCTION__, ixbook->pbr_end);
 
     return rv;
 }
@@ -4597,7 +4598,7 @@ ix_book_move_rule(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix)
     if (!user_acl_fake_mode) {
         cpssDxChPclRuleCopy(dev_num, CPSS_PCL_RULE_SIZE_EXT_E, old_ix, new_ix);
         cpssDxChPclRuleInvalidate(dev_num, CPSS_PCL_RULE_SIZE_EXT_E, old_ix);
-        DEBUG ("%s: rustam move rule from %d to %d", __FUNCTION__, old_ix, new_ix);
+        DEBUG("%s: move rule from %d to %d", __FUNCTION__, old_ix, new_ix);
     }
     ix_book_edit_ix_in_binding(dev_num, old_ix, new_ix);
 }
@@ -4611,8 +4612,8 @@ ix_book_edit_ix_in_binding(int dev_num, IxBook_Index old_ix, IxBook_Index new_ix
     HASH_ITER(hh, curr_acl->bindings[dev_num], item, tmp) {
         if (item->rule_ix == old_ix) {
             item->rule_ix = new_ix;
-            DEBUG ("%s: rustam move %s from %d to %d", __FUNCTION__,
-                    item->key.name, old_ix, new_ix);
+            DEBUG("%s: move %s from %d to %d",
+                    __FUNCTION__, item->key.name, old_ix, new_ix);
         }
     }
 }
