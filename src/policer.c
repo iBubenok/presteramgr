@@ -45,6 +45,7 @@ add_billing_entry
     int                          dev_num
 );
 
+// создать qos-профиль
 static policer_status_t
 add_qos_profile
 (
@@ -53,6 +54,11 @@ add_qos_profile
     int                          policer_ix
 );
 
+// удалить qos-профиль
+static policer_status_t
+del_qos_profile(int policer_ix);
+
+// задать режим измерения policer'а (single rate or two rate)
 void
 set_meter_mode
 (
@@ -60,6 +66,7 @@ set_meter_mode
     const struct policer_params           *policer_params
 );
 
+// задать параметры скорости
 void
 set_tocken_bucket
 (
@@ -67,6 +74,7 @@ set_tocken_bucket
     const struct policer_params           *policer_params
 );
 
+// указать что делать с зелёными, жёлтыми и красными пакетами
 policer_status_t
 set_action
 (
@@ -74,15 +82,15 @@ set_action
     const struct policer_params           *policer_params
 );
 
-static policer_status_t
-del_qos_profile(int policer_ix);
-
+// получить данные счётчика
 policer_status_t
 get_billing_by_ix(policer_stat_t *stat, int policer_ix, policer_dest_t dest);
 
+// получить параметры скорости policer'а
 policer_status_t
 get_tocken_bucket(policer_stat_t *stat, int policer_ix, policer_dest_t dest);
 
+// задать параметры перемаркировки
 policer_status_t
 set_qos
 (
@@ -106,6 +114,7 @@ enum
 
 enum { FREE = 0, USED = 1 };  // индекс свободен или занят
 
+// инициализация индексов
 static uint8_t  ixs_ingress[ixs_sz_ingress] = {FREE};
 static uint8_t  ixs_egress[ixs_sz_egress]   = {FREE};
 static uint16_t ixs_qos[ixs_sz_ingress]     = {0};
@@ -115,6 +124,7 @@ static uint16_t ixs_qos[ixs_sz_ingress]     = {0};
 policer_status_t
 policer_create(uint32_t *ix, struct policer_params *policer_params)
 {
+    // вытянуть индекс
     policer_status_t rv = policer_ix_pull(ix, policer_params->dest);
     if (rv != POLICER_OK) {
         return rv;
@@ -122,20 +132,21 @@ policer_create(uint32_t *ix, struct policer_params *policer_params)
 
     int dev_num;
     for_each_dev (dev_num) {
-
+        // создать policer
         policer_status_t metering_rv =
                             add_metering_entry(*ix, policer_params, dev_num);
         if (metering_rv != POLICER_OK) {
             DEBUG("%s: add_metering_entry() is failed with code %d",
-               __FUNCTION__, metering_rv);
+                  __FUNCTION__, metering_rv);
             return POLICER_CREATE_ERR;
         }
 
+        // создать счётчик
         policer_status_t billing_rv =
                             add_billing_entry(*ix, policer_params, dev_num);
         if (billing_rv != POLICER_OK) {
             DEBUG("%s: add_billing_entry() is failed with code %d",
-               __FUNCTION__, billing_rv);
+                  __FUNCTION__, billing_rv);
             return POLICER_CREATE_ERR;
         }
     }
@@ -146,11 +157,13 @@ policer_create(uint32_t *ix, struct policer_params *policer_params)
 policer_status_t
 policer_delete(uint32_t policer_ix, policer_dest_t dest)
 {
+    // вернуть индекс
     policer_status_t rv = policer_ix_push(policer_ix, dest);
     if (rv != POLICER_OK) {
         return rv;
     }
 
+    // удалить qos-профиль
     if (dest == POLICER_DEST_INGRESS) { // for egress qos profile isn't created
         rv = del_qos_profile(policer_ix);
         if (rv != POLICER_OK) {
@@ -164,12 +177,19 @@ policer_delete(uint32_t policer_ix, policer_dest_t dest)
 int
 policer_available(policer_dest_t dest)
 {
-    uint8_t *ixs = (dest == POLICER_DEST_INGRESS) ? ixs_ingress : ixs_egress;
+    // выбор массива индексов
+    uint8_t *ixs = (dest == POLICER_DEST_INGRESS)
+                   ? ixs_ingress
+                   : ixs_egress;
 
-    int ixs_sz = (dest == POLICER_DEST_INGRESS) ? ixs_sz_ingress : ixs_sz_egress;
+    // получить размер массива индексов
+    int ixs_sz = (dest == POLICER_DEST_INGRESS)
+                 ? ixs_sz_ingress
+                 : ixs_sz_egress;
 
     int quantity = 0;
 
+    // подсчёт кол-ва свободных индексов
     int i;
     for (i = 0; i < ixs_sz; ++i) {
         if (ixs[i] == FREE) {
@@ -188,20 +208,21 @@ policer_get_params
     policer_dest_t dest
 )
 {
+    // проверка существования policer'а
     if (!is_policer_exist(policer_ix, dest)) {
         DEBUG("%s: policer with policer_ix %d and dest %d does not exist",
-                __FUNCTION__, policer_ix, dest);
+              __FUNCTION__, policer_ix, dest);
         return POLICER_BAD_PARAM;
     }
 
-    // get green, yellow, red stats
+    // получить кол-во green, yellow и red пакетов
     policer_status_t rv = get_billing_by_ix(stat, policer_ix, dest);
     if (rv != POLICER_OK) {
         DEBUG("%s: get_billing_by_ix() is failed: %d", __FUNCTION__, rv);
         return rv;
     }
 
-    // get cir..pbs
+    // получить параметры скорости policer'а (cir..pbs)
     rv = get_tocken_bucket(stat, policer_ix, dest);
     if (rv != POLICER_OK) {
         DEBUG("%s: get_tocken_bucket() is failed: %d", __FUNCTION__, rv);
@@ -216,10 +237,17 @@ policer_get_params
 static policer_status_t
 policer_ix_pull(uint32_t *ix, policer_dest_t dest)
 {
-    uint8_t *ixs = (dest == POLICER_DEST_INGRESS) ? ixs_ingress : ixs_egress;
+    // выбор массива индексов
+    uint8_t *ixs = (dest == POLICER_DEST_INGRESS)
+                   ? ixs_ingress
+                   : ixs_egress;
 
-    int ixs_sz = (dest == POLICER_DEST_INGRESS) ? ixs_sz_ingress : ixs_sz_egress;
+    // получить размер массива индексов
+    int ixs_sz = (dest == POLICER_DEST_INGRESS)
+                 ? ixs_sz_ingress
+                 : ixs_sz_egress;
 
+    // вытянуть свободный индекс
     int i;
     for (i = 0; i < ixs_sz; ++i) {
         if (ixs[i] == FREE) {
@@ -235,20 +263,29 @@ policer_ix_pull(uint32_t *ix, policer_dest_t dest)
 static policer_status_t
 policer_ix_push(uint32_t ix, policer_dest_t dest)
 {
-    uint8_t *ixs = (dest == POLICER_DEST_INGRESS) ? ixs_ingress : ixs_egress;
+    // выбор массива индексов
+    uint8_t *ixs = (dest == POLICER_DEST_INGRESS)
+                   ? ixs_ingress
+                   : ixs_egress;
 
-    int ixs_sz = (dest == POLICER_DEST_INGRESS) ? ixs_sz_ingress : ixs_sz_egress;
+    // получить размер массива индексов
+    int ixs_sz = (dest == POLICER_DEST_INGRESS)
+                 ? ixs_sz_ingress
+                 : ixs_sz_egress;
 
     uint32_t arr_ix = ix - ixs_start_pos;
 
+    // проверка индекса на вхождение в диапазон
     if (arr_ix > ixs_sz - 1) {
         return POLICER_NOT_IN_RANGE;
     }
 
+    // может индекс уже свободен
     if (ixs[arr_ix] == FREE) {
         return POLICER_NOT_IN_USE;
     }
 
+    // освобождаем индекс
     ixs[arr_ix] = FREE;
 
     return POLICER_OK;
@@ -452,23 +489,22 @@ set_tocken_bucket
 {
     if (policer_params->pir) { // two rate
         entry->tokenBucketParams.trTcmParams.cir = policer_params->cir;
-        entry->tokenBucketParams.trTcmParams.cbs = policer_params->cbs ?:
-                                                   0xFFFFFFFF;
+        entry->tokenBucketParams.trTcmParams.cbs = policer_params->cbs
+                                                   ?: 0xFFFFFFFF;
         entry->tokenBucketParams.trTcmParams.pir = policer_params->pir;
-        entry->tokenBucketParams.trTcmParams.pbs = policer_params->pbs ?:
-                                                   0xFFFFFFFF;
+        entry->tokenBucketParams.trTcmParams.pbs = policer_params->pbs
+                                                   ?: 0xFFFFFFFF;
     }
     else { // single rate
         entry->tokenBucketParams.srTcmParams.cir = policer_params->cir;
-        // 10750 |10000 - 11500|
-        entry->tokenBucketParams.srTcmParams.cbs = policer_params->cbs ?:
-                                                   0xFFFFFFFF;
-        int def_ebs = // 12750
+        entry->tokenBucketParams.srTcmParams.cbs = policer_params->cbs
+                                                   ?: 0xFFFFFFFF;
+        int def_ebs =
             policer_params->violate_action.type == POLICER_ACTION_UNDEF
-            ?  policer_params->cbs // one color
+            ? policer_params->cbs  // one color
             : 0xFFFFFFFF;          // two color
-        entry->tokenBucketParams.srTcmParams.ebs = policer_params->ebs ?:
-                                                   def_ebs;
+        entry->tokenBucketParams.srTcmParams.ebs = policer_params->ebs
+                                                   ?: def_ebs;
     }
 }
 
@@ -481,43 +517,40 @@ set_action
 {
     // set exceed action
     switch (policer_params->exceed_action.type) {
-        case POLICER_ACTION_TRANSMIT:
-            entry->yellowPcktCmd =
-                        CPSS_DXCH3_POLICER_NON_CONFORM_CMD_NO_CHANGE_E;
-            break;
-        case POLICER_ACTION_SET_DSCP:
-        case POLICER_ACTION_SET_COS:
-            if (policer_params->dest == POLICER_DEST_EGRESS) {
-                DEBUG("%s: qos remark is not permit for egress", __FUNCTION__);
-                return POLICER_BAD_PARAM;
-            }
-            entry->yellowPcktCmd =
-                        CPSS_DXCH3_POLICER_NON_CONFORM_CMD_REMARK_BY_ENTRY_E;
-            break;
-        case POLICER_ACTION_DROP:
-            entry->yellowPcktCmd =
-                        CPSS_DXCH3_POLICER_NON_CONFORM_CMD_DROP_E;
-            break;
-        default:
-            DEBUG("%s: invalid exceed action type %d",
-                  __FUNCTION__,
-                  policer_params->exceed_action.type);
+    case POLICER_ACTION_TRANSMIT: // передать
+        entry->yellowPcktCmd = CPSS_DXCH3_POLICER_NON_CONFORM_CMD_NO_CHANGE_E;
+        break;
+    case POLICER_ACTION_SET_DSCP: // перемаркировать
+    case POLICER_ACTION_SET_COS:
+        if (policer_params->dest == POLICER_DEST_EGRESS) {
+            DEBUG("%s: qos remark is not permit for egress", __FUNCTION__);
             return POLICER_BAD_PARAM;
+        }
+        entry->yellowPcktCmd =
+            CPSS_DXCH3_POLICER_NON_CONFORM_CMD_REMARK_BY_ENTRY_E;
+      break;
+    case POLICER_ACTION_DROP: // отбросить
+        entry->yellowPcktCmd = CPSS_DXCH3_POLICER_NON_CONFORM_CMD_DROP_E;
+        break;
+    default: // что-то странное
+        DEBUG("%s: invalid exceed action type %d", __FUNCTION__,
+              policer_params->exceed_action.type);
+        return POLICER_BAD_PARAM;
     }
 
     // set violate action
     switch (policer_params->violate_action.type) {
-        case POLICER_ACTION_UNDEF:
-            entry->redPcktCmd = entry->yellowPcktCmd;
-            break;
-        case POLICER_ACTION_DROP:
-            entry->redPcktCmd = CPSS_DXCH3_POLICER_NON_CONFORM_CMD_DROP_E;
-            break;
-        default:
-            DEBUG("%s: invalid violate action type %d",
-                  __FUNCTION__,
-                  policer_params->violate_action.type);
-            return POLICER_BAD_PARAM;
+    case POLICER_ACTION_UNDEF: // если не задан, такой же как exceed_action
+        entry->redPcktCmd = entry->yellowPcktCmd;
+        break;
+    case POLICER_ACTION_DROP: // отбросить
+        entry->redPcktCmd = CPSS_DXCH3_POLICER_NON_CONFORM_CMD_DROP_E;
+        break;
+    default: // что-то странное
+        DEBUG("%s: invalid violate action type %d",
+              __FUNCTION__,
+              policer_params->violate_action.type);
+        return POLICER_BAD_PARAM;
     }
 
     return POLICER_OK;
@@ -526,18 +559,18 @@ set_action
 policer_status_t
 get_billing_by_ix(policer_stat_t *stat, int policer_ix, policer_dest_t dest)
 {
-    int dev_num = 0; // TODO for_each_dev
+    int dev_num = 0;
     int resetCounter = GT_FALSE; // only read, not reset
     CPSS_DXCH3_POLICER_BILLING_ENTRY_STC billEntry;
 
     GT_STATUS rc = cpssDxCh3PolicerBillingEntryGet(
-                                        dev_num,
-                                        dest == POLICER_DEST_INGRESS
-                                        ? CPSS_DXCH_POLICER_STAGE_INGRESS_0_E
-                                        : CPSS_DXCH_POLICER_STAGE_EGRESS_E,
-                                        policer_ix,
-                                        resetCounter,
-                                        &billEntry);
+                                       dev_num,
+                                       dest == POLICER_DEST_INGRESS
+                                           ? CPSS_DXCH_POLICER_STAGE_INGRESS_0_E
+                                           : CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                       policer_ix,
+                                       resetCounter,
+                                       &billEntry);
 
     if (rc != GT_OK) {
         DEBUG("cpssDxCh3PolicerBillingEntryGet failed: rc = %u\n", rc);
@@ -582,15 +615,15 @@ get_billing_by_ix(policer_stat_t *stat, int policer_ix, policer_dest_t dest)
 policer_status_t
 get_tocken_bucket(policer_stat_t *stat, int policer_ix, policer_dest_t dest)
 {
-    int dev_num = 0; // TODO for_each_dev
+    int dev_num = 0;
     CPSS_DXCH3_POLICER_METERING_ENTRY_STC entry;
     GT_STATUS rc = cpssDxCh3PolicerMeteringEntryGet(
-            dev_num,
-            dest == POLICER_DEST_INGRESS
-                ? CPSS_DXCH_POLICER_STAGE_INGRESS_0_E
-                : CPSS_DXCH_POLICER_STAGE_EGRESS_E,
-            policer_ix,
-            &entry);
+                                       dev_num,
+                                       dest == POLICER_DEST_INGRESS
+                                           ? CPSS_DXCH_POLICER_STAGE_INGRESS_0_E
+                                           : CPSS_DXCH_POLICER_STAGE_EGRESS_E,
+                                       policer_ix,
+                                       &entry);
 
     if (rc != GT_OK) {
         DEBUG("cpssDxCh3PolicerBillingEntryGet failed: rc = %u\n", rc);
@@ -598,19 +631,19 @@ get_tocken_bucket(policer_stat_t *stat, int policer_ix, policer_dest_t dest)
     }
 
     switch (entry.meterMode) {
-        case CPSS_DXCH3_POLICER_METER_MODE_SR_TCM_E:
-            stat->cir = entry.tokenBucketParams.srTcmParams.cir;
-            stat->cbs = entry.tokenBucketParams.srTcmParams.cbs;
-            stat->ebs = entry.tokenBucketParams.srTcmParams.ebs;
-            break;
-        case CPSS_DXCH3_POLICER_METER_MODE_TR_TCM_E:
-            stat->cir = entry.tokenBucketParams.trTcmParams.cir;
-            stat->cbs = entry.tokenBucketParams.trTcmParams.cbs;
-            stat->pir = entry.tokenBucketParams.trTcmParams.pir;
-            stat->pbs = entry.tokenBucketParams.trTcmParams.pbs;
-            break;
-        default:
-            DEBUG("%s: undefined meter mode: %d", __FUNCTION__, entry.meterMode);
+    case CPSS_DXCH3_POLICER_METER_MODE_SR_TCM_E: // single rate
+        stat->cir = entry.tokenBucketParams.srTcmParams.cir;
+        stat->cbs = entry.tokenBucketParams.srTcmParams.cbs;
+        stat->ebs = entry.tokenBucketParams.srTcmParams.ebs;
+        break;
+    case CPSS_DXCH3_POLICER_METER_MODE_TR_TCM_E: // two rate
+        stat->cir = entry.tokenBucketParams.trTcmParams.cir;
+        stat->cbs = entry.tokenBucketParams.trTcmParams.cbs;
+        stat->pir = entry.tokenBucketParams.trTcmParams.pir;
+        stat->pbs = entry.tokenBucketParams.trTcmParams.pbs;
+        break;
+    default:
+        DEBUG("%s: undefined meter mode: %d", __FUNCTION__, entry.meterMode);
     }
 
     return POLICER_OK;
@@ -634,43 +667,45 @@ set_qos
 
     // create qos profile
     switch (policer_params->exceed_action.type) {
-        case POLICER_ACTION_SET_DSCP:
-        case POLICER_ACTION_SET_COS:
-            qos_rc =
-                add_qos_profile(&qos_profile_id, policer_params, policer_ix);
+    case POLICER_ACTION_SET_DSCP:
+    case POLICER_ACTION_SET_COS:
+        qos_rc = add_qos_profile(&qos_profile_id, policer_params, policer_ix);
 
-            if (qos_rc != POLICER_OK) {
-                DEBUG("%s: add_qos_profile() is failed", __FUNCTION__);
-                return POLICER_CREATE_ERR;
-            }
-            break;
+        if (qos_rc != POLICER_OK) {
+            DEBUG("%s: add_qos_profile() is failed", __FUNCTION__);
+            return POLICER_CREATE_ERR;
+        }
+        break;
+    default:
+        DEBUG("%s: invalid exceed action type: %d",
+              __FUNCTION__, policer_params->exceed_action.type);
     }
 
     // assign created qos profile
     switch (policer_params->exceed_action.type) {
-        case POLICER_ACTION_SET_DSCP: // edit dscp
-            entry->modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
-            entry->qosProfile = qos_profile_id;
-            entry->remarkMode = CPSS_DXCH_POLICER_REMARK_MODE_L3_E;
-            break;
-        case POLICER_ACTION_SET_COS: // edit up
-            entry->modifyUp   = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
-            entry->qosProfile = qos_profile_id;
-            entry->remarkMode = CPSS_DXCH_POLICER_REMARK_MODE_L2_E;
-            break;
+    case POLICER_ACTION_SET_DSCP: // edit dscp
+        entry->modifyDscp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+        entry->qosProfile = qos_profile_id;
+        entry->remarkMode = CPSS_DXCH_POLICER_REMARK_MODE_L3_E;
+        break;
+    case POLICER_ACTION_SET_COS: // edit up (cos)
+        entry->modifyUp = CPSS_PACKET_ATTRIBUTE_MODIFY_ENABLE_E;
+        entry->qosProfile = qos_profile_id;
+        entry->remarkMode = CPSS_DXCH_POLICER_REMARK_MODE_L2_E;
+        break;
     }
 
     // up or tc
-    if (policer_params->dest == POLICER_DEST_EGRESS &&
-            policer_params->exceed_action.type == POLICER_ACTION_SET_COS
-        )
+    if (policer_params->dest == POLICER_DEST_EGRESS
+        &&
+        policer_params->exceed_action.type == POLICER_ACTION_SET_COS)
     {
         int dev_num;
         GT_STATUS rc;
         for_each_dev(dev_num) {
             rc = cpssDxChPolicerEgressL2RemarkModelSet(
-                    dev_num,
-                    CPSS_DXCH_POLICER_L2_REMARK_MODEL_UP_E);
+                                        dev_num,
+                                        CPSS_DXCH_POLICER_L2_REMARK_MODEL_UP_E);
 
             if (rc != GT_OK) {
                 DEBUG("cpssDxChPolicerEgressL2RemarkModelSet failed %u", rc);
@@ -684,10 +719,14 @@ set_qos
 
 int is_policer_exist(int policer_ix, policer_dest_t dest)
 {
-    uint8_t *ixs = (dest == POLICER_DEST_INGRESS) ? ixs_ingress : ixs_egress;
+    // выбор массива индексов
+    uint8_t *ixs = (dest == POLICER_DEST_INGRESS)
+                   ? ixs_ingress
+                   : ixs_egress;
 
     uint32_t arr_ix = policer_ix - ixs_start_pos;
 
+    // свободен?
     if (ixs[arr_ix] == FREE) {
         return 0;
     }
