@@ -69,6 +69,7 @@ static uint16_t port_ip_ospf_mirror_rule_ix[NPORTS + 1] = {};
 static uint16_t port_ip_rip_mirror_rule_ix[NPORTS + 1] = {};
 
 static uint16_t port_ipv6_ripng_mirror_rule_ix[NPORTS + 1] = {};
+static uint16_t port_pppoe_rule_ix[NPORTS + 1] = {};
 
 static uint16_t vt_stack_entries = 300;
 static uint16_t vt_stack_first_entry[NDEVS] = {};
@@ -135,6 +136,7 @@ initialize_vars (void)
     port_ip_ospf_mirror_rule_ix[pid]       = idx[port->ldev]++;
     port_ip_rip_mirror_rule_ix[pid]        = idx[port->ldev]++;
     port_ipv6_ripng_mirror_rule_ix[pid]    = idx[port->ldev]++;
+    port_pppoe_rule_ix[pid]                = idx[port->ldev]++;
   }
 
   for_each_dev(dev) {
@@ -3823,6 +3825,61 @@ pcl_enable_dhcpv6_trap (int enable)
       }
   }
 
+  return ST_OK;
+}
+
+enum status
+pcl_enable_pppoe_trap (bool_t enable)
+{
+  port_id_t pi;
+
+  if (enable) {
+    for (pi = 1; pi <= nports ; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+         continue;
+
+      CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
+      CPSS_DXCH_PCL_ACTION_STC act;
+
+      memset (&mask, 0, sizeof (mask));
+      mask.ruleExtNotIpv6.common.pclId = 0xFFFF;
+      mask.ruleExtNotIpv6.common.isL2Valid = 0xFF;
+      mask.ruleExtNotIpv6.etherType = 0xFFFF;
+      mask.ruleExtNotIpv6.l2Encap = 0xFF;
+
+      memset (&rule, 0, sizeof (rule));
+      rule.ruleExtNotIpv6.common.pclId = PORT_IPCL_ID (pi);
+      rule.ruleExtNotIpv6.common.isL2Valid = 1;
+      rule.ruleExtNotIpv6.etherType = 0x8863;
+      rule.ruleExtNotIpv6.l2Encap = 1;
+
+      memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+      act.actionStop = GT_TRUE;
+      act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 13;
+
+      CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_pppoe_rule_ix[pi],
+          0,
+          &mask,
+          &rule,
+          &act));
+    }
+  } else {
+    for (pi = 1; pi <= nports ; pi++) {
+      struct port *port = port_ptr (pi);
+
+      if (is_stack_port(port))
+         continue;
+
+      CRP (cpssDxChPclRuleInvalidate
+           (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_pppoe_rule_ix[pi]));
+    }
+  }
   return ST_OK;
 }
 

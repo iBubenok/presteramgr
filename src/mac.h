@@ -43,6 +43,7 @@ extern enum status mac_op_opna_ipv6 (const struct gw_v6 *, arpd_command_t);
 extern enum status mac_op_udt (uint32_t);
 extern enum status mac_op_udt_ipv6 (GT_IPV6ADDR);
 extern enum status mac_set_aging_time (aging_time_t);
+extern enum status mac_check_aging_time (aging_time_t, aging_time_t*);
 extern enum status mac_list (void);
 extern enum status mac_flush (const struct mac_age_arg *, GT_BOOL);
 extern enum status mac_flush_vif (const struct mac_age_arg_vif *, GT_BOOL);

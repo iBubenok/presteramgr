@@ -806,12 +806,18 @@ vlan_igmp_snoop (vid_t vid, int enable)
 {
   GT_STATUS rc;
   int d;
+  time_t start = time(NULL);
 
   if (!vlan_valid (vid))
     return ST_BAD_VALUE;
 
   for_each_dev (d)
-    rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (d, vid, gt_bool (enable)));
+    do
+    {
+      rc = CRP (cpssDxChBrgVlanIgmpSnoopingEnable (d, vid, gt_bool (enable)));
+      usleep(5000UL);
+    } while((vlans[vid - 1].state != VS_ACTIVE) && ((time(NULL) - start) < 5));
+
   switch (rc) {
   case GT_OK:       return ST_OK;
   case GT_HW_ERROR: return ST_HW_ERROR;

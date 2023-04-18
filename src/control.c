@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
@@ -24,6 +25,7 @@
 #include <mcg.h>
 #include <fib.h>
 #include <fib_ipv6.h>
+#include <flex_link.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -486,6 +488,7 @@ DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
+DECLARE_HANDLER (CC_MAC_CHECK_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_LIST_VIF_ID);
@@ -604,6 +607,7 @@ DECLARE_HANDLER (CC_PCL_TEST_STOP);
 DECLARE_HANDLER (CC_ARP_TRAP_ENABLE);
 DECLARE_HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA);
 DECLARE_HANDLER (CC_VRRP_SET_MAC);
+DECLARE_HANDLER (CC_PPPOE_ENABLE);
 DECLARE_HANDLER (CC_ARPD_SOCK_CONNECT);
 DECLARE_HANDLER (CC_STACK_SET_MASTER);
 DECLARE_HANDLER (CC_LOAD_BALANCE_MODE);
@@ -618,6 +622,9 @@ DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
 DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
+DECLARE_HANDLER (CC_FLEX_LINK_ADD);
+DECLARE_HANDLER (CC_FLEX_LINK_DEL);
+DECLARE_HANDLER (CC_FLEX_LINK_GET);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -686,6 +693,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
+  HANDLER (CC_MAC_CHECK_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_LIST_VIF_ID),
@@ -805,6 +813,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_ARP_TRAP_ENABLE),
   HANDLER (CC_PORT_SET_COMBO_PREFERRED_MEDIA),
   HANDLER (CC_VRRP_SET_MAC),
+  HANDLER (CC_PPPOE_ENABLE),
   HANDLER (CC_ARPD_SOCK_CONNECT),
   HANDLER (CC_STACK_SET_MASTER),
   HANDLER (CC_LOAD_BALANCE_MODE),
@@ -818,7 +827,10 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
   HANDLER (CC_SFLOW_SET_RELOAD_MODE),
   HANDLER (CC_SFLOW_SET_PORT_LIMIT),
-  HANDLER (CC_SFLOW_SET_DEFAULT)
+  HANDLER (CC_SFLOW_SET_DEFAULT),
+  HANDLER (CC_FLEX_LINK_ADD),
+  HANDLER (CC_FLEX_LINK_DEL),
+  HANDLER (CC_FLEX_LINK_GET)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -1221,7 +1233,6 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
   }
 
   result = ST_BAD_VALUE;
-
   switch (frame->code) {
   case CPU_CODE_IEEE_RES_MC_0_TM:
     switch (frame->data[5]) {
@@ -1383,7 +1394,7 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     put_vid = 1;
     goto out;
     break;
-  
+
   /* FIX THIS */
   case CPU_CODE_IPV6_UC_ROUTE_TM_0:
     result = ST_OK;
@@ -1407,14 +1418,14 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
       put_port_id (msg, pid);
 
       zmsg_addmem (msg, frame->data, frame->len);
-      
+
       notify_send_arp (&msg);
     }
     goto out;
     break;
 
   case CPU_CODE_IPV6_UC_ROUTE_TM_1:
- 
+
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -1461,6 +1472,12 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
 
   case CPU_CODE_USER_DEFINED (4):
     type = CN_LLDP_MCAST;
+    break;
+
+  case CPU_CODE_USER_DEFINED (13):
+    type = CN_PPPOE;
+    put_vif = 1;
+    put_vid = 1;
     break;
 
   case CPU_CODE_USER_DEFINED (9):
@@ -1809,11 +1826,11 @@ DEBUG("===SC_INT_RTBD_CMD\n");
   switch (notif) {
   case RCN_IP_ADDR:
     am  = (struct rtbd_ip_addr_msg *) ((rtbd_notif_t *) zframe_data (frame) + 1);
-    ip_addr_t addr; 
-    ip_addr_v6_t addr_v6; 
+    ip_addr_t addr;
+    ip_addr_v6_t addr_v6;
     // mac_op_rt(notif, am, sizeof(*am));
     switch (am->type){
-      case AF_INET:             
+      case AF_INET:
         memcpy (&addr, &am->addr, 4);
         switch (am->op) {
           case RIAO_ADD:
@@ -1826,8 +1843,8 @@ DEBUG("===SC_INT_RTBD_CMD\n");
             break;
         }
         break;
-        
-      case AF_INET6:   
+
+      case AF_INET6:
         memcpy (&addr_v6, &am->addr_v6, 16);
         switch (am->op) {
           case RIAO_ADD:
@@ -1900,8 +1917,7 @@ DEBUG("===SC_INT_RTBD_CMD\n");
         default:
           break;
         }
-        break;  
-      
+        break;
       default:
         break;
     }
@@ -2504,6 +2520,29 @@ DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
     goto out;
 
   result = mac_set_aging_time (time);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_CHECK_AGING_TIME)
+{
+  enum status result;
+  aging_time_t time, max_time;
+
+  result = POP_ARG (&time);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_check_aging_time (time, &max_time);
+
+  if (result == ST_BAD_VALUE) {
+    zmsg_t *reply = make_reply (ST_OK);
+    // zmsg_t *reply = make_reply (ST_BAD_VALUE);
+    zmsg_addmem (reply, &max_time, sizeof (max_time));
+    send_reply (reply);
+    return;
+  }
 
  out:
   report_status (result);
@@ -3940,7 +3979,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     put_vid = 1;
     goto out;
     break;
-  
+
   /* FIX THIS */
   /* FIX THIS */
   case CPU_CODE_IPV6_UC_ROUTE_TM_0:
@@ -3971,7 +4010,7 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_port_id (msg, pid);
 
       zmsg_addmem (msg, frame->data, frame->len);
-      
+
       zframe_t* tmp_frame = zmsg_first(msg);
       while(tmp_frame)
       {
@@ -3984,7 +4023,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     break;
   case CPU_CODE_IPV6_UC_ROUTE_TM_1:
 
- 
     result = ST_OK;
     if (! vif_is_forwarding_on_vlan(vif, vid)) {
 //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
@@ -4092,6 +4130,11 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
   case CPU_CODE_USER_DEFINED (11):
     type = CN_BPDU;
     break;
+  case CPU_CODE_USER_DEFINED (13):
+    type = CN_PPPOE;
+    put_vif = 1;
+    put_vid = 1;
+    break;
   case CPU_CODE_EGRESS_SAMPLED:
     type = CN_SAMPLED;
     direction = EGRESS;
@@ -4141,7 +4184,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     .vid = put_vid ? vid : 0,
     .vif = put_vif ? vif->id : 0
   };
-
   switch (type) {
     case CN_SAMPLED:
     case CN_DHCPV6_TRAP:
@@ -5093,7 +5135,7 @@ DEFINE_HANDLER (CC_DIAG_READ_RET_CNT)
 DEFINE_HANDLER (CC_BC_LINK_STATE)
 {
   zmsg_t *msg = zmsg_new ();
-  assert (msg); 
+  assert (msg);
   enum event_notification en = EN_BC_LS;
   zmsg_addmem (msg, &en, sizeof (en));
   zmsg_send (&msg, evtntf_sock);
@@ -6304,6 +6346,22 @@ DEFINE_HANDLER (CC_VRRP_SET_MAC)
   report_status (result);
 }
 
+DEFINE_HANDLER (CC_PPPOE_ENABLE)
+{
+  enum status result;
+  bool_t enabled;
+
+  result = POP_ARG (&enabled);
+  if (result != ST_OK)
+    goto out;
+  DEBUG ("DEFINE_HANDLER (CC_PPPOE_ENABLE): enabled: %u\n", enabled);
+
+  result = pcl_enable_pppoe_trap (enabled);
+
+  out:
+   report_status (result);
+}
+
 DEFINE_HANDLER (CC_ARPD_SOCK_CONNECT)
 {
   arpc_connect();
@@ -6647,4 +6705,119 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 out:
   report_status (result);
 }
+
 ///@} /* End sFlow functions. */
+
+/******************************************************************************/
+/*                            FLEX-LINKS FUNCTIONS                            */
+/******************************************************************************/
+
+DEFINE_HANDLER (CC_FLEX_LINK_ADD)
+{
+    // get primary vif id
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // get backup vif id
+    vif_id_t backup;
+    result = POP_ARG (&backup);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get backup link", __FUNCTION__);
+        return;
+    }
+
+    // add flex-link
+    if (flex_link_add(primary, backup) != FLEX_LINK_OK) {
+        report_status(ST_MALLOC_ERROR);
+        DEBUG ("%s: can't add flex-link", __FUNCTION__);
+        return;
+    }
+
+    // get link state and activate flex-link
+    struct port_link_state primary_state;
+    if (vif_get_state(primary, &primary_state) != ST_OK) {
+        report_status(ST_BAD_STATE);
+        DEBUG ("%s: can't get primary link state", __FUNCTION__);
+        return;
+    }
+    flex_link_handle_link_change(primary, primary_state.link, vif_shutdown);
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_DEL)
+{
+    // get primary vif id to delete flex-link
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status (result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // del flex-link
+    if (flex_link_del(primary) != FLEX_LINK_OK) {
+        report_status(ST_BAD_VALUE);
+        DEBUG ("%s: can't delete flex-link", __FUNCTION__);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_GET)
+{
+    // get first flex-link
+    const FlexLink *flex_link = flex_link_get();
+    if (!flex_link) {
+        report_status(ST_OK); // no flex-links
+        return;
+    }
+
+    // make reply
+    zmsg_t *reply = make_reply(ST_OK);
+    while (flex_link) {
+        struct __attribute__((packed)) {
+            vif_id_t vif_primary;  // primary vif
+            vif_id_t vif_backup;   // backup vif
+            uint8_t state_primary; // primary vif state (1 - up; 0 - down)
+            uint8_t state_backup;  // backup vif state (1 - up; 0 - down)
+        } msg;
+
+        msg.vif_primary = flex_link->primary;
+        msg.vif_backup  = flex_link->backup;
+
+        // get primary link state
+        struct port_link_state state_primary;
+        if (vif_get_state(flex_link->primary, &state_primary) != ST_OK) {
+            DEBUG ("%s: can't get primary vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_primary = state_primary.link;
+
+        // get backup link state
+        struct port_link_state state_backup;
+        if (vif_get_state(flex_link->backup, &state_backup) != ST_OK) {
+            DEBUG ("%s: can't get backup vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_backup = state_backup.link;
+
+        zmsg_addmem(reply, &msg, sizeof(msg));
+
+        flex_link = flex_link_next();
+    }
+
+    send_reply(reply);
+}
