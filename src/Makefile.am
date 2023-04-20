@@ -11,6 +11,7 @@ presteramgr_SOURCES =	\
 	mgmt.c				\
 	vlan.c				\
 	debug.c				\
+	policer.c           \
 	presteramgr.h		\
 	debug.h				\
 	utils.h				\
