@@ -135,8 +135,11 @@ cpss_lib_init (void)
     CRP (cpssDxChIpUcRouteEntriesWrite (d, DEFAULT_UC_RE_IDX, &ucRouteEntry, 1));
 
     memset (&mcRouteEntry, 0, sizeof (mcRouteEntry));
-    mcRouteEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
-    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_DROP_HARD_E;
+    // mcRouteEntry.cmd = CPSS_PACKET_CMD_DROP_HARD_E;
+    // mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_DROP_HARD_E;
+    mcRouteEntry.cmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    mcRouteEntry.RPFFailCommand = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
+    mcRouteEntry.cpuCodeIdx = CPSS_DXCH_IP_CPU_CODE_IDX_0_E;
     CRP (cpssDxChIpMcRouteEntriesWrite (d, DEFAULT_MC_RE_IDX, &mcRouteEntry));
 
     CPSS_DXCH_IP_UC_ROUTE_ENTRY_STC rt;
