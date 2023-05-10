@@ -3,6 +3,8 @@
 #include <control-utils.h>
 #include <sys/prctl.h>
 #include <pcl.h>
+#include <vif.h>
+#include <port.h>
 
 void *ipsg_sub_sock;
 void *ipsg_req_sock;
@@ -103,6 +105,7 @@ DEFINE_HANDLER (RULE_SET)
 {
   DEBUG ("%s\n",__FUNCTION__);
   zmsg_t *reply;
+  vif_id_t vifid;
   mac_addr_t mac;
   ip_addr_t ip;
   vid_t vid;
@@ -111,7 +114,7 @@ DEFINE_HANDLER (RULE_SET)
   enum status result;
   uint16_t rule_ix = 0;
 
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK) {
     report_status (result);
     return;
@@ -137,6 +140,7 @@ DEFINE_HANDLER (RULE_SET)
     return;
   }
 
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_rule_set ( pi,
                               mac,
                               vid,
@@ -151,18 +155,20 @@ DEFINE_HANDLER (RULE_SET)
 
 DEFINE_HANDLER (RULE_UNSET)
 {
+  vif_id_t vifid;
   port_id_t pi;
   uint16_t rule_ix;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK)
     goto out;
   result = POP_ARG (&rule_ix);
   if (result != ST_OK)
     goto out;
 
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_rule_unset ( pi,
                                 rule_ix);
 
@@ -172,14 +178,16 @@ DEFINE_HANDLER (RULE_UNSET)
 
 DEFINE_HANDLER (TRAP_ENABLE)
 {
+  vif_id_t vifid;
   port_id_t pi;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK)
     goto out;
 
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_trap_enable (pi);
 
  out:
@@ -188,14 +196,16 @@ DEFINE_HANDLER (TRAP_ENABLE)
 
 DEFINE_HANDLER (TRAP_DISABLE)
 {
+  vif_id_t vifid;
   port_id_t pi;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK)
     goto out;
 
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_trap_disable (pi);
 
  out:
@@ -205,15 +215,16 @@ DEFINE_HANDLER (TRAP_DISABLE)
 
 DEFINE_HANDLER (DROP_ENABLE)
 {
+  vif_id_t vifid;
   port_id_t pi;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK)
     goto out;
 
-
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_drop_enable (pi);
 
  out:
@@ -222,14 +233,16 @@ DEFINE_HANDLER (DROP_ENABLE)
 
 DEFINE_HANDLER (DROP_DISABLE)
 {
+  vif_id_t vifid;
   port_id_t pi;
   enum status result;
 
   DEBUG("%s\n",__FUNCTION__);
-  result = POP_ARG (&pi);
+  result = POP_ARG (&vifid);
   if (result != ST_OK)
     goto out;
 
+  pi = vif_getn(vifid)->local->id;
   pcl_source_guard_drop_disable (pi);
 
  out:
@@ -266,7 +279,9 @@ notify_trap_enabled (port_id_t pi,
 
   msg = make_notification (TRAP_ENABLED);
 
-  zmsg_addmem (msg, &pi, sizeof (port_id_t));
+  vif_id_t vifid = port_ptr (pi)->vif.id;
+
+  zmsg_addmem (msg, &vifid, sizeof (vif_id_t));
   zmsg_addmem (msg, mac, sizeof (mac_addr_t));
   zmsg_addmem (msg, &vid, sizeof (vid_t));
   zmsg_addmem (msg, ip, sizeof (ip_addr_t));
@@ -274,27 +289,27 @@ notify_trap_enabled (port_id_t pi,
 }
 
 void
-notify_ch_gr_set (vif_id_t vifid,
-                  port_id_t pi)
+notify_ch_gr_set (vif_id_t pc_vifid,
+                  vif_id_t mem_vifid)
 {
   zmsg_t *msg;
 
   msg = make_notification (CH_GR_SET);
 
-  zmsg_addmem (msg, &vifid, sizeof(vif_id_t));
-  zmsg_addmem (msg, &pi, sizeof(port_id_t));
+  zmsg_addmem (msg, &pc_vifid, sizeof(vif_id_t));
+  zmsg_addmem (msg, &mem_vifid, sizeof(vif_id_t));
 
   send_notification (&msg);
 }
 
 void
-notify_ch_gr_reset (vif_id_t vifid)
+notify_ch_gr_reset (vif_id_t pc_vifid)
 {
   zmsg_t *msg;
 
   msg = make_notification (CH_GR_RESET);
 
-  zmsg_addmem (msg, &vifid, sizeof(vif_id_t));
+  zmsg_addmem (msg, &pc_vifid, sizeof(vif_id_t));
 
   send_notification (&msg);
 }
