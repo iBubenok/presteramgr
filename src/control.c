@@ -1175,445 +1175,475 @@ control_packet_loop (void *dummy)
 
 enum status
 control_spec_frame (struct pdsa_spec_frame *frame) {
-  enum status result;
-  notification_t type;
-  port_id_t pid;
-  int put_vid = 0, put_vif = 0;
-  uint16_t *etype;
-  register int conform2stp_state = 0;
-  int check_source_mac = 0;
-  struct vif *vif;
-  vif_id_t vifid;
-  int is_vif_forwarding_on_vlan;
-  vid_t vid = frame->vid;
-  int put_direction = 0;
-  sflow_type_t direction;
-  int put_len = 0;
-  uint16_t len;
+    enum status result;
+    notification_t type = 0;
+    port_id_t pid;
+    int put_vid = 0, put_vif = 0;
+    uint16_t *etype;
+    register int conform2stp_state = 0;
+    int check_source_mac = 0;
+    struct vif *vif;
+    vid_t vid;
+    int put_direction = 0;
+    sflow_type_t direction;
+    int put_len = 0;
+    uint16_t len;
+    char opcode;
 
-  vif_rlock();
+    vid = frame->vid;
 
-  vif = vif_by_hw(frame->dev, frame->port);
-  if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
-    vif_unlock();
-    DEBUG("!vif %d:%d\n", frame->dev, frame->port);
-    result = ST_OK;
-    goto out;
-  }
-  if (!vif->valid) {
-    vif_unlock();
-    result = ST_OK;
-    goto out;
-  }
-
-  if (vif && vif->trunk)
-    vif = vif->trunk;
-
-  if (vid == 0) /* priority tagged */
-    vid = vif_vid (vif);
-
-  vifid = vif->id;
-  is_vif_forwarding_on_vlan = vif_is_forwarding_on_vlan(vif, vid);
-
-  vif_unlock();
-
-  pid = port_id (frame->dev, frame->port);
-  if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
-//DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
-//DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
-    if (frame->dev != stack_id && frame->dev != stack_id + NEXTDEV_INC) {
-      pid = port_id((frame->dev < 16)? stack_id : stack_id + NEXTDEV_INC, frame->port);
-//DEBUG("!!!pid = %d\n ", pid);
-    }
-    if (!pid) {
+    vif = vif_by_hw(frame->dev, frame->port);
+    if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
+  DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       result = ST_OK;
-//DEBUG("!!!pid outing\n ");
       goto out;
     }
-  }
+    if (!vif->valid) {
+      result = ST_OK;
+      goto out;
+    }
 
-  result = ST_BAD_VALUE;
-  switch (frame->code) {
-  case CPU_CODE_IEEE_RES_MC_0_TM:
-    switch (frame->data[5]) {
-    case WNCT_STP:
-      etype = (uint16_t *) &frame->data[12];
-      switch (ntohs (*etype)) {
-      case 0x88CC:
+    pid = port_id (frame->dev, frame->port);
+    if (!pid && frame->port != CPSS_CPU_PORT_NUM_CNS) {
+  //DEBUG("!!!!!!pid: %d:%d\n", frame->dev, frame->port);
+  //DEBUG(MAC_FMT " <- " MAC_FMT "\n", MAC_ARG(((char*)frame->data)), MAC_ARG(((char*)frame->data + 6)));
+      if (frame->dev != stack_id && frame->dev != stack_id + NEXTDEV_INC) {
+        pid = port_id((frame->dev < 16)? stack_id : stack_id + NEXTDEV_INC, frame->port);
+  //DEBUG("!!!pid = %d\n ", pid);
+      }
+      if (!pid) {
+        result = ST_OK;
+  //DEBUG("!!!pid outing\n ");
+        goto out;
+      }
+    }
+
+    if (vif && vif->trunk)
+      vif = vif->trunk;
+
+    if (vid == 0) /* priority tagged */
+      vid = vif_vid (vif);
+
+    result = ST_BAD_VALUE;
+
+    switch (frame->code) {
+    case CPU_CODE_IEEE_RES_MC_0_TM:
+      switch (frame->data[5]) {
+      case WNCT_STP:
+        etype = (uint16_t *) &frame->data[12];
+        switch (ntohs (*etype)) {
+        case 0x88CC:
+          DEBUG("LLDP shouldnt go there!!!!\n");
+          result = ST_OK;
+          goto out;
+        default:
+          tipc_notify_bpdu (vif->id, pid, vid, frame->tagged, frame->len, frame->data);
+          result = ST_OK;
+          goto out;
+        }
+        break;
+      case WNCT_802_3_SP:
+        DEBUG("Slow Protocols shouldnt go there!!!!\n");
+        result = ST_OK;
+        goto out;
+
+      case WNCT_802_3_SP_OAM:
+        etype = (uint16_t *) &frame->data[12];
+        switch (ntohs (*etype)) {
+        case 0x888E:
+          type = CN_EAPOL;
+          conform2stp_state = 1;
+          break;
+        case 0x88CC:
+          DEBUG("LLDP shouldnt go there!!!!\n");
+          result = ST_OK;
+          goto out;
+        default:
+          DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
+          goto out;
+        }
+        break;
+
+      case WNCT_LLDP:
         DEBUG("LLDP shouldnt go there!!!!\n");
         result = ST_OK;
         goto out;
-      default:
-        tipc_notify_bpdu (vifid, pid, vid, frame->tagged, frame->len, frame->data);
-        result = ST_OK;
-        goto out;
-      }
-      break;
-    case WNCT_802_3_SP:
-      DEBUG("Slow Protocols shouldnt go there!!!!\n");
-      result = ST_OK;
-      goto out;
-
-    case WNCT_802_3_SP_OAM:
-      etype = (uint16_t *) &frame->data[12];
-      switch (ntohs (*etype)) {
-      case 0x888E:
-        type = CN_EAPOL;
+      case WNCT_GVRP:
+        type = CN_GVRP_PDU;
         conform2stp_state = 1;
         break;
-      case 0x88CC:
-        DEBUG("LLDP shouldnt go there!!!!\n");
-        result = ST_OK;
-        goto out;
       default:
-        DEBUG ("Nearest Bridge ethertype %04X not supported\n", ntohs(*etype));
+        DEBUG ("IEEE reserved multicast %02X not supported\n",
+               frame->data[5]);
         goto out;
       }
       break;
 
-    case WNCT_LLDP:
-      DEBUG("LLDP shouldnt go there!!!!\n");
-      result = ST_OK;
-      goto out;
-    case WNCT_GVRP:
-      type = CN_GVRP_PDU;
+    case CPU_CODE_CISCO_MC_TM:
+      /* frame des MAC is 01:00:0C:xx:xx:xx */
+      if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCC) {
+        /* frame des MAC is 01:00:0C:CC:CC:CC */
+        if (frame->data[20] == 0x01 && frame->data[21] == 0x04) {
+          /* frame SNAP proto is 0x0104: Port Aggregation Protocol */
+          DEBUG("Cisco Port Aggregation Protocol not supported\n");
+          goto out;
+        } else if (frame->data[20] == 0x01 && frame->data[21] == 0x11) {
+          /* frame SNAP proto is 0x0111: Unidirectional Link Detection */
+          type = CN_UDLD;
+          put_vif = 1;
+          conform2stp_state = 0;
+          break;
+        } else if (frame->data[20] == 0x20 && frame->data[21] == 0x00) {
+          /* frame SNAP proto is 0x2000: Cisco Discovery Protocol */
+          DEBUG("Cisco Discovery Protocol not supported\n");
+          goto out;
+        } else if (frame->data[20] == 0x20 && frame->data[21] == 0x04) {
+          /* frame SNAP proto is 0x2004: Dynamic Trunking */
+          DEBUG("Cisco Dynamic Trunking not supported\n");
+          goto out;
+        } else if (frame->data[20] == 0x20 && frame->data[21] == 0x03) {
+          /* frame SNAP proto is 0x2003: VLAN Trunking */
+          DEBUG("Cisco VLAN Trunking not supported\n");
+          goto out;
+        } else {
+          DEBUG("Cisco 01:00:0C:CC:CC:CC SNAP protocol 0x%02X%02X not supported\n",
+                frame->data[20], frame->data[21]);
+          goto out;
+        }
+      } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCD) {
+        /* frame des MAC is 01:00:0C:CC:CC:CD */
+        if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
+          /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
+          tipc_notify_bpdu (vif->id, pid, vid, frame->tagged, frame->len, frame->data);
+          result = ST_OK;
+          goto out;
+        } else {
+          DEBUG("Cisco 01:00:0C:CC:CC:CD SNAP protocol 0x%02X%02X not supported\n",
+                frame->data[20], frame->data[21]);
+          goto out;
+        }
+      } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCE) {
+        /* frame des MAC is 01:00:0C:CC:CC:CE */
+        if (frame->data[20] == 0x01 && frame->data[21] == 0x0C) {
+          /* frame SNAP proto is 0x010C: VLAN Bridge */
+          DEBUG("Cisco VLAN Bridge not supported\n");
+          goto out;
+        } else {
+          DEBUG("Cisco 01:00:0C:CC:CC:CE SNAP protocol 0x%02X%02X not supported\n",
+                frame->data[20], frame->data[21]);
+          goto out;
+        }
+      } else if (frame->data[3] == 0xCD && frame->data[4] == 0xCD && frame->data[5] == 0xCD) {
+        /* frame des MAC is 01:00:0C:CD:CD:CD */
+        if (frame->data[20] == 0x20 && frame->data[21] == 0x0A) {
+          /* frame SNAP proto is 0x200A: STP Uplink Fast */
+          DEBUG("Cisco STP Uplink Fast not supported\n");
+          goto out;
+        } else {
+          DEBUG("Cisco 01:00:0C:CD:CD:CD SNAP protocol 0x%02X%02X not supported\n",
+                frame->data[20], frame->data[21]);
+          goto out;
+        }
+      } else if (frame->data[3] == 0x00 && frame->data[4] == 0x00 && frame->data[5] == 0x00) {
+        DEBUG("Cisco Inter Switch Link not supported\n");
+        goto out;
+      } else {
+        DEBUG("Cisco Multicast %02X:%02X:%02X:%02X:%02X:%02X not supported\n",
+              frame->data[0], frame->data[1], frame->data[2],
+              frame->data[3], frame->data[4], frame->data[5]);
+        goto out;
+      }
+      break;
+
+    case CPU_CODE_IPv4_IGMP_TM:
+      type = CN_IPv4_IGMP_PDU;
+      put_vif = 1;
+      put_vid = 1;
       conform2stp_state = 1;
       break;
-    default:
-      DEBUG ("IEEE reserved multicast %02X not supported\n",
-             frame->data[5]);
-      goto out;
-    }
-    break;
 
-  case CPU_CODE_CISCO_MC_TM:
-    /* frame des MAC is 01:00:0C:xx:xx:xx */
-    if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCC) {
-      /* frame des MAC is 01:00:0C:CC:CC:CC */
-      if (frame->data[20] == 0x01 && frame->data[21] == 0x04) {
-        /* frame SNAP proto is 0x0104: Port Aggregation Protocol */
-        DEBUG("Cisco Port Aggregation Protocol not supported\n");
-        goto out;
-      } else if (frame->data[20] == 0x01 && frame->data[21] == 0x11) {
-        /* frame SNAP proto is 0x0111: Unidirectional Link Detection */
-        type = CN_UDLD;
-        put_vif = 1;
-        conform2stp_state = 0;
-        break;
-      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x00) {
-        /* frame SNAP proto is 0x2000: Cisco Discovery Protocol */
-        DEBUG("Cisco Discovery Protocol not supported\n");
-        goto out;
-      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x04) {
-        /* frame SNAP proto is 0x2004: Dynamic Trunking */
-        DEBUG("Cisco Dynamic Trunking not supported\n");
-        goto out;
-      } else if (frame->data[20] == 0x20 && frame->data[21] == 0x03) {
-        /* frame SNAP proto is 0x2003: VLAN Trunking */
-        DEBUG("Cisco VLAN Trunking not supported\n");
-        goto out;
-      } else {
-        DEBUG("Cisco 01:00:0C:CC:CC:CC SNAP protocol 0x%02X%02X not supported\n",
-              frame->data[20], frame->data[21]);
-        goto out;
-      }
-    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCD) {
-      /* frame des MAC is 01:00:0C:CC:CC:CD */
-      if (frame->data[20] == 0x01 && frame->data[21] == 0x0B) {
-        /* frame SNAP proto is 0x010B: Spanning Tree PVSTP+ */
-        tipc_notify_bpdu (vifid, pid, vid, frame->tagged, frame->len, frame->data);
-        result = ST_OK;
-        goto out;
-      } else {
-        DEBUG("Cisco 01:00:0C:CC:CC:CD SNAP protocol 0x%02X%02X not supported\n",
-              frame->data[20], frame->data[21]);
-        goto out;
-      }
-    } else if (frame->data[3] == 0xCC && frame->data[4] == 0xCC && frame->data[5] == 0xCE) {
-      /* frame des MAC is 01:00:0C:CC:CC:CE */
-      if (frame->data[20] == 0x01 && frame->data[21] == 0x0C) {
-        /* frame SNAP proto is 0x010C: VLAN Bridge */
-        DEBUG("Cisco VLAN Bridge not supported\n");
-        goto out;
-      } else {
-        DEBUG("Cisco 01:00:0C:CC:CC:CE SNAP protocol 0x%02X%02X not supported\n",
-              frame->data[20], frame->data[21]);
-        goto out;
-      }
-    } else if (frame->data[3] == 0xCD && frame->data[4] == 0xCD && frame->data[5] == 0xCD) {
-      /* frame des MAC is 01:00:0C:CD:CD:CD */
-      if (frame->data[20] == 0x20 && frame->data[21] == 0x0A) {
-        /* frame SNAP proto is 0x200A: STP Uplink Fast */
-        DEBUG("Cisco STP Uplink Fast not supported\n");
-        goto out;
-      } else {
-        DEBUG("Cisco 01:00:0C:CD:CD:CD SNAP protocol 0x%02X%02X not supported\n",
-              frame->data[20], frame->data[21]);
-        goto out;
-      }
-    } else if (frame->data[3] == 0x00 && frame->data[4] == 0x00 && frame->data[5] == 0x00) {
-      DEBUG("Cisco Inter Switch Link not supported\n");
-      goto out;
-    } else {
-      DEBUG("Cisco Multicast %02X:%02X:%02X:%02X:%02X:%02X not supported\n",
-            frame->data[0], frame->data[1], frame->data[2],
-            frame->data[3], frame->data[4], frame->data[5]);
-      goto out;
-    }
-    break;
-
-  case CPU_CODE_IPv4_IGMP_TM:
-    type = CN_IPv4_IGMP_PDU;
-    put_vif = 1;
-    put_vid = 1;
-    conform2stp_state = 1;
-    break;
-
-  case CPU_CODE_ARP_BC_TM:
-    type = CN_ARP_BROADCAST;
-    conform2stp_state = 1;
-    check_source_mac = 1;
-    put_vif = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_ARP_REPLY_TO_ME:
-    type = CN_ARP_REPLY_TO_ME;
-    conform2stp_state = 1;
-    check_source_mac = 1;
-    put_vif = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
-  // case CPU_CODE_USER_DEFINED (10):
-    type = CN_NDP_SOLICITATION_IPV6;
-    conform2stp_state = 1;
-    check_source_mac = 1;
-    put_vif = 1;
-    put_vid = 1;
-    goto out;
-    break;
-
-  /* FIX THIS */
-  case CPU_CODE_IPV6_UC_ROUTE_TM_0:
-    result = ST_OK;
-    #define ICMPV6 0x3a
-    #define NEIGHBOR_ADVERTISEMENT 0x88
-
-    if (frame->data[20] == ICMPV6 &&
-        frame->data[54] == NEIGHBOR_ADVERTISEMENT)
-    {
-      type = CN_NDP_ADVERTISEMENT_IPV6;
+    case CPU_CODE_ARP_BC_TM:
+      type = CN_ARP_BROADCAST;
       conform2stp_state = 1;
       check_source_mac = 1;
       put_vif = 1;
       put_vid = 1;
+      break;
 
-      zmsg_t *msg = make_notify_message (type);
-      if (put_vif)
-        put_vif_id (msg, vif->id);
-      if (put_vid)
-        put_vlan_id (msg, vid);
-      put_port_id (msg, pid);
+    case CPU_CODE_ARP_REPLY_TO_ME:
+      type = CN_ARP_REPLY_TO_ME;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+      break;
 
-      zmsg_addmem (msg, frame->data, frame->len);
-
-      notify_send_arp (&msg);
-    }
-    goto out;
-    break;
-
-  case CPU_CODE_IPV6_UC_ROUTE_TM_1:
-
-    result = ST_OK;
-    if (! vif_is_forwarding_on_vlan(vif, vid)) {
-//DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
-//    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+    case CPU_CODE_IPV6_NEIGHBOR_SOLICITATION_E:
+      type = CN_NDP_SOLICITATION_IPV6;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
       goto out;
-    }
-    route_handle_ipv6_udt (frame->data, frame->len);
-    goto out;
-    break;
+      break;
 
-  case CPU_CODE_IP_LL_MC_0_TM:
-    type = CN_VRRP;
-    conform2stp_state = 1;
-    put_vid = 1;
-    break;
+    /* FIX THIS */
+    /* FIX THIS */
+    case CPU_CODE_IPV6_UC_ROUTE_TM_0:
+      result = ST_OK;
+      #define ICMPV6 0x3a
+      #define NEIGHBOR_ADVERTISEMENT 0x88
 
-  case CPU_CODE_USER_DEFINED (0):
-    type = CN_LBD_PDU;
-    conform2stp_state = 1;
-    break;
 
-  case CPU_CODE_USER_DEFINED (1):
-    type = CN_DHCP_TRAP;
-    check_source_mac = 1;
-    conform2stp_state = 1;
-    put_vif = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_USER_DEFINED (2):
-    result = ST_OK;
-    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
-      goto out;
-    control_notify_ip_sg_trap (pid, frame);
-    goto out;
-
-  case CPU_CODE_USER_DEFINED (3):
-    type = CN_ARP;
-    conform2stp_state = 1;
-    check_source_mac = 1;
-    put_vif = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_USER_DEFINED (4):
-    type = CN_LLDP_MCAST;
-    break;
-
-  case CPU_CODE_USER_DEFINED (13):
-    type = CN_PPPOE;
-    put_vif = 1;
-    put_vid = 1;
-    break;
-
-  case CPU_CODE_USER_DEFINED (9):
-    switch (frame->data[14]) {
-      case WNCT_802_3_SP_LACP:
-        type = CN_LACPDU;
+      if (frame->data[20] == ICMPV6 &&
+          frame->data[54] == NEIGHBOR_ADVERTISEMENT)
+      {
+        // DEBUG("WORK?\n");
+        type = CN_NDP_ADVERTISEMENT_IPV6;
         conform2stp_state = 1;
-        break;
-      case WNCT_802_3_SP_OAM:
-        type = CN_OAMPDU;
-        conform2stp_state = 1;
-        break;
+        check_source_mac = 1;
+        put_vif = 1;
+        put_vid = 1;
 
-      default:
-        DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
-               frame->data[14]);
+        /* FIX THIS */
+        /* FIX THIS */
+        /* FIX THIS */
+  /*
+        zmsg_t *msg = make_notify_message (type);
+        if (put_vif)
+          put_vif_id (msg, vif->id);
+        if (put_vid)
+          put_vlan_id (msg, vid);
+        put_port_id (msg, pid);
+
+        zmsg_addmem (msg, frame->data, frame->len);
+
+        zframe_t* tmp_frame = zmsg_first(msg);
+        while(tmp_frame)
+        {
+          tmp_frame = zmsg_next(msg);
+        }
+
+        notify_send_arp (&msg); */
+      }
+  //    goto out;
+      break;
+    case CPU_CODE_IPV6_UC_ROUTE_TM_1:
+
+      result = ST_OK;
+      if (! vif_is_forwarding_on_vlan(vif, vid)) {
+  //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+  //    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
         goto out;
       }
-    break;
-
-  case CPU_CODE_USER_DEFINED (6):
-    result = ST_OK;
-    DEBUG("Packet on Port #%d trapped!\r\n", pid);
-    goto out;
-
-  case CPU_CODE_IPv4_UC_ROUTE_TM_1:
-    result = ST_OK;
-    if (! is_vif_forwarding_on_vlan) {
-      DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, \n",
-          vid, vifid, pid, frame->dev, frame->port);
+      route_handle_ipv6_udt (frame->data, frame->len);
       goto out;
-    }
-    route_handle_udt (frame->data, frame->len);
-    goto out;
+      break;
 
-  case CPU_CODE_USER_DEFINED (7):
-    stack_handle_mail (stack_pri_port->id, frame->data, frame->len);
-    result = ST_OK;
-    goto out;
-  case CPU_CODE_USER_DEFINED (8):
-    stack_handle_mail (stack_sec_port->id, frame->data, frame->len);
-    result = ST_OK;
-    goto out;
-  case CPU_CODE_MAIL:
-    stack_handle_mail (pid, frame->data, frame->len);
-    result = ST_OK;
-    goto out;
+    case CPU_CODE_IP_LL_MC_0_TM:
+      type = CN_VRRP;
+      conform2stp_state = 1;
+      put_vid = 1;
+      break;
 
-  case CPU_CODE_EGRESS_SAMPLED:
-    type = CN_SAMPLED;
-    direction = EGRESS;
-    len = frame->len;
-    put_direction = 1;
-    put_len = 1;
-    break;
-  case CPU_CODE_INGRESS_SAMPLED:
-    type = CN_SAMPLED;
-    direction = INGRESS;
-    len = frame->len;
-    put_direction = 1;
-    put_len = 1;
-    break;
+    case CPU_CODE_USER_DEFINED (0):
+      type = CN_LBD_PDU;
+      conform2stp_state = 1;
+      break;
 
-  default:
-    DEBUG ("spec frame code %02X not supported\n", frame->code);
-    goto out;
-  }
+    case CPU_CODE_USER_DEFINED (1):
+      type = CN_DHCP_TRAP;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+      break;
 
-  if (conform2stp_state)
-    if (! is_vif_forwarding_on_vlan) {
-      DEBUG("REJECTED vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, \n",
-          vid, vifid, pid, frame->dev, frame->port);
+    case CPU_CODE_USER_DEFINED (10):        /* DHCPv6 */
+      type = CN_DHCPV6_TRAP;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+      break;
+
+    case CPU_CODE_USER_DEFINED (2):
+      result = ST_OK;
+      if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+        goto out;
+      control_notify_ip_sg_trap (pid, frame);
+      goto out;
+
+    case CPU_CODE_USER_DEFINED (3):
+      type = CN_ARP;
+      conform2stp_state = 1;
+      check_source_mac = 1;
+      put_vif = 1;
+      put_vid = 1;
+      break;
+
+    case CPU_CODE_USER_DEFINED (4):
+      type = CN_LLDP_MCAST;
+      break;
+
+    case CPU_CODE_USER_DEFINED (9):
+  //    DEBUG("Got SP via PCL pid: %d vid: %d!\n", pid, vid);
+      switch (frame->data[14]) {
+        case WNCT_802_3_SP_LACP:
+          type = CN_LACPDU;
+          conform2stp_state = 1;
+          break;
+        case WNCT_802_3_SP_OAM:
+          type = CN_OAMPDU;
+          conform2stp_state = 1;
+          break;
+
+        default:
+          DEBUG ("IEEE 802.3 Slow Protocol subtype %02X not supported\n",
+                 frame->data[14]);
+          goto out;
+        }
+      break;
+
+    case CPU_CODE_USER_DEFINED (6):
+      result = ST_OK;
+  //    DEBUG("Packet on Port #%d trapped!\r\n", pid);
+      goto out;
+
+    case CPU_CODE_IPv4_UC_ROUTE_TM_1:
+  //    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vid);
+  //    DEBUG("sbelo CPU_CODE_IPv4_UC_ROUTE_TM_1 %d\n", vif->valid);
+      result = ST_OK;
+      if (! vif_is_forwarding_on_vlan(vif, vid)) {
+  //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
+  //    if (! vlan_port_is_forwarding_on_vlan(pid, vid))
+        goto out;
+      }
+      route_handle_udt (frame->data, frame->len);
+      goto out;
+
+    case CPU_CODE_USER_DEFINED (7):
+      stack_handle_mail (stack_pri_port->id, frame->data, frame->len);
       result = ST_OK;
       goto out;
+    case CPU_CODE_USER_DEFINED (8):
+      stack_handle_mail (stack_sec_port->id, frame->data, frame->len);
+      result = ST_OK;
+      goto out;
+    case CPU_CODE_MAIL:
+      stack_handle_mail (pid, frame->data, frame->len);
+      result = ST_OK;
+      goto out;
+    case CPU_CODE_USER_DEFINED (11):
+      type = CN_BPDU;
+      break;
+    case CPU_CODE_USER_DEFINED (13):
+      type = CN_PPPOE;
+      put_vif = 1;
+      put_vid = 1;
+      break;
+    case CPU_CODE_EGRESS_SAMPLED:
+      type = CN_SAMPLED;
+      direction = EGRESS;
+      len = frame->len;
+      put_direction = 1;
+      put_len = 1;
+      break;
+    case CPU_CODE_INGRESS_SAMPLED:
+      type = CN_SAMPLED;
+      direction = INGRESS;
+      len = frame->len;
+      put_direction = 1;
+      put_len = 1;
+      break;
+
+    default:
+      DEBUG ("spec frame code %02X not supported\n", frame->code);
+      goto out;
     }
 
-  if (check_source_mac) {
-    if (frame->len >= 12) {
-      char *frame_source_mac = ((char*)frame->data) + 6;
-      if (!memcmp(frame_source_mac, master_mac, 6)) {
-        DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
-              frame->code, vid, vifid);
+    if (conform2stp_state)
+      if (! vif_is_forwarding_on_vlan(vif, vid)) {
+  //DEBUG("REJECTED code: %d, vid: %d frame from vif: %x, pid: %d, dev %d, lport %d, ", frame->code, vid, vif->id, pid, frame->dev, frame->port);
         result = ST_OK;
         goto out;
       }
+
+    if (check_source_mac) {
+      if (frame->len >= 12) {
+        char *frame_source_mac = ((char*)frame->data) + 6;
+        if (!memcmp(frame_source_mac, master_mac, 6)) {
+          DEBUG("DROP frame: code: %d, vid: %d, vif: %x: source mac == master mac",
+                frame->code, vid, vif->id);
+          result = ST_OK;
+          goto out;
+        }
+      }
     }
-  }
 
-  zmsg_t *msg = make_notify_message (type);
+    zmsg_t *msg = make_notify_message (type);
 
-  struct pkt_info info = {
-    .tagged = frame->tagged,
-    .pcp = frame->tagged ? frame->up : 7,
-    .cfi = frame->tagged ? frame->cfi : 0,
-    .pid = pid,
-    .vid = put_vid ? vid : 0,
-    .vif = put_vif ? vif->id : 0
-  };
+    struct pkt_info info = {
+      .tagged = frame->tagged,
+      .pcp = frame->tagged ? frame->up : 7,
+      .cfi = frame->tagged ? frame->cfi : 0,
+      .pid = pid,
+      .vid = put_vid ? vid : 0,
+      .vif = put_vif ? vif->id : 0
+    };
+    switch (type) {
+      case CN_SAMPLED:
+      case CN_DHCPV6_TRAP:
+        if (put_vif)
+          put_vif_id (msg, vif->id);
+        if (put_vid)
+          put_vlan_id (msg, vid);
+        if (put_direction)
+          zmsg_addmem (msg, &direction, sizeof direction);
+        if (put_len)
+          zmsg_addmem (msg, &len, sizeof len);
+        put_port_id (msg, pid);
+        zmsg_addmem (msg, frame->data, frame->len);
+        break;
+      case CN_BPDU:
+        zmsg_destroy(&msg);
+        msg = zmsg_new();
+        opcode = frame->data[15];
+        zmsg_addmem (msg, &opcode, sizeof (opcode));
+        zmsg_addmem (msg, frame, sizeof (struct pdsa_spec_frame));
+        if (opcode == 1)
+          zmsg_addmem (msg, &vif->id, sizeof (vif_id_t));
+        zmsg_addmem (msg, frame->data, frame->len);
+      default:
+        put_pkt_info (msg, &info, type);
+        zmsg_addmem (msg, frame->data, frame->len);
+    }
+    switch (type) {
+      case CN_ARP_BROADCAST:
+      case CN_ARP_REPLY_TO_ME:
+      case CN_ARP:
+      case CN_NDP_SOLICITATION_IPV6:
+      case CN_NDP_ADVERTISEMENT_IPV6:
+        notify_send_arp (&msg);
+        break;
+      case CN_BPDU:
+        zmsg_send (&msg, pub_oam_sock);
+        break;
+      case CN_DHCP_TRAP:
+        notify_send_dhcp (&msg);
+        break;
+      case CN_DHCPV6_TRAP:
+        notify_send_dhcpv6 (&msg);
+        break;
+      case CN_SAMPLED:
+        notify_send_sflow(&msg);
+        break;
+      default:
+        notify_send (&msg);
+        break;
+    }
 
-  switch (type) {
-    case CN_SAMPLED:
-      if (put_vif)
-        put_vif_id (msg, vif->id);
-      if (put_vid)
-        put_vlan_id (msg, vid);
-      if (put_direction)
-        zmsg_addmem (msg, &direction, sizeof direction);
-      if (put_len)
-        zmsg_addmem (msg, &len, sizeof len);
-      put_port_id (msg, pid);
-      break;
-    default:
-      put_pkt_info (msg, &info, type);
-      zmsg_addmem (msg, frame->data, frame->len);
-  }
-
-  switch (type) {
-    case CN_ARP_BROADCAST:
-    case CN_ARP_REPLY_TO_ME:
-    case CN_ARP:
-    case CN_NDP_SOLICITATION_IPV6:
-    case CN_NDP_ADVERTISEMENT_IPV6:
-      notify_send_arp (&msg);
-      break;
-    case CN_DHCP_TRAP:
-      notify_send_dhcp (&msg);
-      break;
-    case CN_SAMPLED:
-      notify_send_sflow(&msg);
-      break;
-    default:
-      notify_send (&msg);
-      break;
-  }
-
-  result = ST_OK;
+    result = ST_OK;
 
  out:
   return result;
@@ -4211,7 +4241,6 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       put_pkt_info (msg, &info, type);
       zmsg_addmem (msg, frame->data, frame->len);
   }
-
   switch (type) {
     case CN_ARP_BROADCAST:
     case CN_ARP_REPLY_TO_ME:
