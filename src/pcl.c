@@ -3885,7 +3885,7 @@ pcl_enable_pppoe_trap (bool_t enable, bool_t update)
         DEBUG ("pcl_enable_pppoe_trap: port: %u, stack_id == master_id, update: %u\n", pi, update);
         act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
       } else {
-        DEBUG ("pcl_enable_pppoe_trap: port: %u, slave: master_port: %u, update: %u\n", pi, stack_get_master_port (port->ldev), update);
+        DEBUG ("pcl_enable_pppoe_trap: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
         act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
         act.redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_OUT_IF_E;
         act.redirect.data.outIf.outInterface.type = CPSS_INTERFACE_PORT_E;
