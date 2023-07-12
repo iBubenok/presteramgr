@@ -1192,10 +1192,10 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     vid = frame->vid;
 
     vif = vif_by_hw(frame->dev, frame->port);
-    DEBUG ("control_spec_frame: frame-> dev: %u, frame->port: %u, frame->trunk: %u, frame->code: %u, vif->id: %u, \n",
-            frame->dev, frame->port, frame->trunk, frame->code, vif->id);
-    DEBUG ("control_spec_frame: frame->len: %u, frame->vid: %u, frame->tagged: %u, frame->up: %u, frame->cfi: %u\n",
-            frame->len, frame->vid, frame->tagged, frame->up, frame->cfi);
+   //  DEBUG ("control_spec_frame: frame-> dev: %u, frame->port: %u, frame->trunk: %u, frame->code: %u, vif->id: %u, \n",
+   //         frame->dev, frame->port, frame->trunk, frame->code, vif->id);
+   // DEBUG ("control_spec_frame: frame->len: %u, frame->vid: %u, frame->tagged: %u, frame->up: %u, frame->cfi: %u\n",
+   //         frame->len, frame->vid, frame->tagged, frame->up, frame->cfi);
     if (!vif && frame->port != CPSS_CPU_PORT_NUM_CNS) {  /* TODO CPU port case */
   DEBUG("!vif %d:%d\n", frame->dev, frame->port);
       result = ST_OK;
@@ -1585,7 +1585,6 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
         }
       }
     }
-    DEBUG ("control_spec_frame_2: vif->id: %u\n", vif->id);
     zmsg_t *msg = make_notify_message (type);
 
     struct pkt_info info = {

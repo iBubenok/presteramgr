@@ -614,10 +614,10 @@ pcl_setup_vrrp(int d, bool_t update)
     act.mirror.cpuCode = CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E;
 
     if (stack_id == master_id) {
-      DEBUG ("pcl_setup_vrrp: port: %u, stack_id == master_id, update: %u\n", pi, update);
+     // DEBUG ("pcl_setup_vrrp: port: %u, stack_id == master_id, update: %u\n", pi, update);
       act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
     } else {
-      DEBUG ("pcl_setup_vrrp: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
+     // DEBUG ("pcl_setup_vrrp: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
       act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
       act.redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_OUT_IF_E;
       act.redirect.data.outIf.outInterface.type = CPSS_INTERFACE_PORT_E;
@@ -3899,10 +3899,10 @@ pcl_enable_pppoe_trap (bool_t enable, bool_t update)
       act.bypassBridge = GT_TRUE;
 
       if (stack_id == master_id) {
-        DEBUG ("pcl_enable_pppoe_trap: port: %u, stack_id == master_id, update: %u\n", pi, update);
+      //  DEBUG ("pcl_enable_pppoe_trap: port: %u, stack_id == master_id, update: %u\n", pi, update);
         act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
       } else {
-        DEBUG ("pcl_enable_pppoe_trap: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
+      //  DEBUG ("pcl_enable_pppoe_trap: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
         act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
         act.redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_OUT_IF_E;
         act.redirect.data.outIf.outInterface.type = CPSS_INTERFACE_PORT_E;
@@ -3948,25 +3948,6 @@ pcl_update_pkt_trap_rules ()
   for_each_dev (d) {
     pcl_setup_vrrp (d, 1);
   }
-/*  port_id_t pid;
-  for (pid = 1; pid <= nports ; pid++) {
-
-  } */
-
-  /* GT_BOOL valid;
-  CPSS_PCL_RULE_SIZE_ENT ruleSize;
-  uint16_t i;
-  for (i = 1; i<=850; i++) {
-      valid = 0;
-      ruleSize = 0;
-      CRP (cpssDxChPclRuleStateGet
-           (0,
-            i,
-            &valid,
-            &ruleSize));
-      if (!valid) DEBUG ("pcl_update_pkt_trap_rules: i = %u is invalid\n", i);
-  } */
-
 }
 
 enum status
