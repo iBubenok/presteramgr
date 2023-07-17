@@ -1418,8 +1418,9 @@ fdb_mac_foreign_blck(unsigned n, const struct pti_fdbr *fa, uint8_t sid) {
 static enum status
 fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u, int fake)
 {
-//DEBUG(">>>>fdb_new_addr(): type==%hhu, sp= %d, %hhu:%hhu:%hhu, " MAC_FMT " \n",  // TODO remove
-//         u->macEntry.dstInterface.type, u->macEntry.spUnknown, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
+//DEBUG(">>>>fdb_new_addr(): type==%hhu, sp= %d, %hhu:%hhu:%hhu, vid= %u, " MAC_FMT " \n",  // TODO remove
+//         u->macEntry.dstInterface.type, u->macEntry.spUnknown, u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum, u->macEntry.dstInterface.trunkId,
+//         u->macEntry.key.key.macVlan.vlanId, MAC_ARG(u->macEntry.key.key.macVlan.macAddr.arEther));
 
   if (u->macEntry.dstInterface.type == CPSS_INTERFACE_PORT_E) {
     vif_rlock();
@@ -1452,6 +1453,27 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u, int fake)
 
     if (!port || !port->fdb_insertion_enabled)
       return ST_BAD_STATE;
+
+    struct {
+      struct mac_entry me;
+      vif_id_t vifid;
+    } __attribute__ ((packed)) tmp;
+
+    struct vif *vif;
+
+    memcpy (tmp.me.mac, u->macEntry.key.key.macVlan.macAddr.arEther, 6);
+    tmp.me.vid = u->macEntry.key.key.macVlan.vlanId;
+    tmp.me.type = MET_DYNAMIC;
+    vif = vif_by_hw (u->macEntry.dstInterface.devPort.devNum, u->macEntry.dstInterface.devPort.portNum);
+    tmp.vifid = vif->id;
+
+    zmsg_t *msg = zmsg_new ();
+    notification_t ntype = CN_FDB_EVENT;
+    assert (msg);
+    zmsg_addmem (msg, &ntype, sizeof (ntype));
+    zmsg_addmem (msg, &tmp, sizeof (tmp));
+    zmsg_send (&msg, pub_sock);
+    zmsg_destroy (&msg);
 
     if (port->fdb_addr_op_notify_enabled)
       fdb_mac_op_notification_send(
@@ -1551,12 +1573,6 @@ fdb_evt_handler (zloop_t *loop, zsock_t *reader, void *not_sock)
 
   fdb_upd_for_dev (dev);
 
-  zmsg_t *msg2 = zmsg_new ();
-  notification_t ntype = CN_FDB_EVENT;
-  assert (msg2);
-  zmsg_addmem (msg2, &ntype, sizeof (ntype));
-  zmsg_send (&msg2, pub_sock);
-  zmsg_destroy (&msg2);
   return 0;
 }
 
