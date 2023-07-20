@@ -1378,6 +1378,12 @@ control_spec_frame (struct pdsa_spec_frame *frame) {
     conform2stp_state = 1;
     break;
 
+  case CPU_CODE_USER_DEFINED (14):
+    type = CN_IPv4_PIM_PDU;
+    put_vif = 1;
+    put_vid = 1;
+    break;
+
   case CPU_CODE_ARP_BC_TM:
     type = CN_ARP_BROADCAST;
     conform2stp_state = 1;
@@ -4138,6 +4144,11 @@ DEBUG("!vif %d:%d\n", frame->dev, frame->port);
     goto out;
   case CPU_CODE_USER_DEFINED (11):
     type = CN_BPDU;
+    break;
+  case CPU_CODE_USER_DEFINED (14):
+    type = CN_IPv4_PIM_PDU;
+    put_vif = 1;
+    put_vid = 1;
     break;
   case CPU_CODE_USER_DEFINED (13):
     type = CN_PPPOE;
