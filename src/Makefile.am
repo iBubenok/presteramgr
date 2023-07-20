@@ -6,10 +6,12 @@ presteramgr_SOURCES =	\
 	init.c				\
 	event.c				\
 	port.c				\
+	flex_link.c			\
 	extsvc.c			\
 	mgmt.c				\
 	vlan.c				\
 	debug.c				\
+	policer.c           \
 	presteramgr.h		\
 	debug.h				\
 	utils.h				\

@@ -1,3 +1,4 @@
+#include <stdint.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
@@ -24,6 +25,7 @@
 #include <mcg.h>
 #include <fib.h>
 #include <fib_ipv6.h>
+#include <flex_link.h>
 #include <route.h>
 #include <ret.h>
 #include <monitor.h>
@@ -46,6 +48,7 @@
 #include <erpsd.h>
 #include <netlink/socket.h>
 #include <sflow.h>
+#include <policer.h>
 
 #include <nht.h>
 #include <fib.h>
@@ -486,6 +489,7 @@ DECLARE_HANDLER (CC_VLAN_DUMP);
 DECLARE_HANDLER (CC_MAC_OP);
 DECLARE_HANDLER (CC_MAC_OP_VIF);
 DECLARE_HANDLER (CC_MAC_SET_AGING_TIME);
+DECLARE_HANDLER (CC_MAC_CHECK_AGING_TIME);
 DECLARE_HANDLER (CC_MAC_LIST);
 DECLARE_HANDLER (CC_MAC_LIST_VIF);
 DECLARE_HANDLER (CC_MAC_LIST_VIF_ID);
@@ -619,6 +623,13 @@ DECLARE_HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_RELOAD_MODE);
 DECLARE_HANDLER (CC_SFLOW_SET_PORT_LIMIT);
 DECLARE_HANDLER (CC_SFLOW_SET_DEFAULT);
+DECLARE_HANDLER (CC_FLEX_LINK_ADD);
+DECLARE_HANDLER (CC_FLEX_LINK_DEL);
+DECLARE_HANDLER (CC_FLEX_LINK_GET);
+DECLARE_HANDLER (CC_POLICE_ADD);
+DECLARE_HANDLER (CC_POLICE_DEL);
+DECLARE_HANDLER (CC_POLICE_SHOW);
+DECLARE_HANDLER (CC_POLICE_CHK_AVAIL);
 
 DECLARE_HANDLER (SC_UPDATE_STACK_CONF);
 DECLARE_HANDLER (SC_INT_RTBD_CMD);
@@ -687,6 +698,7 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_MAC_OP),
   HANDLER (CC_MAC_OP_VIF),
   HANDLER (CC_MAC_SET_AGING_TIME),
+  HANDLER (CC_MAC_CHECK_AGING_TIME),
   HANDLER (CC_MAC_LIST),
   HANDLER (CC_MAC_LIST_VIF),
   HANDLER (CC_MAC_LIST_VIF_ID),
@@ -820,7 +832,14 @@ static cmd_handler_t handlers[] = {
   HANDLER (CC_SFLOW_SET_INGRESS_COUNT_MODE),
   HANDLER (CC_SFLOW_SET_RELOAD_MODE),
   HANDLER (CC_SFLOW_SET_PORT_LIMIT),
-  HANDLER (CC_SFLOW_SET_DEFAULT)
+  HANDLER (CC_SFLOW_SET_DEFAULT),
+  HANDLER (CC_FLEX_LINK_ADD),
+  HANDLER (CC_FLEX_LINK_DEL),
+  HANDLER (CC_FLEX_LINK_GET),
+  HANDLER (CC_POLICE_ADD),
+  HANDLER (CC_POLICE_DEL),
+  HANDLER (CC_POLICE_SHOW),
+  HANDLER (CC_POLICE_CHK_AVAIL)
 };
 
 static cmd_handler_t stack_handlers[] = {
@@ -2516,6 +2535,29 @@ DEFINE_HANDLER (CC_MAC_SET_AGING_TIME)
     goto out;
 
   result = mac_set_aging_time (time);
+
+ out:
+  report_status (result);
+}
+
+DEFINE_HANDLER (CC_MAC_CHECK_AGING_TIME)
+{
+  enum status result;
+  aging_time_t time, max_time;
+
+  result = POP_ARG (&time);
+  if (result != ST_OK)
+    goto out;
+
+  result = mac_check_aging_time (time, &max_time);
+
+  if (result == ST_BAD_VALUE) {
+    zmsg_t *reply = make_reply (ST_OK);
+    // zmsg_t *reply = make_reply (ST_BAD_VALUE);
+    zmsg_addmem (reply, &max_time, sizeof (max_time));
+    send_reply (reply);
+    return;
+  }
 
  out:
   report_status (result);
@@ -5942,9 +5984,9 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
       case PCL_RULE_ACTION_DENY:
       case PCL_RULE_ACTION_PERMIT:
         break;
-      case PCL_RULE_ACTION_DENY_QOS_POLICY:
-      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
-        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+      case PCL_RULE_ACTION_DENY_POLICY:
+      case PCL_RULE_ACTION_PERMIT_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_policy));
         break;
       default:
         free(name);
@@ -5997,6 +6039,10 @@ DEFINE_HANDLER (CC_USER_ACL_SET)
 
     free(name);
     free(rule_params);
+    if (rule_action_params != NULL) {
+        free(rule_action_params);
+        rule_action_params = NULL;
+    }
 
     if (result != ST_OK) {
       goto out;
@@ -6142,9 +6188,9 @@ DEFINE_HANDLER (CC_POLICY_BASED_ROUTING_SET)
       case PCL_RULE_ACTION_DENY:
       case PCL_RULE_ACTION_PERMIT:
         break;
-      case PCL_RULE_ACTION_DENY_QOS_POLICY:
-      case PCL_RULE_ACTION_PERMIT_QOS_POLICY:
-        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_qos_policy));
+      case PCL_RULE_ACTION_DENY_POLICY:
+      case PCL_RULE_ACTION_PERMIT_POLICY:
+        INIT_PTR_SZ(rule_action_params, sizeof(struct pcl_rule_action_policy));
         break;
       case PCL_RULE_ACTION_DENY_PBR:
       case PCL_RULE_ACTION_PERMIT_PBR:
@@ -6683,4 +6729,263 @@ DEFINE_HANDLER (CC_SFLOW_SET_DEFAULT)
 out:
   report_status (result);
 }
+
 ///@} /* End sFlow functions. */
+
+/******************************************************************************/
+/*                            FLEX-LINKS FUNCTIONS                            */
+/******************************************************************************/
+
+DEFINE_HANDLER (CC_FLEX_LINK_ADD)
+{
+    // get primary vif id
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // get backup vif id
+    vif_id_t backup;
+    result = POP_ARG (&backup);
+    if (result != ST_OK) {
+        report_status(result);
+        DEBUG ("%s: can't get backup link", __FUNCTION__);
+        return;
+    }
+
+    // add flex-link
+    if (flex_link_add(primary, backup) != FLEX_LINK_OK) {
+        report_status(ST_MALLOC_ERROR);
+        DEBUG ("%s: can't add flex-link", __FUNCTION__);
+        return;
+    }
+
+    // get link state and activate flex-link
+    struct port_link_state primary_state;
+    if (vif_get_state(primary, &primary_state) != ST_OK) {
+        report_status(ST_BAD_STATE);
+        DEBUG ("%s: can't get primary link state", __FUNCTION__);
+        return;
+    }
+    flex_link_handle_link_change(primary, primary_state.link, vif_shutdown);
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_DEL)
+{
+    // get primary vif id to delete flex-link
+    vif_id_t primary;
+    enum status result = POP_ARG (&primary);
+    if (result != ST_OK) {
+        report_status (result);
+        DEBUG ("%s: can't get primary link", __FUNCTION__);
+        return;
+    }
+
+    // del flex-link
+    if (flex_link_del(primary) != FLEX_LINK_OK) {
+        report_status(ST_BAD_VALUE);
+        DEBUG ("%s: can't delete flex-link", __FUNCTION__);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+
+DEFINE_HANDLER (CC_FLEX_LINK_GET)
+{
+    // get first flex-link
+    const FlexLink *flex_link = flex_link_get();
+    if (!flex_link) {
+        report_status(ST_OK); // no flex-links
+        return;
+    }
+
+    // make reply
+    zmsg_t *reply = make_reply(ST_OK);
+    while (flex_link) {
+        struct __attribute__((packed)) {
+            vif_id_t vif_primary;  // primary vif
+            vif_id_t vif_backup;   // backup vif
+            uint8_t state_primary; // primary vif state (1 - up; 0 - down)
+            uint8_t state_backup;  // backup vif state (1 - up; 0 - down)
+        } msg;
+
+        msg.vif_primary = flex_link->primary;
+        msg.vif_backup  = flex_link->backup;
+
+        // get primary link state
+        struct port_link_state state_primary;
+        if (vif_get_state(flex_link->primary, &state_primary) != ST_OK) {
+            DEBUG ("%s: can't get primary vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_primary = state_primary.link;
+
+        // get backup link state
+        struct port_link_state state_backup;
+        if (vif_get_state(flex_link->backup, &state_backup) != ST_OK) {
+            DEBUG ("%s: can't get backup vif state", __FUNCTION__);
+            report_status(ST_BAD_STATE);
+            return;
+        }
+        msg.state_backup = state_backup.link;
+
+        zmsg_addmem(reply, &msg, sizeof(msg));
+
+        flex_link = flex_link_next();
+    }
+
+    send_reply(reply);
+}
+
+/******************************************************************************/
+/*                              TRAFFIC POLICING                              */
+/******************************************************************************/
+
+DEFINE_HANDLER (CC_POLICE_ADD)
+{
+    // получаем policer_params от manager'а
+    struct policer_params policer_params;
+    enum status result = POP_ARG(&policer_params);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_params: %d", result);
+        report_status(ST_BAD_VALUE);
+        return;
+    }
+
+    // создаём policer
+    uint32_t policer_ix;
+    policer_status_t policer_rv =
+                        policer_create(&policer_ix, &policer_params);
+    if (policer_rv != POLICER_OK) {
+        DEBUG("policer_create() is failed: %d", policer_rv);
+        report_status(ST_BAD_REQUEST);
+        return;
+    }
+
+
+    zmsg_t *reply = make_reply(ST_OK);
+    zmsg_addmem(reply, &policer_ix, sizeof(policer_ix));
+    send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_POLICE_SHOW)
+{
+    // get policer index from manager
+    uint32_t policer_index = 0;
+    enum status result = POP_ARG(&policer_index);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_index: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get policer params from packet processor
+    policer_stat_t stat;
+    memset(&stat, 0, sizeof(stat));
+    policer_status_t rv = policer_get_params(&stat, policer_index, dest);
+    if (rv != POLICER_OK) {
+        DEBUG("policer_get_params() is failed: %d", rv);
+        report_status(ST_BAD_VALUE);
+        return;
+    }
+
+    // send answer
+    struct policer_info msg;
+    memcpy(&msg, &stat, sizeof(msg));
+
+    zmsg_t *reply = make_reply(ST_OK);
+    zmsg_addmem(reply, &msg, sizeof(msg));
+    send_reply(reply);
+}
+
+DEFINE_HANDLER (CC_POLICE_CHK_AVAIL)
+{
+    enum status result = ST_OK;
+
+    // get quantity from manager
+    uint32_t quantity = 0;
+    result = POP_ARG(&quantity);
+    if (result != ST_OK) {
+        DEBUG("failed to get quantity: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // check available policers
+    int available = policer_available(dest);
+    if (available < quantity) {
+        report_status(ST_BUSY);
+        return;
+    }
+
+    report_status(ST_OK);
+}
+
+DEFINE_HANDLER (CC_POLICE_DEL)
+{
+    enum status result = ST_OK;
+
+    // get policer index from manager
+    uint32_t policer_index = 0;
+    result = POP_ARG(&policer_index);
+    if (result != ST_OK) {
+        DEBUG("failed to get policer_index: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // get dest from manager
+    policer_dest_t dest;
+    result = POP_ARG(&dest);
+    if (result != ST_OK) {
+        DEBUG("failed to get dest: %d", result);
+        report_status(result);
+        return;
+    }
+
+    // освобождаем policer index
+    policer_status_t policer_rv = policer_delete(policer_index, dest);
+    if (policer_rv != POLICER_OK) {
+        DEBUG("policer_delete() is failed: %d", policer_rv);
+        if (policer_rv == POLICER_NOT_IN_RANGE) {
+            result = ST_BAD_VALUE;
+        }
+        else if (policer_rv == POLICER_NOT_IN_USE) {
+            result = ST_DOES_NOT_EXIST;
+        }
+        else { // unknow error
+            result = ST_NOT_IMPLEMENTED;
+        }
+        report_status(result);
+        return;
+    }
+
+    report_status(ST_OK);
+}
