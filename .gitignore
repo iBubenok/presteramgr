@@ -26,3 +26,6 @@ cscope.out
 /Doxyfile
 /src/stackd.h
 .vscode
+.cproject
+.project
+.settings/
