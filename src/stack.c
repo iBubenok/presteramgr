@@ -92,7 +92,7 @@ DEBUG(">>>stack_set_master (%d, %llu, const uint8_t *mac)\n", master, serial);
          (d, 1, master));
   }
   DEBUG("cpssDxChNetIfCpuCodeDesignatedDeviceTableSet (d, 1, %d))\n", master);
-
+  pcl_update_pkt_trap_rules ();
   return ST_OK;
 }
 
@@ -186,6 +186,7 @@ stack_mail (enum port_stack_role role, void *data, size_t len)
   memset (&tp, 0, sizeof (tp));
   tp.commonParams.dsaTagType = CPSS_DXCH_NET_DSA_TYPE_EXTENDED_E;
   tp.commonParams.vid = 4095;
+ // tp.commonParams.vpt = 7;
   tp.dsaType = CPSS_DXCH_NET_DSA_CMD_FORWARD_E;
   tp.dsaInfo.forward.srcDev = 0;
   tp.dsaInfo.forward.source.portNum = 63;
@@ -225,6 +226,18 @@ stack_port_get_state (enum port_stack_role role)
   }
 }
 
+uint8_t
+stack_get_master_port (uint8_t dev)
+{
+  CPSS_CSCD_LINK_TYPE_STC lp;
+  CPSS_DXCH_CSCD_TRUNK_LINK_HASH_ENT hp;
+
+  CRP (cpssDxChCscdDevMapTableGet
+       (dev, master_id, 0, &lp, &hp));
+
+  return lp.linkNum;
+}
+
 static void
 stack_update_ring (int new_ring, uint32_t new_dev_bmp)
 {
@@ -260,6 +273,7 @@ DEBUG("stack_update_dev_map(%d, %d:%d, %d)\n", dev, hops[0], hops[1], num_pp);
     else
       port = NULL;
 
+  //  DEBUG ("stack_update_dev_map: dev: %u, d: %u, port->lport: %u\n", dev, d, port->lport);
     if (port) {
       if (port->ldev == d)
         lp.linkNum = port->lport;
@@ -278,6 +292,7 @@ DEBUG("cpssDxChCscdDevMapTableSet(%d, %d, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HA
 DEBUG("cpssDxChCscdDevMapTableSet (%d, %d + NEXTDEV_INC, 0, lp %d, CPSS_DXCH_CSCD_TRUNK_LINK_HASH_IS_SRC_PORT_E)", d, dev, lp.linkNum);
     }
   }
+
 }
 
 static uint8_t

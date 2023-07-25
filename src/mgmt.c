@@ -62,7 +62,6 @@ mgmt_tx (pid_t to, __u16 type, const void *data, size_t len)
 DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SET_VLAN_MAC_ADDR)
 {
   zmsg_t *msg = zmsg_new ();
-
   command_t cmd = CC_VLAN_SET_MAC_ADDR;
   zmsg_addmem (msg, &cmd, sizeof (cmd));
   struct pdsa_vlan_mac_addr *addr = NLMSG_DATA (nlh);
@@ -90,25 +89,8 @@ DEFINE_PDSA_MGMT_HANDLER (PDSA_MGMT_SPEC_FRAME_RX)
     return;
   }
 
-  switch (frame->code) {
-  case CPU_CODE_USER_DEFINED (7):
-  case CPU_CODE_USER_DEFINED (8):
-  case CPU_CODE_USER_DEFINED (13):
-    control_spec_frame(frame);
-    return;
-  default: {
-    zmsg_t *msg = zmsg_new ();
-
-    command_t cmd = CC_INT_SPEC_FRAME_FORWARD;
-    zmsg_addmem (msg, &cmd, sizeof (cmd));
-    zmsg_addmem (msg, frame, PDSA_SPEC_FRAME_SIZE (frame->len));
-    zmsg_send (&msg, inp_sock);
-
-    msg = zmsg_recv (inp_sock);
-    zmsg_destroy (&msg);
-    break;
-    }
-  }
+  control_spec_frame(frame);
+  return;
 }
 
 static PDSA_MGMT_HANDLERS (handlers) = {

@@ -35,7 +35,7 @@ extern enum status pcl_enable_erps_trap (port_id_t, int);
 extern enum status pcl_enable_pim_trap (bool_t);
 
 /* PPPoE */
-extern enum status pcl_enable_pppoe_trap (bool_t);
+extern enum status pcl_enable_pppoe_trap (bool_t, bool_t);
 
 /* DHCP */
 extern enum status pcl_enable_dhcp_trap (int);
@@ -73,6 +73,9 @@ void pcl_get_sflow_count();
 typedef struct {
   uint8_t value[16];
 } ipv6_addr_t;
+
+/* Other */
+void pcl_update_pkt_trap_rules ();
 
 struct ip_pcl_rule {
   uint8_t   proto;
