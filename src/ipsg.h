@@ -23,7 +23,7 @@ enum ntf_frame_t {
 extern int ipsg_init (void);
 extern int ipsg_start (void);
 
-extern void notify_ch_gr_set (vif_id_t vifid, port_id_t pi);
+extern void notify_ch_gr_set (vif_id_t pc_vifid, vif_id_t mem_vifid);
 extern void notify_ch_gr_reset (vif_id_t vifid);
 extern void notify_trap_enabled (port_id_t, vid_t, mac_addr_t, ip_addr_t);
 
