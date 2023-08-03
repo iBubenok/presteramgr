@@ -17,16 +17,39 @@ control_handler (zloop_t *loop, zsock_t *reader, void *handler_data)
   struct handler_data *hdata = handler_data;
 
   msg = zmsg_recv (hdata->sock);
-
   result = pop_size (&cmd, msg, sizeof (cmd), 0);
   if (result != ST_OK) {
     __report_status (result, hdata->sock);
     goto out;
   }
-
   if (cmd >= hdata->nhandlers ||
       (handler = hdata->handlers[cmd]) == NULL) {
     __report_status (ST_BAD_REQUEST, hdata->sock);
+    goto out;
+  }
+  handler (msg, hdata->sock);
+
+ out:
+  zmsg_destroy (&msg);
+  return 0;
+}
+
+int
+control_pkt_handler (zloop_t *loop, zsock_t *reader, void *handler_data)
+{
+  zmsg_t *msg;
+  command_t cmd;
+  cmd_handler_t handler;
+  enum status result;
+  struct handler_data *hdata = handler_data;
+
+  msg = zmsg_recv (hdata->sock);
+  result = pop_size (&cmd, msg, sizeof (cmd), 0);
+  if (result != ST_OK) {
+    goto out;
+  }
+  if (cmd >= hdata->nhandlers ||
+      (handler = hdata->handlers[cmd]) == NULL) {
     goto out;
   }
   handler (msg, hdata->sock);
