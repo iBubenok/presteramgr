@@ -66,6 +66,14 @@ static void *pub_dhcpv6_sock;
 static void *pub_stack_sock;
 static void *cmd_sock;
 static void *pkt_sock;
+static void *pkt_mstp_sock;
+static void *pkt_stack_sock;
+static void *pkt_cfm_sock;
+static void *pkt_dhcp_sock;
+static void *pkt_dhcpv6_sock;
+static void *pkt_erps_sock;
+static void *pkt_lbd_sock;
+static void *pkt_arp_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
 static void *evt_sock;
@@ -167,9 +175,49 @@ control_init (void)
   rc = zsock_bind (pub_sock, PUB_SOCK_EP);
   assert (rc == 0);
 
-  pkt_sock = zsock_new (ZMQ_REP);
+  pkt_sock = zsock_new (ZMQ_PULL);
   assert (pkt_sock);
-  zsock_bind (pkt_sock, PKT_SOCK_EP);
+  rc = zsock_connect (pkt_sock, PKT_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_mstp_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_mstp_sock);
+  rc = zsock_connect (pkt_mstp_sock, PKT_MSTP_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_stack_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_stack_sock);
+  zsock_connect (pkt_stack_sock, PKT_STACK_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_cfm_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_cfm_sock);
+  zsock_connect (pkt_cfm_sock, PKT_CFM_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_dhcp_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_dhcp_sock);
+  zsock_connect (pkt_dhcp_sock, PKT_DHCP_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_dhcpv6_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_dhcpv6_sock);
+  zsock_connect (pkt_dhcpv6_sock, PKT_DHCPV6_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_erps_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_erps_sock);
+  zsock_connect (pkt_erps_sock, PKT_ERPS_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_lbd_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_lbd_sock);
+  zsock_connect (pkt_lbd_sock, PKT_LBD_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_arp_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_arp_sock);
+  zsock_connect (pkt_arp_sock, PKT_ARP_SOCK_EP);
   assert (rc == 0);
 
   uint64_t hwm = 250;
@@ -1173,7 +1221,31 @@ control_packet_loop (void *dummy)
   zloop_t *loop = zloop_new ();
 
   struct handler_data pkt_hd = { pkt_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
-  zloop_reader (loop, pkt_sock, control_handler, &pkt_hd);
+  zloop_reader (loop, pkt_sock, control_pkt_handler, &pkt_hd);
+
+  struct handler_data pkt_mstp_hd = { pkt_mstp_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_mstp_sock, control_pkt_handler, &pkt_mstp_hd);
+
+  struct handler_data pkt_stack_hd = { pkt_stack_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_stack_sock, control_pkt_handler, &pkt_stack_hd);
+
+  struct handler_data pkt_cfm_hd = { pkt_cfm_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_cfm_sock, control_pkt_handler, &pkt_cfm_hd);
+
+  struct handler_data pkt_dhcp_hd = { pkt_dhcp_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_dhcp_sock, control_pkt_handler, &pkt_dhcp_hd);
+
+  struct handler_data pkt_dhcpv6_hd = { pkt_dhcpv6_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_dhcpv6_sock, control_pkt_handler, &pkt_dhcpv6_hd);
+
+  struct handler_data pkt_erps_hd = { pkt_erps_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_erps_sock, control_pkt_handler, &pkt_erps_hd);
+
+  struct handler_data pkt_lbd_hd = { pkt_lbd_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_lbd_sock, control_pkt_handler, &pkt_lbd_hd);
+
+  struct handler_data pkt_arp_hd = { pkt_arp_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_arp_sock, control_pkt_handler, &pkt_arp_hd);
 
   prctl(PR_SET_NAME, "pktctl-loop", 0, 0, 0);
 
@@ -1670,17 +1742,14 @@ DEFINE_HANDLER (PC_PORT_SEND_FRAME)
     goto out;
 
   if (!(port = port_ptr (pid))) {
-    result = ST_BAD_VALUE;
     goto out;
   }
 
   if (is_stack_port (port)) {
-    result = ST_BAD_STATE;
     goto out;
   }
 
   if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
     goto out;
   }
 
@@ -1689,12 +1758,11 @@ DEFINE_HANDLER (PC_PORT_SEND_FRAME)
     goto destroy_frame;
 
   mgmt_send_frame (port->ldev, port->lport, zframe_data (frame), len);
-  result = ST_OK;
 
  destroy_frame:
   zframe_destroy (&frame);
  out:
-  report_status (result);
+  return;
 }
 
 DEFINE_HANDLER (PC_MAIL_TO_NEIGHBOR)
@@ -1709,7 +1777,6 @@ DEFINE_HANDLER (PC_MAIL_TO_NEIGHBOR)
     goto out;
 
   if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
     goto out;
   }
 
@@ -1717,12 +1784,12 @@ DEFINE_HANDLER (PC_MAIL_TO_NEIGHBOR)
   if ((len = zframe_size (frame)) < 1)
     goto destroy_frame;
 
-  result = stack_mail (role, zframe_data (frame), len);
+  stack_mail (role, zframe_data (frame), len);
 
  destroy_frame:
   zframe_destroy (&frame);
  out:
-  report_status (result);
+  return;
 }
 
 DEFINE_HANDLER (PC_GIF_TX)
@@ -1730,7 +1797,6 @@ DEFINE_HANDLER (PC_GIF_TX)
   zframe_t *frame;
   struct gif_id *id;
   struct gif_tx_opts *opts;
-  enum status result = ST_BAD_FORMAT;
 
   frame = FIRST_ARG;
   if (zframe_size (frame) != sizeof (*id))
@@ -1743,10 +1809,10 @@ DEFINE_HANDLER (PC_GIF_TX)
   opts = (struct gif_tx_opts *) zframe_data (frame);
 
   frame = NEXT_ARG;
-  result = gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+  gif_tx (id, opts, zframe_size (frame), zframe_data (frame));
 
  out:
-  report_status (result);
+  return;
 }
 
 DEFINE_HANDLER (PC_VIF_TX)
@@ -1754,8 +1820,6 @@ DEFINE_HANDLER (PC_VIF_TX)
   zframe_t *frame;
   struct vif_id *id;
   struct vif_tx_opts *opts;
-  enum status result = ST_BAD_FORMAT;
-
   frame = FIRST_ARG;
   if (zframe_size (frame) != sizeof (*id))
     goto out;
@@ -1767,10 +1831,10 @@ DEFINE_HANDLER (PC_VIF_TX)
   opts = (struct vif_tx_opts *) zframe_data (frame);
 
   frame = NEXT_ARG;
-  result = vif_tx (id, opts, zframe_size (frame), zframe_data (frame));
+  vif_tx (id, opts, zframe_size (frame), zframe_data (frame));
 
  out:
-  report_status (result);
+  return;
 }
 
 DEFINE_HANDLER (PC_SEND_FRAME)
@@ -1785,7 +1849,6 @@ DEFINE_HANDLER (PC_SEND_FRAME)
     goto out;
 
   if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
     goto out;
   }
 
@@ -1794,12 +1857,11 @@ DEFINE_HANDLER (PC_SEND_FRAME)
     goto destroy_frame;
 
   mgmt_send_regular_frame (vid, zframe_data (frame), len);
-  result = ST_OK;
 
  destroy_frame:
   zframe_destroy (&frame);
  out:
-  report_status (result);
+  return;
 }
 
 DEFINE_HANDLER (PC_INJECT_FRAME)
@@ -1808,13 +1870,11 @@ DEFINE_HANDLER (PC_INJECT_FRAME)
   size_t len;
   zframe_t *frame;
   enum status result = ST_BAD_FORMAT;
-
   result = POP_ARG (&vid);
   if (result != ST_OK)
     goto out;
 
   if (ARGS_SIZE != 1) {
-    result = ST_BAD_FORMAT;
     goto out;
   }
 
@@ -1823,12 +1883,11 @@ DEFINE_HANDLER (PC_INJECT_FRAME)
     goto destroy_frame;
 
   mgmt_inject_frame (vid, zframe_data (frame), len);
-  result = ST_OK;
 
  destroy_frame:
   zframe_destroy (&frame);
  out:
-  report_status (result);
+  return;
 }
 
 

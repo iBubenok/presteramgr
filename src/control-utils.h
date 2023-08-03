@@ -36,16 +36,13 @@ pop_size (void *buf, zmsg_t *msg, size_t size, int opt)
 {
   if (zmsg_size (msg) < 1)
     return opt ? ST_DOES_NOT_EXIST : ST_BAD_FORMAT;
-
   zframe_t *frame = zmsg_pop (msg);
   if (zframe_size (frame) != size) {
     zframe_destroy (&frame);
     return ST_BAD_FORMAT;
   }
-
   memcpy (buf, zframe_data (frame), size);
   zframe_destroy (&frame);
-
   return ST_OK;
 }
 
@@ -104,6 +101,6 @@ struct handler_data {
 };
 
 extern int control_handler (zloop_t *, zsock_t *, void *);
-
+extern int control_pkt_handler (zloop_t *, zsock_t *, void *);
 
 #endif /* __CONTROL_UTILS_H__ */
