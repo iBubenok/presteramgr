@@ -1472,7 +1472,7 @@ fdb_new_addr (GT_U8 d, CPSS_MAC_UPDATE_MSG_EXT_STC *u, int fake)
     assert (msg);
     zmsg_addmem (msg, &ntype, sizeof (ntype));
     zmsg_addmem (msg, &tmp, sizeof (tmp));
-    zmsg_send (&msg, pub_sock);
+    control_fdb_notify (&msg);
     zmsg_destroy (&msg);
 
     if (port->fdb_addr_op_notify_enabled)

@@ -1215,6 +1215,12 @@ control_loop (void *dummy)
   return NULL;
 }
 
+extern void
+control_fdb_notify (zmsg_t **msg)
+{
+  notify_send (msg);
+}
+
 static void *
 control_packet_loop (void *dummy)
 {
