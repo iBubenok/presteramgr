@@ -73,6 +73,7 @@ static void *pkt_dhcpv6_sock;
 static void *pkt_erps_sock;
 static void *pkt_lbd_sock;
 static void *pkt_arp_sock;
+static void *pkt_gvrp_sock;
 static void *inp_sock;
 static void *inp_pub_sock;
 static void *evt_sock;
@@ -217,6 +218,11 @@ control_init (void)
   pkt_arp_sock = zsock_new (ZMQ_PULL);
   assert (pkt_arp_sock);
   zsock_connect (pkt_arp_sock, PKT_ARP_SOCK_EP);
+  assert (rc == 0);
+
+  pkt_gvrp_sock = zsock_new (ZMQ_PULL);
+  assert (pkt_gvrp_sock);
+  zsock_connect (pkt_gvrp_sock, PKT_GVRP_SOCK_EP);
   assert (rc == 0);
 
   uint64_t hwm = 250;
@@ -1243,6 +1249,9 @@ control_packet_loop (void *dummy)
 
   struct handler_data pkt_arp_hd = { pkt_arp_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
   zloop_reader (loop, pkt_arp_sock, control_pkt_handler, &pkt_arp_hd);
+
+  struct handler_data pkt_gvrp_hd = { pkt_gvrp_sock, packet_handlers, ARRAY_SIZE (packet_handlers) };
+  zloop_reader (loop, pkt_gvrp_sock, control_pkt_handler, &pkt_gvrp_hd);
 
   prctl(PR_SET_NAME, "pktctl-loop", 0, 0, 0);
 
