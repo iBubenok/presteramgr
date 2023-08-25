@@ -870,7 +870,7 @@ port_disable_all (void)
 enum status
 port_start (void)
 {
-/*   GT_U32 rate = 5000; */
+//  GT_U32 rate = 5000;
   int i, d;
 
 #if defined (VARIANT_FE)
@@ -1024,16 +1024,16 @@ port_start (void)
     port->update_sd (port);
   };
 
-/*  CRP (cpssDxChPortTxShaperProfileSet
+ /* CRP (cpssDxChPortTxShaperProfileSet
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 1, &rate));
   CRP (cpssDxChPortTxShaperEnableSet
-       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE)); */
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));*/
 
   for_each_dev (d)
     CRP (cpssDxChNetIfFromCpuDpSet (d, CPSS_DP_GREEN_E));
 
-  /* CRP (cpssDxChPortTxToCpuShaperModeSet */
-  /*      (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E)); */
+  // CRP (cpssDxChPortTxToCpuShaperModeSet
+  //      (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
   /* CRP (cpssDxChTxPortShapersDisable (CPU_DEV, CPSS_CPU_PORT_NUM_CNS)); */
 
   CRP (cpssDxChCscdQosPortTcRemapEnableSet
@@ -1044,6 +1044,24 @@ port_start (void)
        (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, CPSS_PORT_TX_SCHEDULER_PROFILE_1_E));
 
   CRP (cpssDxChPortEnableSet (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, GT_TRUE));
+
+
+ /* CRP (cpssDxChPortDefaultUPSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, 0));
+  CRP (cpssDxChCosPortQosTrustModeSet
+       (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, CPSS_QOS_PORT_TRUST_L2_L3_E));*/
+
+/*  CRP (cpssDxChPortTxToCpuShaperModeSet
+       (CPU_DEV, CPSS_PORT_TX_DROP_SHAPER_PACKET_MODE_E));
+
+  GT_U32 rate = 100;
+  for (i = 5; i < 6; i++) {
+    CRP (cpssDxChPortTxQShaperProfileSet
+         (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, i, 1, &rate));
+
+    CRP (cpssDxChPortTxQShaperEnableSet
+         (CPU_DEV, CPSS_CPU_PORT_NUM_CNS, i, GT_TRUE));
+  }*/
 
 #ifdef VARIANT_FE
   /* start phy polling */
