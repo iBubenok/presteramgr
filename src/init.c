@@ -814,7 +814,6 @@ init_cpss (void)
   extDrvUartInit ();
 
   if (fault) {
-    system("echo '' > /var/tmp/chip");
     for_each_dev(i) {
       int hw_dev_num = sysd_hw_dev_num (i);
       dev_set_map(i, hw_dev_num);
