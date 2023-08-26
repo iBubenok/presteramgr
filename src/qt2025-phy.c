@@ -113,42 +113,51 @@ qt2025PhyConfig (GT_U8 dev, int ng, int np, int cl, GT_U32 *xsmiAddrArrayPtr)
       ((check_lioncub = cl) == -1))
     return GT_NOT_INITIALIZED;
 
+ERR ("FW download Phase-1 start.");
   /* phase 1 */
   if (CRP (qt2025PhyCfgPhaseX
            (dev, 1, ARRAY_SIZE (phyDataPhase1), phyDataPhase1))
       != GT_OK)
     return GT_FAIL;
+ERR ("FW download Phase-1 end.");
 
   /* wait 1 mSec */
-  osTimerWkAfter (0);
+  osTimerWkAfter (1);
 
+ERR ("FW download Phase-1a start.");
   /* special phase to enable broardcast */
   if (CRP (qt2025PhyCfgPhaseX
            (dev, 1, ARRAY_SIZE (phyDataPhase1a), phyDataPhase1a))
       != GT_OK)
     return GT_FAIL;
+ERR ("FW download Phase-1a end.");
 
   /* wait 1 mSec */
-  osTimerWkAfter (0);
+  osTimerWkAfter (1);
 
+ERR ("FW download Phase-2 start.");
   /* phase 2 */
   if (CRP (qt2025PhyCfgPhaseX
            (dev, 2, ARRAY_SIZE (phyDataPhase2), phyDataPhase2))
       != GT_OK)
     return GT_FAIL;
+ERR ("FW download Phase-2 end.");
 
   /* wait 600 mSec */
   osTimerWkAfter (600);
 
+ERR ("FW download Phase-3 start.");
   /* phase 3 */
   if (CRP (qt2025PhyCfgPhaseX
            (dev, 3, ARRAY_SIZE (phyDataPhase3), phyDataPhase3))
       != GT_OK)
     return GT_FAIL;
+ERR ("FW download Phase-3 end.");
 
   /* wait additional 3000 mSec before FW stabilized */
   osTimerWkAfter (3000);
 
+ERR ("FW Check download status start.");
   /* Check download status */
   for (portGroup = 0; portGroup < n_port_groups; portGroup++) {
     if (CPSS_98CX8203_CNS == PRV_CPSS_PP_MAC (dev)->devType)
@@ -164,11 +173,14 @@ qt2025PhyConfig (GT_U8 dev, int ng, int np, int cl, GT_U32 *xsmiAddrArrayPtr)
           != GT_OK)
         return GT_FAIL;
 
-      if ((data == 0xF0) || (data == 0) || (data == 0x10)) /* Checksum bad. */
+      if ((data == 0xF0) || (data == 0) || (data == 0x10)) { /* Checksum bad. */
         ERR ("FW Checksum error on port %d portGroup %d (phyAddr=0x%x) - value is 0x%x.",
              localPortNum, portGroup, phyAddr, data);
+        return GT_FAIL;
+      }
     }
   }
+ERR ("FW Check download status end.");
 
   return GT_OK;
 }
@@ -181,10 +193,15 @@ qt2025_phy_load_fw (void)
   int i, a;
 #endif /* SHOW_HG_PHY_FW_VERSION) || SHOW_XG_PHY_HEARTBEAT */
   int d;
+  GT_STATUS rc;
 
   for_each_dev (d) {
-    CRP (prvCpssDrvHwPpSetRegField (d, 0x01800180, 14, 1, 1));
-    CRP (qt2025PhyConfig (d, 1, dev_info[d].n_xg_phys, 0, dev_info[d].xg_phys));
+    rc = CRP (prvCpssDrvHwPpSetRegField (d, 0x01800180, 14, 1, 1));
+    if (rc != GT_OK)
+      return ST_HEX;
+    rc = CRP (qt2025PhyConfig (d, 1, dev_info[d].n_xg_phys, 0, dev_info[d].xg_phys));
+    if (rc != GT_OK)
+      return ST_HEX;
 
 #ifdef SHOW_XG_PHY_HEARTBEAT
     for (i = 0; i < 10; ++i) {

@@ -105,6 +105,7 @@
 #include <ipsg.h>
 
 int just_reset = 0;
+int fault = 0;
 
 #define RX_DESC_NUM_DEF         200
 #define TX_DESC_NUM_DEF         1000
@@ -764,11 +765,7 @@ do_reset (void)
 
   DEBUG ("*** reset requested\r\n");
 
-#if defined (VARIANT_ARLAN_3448GE)
-  for (i = NDEVS-1; i >= 0; i--) {
-#else
   for_each_dev (i) {
-#endif
     pci_find_dev (&dev_info[i]);
 
     DEBUG ("doing phase1 config\n");
@@ -816,10 +813,32 @@ init_cpss (void)
   osMemInit (2048 * 1024, GT_TRUE);
   extDrvUartInit ();
 
+  if (fault) {
+    system("echo '' > /var/tmp/chip");
+    for_each_dev(i) {
+      int hw_dev_num = sysd_hw_dev_num (i);
+      dev_set_map(i, hw_dev_num);
+    }
+    for_each_dev (i) {
+      pci_find_dev (&dev_info[i]);
+
+      if (dev_info[i].chip_revision[1] != 0x000011AB) {
+        system("echo 1 > /var/tmp/fault");
+        system("sync");
+        exit (1);
+      }
+    }
+    system("echo 0 > /var/tmp/fault");
+    system("sync");
+    exit (0);
+  }
+
   if (just_reset) {
     do_reset ();
     return GT_OK;
   }
+
+DEBUG ("===================================\n");
 
   for_each_dev(i) {
     int hw_dev_num = sysd_hw_dev_num (i);
@@ -830,6 +849,14 @@ init_cpss (void)
 
   for_each_dev (i) {
     pci_find_dev (&dev_info[i]);
+
+    DEBUG ("Device: %d; DEV-ID: %08x; INT-NUM: %d; CHIP-REV: ( %08x %08x %08x %08x )\n",
+        i, dev_info[i].dev_id,
+        (int)dev_info[i].int_num,
+        dev_info[i].chip_revision[0],
+        dev_info[i].chip_revision[1],
+        dev_info[i].chip_revision[2],
+        dev_info[i].chip_revision[3]);
 
     if (sysd_override_serdes_ref_clock) {
       DEBUG ("overriding SERDES reference clock with %d\n",
@@ -889,6 +916,7 @@ init_cpss (void)
 #if defined (VARIANT_GE)
   qt2025_phy_load_fw ();
 #endif /* VARIANT_GE */
+
   port_disable_all ();
   mac_start ();
   vlan_init ();
