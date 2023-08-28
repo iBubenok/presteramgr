@@ -6461,8 +6461,9 @@ DEFINE_HANDLER (CC_PPPOE_ENABLE)
   result = POP_ARG (&enabled);
   if (result != ST_OK)
     goto out;
+  DEBUG ("DEFINE_HANDLER (CC_PPPOE_ENABLE): enabled: %u\n", enabled);
 
-  result = pcl_enable_pppoe_trap (enabled, 0);
+  result = pcl_enable_pppoe_trap (enabled);
 
   out:
    report_status (result);

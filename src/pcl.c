@@ -11,7 +11,6 @@
 #include <dev.h>
 #include <log.h>
 #include <vlan.h>
-#include <stack.h>
 #include <stackd.h>
 #include <utils.h>
 #include <sysdeps.h>
@@ -23,7 +22,6 @@
 #include <trunk.h>
 #include <dstack.h>
 #include <lttindex.h>
-//#include <qos.h>
 
 /******************************************************************************/
 /* Static variables                                                           */
@@ -3047,22 +3045,6 @@ pcl_setup_stackmail_trap (port_id_t pid) {
   act.mirror.cpuCode = (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)?
                           CPSS_NET_FIRST_USER_DEFINED_E + 7:
                           CPSS_NET_FIRST_USER_DEFINED_E + 8;
- /* struct qos_profile_mgmt qpm_cmd;
-  qos_profile_id_t qp_id;
-  qpm_cmd.cmd = 0;
-  qpm_cmd.id = 0;
-  qpm_cmd.tc = 7;
-  qpm_cmd.cos = 7;
-  qpm_cmd.dscp = 0;
-  qpm_cmd.exp = 0;
-  qpm_cmd.num = 1;
-  int res;
-  res = qos_profile_manage (&qpm_cmd, &qp_id);
-  DEBUG ("pcl_setup_stackmail_trap: res: %u\n", res);
-  DEBUG ("pcl_setup_stackmail_trap: qp_id: %u\n", qp_id);
-  act.qos.qos.ingress.profileAssignIndex = GT_TRUE;
-  act.qos.qos.ingress.profilePrecedence = CPSS_PACKET_ATTRIBUTE_ASSIGN_PRECEDENCE_SOFT_E;
-  act.qos.qos.ingress.profileIndex = QSP_BASE_TC + 7; */
 
   uint16_t rule_ix =
     (PORT_STACK_ROLE(pid - 1) == PSR_PRIMARY)?
@@ -3299,7 +3281,7 @@ static char LACP_MAC[6] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x02 };
 enum status
 pcl_enable_lacp_trap (port_id_t pid, int enable)
 {
-  DEBUG("%s: pid: %u, enable: %u\n", __FUNCTION__, pid, enable);
+  DEBUG("%s", __FUNCTION__);
   struct port *port = port_ptr (pid);
 
   if (!port)
@@ -3345,7 +3327,6 @@ pcl_enable_lacp_trap (port_id_t pid, int enable)
           &mask,
           &rule,
           &act));
-
   } else
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_lacp_rule_ix[pid]));
@@ -3865,7 +3846,7 @@ pcl_enable_dhcpv6_trap (int enable)
 }
 
 enum status
-pcl_enable_pppoe_trap (bool_t enable, bool_t update)
+pcl_enable_pppoe_trap (bool_t enable)
 {
   port_id_t pi;
 
@@ -3873,8 +3854,8 @@ pcl_enable_pppoe_trap (bool_t enable, bool_t update)
     for (pi = 1; pi <= nports ; pi++) {
       struct port *port = port_ptr (pi);
 
-   //   if (is_stack_port(port))
-   //      continue;
+      if (is_stack_port(port))
+         continue;
 
       CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
       CPSS_DXCH_PCL_ACTION_STC act;
@@ -3892,62 +3873,31 @@ pcl_enable_pppoe_trap (bool_t enable, bool_t update)
       rule.ruleExtNotIpv6.l2Encap = 1;
 
       memset (&act, 0, sizeof (act));
+      act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
       act.actionStop = GT_TRUE;
       act.mirror.cpuCode = CPSS_NET_FIRST_USER_DEFINED_E + 13;
-      act.bypassIngressPipe = GT_TRUE;
 
-      act.bypassBridge = GT_TRUE;
-
-      if (stack_id == master_id) {
-      //  DEBUG ("pcl_enable_pppoe_trap: port: %u, stack_id == master_id, update: %u\n", pi, update);
-        act.pktCmd = CPSS_PACKET_CMD_TRAP_TO_CPU_E;
-      } else {
-      //  DEBUG ("pcl_enable_pppoe_trap: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
-        act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-        act.redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_OUT_IF_E;
-        act.redirect.data.outIf.outInterface.type = CPSS_INTERFACE_PORT_E;
-        act.redirect.data.outIf.outInterface.devPort.devNum = stack_id;
-        act.redirect.data.outIf.outInterface.devPort.portNum = stack_get_master_port (port->ldev);
-      }
-      if (update) {
-        CRP (cpssDxChPclRuleActionUpdate
-          (port->ldev,
-           CPSS_PCL_RULE_SIZE_EXT_E,
-           port_pppoe_rule_ix[pi],
-           &act));
-      } else {
-        CRP (cpssDxChPclRuleSet
-           (port->ldev,
-            CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
-            port_pppoe_rule_ix[pi],
-            0,
-            &mask,
-            &rule,
-            &act));
-      }
+      CRP (cpssDxChPclRuleSet
+         (port->ldev,
+          CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E,
+          port_pppoe_rule_ix[pi],
+          0,
+          &mask,
+          &rule,
+          &act));
     }
   } else {
     for (pi = 1; pi <= nports ; pi++) {
       struct port *port = port_ptr (pi);
 
-    //  if (is_stack_port(port))
-    //     continue;
+      if (is_stack_port(port))
+         continue;
 
       CRP (cpssDxChPclRuleInvalidate
            (port->ldev, CPSS_PCL_RULE_SIZE_EXT_E, port_pppoe_rule_ix[pi]));
     }
   }
   return ST_OK;
-}
-
-void
-pcl_update_pkt_trap_rules ()
-{
-  uint8_t d;
-  pcl_enable_pppoe_trap (1, 1);
-  for_each_dev (d) {
-    pcl_setup_vrrp (d, 1);
-  }
 }
 
 enum status
