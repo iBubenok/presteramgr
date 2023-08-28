@@ -61,13 +61,14 @@ main (int argc, char **argv)
       {"angel",            no_argument,       NULL, 'a'},
       {"debug",            no_argument,       NULL, 'd'},
       {"log-cpss-errors",  no_argument,       NULL, 'c'},
+      {"fault",            no_argument,       NULL, 'f'},
       {"stack-id",         required_argument, NULL, 'i'},
       {"reset",            no_argument,       NULL, 'r'},
       {"serdes-ref-clock", required_argument, NULL, 's'},
       {NULL, 0, NULL, 0}
     };
 
-    c = getopt_long (argc, argv, "adci:rs:", opts, &option_index);
+    c = getopt_long (argc, argv, "adcfi:rs:", opts, &option_index);
     if (c == -1)
       break;
 
@@ -80,6 +81,9 @@ main (int argc, char **argv)
       break;
     case 'c':
       log_cpss_errors = 1;
+      break;
+    case 'f':
+      fault = 1;
       break;
     case 'i':
       stack_id = strtol (optarg, &endptr, 10);

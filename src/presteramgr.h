@@ -6,6 +6,7 @@
  */
 extern int just_reset;
 extern void cpss_start (void);
+extern int fault;
 
 /*
  * event.c
