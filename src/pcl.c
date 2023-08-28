@@ -579,17 +579,16 @@ static uint8_t vrrp_dest_ip[4]      = {224, 0, 0, 18};
 static uint8_t vrrp_dest_ip_mask[4] = {255, 255, 255, 255};
 
 void
-pcl_setup_vrrp(int d, bool_t update)
+pcl_setup_vrrp(int d)
 {
-  DEBUG ("pcl_setup_vrrp: %u", d);
   port_id_t pi;
   for_each_port(pi) {
     struct port *port = port_ptr (pi);
     if (port->ldev != d)
       continue;
 
- //   if (is_stack_port(port))
- //     return;
+    if (is_stack_port(port))
+      return;
 
     CPSS_DXCH_PCL_RULE_FORMAT_UNT mask, rule;
     CPSS_DXCH_PCL_ACTION_STC act;
@@ -608,28 +607,13 @@ pcl_setup_vrrp(int d, bool_t update)
 
     memcpy (&rule.ruleExtNotIpv6.dip, vrrp_dest_ip, 4);
     memcpy (&mask.ruleExtNotIpv6.dip, vrrp_dest_ip_mask, 4);
+
+    act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
+
     act.actionStop = GT_TRUE;
     act.mirror.cpuCode = CPSS_NET_IPV4_IPV6_LINK_LOCAL_MC_DIP_TRP_MRR_E;
 
-    if (stack_id == master_id) {
-     // DEBUG ("pcl_setup_vrrp: port: %u, stack_id == master_id, update: %u\n", pi, update);
-      act.pktCmd = CPSS_PACKET_CMD_MIRROR_TO_CPU_E;
-    } else {
-     // DEBUG ("pcl_setup_vrrp: port: %u, slave: master_port: %u, update: %u, port->lport %u\n", pi, stack_get_master_port (port->ldev), update, port->lport);
-      act.pktCmd = CPSS_PACKET_CMD_FORWARD_E;
-      act.redirect.redirectCmd = CPSS_DXCH_PCL_ACTION_REDIRECT_CMD_OUT_IF_E;
-      act.redirect.data.outIf.outInterface.type = CPSS_INTERFACE_PORT_E;
-      act.redirect.data.outIf.outInterface.devPort.devNum = stack_id;
-      act.redirect.data.outIf.outInterface.devPort.portNum = stack_get_master_port (port->ldev);
-    }
-    if (update) {
-      CRP (cpssDxChPclRuleActionUpdate
-        (port->ldev,
-         CPSS_PCL_RULE_SIZE_EXT_E,
-         port_vrrp_rule_ix[pi],
-         &act));
-    } else {
-      CRP (cpssDxChPclRuleSet
+    CRP (cpssDxChPclRuleSet
          (port->ldev,                                       /* devNum         */
           CPSS_DXCH_PCL_RULE_FORMAT_INGRESS_EXT_NOT_IPV6_E, /* ruleFormat     */
           port_vrrp_rule_ix[pi],                            /* ruleIndex      */
@@ -637,7 +621,6 @@ pcl_setup_vrrp(int d, bool_t update)
           &mask,                                            /* maskPtr        */
           &rule,                                            /* patternPtr     */
           &act));                                           /* actionPtr      */
-    }
   }
 }
 
@@ -4205,7 +4188,7 @@ pcl_cpss_lib_init (int d)
 
   pcl_setup_ospf(d);
   pcl_setup_rip(d);
-  pcl_setup_vrrp(d, 0);
+  pcl_setup_vrrp(d);
   pcl_setup_ripng(d);
 
   return ST_OK;
