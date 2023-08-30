@@ -45,7 +45,7 @@ sysd_setup_cpu_codes (void)
 
   for_each_dev (d) {
     CPSS_DXCH_NET_CPU_CODE_TABLE_ENTRY_STC cce = {
-      .tc = 6,
+      .tc = 3,
       .dp = CPSS_DP_GREEN_E,
       .truncate = GT_FALSE,
       .cpuRateLimitMode = CPSS_NET_CPU_CODE_RATE_LIMIT_AGGREGATE_E,
@@ -96,8 +96,9 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_CISCO_MULTICAST_MAC_RANGE_E, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 4, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 9, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
-
 /* allowing ARP Requests & Replies bursts within 1 sec
    but with sustained rate 120 pkts/sec. target: no more 25% CPU load  */
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
@@ -166,6 +167,8 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 10, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 11, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 13, &cce_rlim));
     cce_rlim.designatedDevNumIndex = 1;
 
     cce_rlim.cpuCodeRateLimiterIndex = 5;
@@ -198,10 +201,12 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 5, &cce_rlim));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_FIRST_USER_DEFINED_E + 6, &cce_rlim));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+         (d, CPSS_NET_FIRST_USER_DEFINED_E + 12, &cce_rlim));
 
     cce_rlim.cpuCodeRateLimiterIndex = 8;
     cce_rlim.tc = 6;
-    cce_rlim.designatedDevNumIndex = 2;
+    cce_rlim.designatedDevNumIndex = 1;
     CRP (cpssDxChNetIfCpuCodeStatisticalRateLimitsTableSet
          (d, 8, 0xFFFFFFFF));
     CRP (cpssDxChNetIfCpuCodeRateLimiterTableSet
@@ -218,6 +223,11 @@ http://172.16.5.222/wiki/index.php/CPU_CODE_rate_limits,_%D0%BF%D1%80%D0%B8%D0%B
          (d, CPSS_NET_CPU_TO_CPU_E, &cce));
     CRP (cpssDxChNetIfCpuCodeTableSet
          (d, CPSS_NET_CPU_TO_ALL_CPUS_E, &cce));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+          (d, CPSS_NET_FIRST_USER_DEFINED_E + 7, &cce));
+    CRP (cpssDxChNetIfCpuCodeTableSet
+          (d, CPSS_NET_FIRST_USER_DEFINED_E + 8, &cce));
+
   }
 }
 
